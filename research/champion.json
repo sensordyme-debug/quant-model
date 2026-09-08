@@ -30,7 +30,7 @@
     "max_drawdown_limit": "35%",
     "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
   },
-  "commit": "3d9da21",
+  "commit": "ee45423",
   "tag": "S-6 margin-budget sizing, default budget=0.75; daily-bar rebalance, netted share targeting, 2012-2026",
-  "note": "Promoted run executed with the S-6 edits uncommitted; fa1fe18 was HEAD at run time, 3d9da21 is the commit that contains the promoted code. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars) -> OrderListHash 9f58b37cc2656b647ec88a5124daf02d"
+  "note": "ee45423 is the commit containing the promoted code (the run itself executed with those edits uncommitted). Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars) -> OrderListHash 9f58b37cc2656b647ec88a5124daf02d"
 }
