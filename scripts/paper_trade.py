@@ -60,17 +60,52 @@ class DemoSignal:
 def load_signal(name: str):
     if name == "demo":
         return DemoSignal
-    path = REPO / "algorithms" / name / "signal.py"
-    if not path.exists():
-        sys.exit(f"signal module not found: {path} (see algorithms/SIGNAL_CONTRACT.md)")
+    folder = REPO / "algorithms" / name
+    path = next((folder / f for f in ("signal.py", "signals.py") if (folder / f).exists()), None)
+    if path is None:
+        sys.exit(f"no signal.py or signals.py in {folder} (see algorithms/SIGNAL_CONTRACT.md)")
     spec = importlib.util.spec_from_file_location(f"signal_{name}", path)
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod            # dataclasses and annotations need the module registered
     spec.loader.exec_module(mod)
     fn = getattr(mod, "target_weights", None) or getattr(mod, "compute_weights", None)
-    if fn is None or not hasattr(mod, "UNIVERSE"):
-        sys.exit(f"{path} must define UNIVERSE and target_weights(closes, as_of, params, state)")
+    universe = next((getattr(mod, a) for a in ("UNIVERSE", "TRADED_UNIVERSE", "ALL_TICKERS") if hasattr(mod, a)), None)
+    if fn is None or not universe:
+        sys.exit(f"{path} must define a universe list (UNIVERSE or TRADED_UNIVERSE) and target_weights(...)")
     mod.target_weights = fn
+    mod.UNIVERSE = list(universe)
     return mod
+
+
+def call_signal(sig, closes, as_of, state):
+    """Call target_weights with whichever of (closes, as_of, params, equity_curve, state) it accepts.
+
+    Accepts a plain {symbol: weight} dict or a (weights, diagnostics) tuple; diagnostics may
+    carry a 'state' dict that is persisted and fed back next run.
+    """
+    import inspect
+    fn = sig.target_weights
+    try:
+        names = set(inspect.signature(fn).parameters)
+    except (TypeError, ValueError):
+        names = {"closes"}
+    kwargs = {}
+    if "as_of" in names:
+        kwargs["as_of"] = as_of
+    if "params" in names:
+        kwargs["params"] = getattr(sig, "PARAMS", None)
+    if "equity_curve" in names:
+        kwargs["equity_curve"] = list(state.get("equity_curve", []))
+    if "state" in names:
+        kwargs["state"] = dict(state.get("signal_state", {}))
+    result = fn(closes, **kwargs)
+    diag = {}
+    if isinstance(result, tuple):
+        result, diag = result[0], (result[1] if len(result) > 1 and isinstance(result[1], dict) else {})
+    weights = {str(k): float(v) for k, v in dict(result).items() if abs(float(v)) > 0}
+    if isinstance(diag.get("state"), dict):
+        state["signal_state"] = diag["state"]
+    return weights, diag
 
 
 def champion_name() -> str | None:
@@ -251,13 +286,19 @@ def main() -> int:
         print(f"warning: no history for {missing}")
     as_of = closes.index[-1]
     state = load_state()
-    state.update({"equity": net_liq, "equity_high": max(net_liq, float(state.get("equity_high", 0) or 0))})
-    targets = {k: float(v) for k, v in sig.target_weights(closes, as_of=as_of, params=getattr(sig, "PARAMS", None), state=state).items()}
+    curve = [float(x) for x in state.get("equity_curve", [])]
+    if not curve or str(state.get("as_of")) != str(as_of.date()):
+        curve.append(float(net_liq))           # one equity point per trading day
+    state.update({"equity": net_liq, "equity_high": max(curve), "equity_curve": curve[-2000:]})
+    targets, diag = call_signal(sig, closes, as_of, state)
     prices = {s: float(closes[s].dropna().iloc[-1]) for s in set(targets) | set(positions) if s in closes.columns and not closes[s].dropna().empty}
     plan = plan_orders(targets, positions, prices, net_liq)
     print(f"signal {name} as of {as_of.date()}  targets {targets}")
+    if diag:
+        shown = {k: v for k, v in diag.items() if k != "state"}
+        print(f"diagnostics {json.dumps(shown, default=str)[:600]}")
     print_plan(plan, net_liq, targets)
-    log_event("plan", signal=name, as_of=str(as_of.date()), targets=targets, net_liq=net_liq,
+    log_event("plan", signal=name, as_of=str(as_of.date()), targets=targets, net_liq=net_liq, diagnostics=diag,
               orders=[{"symbol": s, "delta": d, "price": p} for s, d, p, _, _ in plan if d is not None])
     save_state({**state, "signal": name, "as_of": str(as_of.date()), "targets": targets,
                 "ran_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "dry_run": args.dry_run or args.mock})
