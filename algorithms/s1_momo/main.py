@@ -53,7 +53,8 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             vol_est_window=_env("VOL_EST_WINDOW", 60, int),
             target_vol=_env("TARGET_VOL", 0.40),
             scale_cap=_env("SCALE_CAP", 2.0),
-            max_gross_weight=_env("MAX_GROSS_WEIGHT", 1.0),
+            margin_budget=_env("MARGIN_BUDGET", 0.75),
+            max_gross_weight=_env("MAX_GROSS_WEIGHT", 2.0),
             dd_halve=_env("DD_HALVE", 0.15),
             dd_flat=_env("DD_FLAT", 0.25),
             dd_cooldown=_env("DD_COOLDOWN", 21, int),
@@ -71,9 +72,10 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             # the outgoing and incoming legs are outstanding together and LEAN charges
             # initial margin on both without netting them. At 2x that rejected 1,467 of
             # 3,690 rebalances; the book then never reached target and churned trying,
-            # burning $112k of commission. Real gross exposure is capped at 1.0 by the
-            # share math in submit_targets and is measured every day in on_data, so the
-            # run reports what leverage was actually carried rather than assuming it.
+            # burning $112k of commission. Real size is capped by the margin budget in
+            # signals.py (S-6) and both gross notional and initial margin are measured
+            # every day in on_data, so the run reports what was actually carried rather
+            # than trusting LEAN's un-netted intraday margin accounting to enforce it.
             equity.set_leverage(10.0)
             self.symbols[ticker] = equity.symbol
         self.by_symbol = {s: t for t, s in self.symbols.items()}
@@ -89,6 +91,7 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         # rotation on 3x ETFs otherwise pays commission on a stream of tiny adjustments.
         self.min_order_value = _env("MIN_ORDER_VALUE", 0.01)
         self.max_observed_gross = 0.0
+        self.max_observed_margin = 0.0
         self.rebalances = 0
         self.risk_on_days = 0
         self.exposure_sum = 0.0
@@ -168,17 +171,26 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
 
         if self.rebalances % 250 == 0:
             self.log(f"{self.time.date()} {diag.get('reason')} "
-                     f"gross={diag.get('gross_weight')} exp={diag.get('effective_exposure')} "
+                     f"gross={diag.get('gross_weight')} margin={diag.get('margin_used')} "
+                     f"exp={diag.get('effective_exposure')} "
                      f"scale={diag.get('vol_scale')} dd={diag.get('dd_multiplier')} "
                      f"{list(weights)}")
 
     def on_data(self, data: Slice):
         equity = float(self.portfolio.total_portfolio_value)
         if equity > 0:
-            # Audit: submit_targets is supposed to hold this at or below max_gross_weight.
-            # Measuring it is what makes the high set_leverage above safe to reason about.
-            gross = sum(abs(float(h.holdings_value)) for h in self.portfolio.values()) / equity
-            self.max_observed_gross = max(self.max_observed_gross, gross)
+            # Audit: submit_targets is supposed to hold these at or below max_gross_weight
+            # and margin_budget. Measuring them is what makes the high set_leverage above
+            # safe to reason about - LEAN's own margin model is deliberately slack here, so
+            # the broker-realistic constraint has to be checked against actual holdings.
+            gross, margin = 0.0, 0.0
+            for holding in self.portfolio.values():
+                notional = abs(float(holding.holdings_value))
+                gross += notional
+                margin += notional * sig.MARGIN_REQ.get(
+                    self.by_symbol.get(holding.symbol, ""), sig.BASE_MARGIN_REQ)
+            self.max_observed_gross = max(self.max_observed_gross, gross / equity)
+            self.max_observed_margin = max(self.max_observed_margin, margin / equity)
 
         if not self.is_warming_up and data.bars.contains_key(self.symbols["SPY"]):
             self.rebalance()
@@ -193,4 +205,6 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.log(f"rebalances={self.rebalances} invested_days={self.risk_on_days} "
                  f"({invested_share:.1%}) mean_effective_exposure={mean_exposure:.2f}x")
         self.log(f"max gross exposure actually carried: {self.max_observed_gross:.3f} "
-                 f"(cap {self.params.max_gross_weight})")
+                 f"(ceiling {self.params.max_gross_weight})")
+        self.log(f"max initial margin actually used: {self.max_observed_margin:.3f} "
+                 f"(budget {self.params.margin_budget})")

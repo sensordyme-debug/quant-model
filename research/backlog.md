@@ -11,25 +11,17 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-08: S-1 is promoted, so the remaining gate is I-1. It is blocked on IB Gateway
-being logged in on this machine (see `research/BLOCKERS.md`); the runner can be built and
-tested against a mock until then. S-1 currently trades at 1.27x exposure and 13.3% vol, which
-is well short of the aggressive mandate - deliberately deferred to S-6 rather than allowed to
-delay the paper deadline.
+Status 2026-09-08: S-1 is promoted and S-6 has raised it to 1.63x effective exposure and
+16.5% vol (CAR 18.1%, Sharpe 0.69, DD 25.2%). The remaining gate is I-1, blocked on IB Gateway
+being logged in on this machine (see `research/BLOCKERS.md`); the runner is built and passes
+`--mock --dry-run` against the current champion. Realized vol is still short of the 40-60%
+mandate, but the binding constraint is now the 35% drawdown limit rather than an execution
+bug - a risk-budget decision for the human, not something to fix before the paper deadline.
 
 ## Open (highest value first)
 
-- **S-6 Raise S-1's exposure by fixing execution, not the signal.** S-1 is stuck at 1.27x
-  effective exposure and 13.3% realized vol against a 40-60% mandate, purely because
-  MarketOnOpen orders leave both legs of a rotation outstanding and gross above 1.0 gets
-  rejected for buying power (3,004 of 3,690 rebalances at gross 1.3). Options, cheapest
-  first: (a) rotate in two steps, selling into the same batch that buys only the freed
-  notional; (b) net the order list so unchanged holdings are never round-tripped, which also
-  cuts the $27k fee bill; (c) once D-2 lands minute data, trade the actual close with market
-  orders and drop MOO entirely. Target: effective exposure 2x+ with drawdown still under 35%.
-  This is the single highest-value change - S-1's Sharpe is fine, its size is not.
-- **S-7 Beat buy-and-hold on absolute return.** S-1 compounds at 13.7% against SPY's 15.0%
-  and QQQ's 19.9% over 2012-2026; it wins only on drawdown. Candidates: widen the ranking
+- **S-7 Beat buy-and-hold on absolute return.** S-1 now compounds at 18.1% against SPY's 15.0%
+  and QQQ's 19.9% over 2012-2026 - it clears SPY but not QQQ. Candidates: widen the ranking
   sleeve beyond 9 ETFs (the 50 megacaps from D-1 are already on disk), replace equal weight
   with momentum-proportional weight, and revisit `top_n` (3 is a local peak, which is a
   caution flag). Judge on both sub-periods separately, as with the regime filter.
@@ -41,8 +33,18 @@ delay the paper deadline.
   present. `scripts/install_paper_task.ps1` schedules 15:45 ET weekdays. Do not rewrite it.
   Remaining work once Gateway is up: `--check`, then a `--dry-run` on the real account, then
   compare the runner's order list with what the LEAN backtest would have done on the same
-  date (`results/s1_momo/<ts>/*-order-events.json`). If S-6 changes how orders are netted or
-  staged, mirror that in `plan_orders()` so backtest and paper execution stay identical.
+  date (`results/s1_momo/<ts>/*-order-events.json`). S-6 did not change netting or staging -
+  `plan_orders()` already nets against current positions - but it did add the
+  `MAX_MARGIN_USED = 1.0` backstop, and the mock plan is now a 1.5x gross book, so the
+  paper account must have margin enabled or the first real order will be rejected.
+- **S-8 Reach the volatility mandate without breaching the drawdown limit.** After S-6 the
+  gross cap no longer binds; `scale_cap = 2.0` and the 25.2% realized drawdown do. Simply
+  raising the margin budget to 1.0 buys 2.07x exposure and 20.4% CAR but a 35.4% drawdown,
+  which fails the promotion rule - so more size has to be paid for with a better drawdown
+  profile, not asked for directly. Candidates: a volatility-responsive budget (spend more of
+  it when the vol estimate is low), a trailing stop per holding rather than only at the
+  portfolio level, and tightening `dd_halve` so the breaker engages earlier and cheaper.
+  Requires a human decision if the answer turns out to be "raise the 35% limit".
 - **D-2 Intraday data (blocks S-2).** `fetch_data.py` writes daily bars only; Yahoo caps
   1-minute history at ~30 days, which is useless for backtesting. Once IB Gateway is logged
   in, pull minute bars with `ib_async` `reqHistoricalData` (1-day chunks, respect pacing
@@ -61,6 +63,16 @@ delay the paper deadline.
 
 ## Done
 
+- **S-6 Raise S-1's exposure by fixing execution, not the signal.** 2026-09-08, run
+  `20260908T182554Z`, promoted to champion. Flat `max_gross_weight = 1.0` replaced by a
+  margin budget, `sum(w_i * MARGIN_REQ[i]) <= margin_budget`, with Reg-T 50% for ordinary
+  ETFs and 100% for 3x ETFs. Mean effective exposure 1.27x -> 1.63x, CAR 13.7% -> 18.1%,
+  Sharpe 0.60 -> 0.69, MaxDD 23.6% -> 25.2%; IS 13.5%/0.64/25.2%, OOS 23.8%/0.76/24.8%.
+  Option (b) netting was already in place, and option (a) two-step rotation proved
+  unnecessary - zero buying-power rejections, audited margin 0.793 vs a 0.75 budget.
+  **The 2x target was measured but not banked:** budget 1.0 gives 2.07x exposure and 20.4%
+  CAR but a 35.4% drawdown, over the 35% limit, so the shipped default is 0.75. Raising the
+  drawdown limit is a human risk decision; going past 2x on merit is S-8.
 - **S-1 Volatility-regime momentum rotation.** 2026-09-08, run `20260908T174548Z`, promoted
   to champion. Full period CAR 13.7%, Sharpe 0.60, MaxDD 23.6%, 3,033 orders; IS 2012-2019
   10.4%/0.57/23.6%, OOS 2020-2026 17.8%/0.64/20.8%. Sensitivity: drawdown holds in 18.0-22.4%

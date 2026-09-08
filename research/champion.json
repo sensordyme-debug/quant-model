@@ -1,25 +1,25 @@
 {
   "algorithm": "s1_momo",
   "class": "S1MomentumRotationAlgorithm",
-  "promoted_at": "2026-09-08T18:00:05+00:00",
-  "run_dir": "results\\s1_momo\\20260908T174548Z",
+  "promoted_at": "2026-09-08T18:29:41+00:00",
+  "run_dir": "results\\s1_momo\\20260908T182554Z",
   "stats": {
-    "Total Orders": "3033",
-    "Net Profit": "561.004%",
-    "Compounding Annual Return": "13.728%",
-    "Sharpe Ratio": "0.597",
-    "Sortino Ratio": "0.586",
-    "Drawdown": "23.600%",
-    "Win Rate": "64%",
-    "Profit-Loss Ratio": "0.96",
-    "Alpha": "0.058",
-    "Beta": "0.452",
-    "Annual Standard Deviation": "0.133",
-    "Information Ratio": "0.237",
-    "Total Fees": "$27118.01",
+    "Total Orders": "3410",
+    "Net Profit": "1055.655%",
+    "Compounding Annual Return": "18.139%",
+    "Sharpe Ratio": "0.693",
+    "Sortino Ratio": "0.699",
+    "Drawdown": "25.200%",
+    "Win Rate": "66%",
+    "Profit-Loss Ratio": "0.89",
+    "Alpha": "0.088",
+    "Beta": "0.564",
+    "Annual Standard Deviation": "0.165",
+    "Information Ratio": "0.419",
+    "Total Fees": "$38630.15",
     "Start Equity": "100000",
-    "End Equity": "661003.57",
-    "Probabilistic Sharpe Ratio": "2.290%"
+    "End Equity": "1155655.30",
+    "Probabilistic Sharpe Ratio": "5.090%"
   },
   "criteria": {
     "min_trades": 30,
@@ -30,6 +30,7 @@
     "max_drawdown_limit": "35%",
     "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
   },
-  "commit": "0099731",
-  "tag": "S-1 momo rotation + crisis-vol regime + dd breaker; daily-bar rebalance, share targeting, gross<=1.0, 2012-2026"
+  "commit": "3d9da21",
+  "tag": "S-6 margin-budget sizing, default budget=0.75; daily-bar rebalance, netted share targeting, 2012-2026",
+  "note": "Promoted run executed with the S-6 edits uncommitted; fa1fe18 was HEAD at run time, 3d9da21 is the commit that contains the promoted code. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars) -> OrderListHash 9f58b37cc2656b647ec88a5124daf02d"
 }

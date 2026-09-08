@@ -98,7 +98,7 @@ def run(prices, params, label, start="2012-01-03", end=None):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", default="ablation",
-                    choices=["ablation", "grid", "sensitivity", "splits", "regimes"])
+                    choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin"])
     args = ap.parse_args()
 
     prices = load_closes(sig.TRADED_UNIVERSE, start="2009-06-01")
@@ -147,6 +147,29 @@ def main() -> int:
                 f"target_exposure x{factor}")
         for top_n in (2, 4):
             run(prices, replace(P, top_n=top_n), f"top_n={top_n}")
+
+    elif args.mode == "margin":
+        # S-6: how much size does the margin budget buy, and where does drawdown break?
+        # Judged in and out of sample separately, because a size increase is exactly the
+        # kind of change that looks free on the half of the sample that only went up.
+        print("=== S-6 margin budget, target_exposure held at the default ===")
+        for budget in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]:
+            run(prices, replace(P, margin_budget=budget), f"margin_budget={budget}")
+        print("\n=== budget x target_exposure (the budget only binds if size is asked for) ===")
+        for budget in [1.0, 1.5, 2.0]:
+            for te in [1.75, 2.5, 3.5]:
+                run(prices, replace(P, margin_budget=budget, target_exposure=te),
+                    f"budget={budget} target_exposure={te}")
+        print("\n=== chosen budgets, in vs out of sample ===")
+        for budget in [1.0, 1.5, 2.0]:
+            params = replace(P, margin_budget=budget)
+            print(f"\n--- margin_budget={budget} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            run(prices, params, "  full 2012-2026")
+        print("\n--- benchmarks ---")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
 
     elif args.mode == "regimes":
         print("=== regime filter choice, judged separately in and out of sample ===")

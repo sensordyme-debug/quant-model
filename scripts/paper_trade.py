@@ -181,9 +181,32 @@ def plan_orders(targets, positions, prices, net_liq):
     return plan
 
 
-def print_plan(plan, net_liq, targets):
+#: Hard ceiling on initial margin the runner will ever ask a paper account to post, as a
+#: fraction of net liquidation. The signal's own budget is 0.75 (backlog S-6); this is an
+#: independent backstop, so a signal bug that asked for size could not silently place it.
+MAX_MARGIN_USED = 1.0
+
+
+def margin_used(targets, sig) -> float:
+    """Initial margin the target book consumes per dollar of equity.
+
+    Uses the signal module's own MARGIN_REQ table when it publishes one (S-1 does), and
+    falls back to Reg-T 50% otherwise. Returning gross when nothing is known would be
+    wrong in the *unsafe* direction, so the fallback is the conservative 100%.
+    """
+    table = getattr(sig, "MARGIN_REQ", {})
+    default = getattr(sig, "BASE_MARGIN_REQ", 0.5) if table else 1.0
+    return sum(abs(w) * table.get(sym, default) for sym, w in targets.items())
+
+
+def print_plan(plan, net_liq, targets, sig=None):
     gross = sum(abs(v) for v in targets.values())
-    print(f"net liquidation {net_liq:,.2f}   target gross exposure {gross:.2f}x")
+    used = margin_used(targets, sig) if sig is not None else float("nan")
+    print(f"net liquidation {net_liq:,.2f}   target gross exposure {gross:.2f}x   "
+          f"initial margin {used:.2f} of {MAX_MARGIN_USED:.2f}")
+    if used > MAX_MARGIN_USED:
+        sys.exit(f"ABORT: target book needs {used:.2f}x initial margin, ceiling is "
+                 f"{MAX_MARGIN_USED:.2f}x. No orders sent.")
     if not plan:
         print("no orders needed")
         return
@@ -297,7 +320,7 @@ def main() -> int:
     if diag:
         shown = {k: v for k, v in diag.items() if k != "state"}
         print(f"diagnostics {json.dumps(shown, default=str)[:600]}")
-    print_plan(plan, net_liq, targets)
+    print_plan(plan, net_liq, targets, sig)
     log_event("plan", signal=name, as_of=str(as_of.date()), targets=targets, net_liq=net_liq, diagnostics=diag,
               orders=[{"symbol": s, "delta": d, "price": p} for s, d, p, _, _ in plan if d is not None])
     save_state({**state, "signal": name, "as_of": str(as_of.date()), "targets": targets,

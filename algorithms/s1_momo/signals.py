@@ -28,14 +28,28 @@ Design notes worth keeping
   are not the tech sector.
 * The vol target is measured on the instruments actually held, so the daily-reset
   decay of the leveraged ETFs is inside the risk estimate rather than assumed away.
-* `max_gross_weight` is 1.0 - the book never borrows, and all of its leverage comes
-  from inside the 3x ETFs. This is an execution constraint, not a risk preference.
-  Orders are placed pre-open as MarketOnOpen, so nothing settles until 09:30 and a
-  rotation has the old position and the new one outstanding at the same time. Reg-T
-  gives 2x, so a gross of 1.0 rotates cleanly while 1.3 does not: a 2012-2026 run at
-  1.3 had 3,004 of 3,690 rebalances partially rejected for buying power and posted an
-  87.5% drawdown against the 23.7% the same signal produced on paper. Raising this
-  above 1.0 requires fixing execution first (see backlog I-1).
+* Size is capped by a *margin budget*, not by a flat gross cap (backlog S-6). The old
+  `max_gross_weight = 1.0` was an execution artifact: orders are MarketOnOpen, so during
+  a rotation both legs are outstanding and LEAN charged initial margin on both without
+  netting them, which rejected 3,004 of 3,690 rebalances at gross 1.3. That is now fixed
+  in `main.py` (netted share deltas, sells submitted first, and a leverage setting high
+  enough that the un-netted intermediate state is not itself the binding constraint), so
+  the cap can express what a broker actually charges instead:
+
+      sum(weight_i * MARGIN_REQ[i])  <=  margin_budget
+
+  Reg-T initial margin is 50% of notional for an ordinary ETF, and IBKR marks leveraged
+  ETFs up by their leverage factor, which pins the 3x names at 100%. A budget of 1.0
+  therefore lets an unlevered basket run at 2.0x gross while a basket of 3x ETFs is still
+  held to 1.0x gross - exactly the asymmetry a real account faces. `max_gross_weight`
+  survives as a hard ceiling on notional, not as the day-to-day constraint.
+
+  The default budget is 0.75, not the full 1.0, and the 0.25 is a risk buffer rather than
+  a fitted parameter: a full Reg-T budget measured 2.07x mean effective exposure and 20.4%
+  CAR in LEAN but a 35.4% drawdown, over the 35% limit in `research/champion.json`. 0.75
+  keeps 1.63x exposure and 25.2% drawdown. Note also that a live account holding at the
+  budget has *zero* excess liquidity, so any adverse move is an immediate margin call;
+  the buffer is what makes the number executable rather than merely legal.
 """
 from __future__ import annotations
 
@@ -57,6 +71,20 @@ REGIME_TICKER = "SPY"
 #: every ticker the algorithm must subscribe to
 TRADED_UNIVERSE = sorted(set(RANK_UNIVERSE) | {t for t, _ in LEVERED_PROXY.values()})
 
+#: Overnight initial margin charged per dollar of notional. Reg-T is 50% for an ordinary
+#: marginable ETF; IBKR multiplies the requirement by a leveraged ETF's leverage factor,
+#: which caps the 3x names at 100% (i.e. they consume cash, they cannot be borrowed against).
+BASE_MARGIN_REQ = 0.5
+
+
+def margin_requirement(instrument: str) -> float:
+    """Initial margin per dollar of notional for one traded instrument."""
+    multiple = next((m for _, (proxy, m) in LEVERED_PROXY.items() if proxy == instrument), 1.0)
+    return min(1.0, BASE_MARGIN_REQ * multiple)
+
+
+MARGIN_REQ = {t: margin_requirement(t) for t in TRADED_UNIVERSE}
+
 
 @dataclass(frozen=True)
 class Params:
@@ -72,7 +100,8 @@ class Params:
     vol_est_window: int = 60               # window for the portfolio vol estimate
     target_vol: float = 0.40               # annualized portfolio vol target
     scale_cap: float = 2.0                 # max vol-target multiplier
-    max_gross_weight: float = 1.0          # cap on summed weights; see note below
+    margin_budget: float = 0.75            # fraction of equity usable as initial margin
+    max_gross_weight: float = 2.0          # hard ceiling on summed weights; see note above
     dd_halve: float = 0.15                 # halve exposure below this drawdown
     dd_flat: float = 0.25                  # go flat below this drawdown
     dd_cooldown: int = 21                  # rebalances to stay flat after a dd_flat breach
@@ -259,11 +288,23 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     diag["vol_scale"] = round(float(scale), 4)
 
     weights = {t: w * scale * dd_mult for t, w in raw.items()}
+
+    # Two caps, whichever binds first (S-6). The margin budget is what a broker charges;
+    # max_gross_weight is a blunt ceiling on notional so a hypothetical zero-margin
+    # instrument could never produce an unbounded book.
+    margin = sum(w * MARGIN_REQ.get(t, BASE_MARGIN_REQ) for t, w in weights.items())
     gross = sum(weights.values())
-    if gross > p.max_gross_weight:
-        weights = {t: w * p.max_gross_weight / gross for t, w in weights.items()}
+    shrink = 1.0
+    if margin > p.margin_budget > 0:
+        shrink = min(shrink, p.margin_budget / margin)
+    if gross > p.max_gross_weight > 0:
+        shrink = min(shrink, p.max_gross_weight / gross)
+    if shrink < 1.0:
+        weights = {t: w * shrink for t, w in weights.items()}
     weights = {t: round(w, 6) for t, w in weights.items() if w > 1e-4}
 
+    diag["margin_used"] = round(sum(w * MARGIN_REQ.get(t, BASE_MARGIN_REQ)
+                                    for t, w in weights.items()), 4)
     diag["gross_weight"] = round(sum(weights.values()), 4)
     diag["effective_exposure"] = round(sum(w * leverage[t] for t, w in weights.items()), 4)
     diag["winners"] = winners

@@ -2,6 +2,57 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-08 - S-6 margin-budget sizing (new champion, exposure 1.27x -> 1.63x)
+
+- **Hypothesis.** S-1's size was limited by a flat `max_gross_weight = 1.0`, which was never
+  a risk preference - it was a workaround for LEAN charging un-netted initial margin on both
+  legs of a MarketOnOpen rotation. With that execution problem already fixed (netted share
+  deltas, sells first, daily-bar rebalance), replacing the flat cap with the constraint a
+  broker actually enforces should buy materially more exposure at the same risk.
+- **What.** `signals.py` now caps on `sum(weight_i * MARGIN_REQ[i]) <= margin_budget`, where
+  `MARGIN_REQ` is Reg-T 50% for an ordinary ETF and 100% for a 3x ETF (IBKR multiplies the
+  requirement by the leverage factor). `max_gross_weight` demotes to a hard notional ceiling
+  at 2.0. `main.py` audits realized initial margin daily alongside gross. `sweep_s1.py`
+  gained `--mode margin`. `paper_trade.py` gained an independent `MAX_MARGIN_USED = 1.0`
+  backstop that aborts before sending orders, so a signal bug cannot silently place size.
+- **Why this is not just "turn the leverage up".** The cap is asymmetric in exactly the way
+  a real account is: three unlevered winners can now run at 1.5x gross, while three 3x ETFs
+  are still held to 0.75x gross. The old flat cap punished the *safe* basket and let the
+  levered one through, which is why mean effective exposure sat at 1.27x.
+
+### Result (LEAN, `20260908T182554Z`, 2012-01-03 .. 2026-09-04)
+
+| Window | CAR | Sharpe | MaxDD | Orders | Fees |
+| --- | --- | --- | --- | --- | --- |
+| Full 2012-2026 | **18.1%** | **0.69** | 25.2% | 3,410 | $38,630 |
+| IS 2012-2019 | 13.5% | 0.64 | 25.2% | 1,776 | $22,062 |
+| OOS 2020-2026 | 23.8% | 0.76 | 24.8% | 1,637 | $6,348 |
+
+Against the outgoing champion: CAR 13.7% -> 18.1%, Sharpe 0.60 -> 0.69, drawdown 23.6% ->
+25.2%, mean effective exposure 1.27x -> 1.63x, realized vol 13.3% -> 16.5%. Both sub-periods
+improve, and out-of-sample is again the stronger half. Audit: max initial margin actually
+carried 0.793 against a 0.75 budget (the 6% overshoot is intraday drift between the decision
+close and the next open, not a sizing error), max gross 1.536 against the 2.0 ceiling.
+
+- **Where the budget was set, and why not higher.** `--mode margin` shows return flat above
+  budget 1.0 - `scale_cap = 2.0` binds first, so budgets of 1.0, 1.25, 1.5 and 2.0 all land
+  on the same book. The full Reg-T budget of 1.0 *does* hit S-6's stated 2x target (LEAN:
+  2.07x mean exposure, CAR 20.4%, Sharpe 0.67) but posts a **35.4% drawdown, over the 35%
+  limit in `champion.json`**, so it is not promotable. 0.75 is that limit respected with a
+  buffer, not a fitted optimum: a book sitting at a full budget has zero excess liquidity and
+  any adverse move is a margin call. Both runs are in the ledger; the 1.0 result is the
+  measured edge of the risk limit, recorded so the next iteration does not re-derive it.
+- **Decision.** Promoted through `scripts/evaluate.py` (3,410 orders, drawdown 25.2% < 35%,
+  beats the champion on both Sharpe and CAR). The default `margin_budget = 0.75` is set in
+  the code, not passed by environment variable: a confirmation run with no env produced the
+  identical `OrderListHash 9f58b37cc2656b647ec88a5124daf02d`, so the champion reproduces from
+  a clean checkout, and `paper_trade.py --mock --dry-run` now plans the same 1.5x gross book.
+- **Honest limits.** 16.5% realized vol is still far short of the 40-60% mandate; the binding
+  constraint has moved from the gross cap to `scale_cap` and the drawdown limit, which is a
+  risk-budget conversation, not an execution bug. Fees grew $27k -> $39k on 12% more orders.
+  It now beats SPY on return (18.1% vs 15.0%) but still not QQQ (19.9%), so S-7 stays open.
+- **Next.** I-1 remains the deadline gate and is still blocked on IB Gateway being logged in.
+
 ## 2026-09-08 - S-1 volatility-regime momentum rotation (first champion)
 
 - **What.** `algorithms/s1_momo/`, split into `signals.py` (plain pandas, prices in, target
