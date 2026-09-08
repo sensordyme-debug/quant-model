@@ -30,7 +30,7 @@
     "max_drawdown_limit": "35%",
     "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
   },
-  "commit": "ee45423",
+  "commit": "4a76184",
   "tag": "S-6 margin-budget sizing, default budget=0.75; daily-bar rebalance, netted share targeting, 2012-2026",
-  "note": "ee45423 is the commit containing the promoted code (the run itself executed with those edits uncommitted). Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars) -> OrderListHash 9f58b37cc2656b647ec88a5124daf02d"
+  "note": "Stats are from run 20260908T182554Z, promoted at commit ee45423. The pointer is 4a76184 because S-7 added rank_universe/weight_mode to signals.py without changing behaviour: run 20260908T192208Z at that commit reproduces OrderListHash 9f58b37cc2656b647ec88a5124daf02d and every statistic above. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars)."
 }
