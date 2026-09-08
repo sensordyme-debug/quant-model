@@ -4,36 +4,54 @@ Ranked list of hypotheses and infrastructure work. The improvement loop takes th
 item. Move finished items to the bottom under "Done" with a one-line result and the
 experiment timestamp.
 
+## Current objective (set 2026-09-08)
+
+A backtest-validated strategy running on IBKR **paper** trading by **2026-09-10**. That means:
+S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/evaluate.py`,
+then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
+intraday data. Live money stays off the table until the human signs off in `live/`.
+
 ## Open (highest value first)
 
-- **S-1 Volatility-regime momentum rotation.** Daily rebalance. Rank the ETF universe by
+- **S-1 Volatility-regime momentum rotation, with the risk overlay built in.** Daily
+  rebalance at the close (LEAN: schedule 15 minutes before close). Rank the ETF universe by
   blended 20/60/120-day momentum, hold the top 3 with 150-200% gross exposure through
-  leveraged ETFs while realized volatility is below its 1-year median, flip to inverse or
-  cash when the regime breaks. Hypothesis: trend plus vol gating gives large returns with
-  controlled tail risk.
+  leveraged ETFs while realized 20-day volatility is below its 1-year median, flip to cash or
+  inverse when the regime breaks. Overlay (formerly S-4): target 40-60% annualized vol, halve
+  exposure after a 15% drawdown from the equity high, go flat after 25% until a new high.
+  Acceptance: at least 30 orders, drawdown under 35%, and it must hold up out of sample:
+  fit parameters on 2012-2019, report 2020-2026 separately, and show the result is not a
+  single-parameter fluke (vary lookbacks and the vol threshold by 25%). Put the signal in a
+  plain-pandas module `algorithms/s1_momo/signal.py` (prices DataFrame in, target weights
+  out) that `main.py` calls, so the live runner in I-1 can import the identical code.
+- **I-1 IBKR paper runner (needs IB Gateway logged in on this machine).** Write
+  `scripts/paper_trade.py` using `ib_async`: connect to 127.0.0.1:4002 (paper), pull daily
+  history for the universe, call the champion's `signal.py` to get target weights, compute
+  the order list against current positions, place market-on-close or limit orders, log every
+  fill to `live/log/YYYY-MM-DD.jsonl`, and refuse to run if `live/APPROVED_PAPER.md` is missing
+  or if the account is not a paper account (IBKR paper account ids start with `DU`). Add a
+  kill switch (`live/HALT` file flattens everything) and a Windows scheduled task template
+  that runs it at 15:45 ET on trading days. Until Gateway is up, build and test it against
+  a mocked connection.
+- **E-2 Walk-forward and parameter sweeps.** Extend `evaluate.py` with an out-of-sample
+  split report and a small sweep runner (loop over parameter sets via environment variables
+  read by the algorithm, or the LEAN Optimizer launcher) so S-1's acceptance test is
+  repeatable for every future strategy.
+- **D-2 Intraday data (blocks S-2).** `fetch_data.py` writes daily bars only; Yahoo caps
+  1-minute history at ~30 days, which is useless for backtesting. Once IB Gateway is logged
+  in, pull minute bars with `ib_async` `reqHistoricalData` (1-day chunks, respect pacing
+  limits) for SPY/QQQ/IWM/TQQQ/SQQQ first. LEAN minute format:
+  `equity/usa/minute/<symbol>/<yyyyMMdd>_trade.zip` holding
+  `<yyyyMMdd>_<symbol>_minute_trade.csv` with rows `<ms since midnight ET>,o,h,l,c,v`,
+  prices scaled by 10000. Reuse the writer/validator structure already in `fetch_data.py`.
+- **S-3 Cross-sectional short-term reversal.** Top-50 liquid names, buy the biggest 1-3 day
+  losers and short the biggest winners, hold 1-3 days, dollar neutral, 200% gross. Daily
+  data is enough; a second sleeve for the allocator.
 - **S-2 Opening-range breakout.** Intraday on SPY/QQQ/IWM (futures later). Enter on a
   break of the first 15-30 minute range with ATR stops, scale out into strength, flat at
   close. Hypothesis: high-frequency small edges compound into volatile but positive equity.
-- **S-3 Cross-sectional short-term reversal.** Top-100 liquid names, buy the biggest 1-3 day
-  losers and short the biggest winners, hold 1-3 days, dollar neutral, 200% gross.
-- **S-4 Risk overlay module.** Shared vol-targeting and drawdown circuit breaker used by
-  every strategy (target 40-60% annualized vol, cut exposure by half after a 15% drawdown,
-  flat after 25% until a new high or a manual reset).
 - **S-5 Allocator.** Route capital across S-1, S-2, S-3 by trailing 60-day Sharpe with a
   floor per sleeve.
-- **D-2 Intraday data (blocks S-2).** `fetch_data.py` writes daily bars only; Yahoo caps
-  1-minute history at ~30 days, which is useless for backtesting. S-2 opening-range breakout
-  needs minute bars from IBKR (`ib_async`, needs IB Gateway) or a QuantConnect subscription.
-  LEAN minute format: `equity/usa/minute/<symbol>/<yyyyMMdd>_trade.zip` holding
-  `<yyyyMMdd>_<symbol>_minute_trade.csv` with rows
-  `<ms since midnight ET>,o,h,l,c,v`, prices scaled by 10000. Reuse the writer/validator
-  structure already in `fetch_data.py`.
-- **E-2 Parameter sweeps.** `evaluate.py` compares and promotes but has no sweep. Add
-  support for the LEAN Optimizer launcher so parameter sensitivity is measurable rather
-  than asserted (the anti-overfitting requirement in AGENTS.md).
-- **I-1 IBKR paper pipeline.** Install IB Gateway, write `live/config.paper.template.json`,
-  add `scripts/paper_trade.py` that launches LEAN in `live-interactive` paper mode with a
-  kill switch and heartbeat log. Requires the human to log in to IB Gateway.
 
 ## Done
 
