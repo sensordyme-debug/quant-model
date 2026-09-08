@@ -33,15 +33,16 @@ delay the paper deadline.
   sleeve beyond 9 ETFs (the 50 megacaps from D-1 are already on disk), replace equal weight
   with momentum-proportional weight, and revisit `top_n` (3 is a local peak, which is a
   caution flag). Judge on both sub-periods separately, as with the regime filter.
-- **I-1 IBKR paper runner (needs IB Gateway logged in on this machine).** Write
-  `scripts/paper_trade.py` using `ib_async`: connect to 127.0.0.1:4002 (paper), pull daily
-  history for the universe, call the champion's `signals.py` to get target weights, compute
-  the order list against current positions, place market-on-close or limit orders, log every
-  fill to `live/log/YYYY-MM-DD.jsonl`, and refuse to run if `live/APPROVED_PAPER.md` is missing
-  or if the account is not a paper account (IBKR paper account ids start with `DU`). Add a
-  kill switch (`live/HALT` file flattens everything) and a Windows scheduled task template
-  that runs it at 15:45 ET on trading days. Until Gateway is up, build and test it against
-  a mocked connection.
+- **I-1 IBKR paper runner: BUILT, waiting on the human's IB Gateway login.**
+  `scripts/paper_trade.py` (ib_async) already exists and passes `--mock --dry-run` against
+  `algorithms/s1_momo/signals.py`: it introspects the signal signature, feeds back
+  `diagnostics["state"]` and an equity curve, sizes whole shares, logs to `live/log/`, and
+  refuses to trade without `live/APPROVED_PAPER.md`, a `DU` account, or with `live/HALT`
+  present. `scripts/install_paper_task.ps1` schedules 15:45 ET weekdays. Do not rewrite it.
+  Remaining work once Gateway is up: `--check`, then a `--dry-run` on the real account, then
+  compare the runner's order list with what the LEAN backtest would have done on the same
+  date (`results/s1_momo/<ts>/*-order-events.json`). If S-6 changes how orders are netted or
+  staged, mirror that in `plan_orders()` so backtest and paper execution stay identical.
 - **D-2 Intraday data (blocks S-2).** `fetch_data.py` writes daily bars only; Yahoo caps
   1-minute history at ~30 days, which is useless for backtesting. Once IB Gateway is logged
   in, pull minute bars with `ib_async` `reqHistoricalData` (1-day chunks, respect pacing
