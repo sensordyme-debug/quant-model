@@ -36,8 +36,11 @@ current best strategy.
 - OpenClaw gateway: installed as the "OpenClaw Gateway" scheduled task; agent `quant` runs
   Claude Code through the Claude Max login.
 - Automations: `research-iterate` every 2 hours, `research-review` daily at 06:30 local.
-- Data pipeline (backlog D-1): starts with free yfinance daily bars; IBKR or QuantConnect
-  data needs the human. IBKR paper pipeline (backlog I-1): needs IB Gateway login.
+- Data: 69 symbols of daily history (1998-2026) from yfinance in LEAN format; intraday data
+  needs IBKR historical data (IB Gateway login) or a QuantConnect subscription.
+- Paper trading: IB Gateway installed at `C:\Jts\ibgateway`; `scripts/paper_trade.py` runs the
+  champion's signal against the paper account with safety gates (see `live/README.md`).
+  Waiting on the human's Gateway login and `live/APPROVED_PAPER.md`.
 
 ## Operating the loop
 
