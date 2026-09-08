@@ -1,13 +1,35 @@
 {
-  "algorithm": null,
-  "class": null,
-  "promoted_at": null,
-  "run_dir": null,
-  "stats": {},
+  "algorithm": "s1_momo",
+  "class": "S1MomentumRotationAlgorithm",
+  "promoted_at": "2026-09-08T18:00:05+00:00",
+  "run_dir": "results\\s1_momo\\20260908T174548Z",
+  "stats": {
+    "Total Orders": "3033",
+    "Net Profit": "561.004%",
+    "Compounding Annual Return": "13.728%",
+    "Sharpe Ratio": "0.597",
+    "Sortino Ratio": "0.586",
+    "Drawdown": "23.600%",
+    "Win Rate": "64%",
+    "Profit-Loss Ratio": "0.96",
+    "Alpha": "0.058",
+    "Beta": "0.452",
+    "Annual Standard Deviation": "0.133",
+    "Information Ratio": "0.237",
+    "Total Fees": "$27118.01",
+    "Start Equity": "100000",
+    "End Equity": "661003.57",
+    "Probabilistic Sharpe Ratio": "2.290%"
+  },
   "criteria": {
     "min_trades": 30,
-    "must_beat": ["Sharpe Ratio", "Compounding Annual Return"],
+    "must_beat": [
+      "Sharpe Ratio",
+      "Compounding Annual Return"
+    ],
     "max_drawdown_limit": "35%",
     "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
-  }
+  },
+  "commit": "0099731",
+  "tag": "S-1 momo rotation + crisis-vol regime + dd breaker; daily-bar rebalance, share targeting, gross<=1.0, 2012-2026"
 }
