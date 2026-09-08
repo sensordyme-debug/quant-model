@@ -2,6 +2,101 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-08 - S-3: the reversal sleeve is genuinely uncorrelated and genuinely worthless
+
+- **What.** `algorithms/s3_reversal/`, built on the same split as S-1: `signals.py` (plain
+  pandas, signed weights, so short = negative) plus `main.py` for LEAN plumbing, and
+  `scripts/sweep_s3.py` for the offline walk-forward. Rank the point-in-time top-30 most
+  liquid megacaps by trailing k-session return, buy the bottom `n_side`, short the top
+  `n_side`, equal dollars per leg, hold one session. The S-1 drawdown overlay, vol helper
+  and Reg-T margin table are *imported* from the S-1 module, not copied - loaded by path
+  under the alias `s1_signals`, because this file is also called `signals` and a plain
+  import from the sibling directory returns itself.
+- **Why.** S-8 closed with the measurement that the ETF-9 sleeve cannot be pushed past
+  ~20% realized vol inside the 35% drawdown limit by any amount of leverage. If the
+  mandate is reachable at all, it is reachable by *adding uncorrelated return streams*.
+  So the number that decides S-3 is the correlation with the champion, and the Sharpe
+  second.
+
+### The correlation is exactly what was hoped for
+
+| | corr with champion | 50/50 blend Sharpe | blend vol | blend MaxDD |
+| --- | --- | --- | --- | --- |
+| S-3 reversal, zero cost | **-0.026** | 0.97 | 11.5% | 12.0% |
+| S-1 champion alone | 1.000 | 0.97 | 19.8% | 23.2% |
+
+A dollar-neutral single-name book really is orthogonal to a levered ETF momentum book.
+The blend keeps the champion's Sharpe and halves its volatility - which is the *wrong*
+direction for this mandate, and only because the sleeve added is a zero-return one. The
+orthogonality is the finding worth keeping for S-5; the sleeve is not.
+
+### There is no edge to allocate to, before costs and in both directions
+
+30 configurations (lookback 1/2/3/5/10 x n_side 3/5/10 x vol-adjusted or raw), **all at
+zero trading cost**, so this measures the signal and nothing else:
+
+| | best cell | median cell | worst cell |
+| --- | --- | --- | --- |
+| Sharpe, zero cost | +0.27 | -0.11 | -0.72 |
+
+24 of the 30 cells are negative and no cell reaches Sharpe 0.3. The shipped defaults are the *best* cell
+(lookback 5, n_side 10, no vol adjustment), chosen with hindsight over the full sample, so
+that what follows rejects the hypothesis at its strongest rather than at an unlucky
+parameter. Two systematic patterns, both against the hypothesis: n_side 10 beats n_side 3
+at every horizon, so the extreme movers are the *worst* part of the cross-section, not the
+best; and the raw ranking beats the vol-adjusted one, so what little signal exists is a
+vol effect rather than a reversal effect.
+
+Splitting that best cell in half kills it:
+
+| direction | window | CAR @0bps | Sharpe @0bps | CAR @5bps | Sharpe @5bps |
+| --- | --- | --- | --- | --- | --- |
+| reversal | IS 2012-2019 | +6.2% | 0.64 | -5.8% | -0.56 |
+| reversal | OOS 2020-2026 | -1.1% | -0.01 | -11.0% | -0.71 |
+| continuation | IS 2012-2019 | -6.0% | -0.58 | -16.6% | -1.88 |
+| continuation | OOS 2020-2026 | -1.4% | -0.02 | -9.5% | -0.71 |
+
+The entire zero-cost edge is in-sample, in a cell picked by looking at the full sample. And
+flipping the sign - the obvious response to 25 negative cells - is not an edge either: the
+mirror image is negative in-sample and flat out-of-sample. Both directions are inside the
+noise, which is the honest reading of a cross-section that is 30 daily-rebalanced pairs of
+megacaps.
+
+### LEAN confirms, and LEAN is the *optimistic* number here
+
+Run `20260908T224519Z`, 2012-01-03 .. 2026-09-04, shipped defaults:
+
+| | CAR | Sharpe | MaxDD | Orders | Fees | Vol | Beta |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S-3 | -0.14% | -0.19 | 48.6% | 44,353 | $64,721 | 10.1% | 0.07 |
+
+Beta 0.07 and `mean_abs_net = 0.0000` at decision time (max 0.094 carried, from drift
+between rebalances) - the book is dollar-neutral as designed, and max margin used 0.792
+against a 0.75 budget, the same small overshoot S-1 shows. **$64,721 of commission on a
+$100,000 account**: 4.4% of equity a year, which on 209 turnover units a year is 2.1bps per
+unit of turnover. That is commission *only* - LEAN's IB model charges no spread and no
+impact, so the honest cost is higher than the one that already ate the whole return. The
+sweep's 5bps assumption is the realistic end and it gives -9.0% CAR.
+
+- **Decision.** **No promotion; champion unchanged.** `evaluate.py` refused on all four
+  grounds it has: the `not promotable` tag, 48.6% drawdown over the limit, Sharpe and CAR
+  both below the champion. S-3 is closed negatively.
+- **What it costs to have learned this.** Two things are now measured rather than assumed.
+  (1) Daily-rebalanced single-name pairs cannot pay for themselves on a $100k account: 2.1bps
+  of pure commission per unit of turnover against a gross edge of at most 2.6% a year. Any
+  future sleeve that turns the book over daily has to clear roughly 5% a year gross before
+  it is worth running at this account size. (2) The market-neutral construction *does*
+  deliver orthogonality (-0.03), so S-5 remains a live idea - it just needs a sleeve with a
+  return.
+- **Also worth noting the bias that did not matter.** The megacap pool is a 2026 survivor
+  list, and reversal is the strategy that survivorship flatters most (buying the biggest
+  loser only pays if the loser comes back, and everything on disk came back). The result is
+  negative *anyway*, so the delisted-data blocker did not need resolving to close this one.
+- **Next.** Open strategy work is now S-2 (opening-range breakout), which is blocked on
+  intraday data, which is blocked on the IB Gateway login - the same human gate as I-1. The
+  loop's remaining unblocked lever is a different *signal* on daily bars for the ETF sleeve,
+  not another sizing or universe change.
+
 ## 2026-09-08 - S-8: four ways to buy drawdown headroom, all four rejected, and the mandate is measured as unreachable
 
 - **What.** The S-8 question: reach the 40-60% volatility mandate without breaching the 35%

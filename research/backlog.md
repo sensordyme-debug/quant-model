@@ -17,12 +17,16 @@ being logged in on this machine (see `research/BLOCKERS.md`); the runner is buil
 `--mock --dry-run` against the current champion. S-7, D-3 and now S-8 have all been run and
 all closed negatively, so the champion has not moved and its order list is unchanged
 (`OrderListHash 9f58b37cc2656b647ec88a5124daf02d`, re-verified by run `20260908T213829Z`) -
-nothing about the I-1 deployment moves. Two constraints are now measured rather than assumed:
-single-name sleeves are capped because the pool on disk is a 2026 survivor list, leaving the
-ETF-9 sleeve as the only honest universe here; and the 40-60% volatility mandate is
-**unreachable** under the 35% drawdown limit on that sleeve, at any size, by any of the four
-levers S-8 tried. Both are decisions for the human in `BLOCKERS.md`. The open strategy work is
-therefore a *different signal* (S-3), not a different size.
+nothing about the I-1 deployment moves. S-3 has now also been run and closed negatively, so
+the champion's order list is still unchanged (`OrderListHash 9f58b37cc2656b647ec88a5124daf02d`).
+Three constraints are now measured rather than assumed: single-name sleeves are capped because
+the pool on disk is a 2026 survivor list, leaving the ETF-9 sleeve as the only honest universe
+here; the 40-60% volatility mandate is **unreachable** under the 35% drawdown limit on that
+sleeve, at any size, by any of the four levers S-8 tried; and a daily-turnover book on this
+$100k account pays ~2.1bps per unit of turnover in commission alone, which is more than the
+whole gross edge S-3 could find. The first two are decisions for the human in `BLOCKERS.md`.
+With S-3 closed and S-2 blocked on data, the only unblocked strategy work is a *different
+signal on the ETF sleeve* (S-9).
 
 ## Open (highest value first)
 
@@ -45,17 +49,42 @@ therefore a *different signal* (S-3), not a different size.
   `equity/usa/minute/<symbol>/<yyyyMMdd>_trade.zip` holding
   `<yyyyMMdd>_<symbol>_minute_trade.csv` with rows `<ms since midnight ET>,o,h,l,c,v`,
   prices scaled by 10000. Reuse the writer/validator structure already in `fetch_data.py`.
-- **S-3 Cross-sectional short-term reversal.** Top-50 liquid names, buy the biggest 1-3 day
-  losers and short the biggest winners, hold 1-3 days, dollar neutral, 200% gross. Daily
-  data is enough; a second sleeve for the allocator.
+- **S-9 A second signal on the ETF sleeve (new, the only unblocked strategy work).**
+  Everything since S-6 has changed *size* or *universe* and none of it moved the champion;
+  S-7 named the two untried signal ideas and they are still untried: a second momentum
+  horizon scored per sleeve member, and cross-sectional ranking against the sleeve median
+  instead of the absolute `min_momentum` floor. Daily bars on the honest ETF-9 sleeve, so
+  it needs no new data and carries no survivorship caveat. Judge it against the champion's
+  18.1% / 0.69 / 25.2%, and heed the S-3 cost lesson: at this account size a daily-turnover
+  book pays ~2.1bps per unit of turnover in commission alone.
 - **S-2 Opening-range breakout.** Intraday on SPY/QQQ/IWM (futures later). Enter on a
   break of the first 15-30 minute range with ATR stops, scale out into strength, flat at
   close. Hypothesis: high-frequency small edges compound into volatile but positive equity.
-- **S-5 Allocator.** Route capital across S-1, S-2, S-3 by trailing 60-day Sharpe with a
-  floor per sleeve.
+  **Blocked on D-2**, which is blocked on the IB Gateway login.
+- **S-5 Allocator.** Route capital across S-1, S-2 and any future sleeve by trailing 60-day
+  Sharpe with a floor per sleeve. Still worth building - S-3 proved the market-neutral
+  construction really does deliver orthogonality (corr -0.03 with the champion) - but it
+  has nothing to allocate *to* until a second sleeve has a positive expected return, so it
+  sits behind S-2.
 
 ## Done
 
+- **S-3 Cross-sectional short-term reversal. Closed negatively 2026-09-08**, runs
+  `20260908T223450Z` (2012-2013 plumbing smoke) and `20260908T224519Z` (full period), no
+  promotion. `algorithms/s3_reversal/` (signals + LEAN plumbing, importing S-1's drawdown
+  overlay and margin table rather than copying them) and `scripts/sweep_s3.py`. The sleeve
+  is dollar-neutral as designed - beta 0.07, mean |net| 0.0000 at decision time - and its
+  correlation with the champion is **-0.026**, which was the point of running it. But there
+  is no return to allocate: **at zero trading cost**, 24 of 30 parameter cells score a
+  negative Sharpe and the best reaches only 0.27, all of it in-sample (IS Sharpe 0.64, OOS
+  -0.01) in a cell chosen with hindsight over the whole sample. Inverting the sign to
+  short-term continuation is not an edge either. LEAN on the best cell: CAR -0.14%, Sharpe
+  -0.19, MaxDD 48.6%, 44,353 orders, **$64,721 of commission on a $100k account** - 2.1bps
+  per unit of turnover, commission only, before any spread. Two durable numbers came out of
+  it: that 2.1bps cost floor for any daily-turnover book at this account size, and the
+  confirmation that a market-neutral sleeve is genuinely orthogonal to the champion, which
+  keeps S-5 alive. The survivorship caveat on the megacap pool did not need resolving - the
+  result is negative even with the bias working in its favour.
 - **S-8 Reach the volatility mandate without breaching the drawdown limit. Closed negatively
   2026-09-08**, runs `20260908T213829Z` (control), `20260908T214218Z`, `20260908T214625Z`, no
   promotion. All four named levers measured and rejected: `top_n=5-6` inverts at higher size
