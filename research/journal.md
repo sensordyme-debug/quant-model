@@ -2,6 +2,95 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-08 - S-7 beat buy-and-hold: two levers rejected, one is a mirage
+
+- **What.** The three S-7 candidates for beating QQQ's 19.9% CAR, tested on both sub-periods
+  with `scripts/sweep_s1.py --mode s7`: momentum-proportional weighting, a wider `top_n`, and
+  widening the ranking sleeve to the 50 megacaps D-1 put on disk. `signals.py` gained two
+  parameters for it - `rank_universe` and `weight_mode` (`equal` / `rank` / `momentum`) - and
+  `main.py` gained `S1_SLEEVE` and `S1_WEIGHT_MODE`.
+- **Why.** S-1 clears SPY (18.1% vs 15.0%) but not QQQ, and the backlog named these three.
+
+### 1. Momentum-proportional weighting loses, on both halves
+
+| weight_mode | IS CAR | OOS CAR | full CAR | full Sharpe | full MaxDD |
+| --- | --- | --- | --- | --- | --- |
+| equal (shipped) | 16.3% | 21.5% | **18.7%** | **0.97** | 23.2% |
+| rank | 12.1% | 20.2% | 15.8% | 0.81 | 24.4% |
+| momentum | 11.6% | 21.5% | 16.1% | 0.83 | 25.9% |
+
+Concentration costs 2.6-2.9 points of CAR and ~0.15 Sharpe, and it is *in-sample* that it
+loses most, so this is not a regime accident. Rejected; `weight_mode` stays `equal`.
+
+### 2. top_n=3 survives, but 5-6 is the interesting neighbour
+
+| top_n | IS CAR | OOS CAR | full CAR | full Sharpe | full MaxDD | vol |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2 | 10.8% | 15.9% | 13.2% | 0.69 | 24.4% | 21.4% |
+| 3 | 16.3% | 21.5% | **18.7%** | 0.97 | 23.2% | 19.8% |
+| 4 | 15.4% | 19.6% | 17.3% | 0.93 | 22.3% | 19.1% |
+| 5 | 13.9% | 21.1% | 17.2% | 0.94 | 22.1% | 18.7% |
+| 6 | 14.7% | 20.8% | 17.5% | **0.97** | **22.0%** | 18.4% |
+
+The earlier "top_n=3 is a local peak" caution is only half right: 3 wins on return, but the
+curve from 4 to 6 is flat and monotonically *cheaper* in drawdown and vol (OOS drawdown falls
+16.7% at top_n=6 against 23.2% at 3, with equal Sharpe). No change to the champion, but this
+is a lead for S-8: the binding constraint there is the 35% drawdown limit, and a wider book
+buys drawdown headroom that the margin budget could then spend on size.
+
+### 3. The wide sleeve is a survivorship mirage, and the harness could not see it
+
+Adding the 50 megacaps to the ranking sleeve produces the best number this repo has ever
+printed. LEAN, run `20260908T192552Z`, `S1_SLEEVE=wide S1_TOP_N=5`:
+
+| | CAR | Sharpe | MaxDD | Orders | Fees | PSR |
+| --- | --- | --- | --- | --- | --- | --- |
+| wide sleeve | 43.9% | 1.19 | 32.2% | 7,830 | $243,278 | 52.5% |
+| champion (ETF-9) | 18.1% | 0.69 | 25.2% | 3,410 | $38,630 | 5.1% |
+
+`scripts/evaluate.py --candidate` said **BEATS champion**: 32.2% drawdown is inside the 35%
+limit, 7,830 orders clears 30, and it wins on both must-beat metrics. It is still not real.
+`MEGACAP_SLEEVE` is the megacap list *as of 2026*, so ranking it back to 2012 knows in advance
+which fifty companies were going to survive and win. The two obvious defences both fail:
+
+* **The IS/OOS split does not detect it.** IS 50.2% CAR vs OOS 54.3% - the halves agree,
+  because the hindsight is in universe construction and is therefore spread evenly across
+  the whole sample rather than fitted to one end of it.
+* **It is not a late-IPO artifact.** Only 4 of the 50 (META, ABBV, NOW, UBER) listed after
+  2012-01-03, and dropping them changes almost nothing (44.4% -> 41.8% CAR in the sweep,
+  and 22.8% -> 22.4% for the passive basket).
+  The bias is in *which names were on the list at all*.
+
+The control that does work is holding the same universe passively
+(`scripts/sweep_s1.py --mode s7bias`, 2012-2026):
+
+| | CAR | Sharpe | Vol |
+| --- | --- | --- | --- |
+| SPY buy & hold | 15.0% | 0.93 | 16.5% |
+| EW 50 megacaps (2026 list), no skill at all | **22.8%** | **1.27** | 17.4% |
+| momentum top_n=5 on that same sleeve | 44.4% | 1.37 | 30.3% |
+
+So simply *owning* the 2026 megacap list from 2012, equal weighted, beats SPY by 7.8 points
+of annual return with a higher Sharpe than the strategy. Against its own basket the signal
+adds +21.6% CAR at 1.74x the vol - which is very close to what levering the basket would
+give - and only +0.10 Sharpe. Essentially all of the headline uplift is the universe and the
+leverage; almost none of it is the ranking.
+
+- **Decision.** **No promotion**, and the champion is unchanged. Rather than rely on
+  remembering why, `evaluate.py` now refuses to promote any run whose tag contains
+  `not promotable`, and the S-7 run is tagged that way - a later session reading the ledger
+  cold would otherwise find a run that passes every statistical rule. The new
+  `rank_universe` / `weight_mode` parameters ship defaulted to the current behaviour: the
+  control run `20260908T192208Z` reproduces `OrderListHash 9f58b37cc2656b647ec88a5124daf02d`,
+  byte-identical to the champion's order list, so the refactor changed nothing that trades.
+- **What S-7 actually needs.** A point-in-time universe: membership decided from information
+  available on each rebalance date (index membership as of that date, or a rolling
+  dollar-volume rank recomputed daily from bars already on disk), not a list downloaded in
+  2026. The second option needs no new data source and is now backlog **D-3**. Until then the
+  answer to "can a wider sleeve beat QQQ" is unknown, not yes.
+- **Next.** D-3, which unblocks S-7 properly; S-8 can start from top_n=5-6 for drawdown room.
+  I-1 remains the deadline gate and is still blocked on IB Gateway (`research/BLOCKERS.md`).
+
 ## 2026-09-08 - S-6 margin-budget sizing (new champion, exposure 1.27x -> 1.63x)
 
 - **Hypothesis.** S-1's size was limited by a flat `max_gross_weight = 1.0`, which was never

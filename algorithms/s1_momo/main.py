@@ -41,7 +41,17 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.set_end_date(*_env_date("END", (2026, 9, 4)))
         self.set_cash(100_000)
 
+        # S-7 knobs: the ranking sleeve is a named preset ("etf", "wide", "megacap") rather
+        # than a ticker list, so a sweep cannot silently subscribe to something the data
+        # pipeline never wrote.
+        sleeves = {
+            "etf": tuple(sig.RANK_UNIVERSE),
+            "wide": tuple(sig.RANK_UNIVERSE) + tuple(sig.MEGACAP_SLEEVE),
+            "megacap": tuple(sig.MEGACAP_SLEEVE),
+        }
         self.params = sig.Params(
+            rank_universe=sleeves[os.environ.get("S1_SLEEVE", "etf")],
+            weight_mode=os.environ.get("S1_WEIGHT_MODE", "equal"),
             mom_lookbacks=tuple(int(x) for x in
                                 os.environ.get("S1_LOOKBACKS", "20,60,120").split(",")),
             top_n=_env("TOP_N", 3, int),
@@ -64,7 +74,7 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.settings.minimum_order_margin_portfolio_percentage = 0.002
 
         self.symbols = {}
-        for ticker in sig.TRADED_UNIVERSE:
+        for ticker in sig.traded_universe(self.params):
             equity = self.add_equity(ticker, Resolution.DAILY)
             equity.set_data_normalization_mode(DataNormalizationMode.ADJUSTED)
             # This high leverage disables a LEAN accounting artifact, it does not buy

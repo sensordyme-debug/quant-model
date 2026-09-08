@@ -17,14 +17,33 @@ being logged in on this machine (see `research/BLOCKERS.md`); the runner is buil
 `--mock --dry-run` against the current champion. Realized vol is still short of the 40-60%
 mandate, but the binding constraint is now the 35% drawdown limit rather than an execution
 bug - a risk-budget decision for the human, not something to fix before the paper deadline.
+S-7 has since been run and produced no champion change: the champion's order list is
+unchanged (`OrderListHash 9f58b37cc2656b647ec88a5124daf02d`), so nothing about the I-1
+deployment moves.
 
 ## Open (highest value first)
 
-- **S-7 Beat buy-and-hold on absolute return.** S-1 now compounds at 18.1% against SPY's 15.0%
-  and QQQ's 19.9% over 2012-2026 - it clears SPY but not QQQ. Candidates: widen the ranking
-  sleeve beyond 9 ETFs (the 50 megacaps from D-1 are already on disk), replace equal weight
-  with momentum-proportional weight, and revisit `top_n` (3 is a local peak, which is a
-  caution flag). Judge on both sub-periods separately, as with the regime filter.
+- **D-3 Point-in-time universe (blocks S-7).** Ranking must only ever see names that were
+  liquid *as of the rebalance date*. `signals.MEGACAP_SLEEVE` is the 2026 list and is
+  therefore unusable for backtesting (see S-7 below). Cheapest credible version needs no new
+  data source: rank the 69 symbols already on disk by trailing 60-day dollar volume
+  (close x volume, both in the LEAN daily files) recomputed on each rebalance, take the top
+  N, and require a minimum history. Note this is still survivorship-biased at the *file*
+  level - `fetch_data.py` only downloaded tickers that exist in 2026 - so also record how
+  much room that leaves: the honest fix is delisted-inclusive history, which is a paid data
+  set and a human decision. Deliver as a `universe.py` beside `signals.py` so the I-1 runner
+  computes membership the same way.
+- **S-7 Beat buy-and-hold on absolute return. Partially answered 2026-09-08; blocked on D-3.**
+  S-1 compounds at 18.1% against SPY's 15.0% and QQQ's 19.9% - it clears SPY but not QQQ.
+  Of the three named candidates, two are now closed on evidence: momentum-proportional
+  weighting loses 2.6-2.9 points of CAR on both sub-periods (rejected), and `top_n` is flat
+  from 3 to 6 in return while getting cheaper in drawdown (3 kept; 5-6 handed to S-8). The
+  third, widening the sleeve, scores CAR 43.9% / Sharpe 1.19 / DD 32.2% in LEAN and passes
+  every promotion rule, but it ranks the megacaps of 2026 back to 2012: holding that same
+  list equal-weighted with no skill already returns 22.8% at Sharpe 1.27, above the strategy
+  itself. Not promoted, tagged `not promotable` in the ledger. Re-open once D-3 lands.
+  Remaining untried ideas: a second momentum horizon set per sleeve, and cross-sectional
+  ranking against the sleeve median rather than an absolute `min_momentum` floor.
 - **I-1 IBKR paper runner: BUILT, waiting on the human's IB Gateway login.**
   `scripts/paper_trade.py` (ib_async) already exists and passes `--mock --dry-run` against
   `algorithms/s1_momo/signals.py`: it introspects the signal signature, feeds back
@@ -44,6 +63,8 @@ bug - a risk-budget decision for the human, not something to fix before the pape
   profile, not asked for directly. Candidates: a volatility-responsive budget (spend more of
   it when the vol estimate is low), a trailing stop per holding rather than only at the
   portfolio level, and tightening `dd_halve` so the breaker engages earlier and cheaper.
+  **Start from `top_n=5` or `6`** (S-7): return is within 1.5 points of `top_n=3` but full
+  drawdown falls to 22.0% and vol to 18.4%, which is exactly the headroom this item needs.
   Requires a human decision if the answer turns out to be "raise the 35% limit".
 - **D-2 Intraday data (blocks S-2).** `fetch_data.py` writes daily bars only; Yahoo caps
   1-minute history at ~30 days, which is useless for backtesting. Once IB Gateway is logged
@@ -63,6 +84,10 @@ bug - a risk-budget decision for the human, not something to fix before the pape
 
 ## Done
 
+- **E-3 Promotion guard against non-statistical bias.** 2026-09-08. `evaluate.py` refuses to
+  promote any run whose ledger tag contains `not promotable`, because every other rule it
+  applies is a statistic and no statistic can see a universe chosen with hindsight - S-7's
+  wide sleeve passed all of them. Convention: tag a knowingly-compromised run at run time.
 - **S-6 Raise S-1's exposure by fixing execution, not the signal.** 2026-09-08, run
   `20260908T182554Z`, promoted to champion. Flat `max_gross_weight = 1.0` replaced by a
   margin budget, `sum(w_i * MARGIN_REQ[i]) <= margin_budget`, with Reg-T 50% for ordinary

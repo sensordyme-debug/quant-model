@@ -63,13 +63,28 @@ TRADING_DAYS = 252
 # Unlevered ranking sleeve: index, sector, rates, commodity.
 RANK_UNIVERSE = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "TLT", "GLD"]
 
+#: Single-name sleeve, available on disk from D-1. **Selection-biased**: it is the list of
+#: megacaps as of 2026, so back-ranking it before ~2020 knows which companies were going to
+#: win. Any result that depends on it is an upper bound, not a forecast - see S-7 in the
+#: journal. Kept here so the bias is stated once, next to the data, rather than rediscovered.
+MEGACAP_SLEEVE = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "BRKB", "AVGO", "LLY",
+    "JPM", "V", "UNH", "XOM", "MA", "JNJ", "PG", "COST", "HD", "ABBV",
+    "WMT", "NFLX", "MRK", "KO", "AMD", "PEP", "ADBE", "CRM", "TMO", "BAC",
+    "CSCO", "ACN", "LIN", "MCD", "ABT", "ORCL", "PFE", "INTC", "DIS", "QCOM",
+    "WFC", "TXN", "CAT", "IBM", "AMAT", "VZ", "NOW", "GE", "UBER", "MU",
+]
+
 # ranked ticker -> (instrument actually traded, exposure multiple)
 LEVERED_PROXY = {"SPY": ("UPRO", 3.0), "QQQ": ("TQQQ", 3.0), "TLT": ("TMF", 3.0)}
 
 REGIME_TICKER = "SPY"
 
-#: every ticker the algorithm must subscribe to
-TRADED_UNIVERSE = sorted(set(RANK_UNIVERSE) | {t for t, _ in LEVERED_PROXY.values()})
+
+def traded_universe(params: "Params | None" = None) -> list[str]:
+    """Every ticker the algorithm must subscribe to for a given ranking sleeve."""
+    ranked = list((params or DEFAULTS).rank_universe)
+    return sorted(set(ranked) | {t for t, _ in LEVERED_PROXY.values()} | {REGIME_TICKER})
 
 #: Overnight initial margin charged per dollar of notional. Reg-T is 50% for an ordinary
 #: marginable ETF; IBKR multiplies the requirement by a leveraged ETF's leverage factor,
@@ -83,13 +98,12 @@ def margin_requirement(instrument: str) -> float:
     return min(1.0, BASE_MARGIN_REQ * multiple)
 
 
-MARGIN_REQ = {t: margin_requirement(t) for t in TRADED_UNIVERSE}
-
-
 @dataclass(frozen=True)
 class Params:
     """Tunables. Every one of these is swept in the S-1 sensitivity test."""
 
+    rank_universe: tuple = tuple(RANK_UNIVERSE)  # sleeve momentum is ranked over
+    weight_mode: str = "equal"             # "equal" | "rank" | "momentum" (see allocate)
     mom_lookbacks: tuple = (20, 60, 120)   # blended momentum horizons, trading days
     top_n: int = 3                         # holdings when risk-on
     trend_window: int = 0                  # risk-off while SPY is below this MA (0 = off)
@@ -120,6 +134,38 @@ class Params:
 
 
 DEFAULTS = Params()
+
+#: every ticker the shipped default subscribes to (main.py and the I-1 paper runner)
+TRADED_UNIVERSE = traded_universe(DEFAULTS)
+
+#: margin per dollar of notional; anything unlisted falls back to Reg-T 50%
+MARGIN_REQ = {t: margin_requirement(t) for t in sorted(
+    set(TRADED_UNIVERSE) | set(MEGACAP_SLEEVE))}
+
+
+def allocate(winners, scores, mode: str) -> dict:
+    """Share of the exposure budget per winner. Shares sum to 1.
+
+    * `equal`    - 1/N each. The shipped default.
+    * `rank`     - linearly declining in rank (N, N-1, ... 1), normalized. Uses only the
+                   ordering, so it cannot be dominated by one outlier score.
+    * `momentum` - proportional to the blended momentum score itself. Winners are already
+                   filtered to positive scores, so shares are positive, but a single 3x-ETF
+                   score can swallow most of the book.
+    """
+    n = len(winners)
+    if n == 0:
+        return {}
+    if mode == "rank":
+        raw = {t: float(n - i) for i, t in enumerate(winners)}
+    elif mode == "momentum":
+        raw = {t: max(float(scores[t]), 0.0) for t in winners}
+        if sum(raw.values()) <= 0:
+            raw = {t: 1.0 for t in winners}
+    else:
+        raw = {t: 1.0 for t in winners}
+    total = sum(raw.values())
+    return {t: v / total for t, v in raw.items()}
 
 
 def blended_momentum(prices: pd.DataFrame, lookbacks) -> pd.Series:
@@ -258,8 +304,9 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
         diag["reason"] = "risk-off" if not on else "drawdown flat"
         return {}, diag
 
-    ranked = [t for t in RANK_UNIVERSE if t in prices.columns
+    ranked = [t for t in p.rank_universe if t in prices.columns
               and prices[t].iloc[-max_lb - 1:].notna().all()]
+    diag["n_ranked"] = len(ranked)
     scores = blended_momentum(prices[ranked], p.mom_lookbacks).sort_values(ascending=False)
     winners = [t for t in scores.index[:p.top_n] if scores[t] > p.min_momentum]
     diag["scores"] = {t: round(float(v), 4) for t, v in scores.head(p.top_n + 2).items()}
@@ -267,16 +314,18 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
         diag["reason"] = "no positive momentum"
         return {}, diag
 
-    # Equal *notional* per winner, expressed through the levered proxy where one exists.
+    # Notional per winner set by `weight_mode`, expressed through the levered proxy
+    # where one exists.
     # Dividing by the multiple is what makes target_exposure mean what it says: a 3x ETF
     # gets a third of the weight for the same exposure. Sizing each name at 1/N of equity
     # instead would peg gross weight at 1.0 and leave the vol target able only to cut.
+    shares = allocate(winners, scores, p.weight_mode)
     raw, leverage = {}, {}
     for ticker in winners:
         instrument, mult = LEVERED_PROXY.get(ticker, (ticker, 1.0))
         if instrument not in prices.columns or prices[instrument].iloc[-p.vol_est_window - 1:].isna().any():
             instrument, mult = ticker, 1.0     # fall back to the unlevered name
-        raw[instrument] = raw.get(instrument, 0.0) + (p.target_exposure / len(winners)) / mult
+        raw[instrument] = raw.get(instrument, 0.0) + (p.target_exposure * shares[ticker]) / mult
         leverage[instrument] = mult
 
     # Vol target on the instruments actually held, not on their unlevered cousins.

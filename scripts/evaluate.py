@@ -52,10 +52,22 @@ def load_champion():
     return json.loads(CHAMPION.read_text(encoding="utf-8")) if CHAMPION.exists() else {"stats": {}, "criteria": {}}
 
 
+#: A run whose tag contains this marker can never be promoted, whatever its numbers say.
+#: The rules below are all *statistical*, and no statistic can see a bias built into the
+#: universe: S-7's wide sleeve ranks the megacaps of 2026 back to 2012, which scores
+#: CAR 43.9% / Sharpe 1.19 / DD 32.2% and passes every rule here. An in/out-of-sample
+#: split does not catch it either, because the hindsight is spread evenly over both halves.
+#: Whoever runs a knowingly-biased experiment tags it; the tag survives in the ledger and
+#: stops a later session, which has no memory of why, from promoting it.
+NOT_PROMOTABLE = "not promotable"
+
+
 def verdict(run, champion):
     crit = champion.get("criteria", {})
     stats = run.get("stats", {})
     reasons = []
+    if NOT_PROMOTABLE in (run.get("tag") or "").lower():
+        reasons.append(f"tagged '{NOT_PROMOTABLE}' by the run that produced it")
     trades = num(stats.get("Total Orders"))
     if trades < crit.get("min_trades", 30):
         reasons.append(f"only {int(trades)} orders (< {crit.get('min_trades', 30)})")

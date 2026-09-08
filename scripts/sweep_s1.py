@@ -98,10 +98,14 @@ def run(prices, params, label, start="2012-01-03", end=None):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", default="ablation",
-                    choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin"])
+                    choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin",
+                             "s7", "s7bias"])
     args = ap.parse_args()
 
-    prices = load_closes(sig.TRADED_UNIVERSE, start="2009-06-01")
+    tickers = sig.TRADED_UNIVERSE
+    if args.mode in ("s7", "s7bias"):
+        tickers = sorted(set(tickers) | set(sig.MEGACAP_SLEEVE))
+    prices = load_closes(tickers, start="2009-06-01")
     print(f"data: {prices.shape[0]} bars {prices.index[0].date()} .. {prices.index[-1].date()}, "
           f"{prices.shape[1]} tickers\n")
     P = sig.DEFAULTS
@@ -170,6 +174,79 @@ def main() -> int:
         print("\n--- benchmarks ---")
         for ticker in ["SPY", "QQQ"]:
             row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
+
+    elif args.mode == "s7":
+        # S-7: beat buy-and-hold on absolute return. Three levers, each judged in and out
+        # of sample separately, because a return increase is exactly what a bull-market
+        # half of the sample hands out for free.
+        ETF = tuple(sig.RANK_UNIVERSE)
+        WIDE = ETF + tuple(sig.MEGACAP_SLEEVE)
+        print("=== 1. weighting scheme (universe and top_n at default) ===")
+        for mode in ["equal", "rank", "momentum"]:
+            params = replace(P, weight_mode=mode)
+            print(f"\n--- weight_mode={mode} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            run(prices, params, "  full 2012-2026")
+
+        print("\n=== 2. top_n on the ETF sleeve ===")
+        for top_n in [2, 3, 4, 5, 6]:
+            params = replace(P, top_n=top_n)
+            print(f"\n--- top_n={top_n} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            run(prices, params, "  full 2012-2026")
+
+        print("\n=== 3. ranking sleeve (megacap names are 2026's list: selection bias) ===")
+        for name, universe_, top_n in [("etf-9", ETF, 3), ("etf+megacap-59", WIDE, 3),
+                                       ("etf+megacap-59", WIDE, 5),
+                                       ("etf+megacap-59", WIDE, 8),
+                                       ("megacap-50", tuple(sig.MEGACAP_SLEEVE), 5)]:
+            params = replace(P, rank_universe=universe_, top_n=top_n)
+            print(f"\n--- {name}, top_n={top_n} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            run(prices, params, "  full 2012-2026")
+
+        print("\n=== benchmarks ===")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} IS  2012-2019", metrics(prices[ticker].loc["2012-01-03":IS_END]))
+            row(f"  {ticker} OOS 2020-2026", metrics(prices[ticker].loc[OOS_START:]))
+            row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
+
+    elif args.mode == "s7bias":
+        # How much of the wide-sleeve result is signal and how much is knowing, in 2012,
+        # which 50 companies would be megacaps in 2026? An IS/OOS split cannot answer this:
+        # the bias is in universe *construction*, so it is spread evenly over both halves.
+        # The honest control is the same universe held passively - if momentum's edge over
+        # its own basket is small, the headline number is the basket, not the strategy.
+        mega = [t for t in sig.MEGACAP_SLEEVE if t in prices.columns]
+        window = prices.loc["2012-01-03":]
+        rets = window[mega].pct_change()
+
+        def basket(cols, label):
+            r = window[cols].pct_change()
+            eq = (1 + r.mean(axis=1).fillna(0.0)).cumprod() * 100_000
+            row(label, metrics(eq))
+            return metrics(eq)
+
+        print("=== passive controls, 2012-2026, daily equal weight ===")
+        bench = basket(mega, f"  EW {len(mega)} megacaps (2026 list)")
+        listed = [t for t in mega if pd.notna(window[t].iloc[0])]
+        basket(listed, f"  EW {len(listed)} of them already listed 2012-01-03")
+        late = [t for t in mega if t not in listed]
+        if late:
+            basket(late, f"  EW {len(late)} that listed later ({', '.join(late)})")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} buy & hold", metrics(window[ticker]))
+
+        print("\n=== the signal on that same sleeve, vs the sleeve held passively ===")
+        for label, universe_ in [("megacap-50 (2026 list)", tuple(mega)),
+                                 ("megacap listed-2012 only", tuple(listed))]:
+            m = run(prices, replace(P, rank_universe=universe_, top_n=5),
+                    f"  momentum top_n=5 on {label}")
+            print(f"{'':<40} excess over its own EW basket: "
+                  f"{m['CAR'] - bench['CAR']:+.1%} CAR at {m['Vol'] / bench['Vol']:.2f}x its vol")
 
     elif args.mode == "regimes":
         print("=== regime filter choice, judged separately in and out of sample ===")
