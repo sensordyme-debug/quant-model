@@ -1,0 +1,565 @@
+{
+  "generated_at": "2026-09-08T16:28:16+00:00",
+  "source": "yfinance (split-adjusted OHLC, dividends via price factors)",
+  "start": "1998-01-01",
+  "end": "2026-09-08",
+  "symbols_written": 69,
+  "symbols_missing": [],
+  "symbols_failed": {},
+  "clamped_bars_total": 0,
+  "symbols_factor_check": [],
+  "data": {
+    "spy": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "qqq": {
+      "bars": 6916,
+      "first": "1999-03-10",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 91,
+      "adj_close_dev": 1e-06
+    },
+    "iwm": {
+      "bars": 6608,
+      "first": "2000-05-26",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 108,
+      "adj_close_dev": 1e-06
+    },
+    "dia": {
+      "bars": 7202,
+      "first": "1998-01-20",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 341,
+      "adj_close_dev": 2e-06
+    },
+    "tqqq": {
+      "bars": 4167,
+      "first": "2010-02-11",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 23,
+      "adj_close_dev": 0.0
+    },
+    "sqqq": {
+      "bars": 4167,
+      "first": "2010-02-11",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 27,
+      "adj_close_dev": 1e-06
+    },
+    "upro": {
+      "bars": 4326,
+      "first": "2009-06-25",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 48,
+      "adj_close_dev": 1e-06
+    },
+    "spxu": {
+      "bars": 4326,
+      "first": "2009-06-25",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 27,
+      "adj_close_dev": 1e-06
+    },
+    "soxl": {
+      "bars": 4148,
+      "first": "2010-03-11",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 33,
+      "adj_close_dev": 0.0
+    },
+    "soxs": {
+      "bars": 4148,
+      "first": "2010-03-11",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 27,
+      "adj_close_dev": 0.0
+    },
+    "tlt": {
+      "bars": 6065,
+      "first": "2002-07-30",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 290,
+      "adj_close_dev": 2e-06
+    },
+    "tmf": {
+      "bars": 4375,
+      "first": "2009-04-16",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 51,
+      "adj_close_dev": 1e-06
+    },
+    "gld": {
+      "bars": 5483,
+      "first": "2004-11-18",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "uso": {
+      "bars": 5134,
+      "first": "2006-04-10",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "uvxy": {
+      "bars": 3752,
+      "first": "2011-10-04",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "svxy": {
+      "bars": 3752,
+      "first": "2011-10-04",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "xlk": {
+      "bars": 6968,
+      "first": "1998-12-22",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 86,
+      "adj_close_dev": 1e-06
+    },
+    "xlf": {
+      "bars": 6968,
+      "first": "1998-12-22",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 112,
+      "adj_close_dev": 1e-06
+    },
+    "xle": {
+      "bars": 6968,
+      "first": "1998-12-22",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 113,
+      "adj_close_dev": 1e-06
+    },
+    "aapl": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 59,
+      "adj_close_dev": 1e-06
+    },
+    "msft": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 93,
+      "adj_close_dev": 1e-06
+    },
+    "nvda": {
+      "bars": 6948,
+      "first": "1999-01-22",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 57,
+      "adj_close_dev": 1e-06
+    },
+    "amzn": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "googl": {
+      "bars": 5547,
+      "first": "2004-08-19",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 12,
+      "adj_close_dev": 0.0
+    },
+    "meta": {
+      "bars": 3595,
+      "first": "2012-05-18",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 12,
+      "adj_close_dev": 0.0
+    },
+    "tsla": {
+      "bars": 4072,
+      "first": "2010-06-29",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "brkb": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "avgo": {
+      "bars": 4297,
+      "first": "2009-08-06",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 65,
+      "adj_close_dev": 1e-06
+    },
+    "lly": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "jpm": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 116,
+      "adj_close_dev": 1e-06
+    },
+    "v": {
+      "bars": 4646,
+      "first": "2008-03-19",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 75,
+      "adj_close_dev": 1e-06
+    },
+    "unh": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 80,
+      "adj_close_dev": 1e-06
+    },
+    "xom": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 118,
+      "adj_close_dev": 1e-06
+    },
+    "ma": {
+      "bars": 5102,
+      "first": "2006-05-25",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 82,
+      "adj_close_dev": 1e-06
+    },
+    "jnj": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "pg": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 118,
+      "adj_close_dev": 1e-06
+    },
+    "cost": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 97,
+      "adj_close_dev": 1e-06
+    },
+    "hd": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 118,
+      "adj_close_dev": 1e-06
+    },
+    "abbv": {
+      "bars": 3440,
+      "first": "2013-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 57,
+      "adj_close_dev": 1e-06
+    },
+    "wmt": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "nflx": {
+      "bars": 6111,
+      "first": "2002-05-23",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "mrk": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "ko": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 3.3e-05
+    },
+    "amd": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "pep": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "adbe": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 31,
+      "adj_close_dev": 0.0
+    },
+    "crm": {
+      "bars": 5587,
+      "first": "2004-06-23",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 12,
+      "adj_close_dev": 0.0
+    },
+    "tmo": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 62,
+      "adj_close_dev": 1e-06
+    },
+    "bac": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "csco": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 64,
+      "adj_close_dev": 1e-06
+    },
+    "acn": {
+      "bars": 6320,
+      "first": "2001-07-19",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 52,
+      "adj_close_dev": 1e-06
+    },
+    "lin": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "mcd": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 93,
+      "adj_close_dev": 1e-06
+    },
+    "abt": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 118,
+      "adj_close_dev": 1e-06
+    },
+    "orcl": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 71,
+      "adj_close_dev": 1e-06
+    },
+    "pfe": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "intc": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 109,
+      "adj_close_dev": 1e-06
+    },
+    "dis": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 39,
+      "adj_close_dev": 1e-06
+    },
+    "qcom": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 98,
+      "adj_close_dev": 1e-06
+    },
+    "wfc": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 119,
+      "adj_close_dev": 1e-06
+    },
+    "txn": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 116,
+      "adj_close_dev": 1e-06
+    },
+    "cat": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "ibm": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "amat": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 88,
+      "adj_close_dev": 1e-06
+    },
+    "vz": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 118,
+      "adj_close_dev": 1e-06
+    },
+    "now": {
+      "bars": 3566,
+      "first": "2012-06-29",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "ge": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 117,
+      "adj_close_dev": 1e-06
+    },
+    "uber": {
+      "bars": 1841,
+      "first": "2019-05-10",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 2,
+      "adj_close_dev": 0.0
+    },
+    "mu": {
+      "bars": 7213,
+      "first": "1998-01-02",
+      "last": "2026-09-04",
+      "clamped_bars": 0,
+      "factor_rows": 22,
+      "adj_close_dev": 0.0
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "algorithm": null,
+  "class": null,
+  "promoted_at": null,
+  "run_dir": null,
+  "stats": {},
+  "criteria": {
+    "min_trades": 30,
+    "must_beat": ["Sharpe Ratio", "Compounding Annual Return"],
+    "max_drawdown_limit": "35%",
+    "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
+  }
+}
