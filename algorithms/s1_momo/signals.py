@@ -135,6 +135,31 @@ class Params:
     dd_cooldown: int = 21                  # rebalances to stay flat after a dd_flat breach
     min_momentum: float = 0.0              # a holding must beat this blended return
 
+    # --- S-8: earn drawdown headroom so that size can be spent ---
+    #: Elastic margin budget. 0 keeps `margin_budget` a flat constant, which is what the
+    #: champion ships and what makes its vol target inert: the vol target asks for up to
+    #: `scale_cap` x exposure, the constant budget refuses, and the book therefore runs at
+    #: a *constant margin* in every regime. Set positive and the day's budget becomes the
+    #: margin the vol target actually asks for, clipped into
+    #: [`margin_budget_floor`, `margin_budget_cap`] - a calm book may spend more than 0.75,
+    #: a jumpy one must spend less. Pair it with a high `scale_cap`, otherwise the scale cap
+    #: binds first and the elastic ceiling is never reached.
+    margin_budget_cap: float = 0.0
+    margin_budget_floor: float = 0.0
+    #: Per-holding trailing stop: drop a winner trading more than this fraction below its
+    #: own trailing `trail_window`-session high. 0 = off. Measured on the *ranked* (unlevered)
+    #: series, because a 3x proxy is mechanically three times further below its own high.
+    #: Deliberately stateless - it reads prices only, so the I-1 paper runner needs no extra
+    #: persisted state, and a stopped name frees its share of the book to cash rather than
+    #: concentrating it into the survivors.
+    trail_stop: float = 0.0
+    trail_window: int = 60
+    #: Shape of the drawdown overlay between `dd_halve` and `dd_flat`. "step" is the
+    #: champion's 1.0 / 0.5 / 0.0; "taper" declines linearly from 1.0 at `dd_halve` to 0.0
+    #: at `dd_flat`, so the book is already small when it reaches the breaker instead of
+    #: taking the last 10 points of drawdown at half size.
+    dd_mode: str = "step"
+
     #: bars of history the signal needs before it can speak
     history_bars: int = field(default=300, compare=False)
 
@@ -288,6 +313,9 @@ def drawdown_multiplier(equity_curve, p: Params, state: dict | None = None):
     dd = 1.0 - last / peak
     if dd >= p.dd_flat:
         return 0.0, {"peak": peak, "flat_countdown": p.dd_cooldown}
+    if p.dd_mode == "taper" and p.dd_flat > p.dd_halve:
+        mult = 1.0 if dd <= p.dd_halve else (p.dd_flat - dd) / (p.dd_flat - p.dd_halve)
+        return round(float(mult), 4), {"peak": peak, "flat_countdown": 0}
     return (0.5 if dd >= p.dd_halve else 1.0), {"peak": peak, "flat_countdown": 0}
 
 
@@ -350,6 +378,21 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     # gets a third of the weight for the same exposure. Sizing each name at 1/N of equity
     # instead would peg gross weight at 1.0 and leave the vol target able only to cut.
     shares = allocate(winners, scores, p.weight_mode)
+
+    # S-8 trailing stop. Shares are allocated over the *pre-stop* winners and a stopped
+    # name simply does not get funded, so the book shrinks toward cash instead of doubling
+    # down on whatever has not broken yet.
+    if p.trail_stop > 0:
+        tail = prices[winners].iloc[-p.trail_window:]
+        highs, last = tail.max(), tail.iloc[-1]
+        stopped = [t for t in winners if last[t] < (1.0 - p.trail_stop) * highs[t]]
+        if stopped:
+            diag["stopped"] = stopped
+            winners = [t for t in winners if t not in stopped]
+            if not winners:
+                diag["reason"] = "all winners stopped out"
+                return {}, diag
+
     raw, leverage = {}, {}
     for ticker in winners:
         instrument, mult = LEVERED_PROXY.get(ticker, (ticker, 1.0))
@@ -362,7 +405,8 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     returns = prices[list(raw)].pct_change().iloc[-p.vol_est_window:]
     port_ret = (returns * pd.Series(raw)).sum(axis=1)
     sigma = realized_vol(port_ret, p.vol_est_window)
-    scale = p.scale_cap if not np.isfinite(sigma) or sigma <= 0 else min(p.target_vol / sigma, p.scale_cap)
+    unbounded = p.scale_cap if not np.isfinite(sigma) or sigma <= 0 else p.target_vol / sigma
+    scale = min(unbounded, p.scale_cap)
     diag["portfolio_vol"] = None if not np.isfinite(sigma) else round(float(sigma), 4)
     diag["vol_scale"] = round(float(scale), 4)
 
@@ -371,11 +415,23 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     # Two caps, whichever binds first (S-6). The margin budget is what a broker charges;
     # max_gross_weight is a blunt ceiling on notional so a hypothetical zero-margin
     # instrument could never produce an unbounded book.
+    #
+    # S-8: with `margin_budget_cap` set, that budget stops being a constant and becomes the
+    # margin the vol target asks for, clipped into [floor, cap]. The clip is the whole point:
+    # a flat budget makes the vol target inert, because the budget refuses the extra size in
+    # calm markets and never demands less in violent ones.
+    budget = p.margin_budget
+    if p.margin_budget_cap > 0:
+        want = sum(w * unbounded * dd_mult * MARGIN_REQ.get(t, BASE_MARGIN_REQ)
+                   for t, w in raw.items())
+        budget = float(min(max(want, p.margin_budget_floor), p.margin_budget_cap))
+        diag["margin_budget"] = round(budget, 4)
+
     margin = sum(w * MARGIN_REQ.get(t, BASE_MARGIN_REQ) for t, w in weights.items())
     gross = sum(weights.values())
     shrink = 1.0
-    if margin > p.margin_budget > 0:
-        shrink = min(shrink, p.margin_budget / margin)
+    if margin > budget > 0:
+        shrink = min(shrink, budget / margin)
     if gross > p.max_gross_weight > 0:
         shrink = min(shrink, p.max_gross_weight / gross)
     if shrink < 1.0:

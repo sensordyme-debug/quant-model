@@ -14,29 +14,18 @@ intraday data. Live money stays off the table until the human signs off in `live
 Status 2026-09-08: S-1 is promoted and S-6 has raised it to 1.63x effective exposure and
 16.5% vol (CAR 18.1%, Sharpe 0.69, DD 25.2%). The remaining gate is I-1, blocked on IB Gateway
 being logged in on this machine (see `research/BLOCKERS.md`); the runner is built and passes
-`--mock --dry-run` against the current champion. Realized vol is still short of the 40-60%
-mandate, but the binding constraint is now the 35% drawdown limit rather than an execution
-bug - a risk-budget decision for the human, not something to fix before the paper deadline.
-S-7 has since been run and produced no champion change, and D-3 (2026-09-08) closed it
-negatively rather than reopening it. The champion's order list is unchanged
-(`OrderListHash 9f58b37cc2656b647ec88a5124daf02d`, re-verified by run `20260908T202809Z`),
-so nothing about the I-1 deployment moves. Single-name sleeves are now formally capped:
-the pool on disk is a 2026 survivor list, so their numbers are upper bounds
-(see `BLOCKERS.md`) and the ETF-9 sleeve is the only honest universe here.
+`--mock --dry-run` against the current champion. S-7, D-3 and now S-8 have all been run and
+all closed negatively, so the champion has not moved and its order list is unchanged
+(`OrderListHash 9f58b37cc2656b647ec88a5124daf02d`, re-verified by run `20260908T213829Z`) -
+nothing about the I-1 deployment moves. Two constraints are now measured rather than assumed:
+single-name sleeves are capped because the pool on disk is a 2026 survivor list, leaving the
+ETF-9 sleeve as the only honest universe here; and the 40-60% volatility mandate is
+**unreachable** under the 35% drawdown limit on that sleeve, at any size, by any of the four
+levers S-8 tried. Both are decisions for the human in `BLOCKERS.md`. The open strategy work is
+therefore a *different signal* (S-3), not a different size.
 
 ## Open (highest value first)
 
-- **S-8 Reach the volatility mandate without breaching the drawdown limit.** *Now the top
-  item: it is the only open strategy work on a universe with no selection story.* After S-6
-  the gross cap no longer binds; `scale_cap = 2.0` and the 25.2% realized drawdown do. Simply
-  raising the margin budget to 1.0 buys 2.07x exposure and 20.4% CAR but a 35.4% drawdown,
-  which fails the promotion rule - so more size has to be paid for with a better drawdown
-  profile, not asked for directly. Candidates: a volatility-responsive budget (spend more of
-  it when the vol estimate is low), a trailing stop per holding rather than only at the
-  portfolio level, and tightening `dd_halve` so the breaker engages earlier and cheaper.
-  **Start from `top_n=5` or `6`** (S-7): return is within 1.5 points of `top_n=3` but full
-  drawdown falls to 22.0% and vol to 18.4%, which is exactly the headroom this item needs.
-  Requires a human decision if the answer turns out to be "raise the 35% limit".
 - **I-1 IBKR paper runner: BUILT, waiting on the human's IB Gateway login.**
   `scripts/paper_trade.py` (ib_async) already exists and passes `--mock --dry-run` against
   `algorithms/s1_momo/signals.py`: it introspects the signal signature, feeds back
@@ -67,6 +56,24 @@ the pool on disk is a 2026 survivor list, so their numbers are upper bounds
 
 ## Done
 
+- **S-8 Reach the volatility mandate without breaching the drawdown limit. Closed negatively
+  2026-09-08**, runs `20260908T213829Z` (control), `20260908T214218Z`, `20260908T214625Z`, no
+  promotion. All four named levers measured and rejected: `top_n=5-6` inverts at higher size
+  (S-7's headroom was a small-book property); an earlier breaker (`dd_halve` 0.08-0.10) is
+  strictly dominated by carrying less size; a continuous `dd_mode="taper"` re-creates the 2015
+  absorbing state and returns -0.2% CAR, because the high-water mark only resets on a *hard*
+  `dd_flat` breach; and a per-holding trailing stop leaves `MaxDD` bit-identical, since the
+  drawdown comes from the levered index proxies falling together. The elastic vol-responsive
+  budget (`margin_budget_cap`/`_floor`) did expose a real defect - the shipped vol target is
+  *saturated*, so the champion has never actually vol-targeted, it carries constant margin -
+  but fixing it is a size dial, not a shape improvement: at matched 17.1% vol it loses 1.8
+  points of CAR and 0.09 Sharpe to the champion while placing 30% more orders. All three
+  parameters remain in `signals.py` defaulted off; the control run reproduces
+  `OrderListHash 9f58b37cc2656b647ec88a5124daf02d`. **The mandate itself is now a human
+  decision** - the LEAN frontier has drawdown binding at 19-20% vol, so 40-60% is unreachable
+  under a 35% limit (see `BLOCKERS.md`). Also calibrated: `sweep_s1.py` understates drawdown
+  by +2 points at the champion's size and by +8 to +10 at 2x exposure, so sweeps rank, LEAN
+  decides.
 - **D-3 Point-in-time universe.** 2026-09-08, run `20260908T203212Z`, no promotion.
   `algorithms/s1_momo/universe.py` picks the top N of a candidate pool by trailing 60-day
   median dollar volume on each rebalance, with a 252-session minimum history;

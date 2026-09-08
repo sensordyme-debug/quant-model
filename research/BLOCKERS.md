@@ -24,5 +24,29 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   or accept that the model stays on the ETF sleeve (which has no equivalent bias - all nine
   names traded throughout the sample). The current champion is on the ETF sleeve, so nothing
   is blocked today; what is blocked is ever trusting the higher single-name numbers.
+- **2026-09-08 The volatility mandate vs the 35% drawdown limit (decision requested; caps how
+  aggressive the model can be).** `USER.md` asks for an aggressive, volatile model and S-1's
+  write-up targets 40-60% realized vol; `champion.json` caps drawdown at 35%. S-8 measured the
+  frontier in LEAN and the two cannot both be had on the ETF-9 sleeve:
+
+  | config | Vol | CAR | Sharpe | MaxDD |
+  | --- | --- | --- | --- | --- |
+  | champion (flat budget 0.75) | 16.5% | 18.1% | 0.693 | 25.2% |
+  | elastic budget, target_vol 32% | 19.4% | 19.7% | 0.674 | **34.3%** |
+  | flat budget 1.0 (Reg-T, maximum) | 20.6% | 20.4% | 0.672 | **35.4%** |
+
+  The drawdown limit binds at 19-20% vol - and 20.6% is already the *Reg-T ceiling*, since an
+  initial-margin budget of 1.0 means 2.0x gross on an ordinary ETF. Reaching 40% vol would
+  need roughly double that again, which is impossible in a Reg-T account without either a
+  portfolio-margin account or a much larger allocation to the 3x ETFs, and either way the
+  drawdown would land far beyond 35%. S-8 tried four ways to earn the headroom (wider `top_n`,
+  an earlier drawdown breaker, per-holding trailing stops, a vol-responsive margin budget) and
+  all four cost more return than they saved in drawdown. **Decision needed, one of:** (a) keep
+  the 35% limit and accept ~18-20% vol as the honest ceiling for this strategy, (b) raise the
+  drawdown limit in `champion.json` to a stated number and let size go to the Reg-T cap, or
+  (c) treat higher vol as something to be earned by *adding uncorrelated sleeves* (S-3, S-2,
+  the S-5 allocator) rather than by leverage. Nothing is blocked today - the champion and the
+  I-1 paper deployment are unaffected - but until this is answered the loop cannot pursue the
+  mandate as written.
 - **2026-09-08 IBKR paper account.** Install IB Gateway and log in with the paper account so
   backlog I-1 can be built and tested. LEAN expects API port 4002 (Gateway) or 7497 (TWS).

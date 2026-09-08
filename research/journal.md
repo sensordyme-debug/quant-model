@@ -2,6 +2,116 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-08 - S-8: four ways to buy drawdown headroom, all four rejected, and the mandate is measured as unreachable
+
+- **What.** The S-8 question: reach the 40-60% volatility mandate without breaching the 35%
+  drawdown limit. Four levers, three of them new code in `signals.py`, every one defaulted
+  off so the champion is untouched - `margin_budget_cap`/`margin_budget_floor` (an elastic,
+  vol-responsive margin budget), `trail_stop`/`trail_window` (a stateless per-holding trailing
+  stop), and `dd_mode="taper"` (a continuous drawdown overlay instead of the 1.0/0.5/0.0 step).
+  Swept with `scripts/sweep_s1.py --mode s8` and `--mode s8vol`, then the two survivors
+  confirmed in LEAN.
+- **Why.** S-6 left the constraint on the drawdown limit rather than on execution: budget 1.0
+  buys 2.07x exposure and 20.4% CAR but 35.4% drawdown. More size has to be *paid for*.
+
+### The control is clean
+
+Run `20260908T213829Z` at champion defaults reproduces `OrderListHash
+9f58b37cc2656b647ec88a5124daf02d` and every statistic. Three new parameters, zero behaviour
+change.
+
+### 1. `top_n=5-6` does not survive the size increase
+
+S-7 measured `top_n=6` as cheaper in drawdown at equal return, and the backlog told S-8 to
+start there. At the champion's budget that is true; at budget 1.0 it inverts:
+
+| top_n, budget=1.0 | full CAR | Sharpe | MaxDD | Vol |
+| --- | --- | --- | --- | --- |
+| 3 | **22.4%** | **0.95** | 27.4% | 24.4% |
+| 5 | 19.4% | 0.88 | 27.4% | 23.3% |
+| 6 | 20.4% | 0.92 | 29.9% | 23.0% |
+
+The headroom S-7 found was a property of a small book, not of the wider one. Rejected.
+
+### 2. An earlier breaker is dominated by simply carrying less size
+
+| dd_halve/dd_flat, budget=1.0 | full CAR | Sharpe | MaxDD |
+| --- | --- | --- | --- |
+| 0.15/0.25 (shipped) | 22.4% | 0.95 | 27.4% |
+| 0.10/0.25 | 16.6% | 0.81 | 23.3% |
+| 0.08/0.20 | 16.3% | 0.82 | 22.3% |
+
+Tightening to 0.10/0.25 lands on 16.6% CAR at 23.3% drawdown. The champion, in the same
+harness, gets 18.7% at 23.2%. So the tighter breaker is strictly worse than turning the size
+back down - it is a more expensive way to buy the same drawdown. Rejected.
+
+### 3. The continuous taper re-creates the 2015 absorbing state
+
+Full period **CAR -0.2%**, exposure 0.21x, invested 53.8% of days. The mechanism is exactly
+the bug the journal already records once: the high-water mark only resets on a hard `dd_flat`
+breach. A taper asymptotes to zero exposure *just below* `dd_flat`, so the breach never
+happens, the peak never resets, and a book earning nothing can never climb back out. The step
+function's brutality is load-bearing - it forces the hard breach that resets the mark.
+Rejected, and worth keeping as the second instance of the same failure mode.
+
+### 4. The trailing stop does not touch drawdown at all
+
+Five (stop, window) settings, and `MaxDD` is 27.4% in every one of them, against 27.4% with
+no stop. Portfolio drawdown here comes from the levered index proxies falling *together*, not
+from one holding breaking down, so a per-name stop has nothing to bite on. Rejected.
+
+### 5. The elastic budget: the diagnosis was right, the fix is a size dial
+
+The first sweep showed the elastic budget doing almost nothing, and the reason is a real
+finding about the shipped champion: **the vol target has never been active.** The book
+realizes ~24% vol against a 40% target, so `target_vol / sigma` sits above every ceiling on
+essentially every day, and the strategy therefore carries a *constant* margin through every
+regime. Lowering the target to something reachable makes it bind - and that does trace a
+better frontier in the sweep. But confirmed in LEAN it collapses:
+
+| LEAN run | Vol | CAR | Sharpe | MaxDD | Orders | Fees |
+| --- | --- | --- | --- | --- | --- | --- |
+| champion, flat budget 0.75 | 16.5% | **18.1%** | **0.693** | 25.2% | 3,410 | $38,630 |
+| elastic [0.2,1.0], tv=26% (`214625Z`) | 17.1% | 16.3% | 0.604 | 24.6% | 4,427 | $37,910 |
+| elastic [0.2,1.0], tv=32% (`214218Z`) | 19.4% | 19.7% | 0.674 | 34.3% | 4,307 | $54,498 |
+| flat budget 1.0 (S-6, measured) | 20.6% | 20.4% | 0.672 | 35.4% | 4,146 | $55,171 |
+
+The matched-risk row is the verdict. At 17.1% vol against the champion's 16.5% - the same
+risk - the elastic budget returns 1.8 points *less* and gives up 0.09 of Sharpe, while placing
+30% more orders on a *smaller* book. A budget that moves with the vol estimate re-sizes the
+whole portfolio every day, and daily rotation of 3x ETFs cannot afford that. It is a size
+dial, not a shape improvement: at tv=32% it lands on the same frontier point as flat 1.0
+(19.7%/0.674/34.3% against 20.4%/0.672/35.4%) - a hair less drawdown for a hair less return.
+
+### The harness lied about drawdown, and it lies more as size goes up
+
+Worth recording as a calibration, because every future sweep depends on it:
+
+| config | sweep MaxDD | LEAN MaxDD | gap |
+| --- | --- | --- | --- |
+| champion (exp 1.62x) | 23.2% | 25.2% | +2.0 |
+| elastic tv=32% (exp 1.94x) | 24.6% | 34.3% | +9.7 |
+| flat budget 1.0 (exp 2.06x) | 27.4% | 35.4% | +8.0 |
+
+`sweep_s1.py`'s flat 2bps turnover charge is fine for *ranking* at fixed size and badly
+optimistic across size: it also scored the tv=26% elastic config at Sharpe 0.97, level with
+the champion, where LEAN says 0.604 against 0.693. The docstring already says "choose here,
+confirm in LEAN"; this is the magnitude of why.
+
+- **Decision.** **No promotion; champion unchanged** (`evaluate.py` refused both candidates,
+  on Sharpe for `214218Z` and on Sharpe *and* CAR for `214625Z`). The new parameters stay in
+  the code, defaulted off and documented, because they are the evidence.
+- **S-8 is closed, and it closes into a human decision.** The measured LEAN frontier above
+  says the drawdown limit is already binding at 19-20% realized vol. The mandate asks for
+  40-60%, roughly double again, which on this universe means a drawdown far past 35%. The two
+  are not simultaneously reachable on the ETF-9 sleeve by any of the four levers, so this is
+  now a risk-budget decision, filed in `BLOCKERS.md`. **Nothing about I-1 moves**: the
+  champion's order list is unchanged and the paper deadline is untouched.
+- **Next.** With S-8 closed, the open strategy work is a *different signal* rather than a
+  different size: S-3 cross-sectional short-term reversal is the next sleeve, and it is the
+  one that could raise vol by adding an uncorrelated return stream instead of leverage.
+  I-1 remains the deadline gate and is still blocked on the IB Gateway login.
+
 ## 2026-09-08 - D-3 point-in-time universe: the timing bias is gone, the pool bias is 90% of it
 
 - **What.** `algorithms/s1_momo/universe.py`: membership decided on each rebalance date from

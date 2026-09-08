@@ -116,7 +116,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", default="ablation",
                     choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin",
-                             "s7", "s7bias", "d3"])
+                             "s7", "s7bias", "d3", "s8", "s8vol"])
     args = ap.parse_args()
 
     tickers = sig.TRADED_UNIVERSE
@@ -230,6 +230,84 @@ def main() -> int:
             row(f"  {ticker} IS  2012-2019", metrics(prices[ticker].loc["2012-01-03":IS_END]))
             row(f"  {ticker} OOS 2020-2026", metrics(prices[ticker].loc[OOS_START:]))
             row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
+
+    elif args.mode == "s8":
+        # S-8: reach the volatility mandate without breaching the 35% drawdown limit.
+        # The champion runs at 16.5% vol because a constant margin budget binds every day;
+        # simply raising it to 1.0 buys 2.07x exposure and a 35.4% drawdown, which fails.
+        # So size has to be *paid for* with a better drawdown profile. Four levers, each
+        # judged in and out of sample, then the survivors combined - a drawdown improvement
+        # is exactly the thing that shows up for free on whichever half had no crisis.
+        def both(params, label):
+            print(f"\n--- {label} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            return run(prices, params, "  full 2012-2026")
+
+        print("=== 0. baselines: the champion, and what raw size costs ===")
+        both(P, "champion (budget=0.75, top_n=3)")
+        both(replace(P, margin_budget=1.0), "budget=1.0, nothing paid for it")
+
+        print("\n=== 1. top_n: S-7 measured 5-6 as cheaper in drawdown at equal return ===")
+        for top_n in [3, 5, 6]:
+            both(replace(P, top_n=top_n, margin_budget=1.0), f"top_n={top_n} budget=1.0")
+
+        print("\n=== 2. an earlier, cheaper breaker (dd_halve / dd_flat / taper) ===")
+        for halve, flat, mode in [(0.15, 0.25, "step"), (0.10, 0.25, "step"),
+                                  (0.08, 0.20, "step"), (0.15, 0.25, "taper"),
+                                  (0.10, 0.25, "taper"), (0.10, 0.20, "taper")]:
+            both(replace(P, margin_budget=1.0, dd_halve=halve, dd_flat=flat, dd_mode=mode),
+                 f"dd {halve}/{flat} {mode} budget=1.0")
+
+        print("\n=== 3. per-holding trailing stop ===")
+        for stop, window in [(0.10, 60), (0.15, 60), (0.20, 60), (0.15, 120), (0.25, 120)]:
+            both(replace(P, margin_budget=1.0, trail_stop=stop, trail_window=window),
+                 f"trail {stop:.0%}/{window}d budget=1.0")
+
+        print("\n=== 4. elastic budget: spend the vol target's ask, clipped ===")
+        for floor, cap in [(0.3, 1.0), (0.3, 1.25), (0.4, 1.5), (0.2, 1.5), (0.3, 2.0)]:
+            both(replace(P, scale_cap=6.0, margin_budget_floor=floor, margin_budget_cap=cap),
+                 f"elastic budget [{floor}, {cap}] scale_cap=6")
+
+        print("\n--- benchmarks ---")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} IS  2012-2019", metrics(prices[ticker].loc["2012-01-03":IS_END]))
+            row(f"  {ticker} OOS 2020-2026", metrics(prices[ticker].loc[OOS_START:]))
+            row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
+
+    elif args.mode == "s8vol":
+        # S-8, second pass. The elastic budget in --mode s8 barely moved anything, and the
+        # reason is in the numbers: the book realizes ~24% vol against a 40% target, so
+        # `target_vol / sigma` is above every ceiling on essentially every day. The vol
+        # target is *saturated*, which means the strategy has never actually vol-targeted -
+        # it carries a constant margin and takes the whole of a crisis at full size.
+        # Lowering the target to something the book can reach is what turns the elastic
+        # budget from a no-op into a risk control.
+        def both(params, label):
+            print(f"\n--- {label} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            return run(prices, params, "  full 2012-2026")
+
+        print("=== elastic budget with a reachable vol target ===")
+        for tv in [0.18, 0.22, 0.26, 0.30]:
+            for cap in [1.25, 1.75]:
+                both(replace(P, scale_cap=6.0, target_vol=tv, margin_budget_floor=0.2,
+                             margin_budget_cap=cap, max_gross_weight=3.0),
+                     f"target_vol={tv:.0%} elastic [0.2, {cap}] gross<=3")
+
+        print("\n=== control: the same reachable target under the flat budget ===")
+        for tv in [0.22, 0.26]:
+            both(replace(P, target_vol=tv, margin_budget=1.0), f"target_vol={tv:.0%} flat 1.0")
+
+        # Reg-T is the real ceiling: initial margin of 1.0 already means 2.0x gross on an
+        # ordinary ETF, so a budget above 1.0 is only reachable under portfolio margin and
+        # is not something the I-1 paper account can execute. These are the shippable ones.
+        print("\n=== executable: budget capped at Reg-T, gross at the champion's 2.0 ===")
+        for tv in [0.24, 0.26, 0.28, 0.32]:
+            both(replace(P, scale_cap=6.0, target_vol=tv, margin_budget_floor=0.2,
+                         margin_budget_cap=1.0),
+                 f"target_vol={tv:.0%} elastic [0.2, 1.0] gross<=2")
 
     elif args.mode == "d3":
         # D-3: does deciding membership from trailing dollar volume, on the rebalance date,

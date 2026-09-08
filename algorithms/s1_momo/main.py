@@ -74,6 +74,14 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             dd_halve=_env("DD_HALVE", 0.15),
             dd_flat=_env("DD_FLAT", 0.25),
             dd_cooldown=_env("DD_COOLDOWN", 21, int),
+            # S-8: all three default to the champion's behaviour. MARGIN_BUDGET_CAP=0
+            # keeps the flat budget, TRAIL_STOP=0 disables the per-holding stop and
+            # DD_MODE=step keeps the 1.0 / 0.5 / 0.0 breaker.
+            margin_budget_cap=_env("MARGIN_BUDGET_CAP", 0.0),
+            margin_budget_floor=_env("MARGIN_BUDGET_FLOOR", 0.0),
+            trail_stop=_env("TRAIL_STOP", 0.0),
+            trail_window=_env("TRAIL_WINDOW", 60, int),
+            dd_mode=os.environ.get("S1_DD_MODE", "step"),
         )
 
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)
@@ -235,5 +243,7 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
                  f"({invested_share:.1%}) mean_effective_exposure={mean_exposure:.2f}x")
         self.log(f"max gross exposure actually carried: {self.max_observed_gross:.3f} "
                  f"(ceiling {self.params.max_gross_weight})")
+        budget = (f"elastic [{self.params.margin_budget_floor}, {self.params.margin_budget_cap}]"
+                  if self.params.margin_budget_cap > 0 else str(self.params.margin_budget))
         self.log(f"max initial margin actually used: {self.max_observed_margin:.3f} "
-                 f"(budget {self.params.margin_budget})")
+                 f"(budget {budget})")
