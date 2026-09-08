@@ -52,6 +52,12 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.params = sig.Params(
             rank_universe=sleeves[os.environ.get("S1_SLEEVE", "etf")],
             weight_mode=os.environ.get("S1_WEIGHT_MODE", "equal"),
+            # D-3: 0 keeps the sleeve fixed (the shipped champion); a positive value makes
+            # the sleeve above a candidate *pool* and re-picks that many members by
+            # trailing dollar volume on each rebalance, using only bars up to that date.
+            universe_size=_env("UNIVERSE_SIZE", 0, int),
+            dv_window=_env("DV_WINDOW", 60, int),
+            min_history=_env("MIN_HISTORY", 252, int),
             mom_lookbacks=tuple(int(x) for x in
                                 os.environ.get("S1_LOOKBACKS", "20,60,120").split(",")),
             top_n=_env("TOP_N", 3, int),
@@ -121,15 +127,23 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         # order batch in flight, and is what the I-1 runner can reproduce against IBKR.
 
     def price_frame(self):
-        """Adjusted closes for the traded universe as a tickers-by-date DataFrame."""
+        """`(adjusted closes, share volume)` for the traded universe, dates by ticker.
+
+        Volume is only used by the D-3 point-in-time universe; it is fetched
+        unconditionally because it arrives in the same history call and costs nothing.
+        """
         history = self.history(list(self.symbols.values()), self.params.history_bars,
                                Resolution.DAILY)
         if history.empty or "close" not in history.columns:
-            return None
-        closes = history["close"].unstack(level=0)
+            return None, None
         # The unstacked columns are LEAN symbol keys ("SPY R735QTJ8P55O" or a Symbol
         # object, depending on the call); reduce both to the plain ticker signals.py wants.
-        return closes.rename(columns=lambda c: str(c).split(" ")[0].upper())
+        def frame(column):
+            if column not in history.columns:
+                return None
+            return history[column].unstack(level=0).rename(
+                columns=lambda c: str(c).split(" ")[0].upper())
+        return frame("close"), frame("volume")
 
     def submit_targets(self, weights):
         """Turn target weights into share deltas and send them, sells first.
@@ -164,13 +178,13 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             return
         self.equity_curve.append(float(self.portfolio.total_portfolio_value))
 
-        prices = self.price_frame()
+        prices, volumes = self.price_frame()
         if prices is None or prices.empty:
             self.debug(f"{self.time}: no history frame")
             return
 
         weights, diag = sig.target_weights(prices, self.equity_curve, self.params,
-                                           self.overlay_state)
+                                           self.overlay_state, volumes=volumes)
         self.overlay_state = diag.get("state", {})
         self.rebalances += 1
         if weights:
@@ -185,6 +199,11 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
                      f"exp={diag.get('effective_exposure')} "
                      f"scale={diag.get('vol_scale')} dd={diag.get('dd_multiplier')} "
                      f"{list(weights)}")
+            if diag.get("universe_members"):
+                # The sleeve as of this date. Printed so the run log itself is the evidence
+                # that membership moved with the data rather than being fixed in 2026.
+                self.log(f"  universe({diag.get('n_ranked')}/{diag.get('n_history_ok')}): "
+                         f"{' '.join(diag['universe_members'])}")
 
     def on_data(self, data: Slice):
         equity = float(self.portfolio.total_portfolio_value)

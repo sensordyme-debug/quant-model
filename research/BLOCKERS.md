@@ -9,9 +9,20 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   historical data (needs IB Gateway logged in on this machine, no extra cost) or a
   QuantConnect data subscription (`lean data download`, needs `lean login`, paid).
   Until then the loop runs daily-frequency strategies only.
-- **2026-09-08 Daily data quality (FYI, not blocking).** The `yfinance` stopgap is
-  survivorship-biased (the universe is today's liquid names, so backtests before ~2015
-  flatter momentum strategies) and carries no borrow costs or delisted tickers. Treat
-  pre-2015 results as indicative. A paid feed would fix this.
+- **2026-09-08 Delisted-inclusive history (decision requested; caps every single-name
+  strategy).** Now measured rather than suspected. D-3 built a point-in-time universe -
+  membership decided each rebalance by trailing 60-day dollar volume, so the 2012 sleeve
+  really does hold BAC/GE/XOM/WFC/IBM and the 2026 one holds NVDA/TSLA/AMD - and it removed
+  only **0.8 of the 7.8 points** by which the passive megacap basket beats SPY (22.8% -> 22.0%
+  CAR against SPY's 15.0%). The other 7.0 points survive because `fetch_data.py` could only
+  download the 69 tickers that still exist in 2026: a name that was heavily traded in 2012 and
+  has since been acquired or delisted (Sprint, Yahoo, EMC, Dell) can never be a candidate, and
+  those are disproportionately the losers. So every result on the single-name sleeve is an
+  upper bound and is tagged `not promotable`, however good its statistics look. Only a
+  delisted-inclusive data set fixes this, and that is paid: CRSP, Norgate, Sharadar or
+  QuantConnect's US Equity Security Master are the usual options. **Decision needed:** buy one,
+  or accept that the model stays on the ETF sleeve (which has no equivalent bias - all nine
+  names traded throughout the sample). The current champion is on the ETF sleeve, so nothing
+  is blocked today; what is blocked is ever trusting the higher single-name numbers.
 - **2026-09-08 IBKR paper account.** Install IB Gateway and log in with the paper account so
   backlog I-1 can be built and tested. LEAN expects API port 4002 (Gateway) or 7497 (TWS).

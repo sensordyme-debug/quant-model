@@ -2,6 +2,83 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-08 - D-3 point-in-time universe: the timing bias is gone, the pool bias is 90% of it
+
+- **What.** `algorithms/s1_momo/universe.py`: membership decided on each rebalance date from
+  the trailing 60-day *median* dollar volume of bars already on disk, top N, with a 252-session
+  minimum history. Wired into `signals.Params` as `universe_size` (0 = the fixed sleeve the
+  champion ships, so the default is unchanged), into `main.py` behind `S1_UNIVERSE_SIZE`, and
+  into `scripts/sweep_s1.py --mode d3`. `lean_prices.load_frames` now returns volume beside
+  the adjusted closes.
+- **Why.** S-7 printed CAR 43.9% by ranking the megacaps *of 2026* back to 2012. The backlog
+  asked for the cheapest honest universe that needs no new data source, and liquidity is what
+  the mandate cares about anyway.
+
+### The selection is real, and it moves
+
+Straight from the run log, 20 names picked out of the 59-name pool:
+
+| as of | sleeve |
+| --- | --- |
+| 2012-12-31 | SPY AAPL IWM QQQ GOOGL **BAC** MSFT GLD **XOM** INTC **JPM** **GE** XLF XLE **WFC** AMZN **IBM** JNJ DIA **PFE** |
+| 2024-12-02 | SPY TSLA QQQ **NVDA** AAPL **AMD** MSFT AMZN META IWM GOOGL **AVGO** ORCL GLD MU NFLX INTC LLY UNH DIA |
+
+47 different names are selected at some point, 458 entries and exits, and only 10 of the 20
+seats are held by the same ticker in 2026 as in 2012. The 2012 sleeve is full of the banks and
+oil majors that then underperformed for a decade, which is exactly what a list built without
+hindsight should look like.
+
+### But the honest control says it barely helped
+
+| passive, equal weight, 2012-2026 | CAR | Sharpe | Vol |
+| --- | --- | --- | --- |
+| EW 50 megacaps, 2026 list (S-7's control) | 22.8% | 1.27 | 17.4% |
+| **EW top-20 point-in-time (D-3)** | **22.0%** | 1.09 | 20.2% |
+| SPY buy & hold | 15.0% | 0.93 | 16.5% |
+
+Point-in-time selection gives back **0.8 points of the 7.8** by which the biased basket beats
+SPY. The remaining 7.0 are not a timing problem and D-3 cannot touch them: `fetch_data.py`
+downloaded 69 tickers *that exist in 2026*, so Sprint, Yahoo, EMC and Dell were never
+candidates in 2012 no matter what their dollar volume was, and those are disproportionately
+the names that later failed. **About 90% of the universe bias is in the file, not in the
+ranking date.** Promoted to a decision item in `BLOCKERS.md`.
+
+### And the signal still does not beat its own sleeve
+
+LEAN, run `20260908T203212Z`, `S1_SLEEVE=wide S1_UNIVERSE_SIZE=20 S1_TOP_N=3`:
+
+| | CAR | Sharpe | MaxDD | Orders | Fees | PSR |
+| --- | --- | --- | --- | --- | --- | --- |
+| D-3 point-in-time sleeve | 32.1% | 0.90 | 32.3% | 4,816 | $69,571 | 16.8% |
+| champion (fixed ETF-9) | 18.1% | 0.69 | 25.2% | 3,410 | $38,630 | 5.1% |
+| *its own passive sleeve* | *22.0%* | *1.09* | *34.0%* | *0* | *~0* | - |
+
++14.0 points of CAR over the champion, and it clears QQQ's 19.9% - the thing S-7 wanted. It is
+still not a win. Against the sleeve it actually trades, the strategy adds 10.1 points of CAR at
+1.25x the vol and **gives up 0.19 of Sharpe** once LEAN's commission model is applied rather
+than the sweep's flat 2bps. Buying the same 20 names and doing nothing is the better
+risk-adjusted trade. That is the same verdict S-7 reached on the biased sleeve, and it survives
+the fix - so the momentum ranking's edge over a liquid large-cap basket is leverage, not skill.
+
+- **Decision.** **No promotion; champion unchanged.** The run is tagged `not promotable`
+  and `evaluate.py` refused it on that tag alone - worth noting that it passed every
+  statistical rule (32.3% drawdown inside the 35% limit, 4,816 orders, wins both must-beat
+  metrics), so the E-3 guard is the only thing standing between a future session and a
+  survivorship artifact. The control run `20260908T202809Z` reproduces
+  `OrderListHash 9f58b37cc2656b647ec88a5124daf02d`, so plumbing volume through `main.py`
+  changed nothing the champion trades.
+- **S-7 is closed, negatively.** All three named levers are now answered: momentum-proportional
+  weighting loses, `top_n` is flat, and a wider sleeve wins only on borrowed vol and a
+  survivor pool. Beating buy-and-hold on absolute return is not a universe problem.
+- **I-1 untouched by design.** `paper_trade.py` calls the signal by introspecting its
+  parameters and would simply not pass `volumes`; with the champion at `universe_size=0` that
+  is correct behaviour, not a gap. If a point-in-time sleeve is ever promoted, the runner needs
+  `fetch_history_yf` to return volume too and `call_signal` to forward it - deliberately not
+  done today, two days before the paper deadline, for a code path nothing uses.
+- **Next.** S-8 on the ETF-9 sleeve, which is the only universe here without a selection
+  story: reach the volatility mandate by earning drawdown headroom (start from `top_n=5-6`),
+  not by asking for size.
+
 ## 2026-09-08 - S-7 beat buy-and-hold: two levers rejected, one is a mirage
 
 - **What.** The three S-7 candidates for beating QQQ's 19.9% CAR, tested on both sub-periods

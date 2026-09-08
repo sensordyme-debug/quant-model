@@ -26,14 +26,16 @@ sys.path.insert(0, str(REPO / "algorithms" / "s1_momo"))
 sys.path.insert(0, str(REPO / "scripts"))
 
 import signals as sig                     # noqa: E402
-from lean_prices import load_closes       # noqa: E402
+import universe as uni                    # noqa: E402
+from lean_prices import load_frames       # noqa: E402
 
 COST_BPS = 2.0          # round-trip cost per unit of turnover; IBKR on liquid ETFs
 IS_END = "2019-12-31"
 OOS_START = "2020-01-01"
 
 
-def simulate(prices: pd.DataFrame, params: sig.Params, start="2012-01-03", end=None):
+def simulate(prices: pd.DataFrame, params: sig.Params, start="2012-01-03", end=None,
+             volumes: pd.DataFrame | None = None):
     """Daily walk-forward. Weights decided on bar i are earned over bar i+1."""
     index = prices.index
     i0 = index.searchsorted(pd.Timestamp(start))
@@ -41,11 +43,16 @@ def simulate(prices: pd.DataFrame, params: sig.Params, start="2012-01-03", end=N
     equity, dates = [100_000.0], []
     state, prev = {}, {}
     exposures, turnovers, invested = [], [], 0
+    members = []
 
     for i in range(i0, i1):
-        window = prices.iloc[max(0, i - params.history_bars + 1):i + 1]
-        weights, diag = sig.target_weights(window, equity, params, state)
+        lo = max(0, i - params.history_bars + 1)
+        window = prices.iloc[lo:i + 1]
+        vol_window = None if volumes is None else volumes.iloc[lo:i + 1]
+        weights, diag = sig.target_weights(window, equity, params, state, volumes=vol_window)
         state = diag.get("state", {})
+        if diag.get("universe_members"):
+            members.append(set(diag["universe_members"]))
         if weights:
             invested += 1
             exposures.append(diag.get("effective_exposure", 0.0))
@@ -60,12 +67,19 @@ def simulate(prices: pd.DataFrame, params: sig.Params, start="2012-01-03", end=N
         prev = weights
 
     curve = pd.Series(equity[1:], index=dates)
-    return curve, {
+    extra = {
         "invested_share": invested / max(1, len(turnovers)),
         "mean_exposure": float(np.mean(exposures)) if exposures else 0.0,
         "daily_turnover": float(np.mean(turnovers)),
         "rebalances": len(turnovers),
     }
+    if members:
+        # How much did the point-in-time sleeve actually move? A membership that never
+        # changes is the S-7 fixed list wearing a different hat.
+        churn = [len(b - a) for a, b in zip(members, members[1:])]
+        extra["universe_churn"] = float(np.mean(churn)) if churn else 0.0
+        extra["universe_names"] = len(set().union(*members))
+    return curve, extra
 
 
 def metrics(curve: pd.Series, extra: dict | None = None) -> dict:
@@ -83,13 +97,16 @@ def metrics(curve: pd.Series, extra: dict | None = None) -> dict:
 
 
 def row(label: str, m: dict):
-    print(f"{label:<40} CAR {m['CAR']:8.1%}  Sharpe {m['Sharpe']:6.2f}  MaxDD {m['MaxDD']:7.1%}  "
-          f"Vol {m['Vol']:6.1%}  inv {m.get('invested_share', 0):5.1%}  "
-          f"exp {m.get('mean_exposure', 0):4.2f}x  turn {m.get('daily_turnover', 0):.2f}")
+    line = (f"{label:<40} CAR {m['CAR']:8.1%}  Sharpe {m['Sharpe']:6.2f}  MaxDD {m['MaxDD']:7.1%}  "
+            f"Vol {m['Vol']:6.1%}  inv {m.get('invested_share', 0):5.1%}  "
+            f"exp {m.get('mean_exposure', 0):4.2f}x  turn {m.get('daily_turnover', 0):.2f}")
+    if "universe_churn" in m:
+        line += f"  churn {m['universe_churn']:.3f}/day  names {m['universe_names']}"
+    print(line)
 
 
-def run(prices, params, label, start="2012-01-03", end=None):
-    curve, extra = simulate(prices, params, start, end)
+def run(prices, params, label, start="2012-01-03", end=None, volumes=None):
+    curve, extra = simulate(prices, params, start, end, volumes)
     m = metrics(curve, extra)
     row(label, m)
     return m
@@ -99,13 +116,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", default="ablation",
                     choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin",
-                             "s7", "s7bias"])
+                             "s7", "s7bias", "d3"])
     args = ap.parse_args()
 
     tickers = sig.TRADED_UNIVERSE
-    if args.mode in ("s7", "s7bias"):
+    if args.mode in ("s7", "s7bias", "d3"):
         tickers = sorted(set(tickers) | set(sig.MEGACAP_SLEEVE))
-    prices = load_closes(tickers, start="2009-06-01")
+    prices, volumes = load_frames(tickers, start="2009-06-01")
     print(f"data: {prices.shape[0]} bars {prices.index[0].date()} .. {prices.index[-1].date()}, "
           f"{prices.shape[1]} tickers\n")
     P = sig.DEFAULTS
@@ -213,6 +230,74 @@ def main() -> int:
             row(f"  {ticker} IS  2012-2019", metrics(prices[ticker].loc["2012-01-03":IS_END]))
             row(f"  {ticker} OOS 2020-2026", metrics(prices[ticker].loc[OOS_START:]))
             row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
+
+    elif args.mode == "d3":
+        # D-3: does deciding membership from trailing dollar volume, on the rebalance date,
+        # survive the control that killed S-7's wide sleeve? Three questions, in order:
+        #   1. how much does the selected sleeve actually move (if it is static, nothing
+        #      has been fixed);
+        #   2. what does the *passively held* point-in-time sleeve earn (that is the bar
+        #      the signal has to clear, not SPY);
+        #   3. does the signal on that sleeve beat the champion out of sample.
+        POOL = tuple(sig.RANK_UNIVERSE) + tuple(sig.MEGACAP_SLEEVE)
+        pool = [t for t in POOL if t in prices.columns]
+
+        print("=== 1. membership churn, top-N by 60-day median dollar volume ===")
+        for size in [10, 20, 30]:
+            hist = uni.membership_history(prices, volumes, pool, size, start="2012-01-03")
+            ever = int(hist.any().sum())
+            prev = hist.shift().astype(object).fillna(hist.iloc[0]).astype(bool)
+            changes = int((hist != prev).sum(axis=1).sum() / 2)
+            first, last = hist.iloc[0], hist.iloc[-1]
+            overlap = int((first & last).sum())
+            print(f"  size={size:<3} names ever selected {ever:<3} "
+                  f"entries+exits {changes:<5} "
+                  f"2012 vs 2026 overlap {overlap}/{size} "
+                  f"({overlap / size:.0%} of the sleeve never changed)")
+            if size == 20:
+                print(f"    2012-01-03: {', '.join(sorted(hist.columns[first]))}")
+                print(f"    2026-09-04: {', '.join(sorted(hist.columns[last]))}")
+
+        print("\n=== 2. passive controls, 2012-2026, daily equal weight ===")
+
+        def basket(mask_or_cols, label):
+            window = prices.loc["2012-01-03":]
+            if isinstance(mask_or_cols, pd.DataFrame):
+                mask = mask_or_cols.reindex(window.index).ffill().fillna(False)
+                r = window[mask.columns].pct_change().where(mask)
+            else:
+                r = window[list(mask_or_cols)].pct_change()
+            eq = (1 + r.mean(axis=1).fillna(0.0)).cumprod() * 100_000
+            m = metrics(eq)
+            row(label, m)
+            return m
+
+        pit20 = uni.membership_history(prices, volumes, pool, 20, start="2012-01-03")
+        pit_bench = basket(pit20, "  EW top-20 point-in-time (D-3)")
+        fixed_bench = basket([t for t in sig.MEGACAP_SLEEVE if t in prices.columns],
+                             "  EW 50 megacaps, 2026 list (S-7 control)")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} buy & hold", metrics(prices[ticker].loc["2012-01-03":]))
+        print(f"  point-in-time selection costs the passive basket "
+              f"{pit_bench['CAR'] - fixed_bench['CAR']:+.1%} CAR - that gap is the part of "
+              f"S-7's headline that was hindsight.")
+
+        print("\n=== 3. the signal on a point-in-time sleeve, in and out of sample ===")
+        for size, top_n in [(20, 3), (20, 5), (30, 5), (10, 3), (30, 3)]:
+            params = replace(P, rank_universe=tuple(pool), universe_size=size, top_n=top_n)
+            print(f"\n--- universe_size={size} top_n={top_n} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END,
+                volumes=volumes)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START, volumes=volumes)
+            m = run(prices, params, "  full 2012-2026", volumes=volumes)
+            print(f"{'':<40} excess over the EW point-in-time basket: "
+                  f"{m['CAR'] - pit_bench['CAR']:+.1%} CAR at "
+                  f"{m['Vol'] / pit_bench['Vol']:.2f}x its vol")
+
+        print("\n=== champion (fixed ETF-9 sleeve), same harness ===")
+        run(prices, P, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+        run(prices, P, "  OOS 2020-2026", start=OOS_START)
+        run(prices, P, "  full 2012-2026")
 
     elif args.mode == "s7bias":
         # How much of the wide-sleeve result is signal and how much is knowing, in 2012,

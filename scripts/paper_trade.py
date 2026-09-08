@@ -67,6 +67,11 @@ def load_signal(name: str):
     spec = importlib.util.spec_from_file_location(f"signal_{name}", path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod            # dataclasses and annotations need the module registered
+    # A signal may import helpers that sit beside it (s1_momo/universe.py, D-3). LEAN puts
+    # the algorithm folder on PYTHONPATH; loading by file path does not, so do it here or
+    # those imports fail at exec time with the runner otherwise perfectly configured.
+    if str(folder) not in sys.path:
+        sys.path.insert(0, str(folder))
     spec.loader.exec_module(mod)
     fn = getattr(mod, "target_weights", None) or getattr(mod, "compute_weights", None)
     universe = next((getattr(mod, a) for a in ("UNIVERSE", "TRADED_UNIVERSE", "ALL_TICKERS") if hasattr(mod, a)), None)

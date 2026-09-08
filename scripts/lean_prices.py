@@ -24,7 +24,8 @@ EQUITY = LEAN_DATA / "equity" / "usa"
 SCALE = 10000
 
 
-def _raw_closes(ticker: str) -> pd.Series:
+def _raw_bars(ticker: str) -> pd.DataFrame:
+    """Raw close and share volume for one ticker, indexed by bar date."""
     path = EQUITY / "daily" / f"{ticker.lower()}.zip"
     if not path.exists():
         raise FileNotFoundError(f"no LEAN daily file for {ticker}: {path}")
@@ -32,7 +33,12 @@ def _raw_closes(ticker: str) -> pd.Series:
         text = zf.read(zf.namelist()[0]).decode()
     rows = [line.split(",") for line in text.strip().splitlines()]
     index = pd.to_datetime([r[0][:8] for r in rows], format="%Y%m%d")
-    return pd.Series([float(r[4]) / SCALE for r in rows], index=index, name=ticker)
+    return pd.DataFrame({"close": [float(r[4]) / SCALE for r in rows],
+                         "volume": [float(r[5]) for r in rows]}, index=index)
+
+
+def _raw_closes(ticker: str) -> pd.Series:
+    return _raw_bars(ticker)["close"].rename(ticker)
 
 
 def _price_factors(ticker: str, index: pd.DatetimeIndex) -> pd.Series:
@@ -48,12 +54,25 @@ def _price_factors(ticker: str, index: pd.DatetimeIndex) -> pd.Series:
 
 def load_closes(tickers, start=None, end=None) -> pd.DataFrame:
     """Adjusted closes as a date-by-ticker DataFrame; missing tickers raise."""
-    series = {}
+    return load_frames(tickers, start, end)[0]
+
+
+def load_frames(tickers, start=None, end=None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """`(adjusted closes, share volume)`, both date-by-ticker on the same index.
+
+    Volume is returned raw, exactly as written to the daily file. It needs no adjustment:
+    `fetch_data.py` writes split factor 1 for every symbol and Yahoo's volume is already
+    split-adjusted like its prices, so `close * volume` is the same dollar figure either
+    way. The D-3 universe module consumes this pair.
+    """
+    closes, volumes = {}, {}
     for ticker in tickers:
-        closes = _raw_closes(ticker)
-        series[ticker] = closes * _price_factors(ticker, closes.index)
-    frame = pd.DataFrame(series).sort_index()
-    return frame.loc[start:end]
+        bars = _raw_bars(ticker)
+        closes[ticker] = bars["close"] * _price_factors(ticker, bars.index)
+        volumes[ticker] = bars["volume"]
+    px = pd.DataFrame(closes).sort_index()
+    vol = pd.DataFrame(volumes).sort_index().reindex(px.index)
+    return px.loc[start:end], vol.loc[start:end]
 
 
 if __name__ == "__main__":

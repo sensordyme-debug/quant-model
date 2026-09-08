@@ -58,6 +58,8 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 import pandas as pd
 
+import universe as uni
+
 TRADING_DAYS = 252
 
 # Unlevered ranking sleeve: index, sector, rates, commodity.
@@ -67,6 +69,10 @@ RANK_UNIVERSE = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "TLT", "GLD"]
 #: megacaps as of 2026, so back-ranking it before ~2020 knows which companies were going to
 #: win. Any result that depends on it is an upper bound, not a forecast - see S-7 in the
 #: journal. Kept here so the bias is stated once, next to the data, rather than rediscovered.
+#: D-3's `universe.py` fixes the *timing* half of this (membership re-decided each rebalance
+#: from trailing dollar volume) but measured that it recovers only ~10% of the bias: the list
+#: below is still the pool, and the pool is 2026 survivors. Treat it as a candidate set for
+#: research, never as a promotable universe.
 MEGACAP_SLEEVE = [
     "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "BRKB", "AVGO", "LLY",
     "JPM", "V", "UNH", "XOM", "MA", "JNJ", "PG", "COST", "HD", "ABBV",
@@ -104,6 +110,14 @@ class Params:
 
     rank_universe: tuple = tuple(RANK_UNIVERSE)  # sleeve momentum is ranked over
     weight_mode: str = "equal"             # "equal" | "rank" | "momentum" (see allocate)
+    #: D-3 point-in-time universe. 0 keeps `rank_universe` as a fixed list; any positive
+    #: value treats `rank_universe` as a *candidate pool* and re-selects that many members
+    #: by trailing dollar volume on every rebalance. Needs a `volumes` frame; without one
+    #: the pool is used whole and `universe_reason` says so, so the fallback is visible in
+    #: the diagnostics rather than silent.
+    universe_size: int = 0
+    dv_window: int = uni.DV_WINDOW         # trailing sessions of dollar volume
+    min_history: int = uni.MIN_HISTORY     # sessions a name needs before it is selectable
     mom_lookbacks: tuple = (20, 60, 120)   # blended momentum horizons, trading days
     top_n: int = 3                         # holdings when risk-on
     trend_window: int = 0                  # risk-off while SPY is below this MA (0 = off)
@@ -278,11 +292,17 @@ def drawdown_multiplier(equity_curve, p: Params, state: dict | None = None):
 
 
 def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None = None,
-                   state: dict | None = None):
+                   state: dict | None = None, volumes: pd.DataFrame | None = None):
     """Target portfolio weights for the next session. See module docstring.
 
     The returned diagnostics carry `state`, which the caller must feed back on the next
     call; it holds the drawdown overlay's cooldown counter.
+
+    `volumes` is optional and only consulted when `params.universe_size > 0` (D-3): share
+    volume on the same index/columns as `prices`, from which membership is re-decided each
+    rebalance. It is a keyword argument rather than a second positional one so every
+    existing caller - including the I-1 paper runner, which introspects this signature -
+    keeps working unchanged.
     """
     p = params or DEFAULTS
     diag = {"n_bars": int(len(prices))}
@@ -304,7 +324,17 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
         diag["reason"] = "risk-off" if not on else "drawdown flat"
         return {}, diag
 
-    ranked = [t for t in p.rank_universe if t in prices.columns
+    pool = p.rank_universe
+    if p.universe_size > 0:
+        if volumes is None:
+            diag["universe_reason"] = "no volume frame; using the candidate pool whole"
+        else:
+            pool, udiag = uni.select(prices, volumes.sort_index().reindex(prices.index),
+                                     p.rank_universe, p.universe_size,
+                                     p.dv_window, p.min_history)
+            diag.update(udiag)
+
+    ranked = [t for t in pool if t in prices.columns
               and prices[t].iloc[-max_lb - 1:].notna().all()]
     diag["n_ranked"] = len(ranked)
     scores = blended_momentum(prices[ranked], p.mom_lookbacks).sort_values(ascending=False)

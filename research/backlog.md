@@ -17,33 +17,26 @@ being logged in on this machine (see `research/BLOCKERS.md`); the runner is buil
 `--mock --dry-run` against the current champion. Realized vol is still short of the 40-60%
 mandate, but the binding constraint is now the 35% drawdown limit rather than an execution
 bug - a risk-budget decision for the human, not something to fix before the paper deadline.
-S-7 has since been run and produced no champion change: the champion's order list is
-unchanged (`OrderListHash 9f58b37cc2656b647ec88a5124daf02d`), so nothing about the I-1
-deployment moves.
+S-7 has since been run and produced no champion change, and D-3 (2026-09-08) closed it
+negatively rather than reopening it. The champion's order list is unchanged
+(`OrderListHash 9f58b37cc2656b647ec88a5124daf02d`, re-verified by run `20260908T202809Z`),
+so nothing about the I-1 deployment moves. Single-name sleeves are now formally capped:
+the pool on disk is a 2026 survivor list, so their numbers are upper bounds
+(see `BLOCKERS.md`) and the ETF-9 sleeve is the only honest universe here.
 
 ## Open (highest value first)
 
-- **D-3 Point-in-time universe (blocks S-7).** Ranking must only ever see names that were
-  liquid *as of the rebalance date*. `signals.MEGACAP_SLEEVE` is the 2026 list and is
-  therefore unusable for backtesting (see S-7 below). Cheapest credible version needs no new
-  data source: rank the 69 symbols already on disk by trailing 60-day dollar volume
-  (close x volume, both in the LEAN daily files) recomputed on each rebalance, take the top
-  N, and require a minimum history. Note this is still survivorship-biased at the *file*
-  level - `fetch_data.py` only downloaded tickers that exist in 2026 - so also record how
-  much room that leaves: the honest fix is delisted-inclusive history, which is a paid data
-  set and a human decision. Deliver as a `universe.py` beside `signals.py` so the I-1 runner
-  computes membership the same way.
-- **S-7 Beat buy-and-hold on absolute return. Partially answered 2026-09-08; blocked on D-3.**
-  S-1 compounds at 18.1% against SPY's 15.0% and QQQ's 19.9% - it clears SPY but not QQQ.
-  Of the three named candidates, two are now closed on evidence: momentum-proportional
-  weighting loses 2.6-2.9 points of CAR on both sub-periods (rejected), and `top_n` is flat
-  from 3 to 6 in return while getting cheaper in drawdown (3 kept; 5-6 handed to S-8). The
-  third, widening the sleeve, scores CAR 43.9% / Sharpe 1.19 / DD 32.2% in LEAN and passes
-  every promotion rule, but it ranks the megacaps of 2026 back to 2012: holding that same
-  list equal-weighted with no skill already returns 22.8% at Sharpe 1.27, above the strategy
-  itself. Not promoted, tagged `not promotable` in the ledger. Re-open once D-3 lands.
-  Remaining untried ideas: a second momentum horizon set per sleeve, and cross-sectional
-  ranking against the sleeve median rather than an absolute `min_momentum` floor.
+- **S-8 Reach the volatility mandate without breaching the drawdown limit.** *Now the top
+  item: it is the only open strategy work on a universe with no selection story.* After S-6
+  the gross cap no longer binds; `scale_cap = 2.0` and the 25.2% realized drawdown do. Simply
+  raising the margin budget to 1.0 buys 2.07x exposure and 20.4% CAR but a 35.4% drawdown,
+  which fails the promotion rule - so more size has to be paid for with a better drawdown
+  profile, not asked for directly. Candidates: a volatility-responsive budget (spend more of
+  it when the vol estimate is low), a trailing stop per holding rather than only at the
+  portfolio level, and tightening `dd_halve` so the breaker engages earlier and cheaper.
+  **Start from `top_n=5` or `6`** (S-7): return is within 1.5 points of `top_n=3` but full
+  drawdown falls to 22.0% and vol to 18.4%, which is exactly the headroom this item needs.
+  Requires a human decision if the answer turns out to be "raise the 35% limit".
 - **I-1 IBKR paper runner: BUILT, waiting on the human's IB Gateway login.**
   `scripts/paper_trade.py` (ib_async) already exists and passes `--mock --dry-run` against
   `algorithms/s1_momo/signals.py`: it introspects the signal signature, feeds back
@@ -56,16 +49,6 @@ deployment moves.
   `plan_orders()` already nets against current positions - but it did add the
   `MAX_MARGIN_USED = 1.0` backstop, and the mock plan is now a 1.5x gross book, so the
   paper account must have margin enabled or the first real order will be rejected.
-- **S-8 Reach the volatility mandate without breaching the drawdown limit.** After S-6 the
-  gross cap no longer binds; `scale_cap = 2.0` and the 25.2% realized drawdown do. Simply
-  raising the margin budget to 1.0 buys 2.07x exposure and 20.4% CAR but a 35.4% drawdown,
-  which fails the promotion rule - so more size has to be paid for with a better drawdown
-  profile, not asked for directly. Candidates: a volatility-responsive budget (spend more of
-  it when the vol estimate is low), a trailing stop per holding rather than only at the
-  portfolio level, and tightening `dd_halve` so the breaker engages earlier and cheaper.
-  **Start from `top_n=5` or `6`** (S-7): return is within 1.5 points of `top_n=3` but full
-  drawdown falls to 22.0% and vol to 18.4%, which is exactly the headroom this item needs.
-  Requires a human decision if the answer turns out to be "raise the 35% limit".
 - **D-2 Intraday data (blocks S-2).** `fetch_data.py` writes daily bars only; Yahoo caps
   1-minute history at ~30 days, which is useless for backtesting. Once IB Gateway is logged
   in, pull minute bars with `ib_async` `reqHistoricalData` (1-day chunks, respect pacing
@@ -84,6 +67,27 @@ deployment moves.
 
 ## Done
 
+- **D-3 Point-in-time universe.** 2026-09-08, run `20260908T203212Z`, no promotion.
+  `algorithms/s1_momo/universe.py` picks the top N of a candidate pool by trailing 60-day
+  median dollar volume on each rebalance, with a 252-session minimum history;
+  `Params.universe_size=0` keeps the champion's fixed sleeve, so the default is unchanged
+  (control run `20260908T202809Z` reproduces the champion's OrderListHash). Membership is
+  genuinely dynamic - 47 names selected across the sample, 458 entries/exits, 2012 holds
+  BAC/GE/XOM/WFC/IBM and 2026 holds NVDA/TSLA/AMD - and the strategy on it scores CAR 32.1% /
+  Sharpe 0.90 / DD 32.3%, beating the champion and QQQ. **It is still not promotable**, for two
+  measured reasons: point-in-time selection removes only 0.8 of the 7.8 points by which the
+  megacap basket beats SPY (the other 7.0 are the survivor pool on disk), and the strategy
+  gives up 0.19 of Sharpe against simply holding the same 20 names. Filed as a paid-data
+  decision in `BLOCKERS.md`.
+- **S-7 Beat buy-and-hold on absolute return. Closed negatively 2026-09-08.** S-1 compounds at
+  18.1% against SPY's 15.0% and QQQ's 19.9%. All three named levers are answered:
+  momentum-proportional weighting loses 2.6-2.9 points of CAR on both sub-periods; `top_n` is
+  flat from 3 to 6 in return while getting cheaper in drawdown (3 kept, 5-6 handed to S-8);
+  and the wide sleeve beats QQQ only because it is levered and drawn from a survivor pool -
+  under D-3's point-in-time membership it still loses to its own basket on Sharpe. Beating
+  buy-and-hold on absolute return is therefore not a universe problem, and the untried ideas
+  (a second momentum horizon per sleeve, cross-sectional ranking against the sleeve median
+  instead of an absolute `min_momentum` floor) belong to whatever replaces the S-1 signal.
 - **E-3 Promotion guard against non-statistical bias.** 2026-09-08. `evaluate.py` refuses to
   promote any run whose ledger tag contains `not promotable`, because every other rule it
   applies is a statistic and no statistic can see a universe chosen with hindsight - S-7's
