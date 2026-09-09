@@ -11,7 +11,30 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-09 21:3x UTC (latest, A-1 iteration): **the VWAP fade can be repaired, and it
+Status 2026-09-09 23:0x UTC (latest, A-7 iteration): **the framework risk limits are a tail
+dial with no price, and the sample is now the binding constraint.** Fifteen cells on the usual
+9-month window (2025-12-15..2026-09-08, split 2026-06-15, 124/59 sessions), deployed mix, via a
+new backtest-only `--risk` override and `scripts/sweep_a7.py`. The daily loss limit does exactly
+one thing and does it monotonically: the worst day walks **-20.5k (1.5%) -> -30.3k (2.5%,
+shipped) -> -57.0k (off)**, with a 0.15-0.38 point overshoot past nominal because the breach is
+marked to close and the flatten pays spread. It does **nothing measurable to return**: total P&L
+is 200.5k at 2.0% and 243.1k at 1.5% with the shipped 2.5% at 221.2k, and **paired against the
+control every cell in the whole sweep scores |t| <= 1.06** on 183 daily returns. A-7's stated
+worry is refused - **stopping early is free**: on halted sessions the halted book beat the
+limit-off run on the same dates at every limit except 2.0% (saving $453/halt at 1.5%, which
+fires on 22% of sessions, and $8,497/halt at 3.0%). `PER_SYMBOL_HARD_CAP` is **inert**: 0.12,
+0.15, 0.20 and 0.25 are bit-identical, so the mix never asks for more than ~0.12 of equity in one
+name, and below 0.12 the cap is a size dial (0.10 is a spike on IS Sharpe with losing neighbours,
+refused). Gross saturates at the deployed 1.5; 2.0 buys +2.7% of P&L outside A-3's stated range
+and is an owner decision. **Nothing shipped; no constant changed, `live/intraday_config.json`
+untouched, so the trader is byte-identical and no replay was owed.** The durable conclusion is
+that with A-1, A-2 and A-7 all negative, **the sleeve needs more sessions, not more levers** -
+one standard error on the 183-session total is $229.6k against a $221.2k total. **A-4 (extend
+the minute store to 12 months) is now the top open item**, ahead of A-8, because A-8 would be
+judged with the same instrument that just failed to resolve a 20% swing in P&L. Champion
+unchanged at S-12; the daily sleeve was not touched.
+
+Status 2026-09-09 21:3x UTC (A-1 iteration): **the VWAP fade can be repaired, and it
 still is not worth capital.** Eleven standalone variants and six sleeve runs on the 9-month
 window (2025-12-15..2026-09-08, split 2026-06-15, 124/59 sessions). Only one of A-1's five
 levers is a mechanism: the **session-trend filter** takes the module from IS -56.0 / OOS -10.1
@@ -184,14 +207,34 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-7 The daily loss limit and the per-symbol cap are the real tail levers (top item).**
-  A-2 measured
-  that every *signal*-level control leaves the loss-limit days where they are (3-4 per half)
-  unless it is tight enough to destroy the in-sample return. The framework constants are
-  therefore what bounds the tail: sweep `DAILY_LOSS_LIMIT` (1.5-3.5%), `PER_SYMBOL_HARD_CAP`
-  and the sleeve `gross` against OOS Sharpe, worst day and the *cost* of stopping early
-  (a limit that fires often forfeits the rest of the session's edge). These are shared
-  constants in `scripts/intraday_common.py`, so any change needs a replay per AGENTS.md rule (a).
+- **A-4 Extend the minute store to 12 months (top item).**
+  `python scripts/intraday_data.py --months 12`, paced and resumable, then re-run the A-6 mix
+  and the A-2/A-7 conclusions on the longer window. This is now the top item on the evidence of
+  A-7: with 183 sessions, one standard error on the sleeve's total P&L is $229.6k against a
+  $221.2k total, so **every A-track cell tested to date is statistically indistinguishable from
+  every other** (|t| <= 1.06 paired, across fifteen risk cells and eleven A-1 signal cells).
+  Levers are not the constraint; the sample is. Run it in the background of another iteration
+  if the fetch is slow, and check for dropped first-of-window sessions (`intraday_data.py`
+  overlaps windows; re-run `--months 12 --force` if the session count misses the daily calendar).
+- **A-7 DONE 2026-09-09 (see journal): the framework risk limits are a tail dial with no
+  measurable price; nothing shipped.** The daily loss limit's tail response is monotone and
+  mechanical - worst day -20.5k (1.5%), -25.8k (2.0%), -30.3k (2.5%, shipped), -37.2k (3.0%),
+  -42.5k (3.5%), -57.0k (off) - with a 0.15-0.38 point overshoot past nominal, since the breach
+  is marked to close and the flatten pays spread. Its return response is scatter: total P&L
+  200.5k / 221.2k / 243.1k across 2.0% / 2.5% / 1.5%, and **paired on 183 daily returns every
+  cell in the sweep scores |t| <= 1.06**. **Stopping early is free** - on halted sessions the
+  halted book beat the limit-off run on the same dates at every limit except 2.0% ($453/halt
+  saved at 1.5%, which fires on 22% of sessions; $8,497/halt at 3.0%) - so the stated worry that
+  a frequent limit forfeits the session's edge is measured and refused. `PER_SYMBOL_HARD_CAP`
+  is **inert**: 0.12/0.15/0.20/0.25 are bit-identical, the mix never asks for more than ~0.12 of
+  equity in one name, and below 0.12 the cap is a size dial (0.10 is a spike on IS Sharpe with
+  both neighbours losing, refused). Gross saturates at the deployed 1.5 and 2.0 is an
+  owner-level risk decision. Nothing changed in `scripts/intraday_common.py` or
+  `live/intraday_config.json`, so the trader is byte-identical and no replay was owed. Shipped
+  instead: a backtest-only `--risk` override in `scripts/intraday_backtest.py` (`RISK` dict,
+  defaults exactly the shipped constants, recorded in the ledger when non-default) plus
+  `scripts/sweep_a7.py`, and `Worst Day` / `Loss Limit Days` are now ledger columns. The priced
+  menu for the loss limit is a one-line question in `BLOCKERS.md`.
 - **A-1 DONE 2026-09-09 (see journal): the VWAP fade is repairable but not additive; retired
   from the mix, alloc stays 0, `live/intraday_config.json` untouched.** Of the five levers,
   only the **session-trend filter** is a mechanism: taking only the fades that lean with the
@@ -235,13 +278,13 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   found says the shipped edge is concentrated in *which* breakouts are taken, not in how they
   are stopped. Sweep the entry window and the time stop, and check the result separately on
   the leveraged ETFs (SOXL/SOXS) where the range is wider, since the backstop now scales with
-  ATR and those names are where it binds most.
+  ATR and those names are where it binds most. **Run it after A-4, not before**: A-7 measured
+  that 183 sessions cannot resolve a 20% swing in total P&L, so an entry-window sweep judged on
+  this window would produce another table of statistically identical cells.
 - **A-3 Deployed mix.** Set `alloc` and `gross` in `live/intraday_config.json` from OOS
   evidence: strategies with negative OOS after costs get alloc 0 until fixed. Target gross
   1.0-1.5x of NAV so daily P&L swings are in the tens of thousands on the $1M account, with the
   framework's 2.5% daily loss limit as the floor.
-- **A-4 Extend the minute store** to 9-12 months (`python scripts/intraday_data.py --months 12`,
-  paced, resumable) so IS/OOS splits have enough sessions; then re-run A-1/A-2 conclusions.
 - **A-5 Execution quality from the live log.** After each session compare
   `live/log/intraday-<date>.jsonl` fills against the replay of the same day: slippage per
   order, fill rate, latency. Feed the measured slippage back into `SLIPPAGE_BPS` if it differs.

@@ -39,6 +39,26 @@ from base import features  # noqa: E402
 
 EXPERIMENTS = REPO / "research" / "experiments.jsonl"
 
+#: Framework risk limits for a research run. Defaults are exactly the shared constants the live
+#: trader uses; --risk overrides them *for the backtest only* so A-7 can price them. Shipping a
+#: change means editing scripts/intraday_common.py and replaying a session (AGENTS.md rule a).
+RISK = {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
+        "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE, "flatten_minute": FLATTEN_MINUTE}
+
+
+def set_risk(overrides: dict | None) -> dict:
+    """Apply research overrides to RISK; returns the ones that actually differ from the shipped constants."""
+    changed = {}
+    for k, v in (overrides or {}).items():
+        if k not in RISK:
+            sys.exit(f"unknown risk key {k!r}; known: {sorted(RISK)}")
+        RISK[k] = float(v)
+        if RISK[k] != {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
+                       "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE,
+                       "flatten_minute": FLATTEN_MINUTE}[k]:
+            changed[k] = RISK[k]
+    return changed
+
 
 def load_strategy(name: str):
     path = REPO / "algorithms" / "intraday" / name / "signal.py"
@@ -79,24 +99,26 @@ class Book:
 def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, float], equity: float):
     """Same sizing rules as scripts/intraday_trader.py:Trader.targets_to_orders."""
     orders = {}
+    cap, gross_cap, min_change = RISK["per_symbol_hard_cap"], RISK["gross_hard_cap"], RISK["min_change"]
     gross = sum(abs(w) for w in targets.values())
-    scale = min(1.0, GROSS_HARD_CAP / gross) if gross > GROSS_HARD_CAP else 1.0
+    scale = min(1.0, gross_cap / gross) if gross > gross_cap else 1.0
     for sym in set(targets) | set(book.pos):
         px = prices.get(sym)
         if not px or px <= 0:
             continue
-        w = max(-PER_SYMBOL_HARD_CAP, min(PER_SYMBOL_HARD_CAP, float(targets.get(sym, 0.0)) * scale))
+        w = max(-cap, min(cap, float(targets.get(sym, 0.0)) * scale))
         tgt = int(math.copysign(math.floor(abs(w) * equity / px), w)) if w else 0
         cur = book.pos.get(sym, 0)
         delta = tgt - cur
-        if delta and (abs(delta) * px >= MIN_CHANGE * equity or tgt == 0):
+        if delta and (abs(delta) * px >= min_change * equity or tgt == 0):
             orders[sym] = delta
     return orders
 
 
 def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | None,
-        start: dt.date | None = None, end: dt.date | None = None, verbose: bool = False):
-    feats_all = {s: features(df) for s, df in bars.items()}
+        start: dt.date | None = None, end: dt.date | None = None, verbose: bool = False,
+        feats_all: dict | None = None):
+    feats_all = feats_all if feats_all is not None else {s: features(df) for s, df in bars.items()}
     days = [d for d in sessions(bars) if (start is None or d >= start) and (end is None or d <= end)]
     book = Book(equity0)
     state: dict = {}
@@ -115,6 +137,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
         idx = {s: 0 for s in fd}
         eq_open = book.value({s: f["o"].iloc[0] for s, f in fd.items()})
         stopped = False
+        stop_minute = -1
         pending: dict[str, int] = {}
         for i, t in enumerate(times):
             # advance cursors to bars <= t
@@ -144,17 +167,18 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             equity = book.value(closes)
             minute = int((t.hour - 9) * 60 + t.minute - 30)
             # 2) risk: daily loss limit, end-of-day flatten
-            if not stopped and equity - eq_open <= -DAILY_LOSS_LIMIT * eq_open:
+            if not stopped and equity - eq_open <= -RISK["daily_loss_limit"] * eq_open:
                 stopped = True
+                stop_minute = minute
                 if verbose:
                     print(f"{day} {t.time()} daily loss limit hit: {equity - eq_open:,.0f}")
-            if stopped or minute >= FLATTEN_MINUTE:
+            if stopped or minute >= RISK["flatten_minute"]:
                 targets = {}
             else:
                 view = {s: fd[s].iloc[:j] for s, j in cur_rows.items()}
                 targets = strategy.decide(t, view, dict(book.pos), equity, state, params) or {}
             pending = targets_to_orders(targets, book, closes, equity)
-            if minute >= FLATTEN_MINUTE and book.pos and not pending:
+            if minute >= RISK["flatten_minute"] and book.pos and not pending:
                 pending = {s: -q for s, q in book.pos.items()}
         # end of session: anything still open is closed at the last bar's close (should be none)
         last_closes = {s: float(f["c"].iloc[-1]) for s, f in fd.items()}
@@ -163,7 +187,8 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             orders_total += 1
         eq_close = book.value({})
         daily.append({"day": day, "pnl": eq_close - eq_open, "ret": eq_close / eq_open - 1.0, "equity": eq_close,
-                      "trades": sum(1 for tr in book.trades if tr["t"].date() == day), "stopped": stopped})
+                      "trades": sum(1 for tr in book.trades if tr["t"].date() == day), "stopped": stopped,
+                      "stop_minute": stop_minute})
     elapsed = time.time() - t0
     return summarize(daily, book, equity0, elapsed)
 
@@ -220,7 +245,11 @@ def record(name: str, tag: str, s: dict, params, start, end):
                      "Compounding Annual Return": f"{s['cagr_pct']:.3f}%", "Sharpe Ratio": f"{s['sharpe']:.3f}",
                      "Drawdown": f"{s['max_drawdown_pct']:.3f}%", "Trades Per Day": f"{s['trades_per_day']:.1f}",
                      "Avg Daily PnL": f"{s['avg_daily_pnl']:.0f}", "Costs Per Day": f"{s['costs_per_day']:.0f}",
+                     "Worst Day": f"{s['worst_day']:.0f}", "Loss Limit Days": str(s["stopped_days"]),
                      "Sessions": str(s["sessions"])}}
+    if RISK != {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
+                "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE, "flatten_minute": FLATTEN_MINUTE}:
+        rec["risk"] = dict(RISK)
     with EXPERIMENTS.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, default=str) + "\n")
 
@@ -233,12 +262,17 @@ def main() -> int:
     ap.add_argument("--split", help="date: report in-sample (< split) and out-of-sample (>= split) separately")
     ap.add_argument("--equity", type=float, default=1_000_000)
     ap.add_argument("--params", help="JSON overrides for the strategy PARAMS")
+    ap.add_argument("--risk", help='JSON overrides for the framework risk limits, research only, e.g. '
+                                   '\'{"daily_loss_limit":0.02,"per_symbol_hard_cap":0.25}\'')
     ap.add_argument("--tag", default="")
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
     strategy = load_strategy(args.strategy)
     params = {**strategy.PARAMS, **(json.loads(args.params) if args.params else {})}
+    changed = set_risk(json.loads(args.risk) if args.risk else None)
+    if changed:
+        print(f"risk overrides (backtest only): {changed}")
     start = dt.date.fromisoformat(args.start) if args.start else None
     end = dt.date.fromisoformat(args.end) if args.end else None
     bars = load_universe(args.symbols or UNIVERSE, start, end)

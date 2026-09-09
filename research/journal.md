@@ -2,6 +2,95 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - A-7: the framework risk limits are a tail dial with no price. Nothing shipped
+
+- **What.** The three shared constants in `scripts/intraday_common.py` that A-2 pointed at -
+  `DAILY_LOSS_LIMIT`, `PER_SYMBOL_HARD_CAP` and the sleeve `gross` - swept on the deployed mix
+  (ORB with the 4x ATR backstop + late-day fade) over the usual window 2025-12-15..2026-09-08,
+  split 2026-06-15, 124 IS / 59 OOS sessions. Fifteen cells, 30 half-runs.
+  `scripts/intraday_backtest.py` grew a `--risk` override that applies **to the backtest only**
+  (`RISK` dict, defaults are exactly the shipped constants), so nothing under `scripts/` that
+  the live trader executes changed and no replay was owed. `scripts/sweep_a7.py` runs the grid
+  in a process pool, loading bars and causal features once per worker. The control reproduces
+  A-1's mix run to the digit: IS 24.211% / 1.007, OOS 55.328% / 1.731.
+- **Why.** Top open backlog item. A-2 measured that every *signal*-level control leaves the
+  loss-limit days where they are unless it is tight enough to destroy the in-sample return, so
+  the framework constants were the last untested surface on this sleeve.
+
+### The daily loss limit (deployed 2.5%)
+
+| limit | IS CAR / Sharpe | OOS CAR / Sharpe | halts (183 sess) | worst day | total P&L |
+| --- | --- | --- | --- | --- | --- |
+| 1.5% | 17.6 / 0.79 | 88.6 / 2.57 | 40 (21.9%) | -20,470 | 243,052 |
+| 2.0% | 18.9 / 0.83 | 57.0 / 1.78 | 18 (9.8%) | -25,816 | 200,528 |
+| **2.5% (shipped)** | **24.2 / 1.01** | **55.3 / 1.73** | **8 (4.4%)** | **-30,284** | **221,188** |
+| 3.0% | 26.1 / 1.07 | 62.0 / 1.90 | 3 (1.6%) | -37,170 | 240,724 |
+| 3.5% | 23.5 / 0.98 | 61.7 / 1.89 | 2 (1.1%) | -42,463 | 228,649 |
+| off | 20.4 / 0.86 | 61.7 / 1.89 | 0 | -57,009 | 214,740 |
+
+- **The tail response is monotone and mechanical; the return response is scatter.** The worst
+  day walks -20.5k -> -25.8k -> -30.3k -> -37.2k -> -42.5k -> -57.0k across the range, i.e. the
+  limit does exactly the one job it was written to do. Return does not walk with it at all:
+  total P&L is 200.5k at 2.0% and 243.1k at 1.5%, with the shipped 2.5% in between and 3.0%
+  near the top. **Nothing here is measurable.** Paired against the control on the same 183
+  daily returns, every cell in the whole sweep scores |t| <= 1.06 (limit 3.0% t=+0.80,
+  limit 1.5% t=+0.39, limit 2.0% t=-0.62, off t=-0.16); the control's own daily P&L std is
+  $16,974, so one standard error on the 183-session total is $229.6k against a total of
+  $221.2k. The sample cannot distinguish any of these cells from any other.
+- **A-7's stated worry is refused: stopping early is free.** On the sessions each cell halted,
+  compared with the limit-off run on those same dates: at 1.5% (40 halts) the halted book
+  ended -1.57% against -1.63% for the same days run to the close, i.e. halting *saved* $453 per
+  halt; at 2.5% it saved $1,053 per halt; at 3.0% $8,497 and at 3.5% $6,265. Only the 2.0% cell
+  shows a cost, $697 per halt. So a day that has lost 1.5-2.5% by lunchtime is not a day that
+  keeps falling, and it is not a day with edge left either - the remainder is a coin flip worth
+  approximately zero, at every limit tested, even one that fires on a fifth of all sessions.
+- **The limit overshoots its nominal level by 0.15-0.38 points of NAV** (2.5% delivers a -2.65%
+  worst day, 1.5% delivers -1.88%), because the breach is detected on a marked-to-close bar and
+  the flatten then pays spread. To bound the worst day at X, set the limit near X - 0.3.
+
+### The per-symbol cap (deployed 0.15 in config, 0.20 as the framework backstop)
+
+| cap | IS CAR / Sharpe | OOS CAR / Sharpe | total P&L |
+| --- | --- | --- | --- |
+| 0.06 | 10.4 / 0.82 | 32.4 / 2.06 | 117,581 |
+| 0.08 | 15.7 / 0.94 | 45.0 / 2.07 | 165,105 |
+| 0.10 | 22.9 / 1.09 | 57.4 / 2.04 | 218,702 |
+| 0.12 / 0.15 / 0.20 / 0.25 | 24.2 / 1.01 | 55.3 / 1.73 | 221,188 |
+
+- **The framework's `PER_SYMBOL_HARD_CAP = 0.20` has never bound, and neither has the config's
+  0.15.** Cells at 0.12, 0.15, 0.20 and 0.25 are bit-identical - zero dollars of difference over
+  183 sessions - so the deployed mix never asks for more than ~0.12 of equity in one name.
+  Below 0.12 the cap stops being a risk control and becomes a **size dial**: it removes P&L
+  roughly in proportion to the size it removes (221k -> 219k -> 165k -> 118k).
+- **0.10 is a spike, not a shelf, and was refused.** It is the only cell that beats the control
+  on IS Sharpe (1.09 vs 1.01) and it improves OOS Sharpe (2.04 vs 1.73) and drawdown in both
+  halves, for a $2.5k P&L wash (t = -0.21). But its neighbours disagree: 0.08 loses on IS Sharpe
+  (0.94) and 0.12 is the control. OOS Sharpe is flat at 2.04-2.07 from 0.06 to 0.10, which is
+  the signature of a size dial against a fixed cost floor, not of a lever finding better risk.
+- **Gross is monotone in the in-sample half and saturates at the deployed 1.5**: 1.00 gives
+  17.9 / 0.96 IS and 54.1 / 2.02 OOS on 190.9k, 1.25 gives 20.5 / 0.93 and 58.9 / 1.90 on
+  210.7k, the deployed 1.5 gives 24.2 / 1.01 and 55.3 / 1.73 on 221.2k, and 2.0 gives
+  24.7 / 1.01 and 57.6 / 1.76 on 227.3k (t = +0.56). OOS Sharpe falls monotonically as gross
+  rises, which is what leverage does. Gross 2.0 buys +2.7% of P&L for a step outside A-3's
+  stated 1.0-1.5x target and outside the `GROSS_HARD_CAP = 1.6` rationale (it would put the two
+  sleeves at ~3.2x against day-trading buying power), so it is a risk-posture decision for the
+  owner, not an experiment result. Refused.
+- **Decision. Nothing shipped.** `DAILY_LOSS_LIMIT` stays 0.025, `PER_SYMBOL_HARD_CAP` stays
+  0.20, `GROSS_HARD_CAP` stays 1.6, and `live/intraday_config.json` was not touched, so the
+  live trader is byte-identical and no replay was required. The finding is that this family of
+  levers has **no measurable price and one real product**: a monotone bound on the worst day.
+  That makes the limit a pure risk-posture dial, and risk posture belongs to the owner - the
+  priced menu (1.5% caps the worst day near -2.0% of NAV and halts a fifth of sessions; the
+  shipped 2.5% caps it near -2.7% and halts 4%; off leaves -5.0%) is now a one-line question in
+  `BLOCKERS.md`.
+- **What this closes.** With A-1, A-2 and A-7 all negative, both the signal layer and the risk
+  layer of this sleeve are measured and spent at the current sample size. Every remaining
+  difference is smaller than one standard error of 183 sessions, which is the real constraint:
+  **the sleeve needs more sessions, not more levers.** That makes A-4 (extend the minute store
+  to 12 months) the highest-value item, ahead of A-8's entry-window sweep, since A-8 would be
+  judged with the same instrument that just failed to resolve a 20% swing in total P&L.
+- **Next.** A-4, then A-8 on the longer sample.
+
 ## 2026-09-09 - A-1: the VWAP fade is repairable but not additive. Retired from the mix, alloc stays 0
 
 - **What.** Eleven variants of `algorithms/intraday/vwap_trend/signal.py` plus six sleeve-level

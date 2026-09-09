@@ -4,6 +4,21 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
 
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
+- **The intraday daily loss limit is a pure risk-posture dial - pick a point (A-7).** Swept
+  1.5-3.5% and off on the deployed mix over 183 sessions. It has **no measurable effect on
+  return** (every cell |t| <= 1.06 paired against the shipped 2.5%; total P&L 200.5k at 2.0%,
+  221.2k at 2.5%, 243.1k at 1.5% - the sample's own standard error on that total is $229.6k),
+  and **halting is free** (on halted sessions the halted book beat the limit-off run on the same
+  dates at every limit except 2.0%). What it does control, monotonically, is the worst day on a
+  $1M sleeve: **1.5% -> -20.5k, 2.0% -> -25.8k, 2.5% (shipped) -> -30.3k, 3.0% -> -37.2k,
+  3.5% -> -42.5k, off -> -57.0k**, halting 22% / 10% / 4% / 2% / 1% / 0% of sessions
+  respectively. Because the evidence is silent on return, the agent left the shipped 2.5% alone
+  rather than move risk posture unasked. **Decision wanted:** keep 2.5%, or name a worst-day
+  budget and the loop will set the limit to that number minus ~0.3 points of overshoot. Related
+  and also owner-level: sleeve `gross` 2.0 tested at +2.7% of P&L (t = +0.56), refused because
+  it exceeds A-3's stated 1.0-1.5x target and would put the two sleeves near 3.2x against
+  day-trading buying power.
+
 - **Real-time market data subscription.** The paper account has no quote subscription:
   IBKR bars and quotes arrive 15 minutes late (measured), so the intraday trader runs on the
   Yahoo 1-minute feed. IBKR simulates paper fills from the data the account is entitled to,
