@@ -264,7 +264,7 @@ class Trader:
     def __init__(self, strategy, params, equity_frac: float, book: Book, executor, dry_run: bool, mode: str):
         self.strategy, self.params, self.equity_frac = strategy, params, equity_frac
         self.book, self.ex, self.dry_run, self.mode = book, executor, dry_run, mode
-        self.persist = (mode == "live")
+        self.persist = (mode == "live" and not dry_run)   # only real paper runs write the book file
         self.state: dict = {}
         self.stopped = False
         self.nav_open = None
