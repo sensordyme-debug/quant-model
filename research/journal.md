@@ -2,6 +2,88 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-08 - S-10: the textbook skip-a-month is wrong, a skip-a-week is right (new champion)
+
+**Hypothesis.** S-9 opened three follow-ups and this run answers all three on the honest
+ETF-9 sleeve: (a) skip-a-month momentum - rank on returns that stop short of the recent
+month, the standard 12-2 correction for short-term reversal; (b) horizon weighting - S-9 gave
+four horizons an equal vote while its own shelf said the long one carries the information;
+(c) why the 2012-2019 half improved so little.
+
+**Two levers, both defaulted off, control run first.** `mom_skip` with
+`mom_skip_min_lookback` (which horizons the gap applies to) and `mom_weights` (per-horizon
+weights, normalized, matched to `mom_lookbacks` by position with a length guard). LEAN run
+`20260909T005513Z` at the defaults reproduces `OrderListHash b763e292cb0eb9a2c81af5739188d437`,
+so the plumbing is provably inert.
+
+**Horizon weighting is rejected outright.** Every weight vector loses in the sweep, on both
+halves, on the raw blend (`(1,1,1,2)` 18.7% CAR, `(1,1,1,3)` 18.9%, `(1,1,2,3)` 19.0%,
+`(1,2,3,4)` 18.1%, against the champion's 21.0%) and also after standardizing the horizons
+first, which is the only construction in which "equal vote" is even true (`zscore` alone
+19.2%, `zscore` + `(1,1,2,4)` 19.6%). Overweighting the long horizon also *widens* drawdown,
+21.1% -> 25-31%. The S-9 shelf was evidence that a 252-day horizon belongs in the blend, not
+that it should outvote the others; under a raw-return blend it already dominates
+arithmetically, and asking for more is asking for a slower book, not a better one.
+
+**The skip is where the sweep and LEAN disagree in sign, and it matters.** The sweep rejects
+every skip cell: skipping all horizons costs 3-4 points of CAR, and confined to
+`lookbacks>=120` it decays monotonically from the control (21.0% CAR / 1.04 Sharpe) through
+skip=5 (21.2% / 1.03, but drawdown 21.1% -> 31.2%) down to 16-17% at skip=25-40. Run the
+same cells through LEAN and the picture inverts:
+
+| skip (on lookbacks >= 120) | CAR | Sharpe | MaxDD | orders |
+| --- | --- | --- | --- | --- |
+| 0 - the S-9 champion | 20.9% | 0.782 | 28.9% | 2,870 |
+| 2 | 19.8% | 0.741 | 26.0% | 2,613 |
+| 3 | 23.0% | 0.859 | 20.8% | 2,555 |
+| **5 (shipped)** | **23.6%** | **0.874** | **25.9%** | **2,573** |
+| 8 | 23.6% | 0.872 | 21.5% | 2,449 |
+| 10 | 22.7% | 0.840 | 21.9% | 2,563 |
+| 15 | 19.1% | 0.702 | 27.0% | 2,681 |
+| 20 - the textbook 12-2 skip | 19.6% | 0.715 | 29.4% | 2,425 |
+
+That is a shelf over 3-10 sessions that collapses on both sides, so the effect is real but
+the *textbook parameter is wrong*: on a daily-rebalanced sleeve of index ETFs the reversal
+that contaminates a long-horizon momentum measure lives at a one-to-two-week horizon, not a
+one-month one. 5 sessions is one trading week, the a-priori unit inside the shelf, chosen
+the same way S-9 chose 252 over its 250 argmax.
+
+**Where the skip belongs is measured, not assumed.** Applied to every horizon it loses
+(19.2% / 0.704), because the 20-day horizon *is* the recent week or two and truncating it
+leaves a stale signal. Confined to the 252-day horizon alone it earns 23.3% / 0.870 / 23.0% -
+almost the whole gain - so the effect is a property of long-horizon momentum generally, not
+of one lookback. Shipped on `lookbacks >= 120`.
+
+**Result: promoted.** Full period CAR 20.9% -> **23.6%**, Sharpe 0.782 -> **0.874**, drawdown
+28.9% -> **25.9%**, orders 2,870 -> 2,573, fees $37.3k -> $37.4k, probabilistic Sharpe 10.1%
+-> 17.7%. Both halves win: IS 2012-2019 15.2%/0.70/28.9% -> **17.6%/0.80/25.9%**, OOS
+2020-2026 28.0%/0.88/21.0% -> **31.1%/0.97/21.5%**. This is the second consecutive gain that
+comes from the signal at *lower* turnover, which is the only kind S-3's 2.1bps cost floor
+cannot tax away. `OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf`, reproduced by the shipped
+default with no environment variables. The I-1 paper runner re-verified `--mock --dry-run`
+against it: 1.5x gross, margin 0.75, XLK/XLE/IWM.
+
+**(c) The diagnostic, and where the drawdown actually lives.** Calendar-year decomposition of
+the S-9 champion against SPY (sweep harness): the IS half is not uniformly weak, it is three
+bad years inside a good decade - 2014 -4.9% excess, 2015 -5.9%, 2016 -11.3% - and the worst
+drawdown is a single 16-month grind from 2015-07-20 to 2016-11-07. 2024 is the same failure
+again (-17.0% excess). None of those are crises; the crisis-vol filter fires correctly in
+2020 and 2022 (2022 is the strategy's best excess year, +33.3%). The failure mode is a
+*whipsaw* market where the momentum ranking rotates the book into whichever sleeve just
+topped out. That is a signal-persistence problem, not a sizing one, and it is the natural
+next hypothesis - filed as S-11.
+
+**Caveat that must not be lost.** `sweep_s1.py` and LEAN now disagree in *sign* on this
+lever, not just in magnitude. Earlier calibrations (S-8: sweep understates drawdown by ~2
+points at champion size; S-9: by 7.8 points) treated the sweep as a biased but monotone
+ranker. It is not, at least where turnover timing matters: the sweep earns weights on the
+next day's close-to-close return while LEAN fills MarketOnOpen the next morning and pays
+IBKR's real fee schedule. Every future lever gets a LEAN confirmation before it is believed
+or discarded - a sweep rejection is now grounds for one LEAN run, not for closing the idea.
+
+**Next.** S-11: attack the 2015-2016 / 2024 whipsaw directly (rank persistence / minimum
+holding period / hysteresis on entry and exit), judged against 23.6% / 0.874 / 25.9%.
+
 ## 2026-09-08 - S-9: the champion's momentum was too short-sighted (new champion)
 
 **Hypothesis.** Everything since S-6 changed *size* or *universe* and none of it moved the

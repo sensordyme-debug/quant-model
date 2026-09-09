@@ -11,12 +11,12 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-08: **S-9 has promoted a new champion** - the S-6 strategy with a fourth
-momentum horizon of 252 sessions: CAR 18.1% -> **20.9%**, Sharpe 0.69 -> **0.78**, at 16% fewer
-orders, beating the old champion on both sub-periods. Drawdown widened 25.2% -> 28.9%, still
-inside the 35% limit. This is the first order-list change since S-6:
-**`OrderListHash b763e292cb0eb9a2c81af5739188d437`**, and I-1's pre-deploy comparison must now
-be made against that hash, not `9f58b37cc2656b647ec88a5124daf02d`. The remaining gate is still
+Status 2026-09-08: **S-10 has promoted a new champion** - S-9 with the 120- and 252-day
+momentum windows ending one trading week before the decision bar: CAR 20.9% -> **23.6%**,
+Sharpe 0.78 -> **0.87**, drawdown 28.9% -> **25.9%**, at 10% fewer orders, beating the old
+champion on both sub-periods. New order list:
+**`OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf`**, and I-1's pre-deploy comparison must now
+be made against that hash, not `b763e292cb0eb9a2c81af5739188d437`. The remaining gate is still
 I-1, blocked on IB Gateway being logged in on this machine (see `research/BLOCKERS.md`); the
 runner is built and re-verified `--mock --dry-run` against the new signal.
 
@@ -26,9 +26,14 @@ pool on disk is a 2026 survivor list, leaving the ETF-9 sleeve as the only hones
 that sleeve, at any size, by any of the four levers S-8 tried; and a daily-turnover book on this
 $100k account pays ~2.1bps per unit of turnover in commission alone, which is more than the
 whole gross edge S-3 could find. The first two are decisions for the human in `BLOCKERS.md`.
-S-9 is the first result to move the champion *without* spending more turnover, which is the
-only kind of gain that cost floor cannot tax away - so signal work, not sizing work, is where
-the next iteration should look too.
+S-9 and S-10 are the only results to move the champion *without* spending more turnover, which
+is the only kind of gain that cost floor cannot tax away - so signal work, not sizing work, is
+where the next iteration should look too.
+
+One methodology change, from S-10: **`sweep_s1.py` and LEAN now disagree in sign**, not only in
+magnitude - the sweep rejected the skip lever that LEAN promoted, and inverted its drawdown
+ranking. A sweep rejection is therefore grounds for one LEAN confirmation run, not for closing
+an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
@@ -44,6 +49,9 @@ the next iteration should look too.
   `plan_orders()` already nets against current positions - but it did add the
   `MAX_MARGIN_USED = 1.0` backstop, and the mock plan is now a 1.5x gross book, so the
   paper account must have margin enabled or the first real order will be rejected.
+  Re-verified `--mock --dry-run` against the S-10 champion on 2026-09-08 (1.5x gross, margin
+  0.75, XLK/XLE/IWM); the pre-deploy comparison is against
+  `OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf`.
 - **D-2 Intraday data (blocks S-2).** `fetch_data.py` writes daily bars only; Yahoo caps
   1-minute history at ~30 days, which is useless for backtesting. Once IB Gateway is logged
   in, pull minute bars with `ib_async` `reqHistoricalData` (1-day chunks, respect pacing
@@ -51,17 +59,19 @@ the next iteration should look too.
   `equity/usa/minute/<symbol>/<yyyyMMdd>_trade.zip` holding
   `<yyyyMMdd>_<symbol>_minute_trade.csv` with rows `<ms since midnight ET>,o,h,l,c,v`,
   prices scaled by 10000. Reuse the writer/validator structure already in `fetch_data.py`.
-- **S-10 Keep going on the signal, now that signal work is the thing that pays (new).**
-  S-9 moved the champion by changing *what is ranked*, at lower turnover, after four
-  size/universe iterations moved nothing. Three concrete follow-ups it opened, in order:
-  (a) **skip-a-month momentum** - rank on the 252-day return excluding the most recent 20
-  sessions, the standard short-term-reversal correction to a 12-month horizon, which S-9
-  never tested; (b) **horizon weighting** - S-9 gave all four horizons an equal vote, and
-  the shelf shape (Sharpe rising from 0.85 at 150 to 1.10 at 250) says the long horizon
-  carries most of the information, so an explicit weight on it is worth one run;
-  (c) **why the 2012-2019 half improved so little** - the whole S-9 gain is OOS, and the
-  IS half also carries the new 28.9% drawdown, so diagnose that period before adding size.
-  Judge everything against the new champion: 20.9% / 0.78 / 28.9%, 2,870 orders.
+- **S-11 The whipsaw, which is now the champion's whole remaining weakness (new).**
+  S-10's calendar decomposition says the losses are not crises and not the OOS half: they
+  are 2014 (-4.9% excess vs SPY), 2015 (-5.9%), 2016 (-11.3%) and 2024 (-17.0%), and the
+  worst drawdown is one 16-month grind from 2015-07-20 to 2016-11-07. The crisis-vol filter
+  already handles crashes (2022 is the best excess year at +33.3%). What is left is a
+  ranking that rotates the book into whichever sleeve member has just topped out. Three
+  concrete levers, cheapest first: (a) **hysteresis** - require a challenger to beat the
+  incumbent's score by a margin before the swap, so a rank crossing on noise does not trade;
+  (b) **minimum holding period** - a name entered must be held N sessions unless it fails the
+  entry gate outright; (c) **rank persistence** - require a name to have been in the top
+  `top_n` for k consecutive sessions before it is funded. All three cut turnover, which is
+  the direction S-3's 2.1bps cost floor rewards. Judge against the new champion:
+  23.6% / 0.874 / 25.9%, 2,573 orders. Confirm every cell in LEAN, not only in the sweep.
 - **S-2 Opening-range breakout.** Intraday on SPY/QQQ/IWM (futures later). Enter on a
   break of the first 15-30 minute range with ATR stops, scale out into strength, flat at
   close. Hypothesis: high-frequency small edges compound into volatile but positive equity.
@@ -74,6 +84,24 @@ the next iteration should look too.
 
 ## Done
 
+- **S-10 Skip-a-month momentum and horizon weighting. PROMOTED 2026-09-08**, run
+  `20260909T013820Z` (control `20260909T005513Z`, sub-periods `20260909T013359Z` /
+  `20260909T013608Z`, LEAN skip scan `20260909T0059-0122`). Two levers, both defaulted off,
+  the control reproducing S-9's `OrderListHash b763e292cb0eb9a2c81af5739188d437`.
+  **Horizon weighting lost everywhere** - every vector overweighting the long horizon costs
+  2-3 points of CAR and widens drawdown, on the raw blend and after standardizing
+  (`mom_weights` stays in `signals.py`, defaulted empty). **The skip won, but not at the
+  textbook parameter**: the 12-2 month skip (20 sessions) loses (19.6% / 0.72), the shelf is
+  at 3-10 sessions (23.0-23.6% CAR, 0.84-0.87 Sharpe), and it collapses at 2 and at 15+.
+  Shipped: `mom_skip=5` (one trading week) on `mom_skip_min_lookback=120`, i.e. the 120- and
+  252-day horizons only - applying it to the 20-day horizon as well costs 4.4 points of CAR,
+  and confining it to 252 alone earns 23.3%, so the effect belongs to long-horizon momentum
+  generally. LEAN full period: CAR 20.9% -> 23.6%, Sharpe 0.782 -> 0.874, drawdown 28.9% ->
+  25.9%, orders 2,870 -> 2,573, PSR 10.1% -> 17.7%; IS 17.6%/0.80/25.9%, OOS 31.1%/0.97/21.5%,
+  both ahead of S-9's 15.2%/0.70 and 28.0%/0.88. **The methodology finding matters as much as
+  the result**: `sweep_s1.py` rejected this cell and inverted its drawdown ranking, so the two
+  harnesses disagree in sign and LEAN decides. Also delivered the S-9(c) diagnostic that
+  became S-11.
 - **S-9 A second signal on the ETF sleeve. PROMOTED 2026-09-08**, run `20260908T235647Z`
   (control `20260908T234444Z`, sub-periods `20260908T235224Z` / `20260908T235437Z`). Both
   ideas S-7 named were tested and **both lost**: cross-sectional ranking against the sleeve

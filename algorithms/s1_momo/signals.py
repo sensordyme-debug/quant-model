@@ -168,6 +168,37 @@ class Params:
     entry_mode: str = "absolute"
     min_rel_momentum: float = 0.0
 
+    # --- S-10: the two follow-ups S-9 opened, both defaulted off ---
+    #: Skip-a-month momentum. Sessions dropped from the *recent* end of every horizon
+    #: window, so a lookback of `lb` measures the return from `-1-skip-lb` to `-1-skip`
+    #: instead of ending today. This is the standard 12-2 correction: the last month of a
+    #: 12-month winner carries short-term reversal, which is noise at a monthly horizon and
+    #: has the wrong sign. S-9 never tested it, and the champion is now a 252-day blend, so
+    #: it is exactly the configuration the correction was written for.
+    #:
+    #: What the data says (S-10, LEAN, full period, skip applied to lookbacks >= 120):
+    #: 2 -> 19.8% CAR / 0.74 Sharpe, 3 -> 23.0 / 0.86, **5 -> 23.6 / 0.87**, 8 -> 23.6 / 0.87,
+    #: 10 -> 22.7 / 0.84, 15 -> 19.1 / 0.70, 20 -> 19.6 / 0.72, against a champion at
+    #: 20.9 / 0.78. So the textbook *month* is wrong here and a **week** is right: the shelf
+    #: runs 3-10 sessions and collapses on both sides of it. 5 is one trading week, the
+    #: a-priori unit inside that shelf, not its argmax.
+    mom_skip: int = 5
+    #: Apply the skip only to horizons at least this long (0 = every horizon). The champion
+    #: blends a 20-day horizon whose entire content *is* the recent month; skipping a week
+    #: of a 20-day lookback does not correct that horizon, it truncates it - measured, and
+    #: it costs 4.4 points of CAR (19.2% at skip_min_lookback=0 vs 23.6% at 120). Confining
+    #: the skip to 252 alone gives 23.3% / 0.87, so the effect lives in the long horizons
+    #: and is not a property of one of them.
+    mom_skip_min_lookback: int = 120
+    #: Per-horizon weights for the blend, aligned with `mom_lookbacks`. Empty = equal votes,
+    #: which is what the champion ships. S-9's shelf (Sharpe 0.85 at a fourth horizon of
+    #: 150 rising to 1.10 at 250) says the long horizon carries most of the information, so
+    #: an explicit overweight on it is worth measuring. Weights are normalized, so only
+    #: their ratios matter. Note "equal votes" is only equal after `mom_score="zscore"`;
+    #: under "blend" the horizons are raw returns of very different scale, so a weight here
+    #: reweights an already-unequal vote.
+    mom_weights: tuple = ()
+
     # --- S-8: earn drawdown headroom so that size can be spent ---
     #: Elastic margin budget. 0 keeps `margin_budget` a flat constant, which is what the
     #: champion ships and what makes its vol target inert: the vol target asks for up to
@@ -202,15 +233,20 @@ class Params:
         # the entire sample, and the sweep prints a tidy 0.0% CAR that looks like a result.
         # S-9 lost a grid cell to exactly this (a 300-day horizon against the 300-bar
         # default). Widen the window instead, so the horizon is what is being tested.
-        need = max(self.mom_lookbacks) + 50
+        need = max(self.mom_lookbacks) + self.mom_skip + 50
         if self.history_bars < need:
             object.__setattr__(self, "history_bars", need)
+        if self.mom_weights and len(self.mom_weights) != len(self.mom_lookbacks):
+            raise ValueError(
+                f"mom_weights has {len(self.mom_weights)} entries but there are "
+                f"{len(self.mom_lookbacks)} lookbacks; they are matched positionally")
 
     def scaled(self, factor: float) -> "Params":
         """Sensitivity helper: stretch the lookbacks and the vol threshold together."""
         return replace(
             self,
             mom_lookbacks=tuple(max(2, int(round(lb * factor))) for lb in self.mom_lookbacks),
+            mom_skip=int(round(self.mom_skip * factor)),
             regime_threshold=self.regime_threshold * factor,
         )
 
@@ -250,11 +286,45 @@ def allocate(winners, scores, mode: str) -> dict:
     return {t: v / total for t, v in raw.items()}
 
 
-def horizon_returns(prices: pd.DataFrame, lookbacks) -> pd.DataFrame:
-    """Trailing total return per lookback (index) per ticker (columns)."""
-    rows = {int(lb): prices.iloc[-1] / prices.iloc[-1 - lb] - 1.0
-            for lb in lookbacks if len(prices) > lb}
+def horizon_returns(prices: pd.DataFrame, lookbacks, skip: int = 0,
+                    skip_min_lookback: int = 0) -> pd.DataFrame:
+    """Trailing total return per lookback (index) per ticker (columns).
+
+    `skip` (S-10) ends each window that many sessions before the last bar, so a lookback
+    of `lb` measures `-1-skip-lb` -> `-1-skip`. It is applied only to horizons of at least
+    `skip_min_lookback` sessions, which is how a long-horizon-only skip is expressed
+    without splitting the lookback tuple into two.
+    """
+    rows = {}
+    for lb in lookbacks:
+        gap = skip if lb >= skip_min_lookback else 0
+        if len(prices) <= lb + gap:
+            continue
+        end = prices.iloc[-1 - gap]
+        rows[int(lb)] = end / prices.iloc[-1 - gap - lb] - 1.0
     return pd.DataFrame(rows).T if rows else pd.DataFrame()
+
+
+def horizon_weights(per_horizon: pd.DataFrame, p: "Params") -> pd.Series | None:
+    """Normalized weight per surviving horizon row, or None for an equal blend.
+
+    Rows can be missing when history is short, so weights are matched to their lookback
+    by value rather than by position and then renormalized over what is left.
+    """
+    if not p.mom_weights:
+        return None
+    lookup = {int(lb): float(w) for lb, w in zip(p.mom_lookbacks, p.mom_weights)}
+    w = pd.Series({lb: lookup.get(int(lb), 0.0) for lb in per_horizon.index}, dtype=float)
+    total = w.sum()
+    return None if total <= 0 else w / total
+
+
+def blend(per_horizon: pd.DataFrame, p: "Params") -> pd.Series:
+    """Collapse the per-horizon frame to one score per ticker (equal or weighted)."""
+    w = horizon_weights(per_horizon, p)
+    if w is None:
+        return per_horizon.mean(axis=0)
+    return per_horizon.mul(w, axis=0).sum(axis=0)
 
 
 def blended_momentum(prices: pd.DataFrame, lookbacks) -> pd.Series:
@@ -271,21 +341,21 @@ def momentum_scores(prices: pd.DataFrame, p: Params) -> tuple[pd.Series, pd.Seri
     Returned separately from the eligibility gate because the score is also what
     `allocate(mode="momentum")` sizes on, and a z-score is not a return.
     """
-    per_horizon = horizon_returns(prices, p.mom_lookbacks)
+    per_horizon = horizon_returns(prices, p.mom_lookbacks, p.mom_skip, p.mom_skip_min_lookback)
     if per_horizon.empty:
         return pd.Series(dtype=float), pd.Series(dtype=bool)
 
     if p.mom_score == "zscore":
         centered = per_horizon.sub(per_horizon.mean(axis=1), axis=0)
         spread = per_horizon.std(axis=1, ddof=0).replace(0.0, np.nan)
-        score = centered.div(spread, axis=0).fillna(0.0).mean(axis=0)
+        score = blend(centered.div(spread, axis=0).fillna(0.0), p)
     elif p.mom_score == "riskadj":
         vol = (prices.pct_change().iloc[-p.mom_vol_window:].std(ddof=1)
                * np.sqrt(TRADING_DAYS))
-        score = per_horizon.mean(axis=0) / vol.replace(0.0, np.nan)
+        score = blend(per_horizon, p) / vol.replace(0.0, np.nan)
         score = score.replace([np.inf, -np.inf], np.nan).fillna(-1e9)  # unrankable = last
     else:
-        score = per_horizon.mean(axis=0)
+        score = blend(per_horizon, p)
 
     eligible = pd.Series(True, index=score.index)
     if p.mom_confirm:
@@ -410,7 +480,9 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     diag = {"n_bars": int(len(prices))}
 
     prices = prices.sort_index().dropna(axis=1, how="all").ffill()
-    max_lb = max(p.mom_lookbacks)
+    # The skip pushes the window back in time, so it lengthens the history the longest
+    # horizon needs by exactly the gap (S-10).
+    max_lb = max(p.mom_lookbacks) + (p.mom_skip if max(p.mom_lookbacks) >= p.mom_skip_min_lookback else 0)
     if len(prices) < max_lb + 2:
         diag["state"] = dict(state or {})
         diag["reason"] = f"only {len(prices)} bars, need {max_lb + 2}"

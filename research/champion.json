@@ -1,25 +1,25 @@
 {
   "algorithm": "s1_momo",
   "class": "S1MomentumRotationAlgorithm",
-  "promoted_at": "2026-09-09T00:00:38+00:00",
-  "run_dir": "results\\s1_momo\\20260908T235647Z",
+  "promoted_at": "2026-09-09T01:42:17+00:00",
+  "run_dir": "results\\s1_momo\\20260909T013820Z",
   "stats": {
-    "Total Orders": "2870",
-    "Net Profit": "1521.028%",
-    "Compounding Annual Return": "20.894%",
-    "Sharpe Ratio": "0.782",
-    "Sortino Ratio": "0.76",
-    "Drawdown": "28.900%",
-    "Win Rate": "65%",
-    "Profit-Loss Ratio": "0.99",
-    "Alpha": "0.105",
-    "Beta": "0.613",
-    "Annual Standard Deviation": "0.171",
-    "Information Ratio": "0.531",
-    "Total Fees": "$37319.36",
+    "Total Orders": "2573",
+    "Net Profit": "2144.780%",
+    "Compounding Annual Return": "23.605%",
+    "Sharpe Ratio": "0.874",
+    "Sortino Ratio": "0.861",
+    "Drawdown": "25.900%",
+    "Win Rate": "66%",
+    "Profit-Loss Ratio": "1.10",
+    "Alpha": "0.123",
+    "Beta": "0.629",
+    "Annual Standard Deviation": "0.174",
+    "Information Ratio": "0.636",
+    "Total Fees": "$37379.87",
     "Start Equity": "100000",
-    "End Equity": "1621028.31",
-    "Probabilistic Sharpe Ratio": "10.086%"
+    "End Equity": "2244780.44",
+    "Probabilistic Sharpe Ratio": "17.708%"
   },
   "criteria": {
     "min_trades": 30,
@@ -30,7 +30,7 @@
     "max_drawdown_limit": "35%",
     "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
   },
-  "commit": "4100576",
-  "tag": "S-9 shipped default: lookbacks 20/60/120/252; must reproduce OrderListHash b763e292cb0eb9a2c81af5739188d437",
-  "note": "S-9 changed the signal, so the order list moved for the first time since S-6: OrderListHash is now b763e292cb0eb9a2c81af5739188d437, not 9f58b37cc2656b647ec88a5124daf02d. The only change is a fourth momentum horizon of 252 sessions in mom_lookbacks; everything else is the S-6 champion. Sub-periods, both from LEAN: IS 2012-2019 15.2% CAR / 0.70 Sharpe / 28.9% DD (run 20260908T235224Z), OOS 2020-2026 28.0% / 0.88 / 21.0% (run 20260908T235437Z) - it beats the previous champion's 13.5%/0.64 and 23.8%/0.76 on both halves. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars). I-1 note: the paper runner's order list changes with this promotion, so the pre-deploy comparison must be made against this hash."
+  "commit": "3a2d1ea",
+  "tag": "S-10 shipped default: mom_skip=5 on lookbacks>=120; must reproduce OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf",
+  "note": "S-10 changed the signal again, so the order list moved: OrderListHash is now ff4a7cbaaf6e36e58ace2b82ab216bdf, not b763e292cb0eb9a2c81af5739188d437. The only change from S-9 is mom_skip=5 with mom_skip_min_lookback=120: the 120- and 252-day momentum windows now end five sessions (one trading week) before the decision bar, while the 20- and 60-day horizons still end on it. Sub-periods, both from LEAN: IS 2012-2019 17.6% CAR / 0.80 Sharpe / 25.9% DD (run 20260909T013359Z), OOS 2020-2026 31.1% / 0.97 / 21.5% (run 20260909T013608Z) - it beats the S-9 champion's 15.2%/0.70/28.9% and 28.0%/0.88/21.0% on CAR and Sharpe in both halves, and on drawdown in the half where drawdown lives. It is a shelf, not a spike: skips of 3, 5, 8 and 10 sessions all beat the champion (23.0-23.6% CAR), 2 and 15+ do not. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars); S1_MOM_SKIP=0 restores the S-9 champion. I-1 note: the paper runner's order list changes with this promotion, so the pre-deploy comparison must be made against this hash. Harness caveat: scripts/sweep_s1.py *rejected* this cell (it scores the skip 3.8 points of CAR worse than the champion and inverts the drawdown ranking); on this lever the sweep and LEAN disagree in sign, so LEAN decided."
 }

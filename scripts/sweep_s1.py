@@ -116,7 +116,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", default="ablation",
                     choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin",
-                             "s7", "s7bias", "d3", "s8", "s8vol", "s9"])
+                             "s7", "s7bias", "d3", "s8", "s8vol", "s9", "s10"])
     ap.add_argument("--section", type=int, default=0,
                     help="run one numbered section of the sweep (0 = all). A full-period "
                          "simulation costs ~22s, so a long sweep is split to stay inside a "
@@ -408,6 +408,92 @@ def main() -> int:
                 both(replace(P, mom_lookbacks=L, top_n=top_n), f"lookbacks={L} top_n={top_n}")
             both(replace(P, mom_lookbacks=L, regime_threshold=99.0),
                  f"lookbacks={L} no crisis-vol filter")
+
+        print("--- benchmarks ---")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
+
+    elif args.mode == "s10":
+        # S-10: the two follow-ups S-9 opened, on the same honest ETF-9 sleeve.
+        #   (a) skip-a-month - rank on returns that stop short of the last month, the
+        #       standard 12-2 correction for short-term reversal;
+        #   (b) horizon weighting - S-9 gave four horizons an equal vote while its own
+        #       shelf said the long one carries the information.
+        # Plus (c), the diagnostic S-9 left open: where in the IS half the champion's
+        # 28.9% drawdown and its thin 15.2% CAR actually come from.
+        def both(params, label):
+            print(f"\n--- {label} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            return run(prices, params, "  full 2012-2026")
+
+        def section(n):
+            return args.section in (0, n)
+
+        L = P.mom_lookbacks
+
+        if section(1):
+            print("=== 0. baseline: the S-9 champion ===")
+            base = both(P, f"champion lookbacks={L}, no skip, equal weights")
+            print(f"\nbar to beat: CAR {base['CAR']:.1%} Sharpe {base['Sharpe']:.2f} "
+                  f"MaxDD {base['MaxDD']:.1%} turn {base['daily_turnover']:.2f}")
+            print("\n=== 1a. skip-a-month applied to every horizon ===")
+            # Skipping 20 sessions of a 20-day lookback does not correct that horizon, it
+            # replaces it with a stale one - so this arm is expected to be the weaker of
+            # the two and is run to establish that, not because it is the candidate.
+            for skip in [10, 20]:
+                both(replace(P, mom_skip=skip), f"skip={skip} on all horizons")
+
+        if section(2):
+            print("\n=== 1b. skip applied only to the long horizons ===")
+            for min_lb in [60, 120, 252]:
+                both(replace(P, mom_skip=20, mom_skip_min_lookback=min_lb),
+                     f"skip=20 on lookbacks>={min_lb}")
+
+        if section(3):
+            # Same plateau-or-spike test S-9 used on the fourth horizon: if the skip is a
+            # real effect the neighbourhood of 20 sessions is flat, if it is a fitted cell
+            # only one gap wins. Full period only - the shape question comes first.
+            print("\n=== 1c. is the skip length a plateau or a spike? (long horizons only) ===")
+            run(prices, P, "control: no skip")
+            for skip in [5, 10, 15, 20, 25, 30, 40]:
+                run(prices, replace(P, mom_skip=skip, mom_skip_min_lookback=120),
+                    f"skip={skip} on lookbacks>=120")
+
+        if section(4):
+            print("\n=== 2a. horizon weighting: overweight the 252-day vote ===")
+            for w in [(1, 1, 1, 2), (1, 1, 1, 3), (1, 1, 2, 3), (1, 2, 3, 4)]:
+                both(replace(P, mom_weights=w), f"weights={w}")
+
+        if section(5):
+            # Under mom_score="blend" the horizons are raw returns of very different scale,
+            # so the 252-day term already dominates the mean arithmetically. The honest
+            # version of "give the long horizon more weight" is therefore to standardize
+            # first (zscore) and *then* weight - otherwise the lever is confounded with the
+            # scale it is supposed to be correcting.
+            print("\n=== 2b. weighting on standardized horizons (zscore) ===")
+            both(replace(P, mom_score="zscore"), "zscore, equal weights")
+            for w in [(1, 1, 1, 2), (1, 1, 2, 4), (0, 1, 1, 2)]:
+                both(replace(P, mom_score="zscore", mom_weights=w), f"zscore weights={w}")
+
+        if section(6):
+            # (c) Why did the 2012-2019 half improve so little, and where does the 28.9%
+            # drawdown live? Year by year, champion against SPY, on the same harness.
+            print("\n=== 3. calendar-year decomposition of the champion (S-10c) ===")
+            curve, _ = simulate(prices, P, start="2012-01-03")
+            spy = prices["SPY"].loc[curve.index[0]:curve.index[-1]]
+            print(f"{'year':<6} {'strategy':>10} {'SPY':>10} {'excess':>10} {'maxDD':>9} "
+                  f"{'invested':>9}")
+            for year, seg in curve.groupby(curve.index.year):
+                sseg = spy.loc[seg.index[0]:seg.index[-1]]
+                r = seg.iloc[-1] / seg.iloc[0] - 1
+                b = sseg.iloc[-1] / sseg.iloc[0] - 1
+                dd = (1 - seg / seg.cummax()).max()
+                print(f"{year:<6} {r:>10.1%} {b:>10.1%} {r - b:>10.1%} {dd:>9.1%}")
+            worst = (1 - curve / curve.cummax())
+            peak_day = worst.idxmax()
+            print(f"\nworst drawdown {worst.max():.1%} bottoms {peak_day.date()}; "
+                  f"equity peak before it {curve.loc[:peak_day].idxmax().date()}")
 
         print("--- benchmarks ---")
         for ticker in ["SPY", "QQQ"]:

@@ -90,6 +90,14 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             mom_confirm=bool(_env("MOM_CONFIRM", 0, int)),
             entry_mode=os.environ.get("S1_ENTRY_MODE", "absolute"),
             min_rel_momentum=_env("MIN_REL_MOMENTUM", 0.0),
+            # S-10: the shipped skip is 5 sessions (one trading week) on the 120- and
+            # 252-day horizons only; MOM_SKIP=0 restores the S-9 champion. MOM_WEIGHTS
+            # empty gives the horizons an equal vote (S-10 rejected every weighting) and
+            # S1_MOM_WEIGHTS is a comma list aligned with S1_LOOKBACKS.
+            mom_skip=_env("MOM_SKIP", 5, int),
+            mom_skip_min_lookback=_env("MOM_SKIP_MIN_LOOKBACK", 120, int),
+            mom_weights=tuple(float(x) for x in
+                              os.environ.get("S1_MOM_WEIGHTS", "").split(",") if x.strip()),
         )
 
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)
