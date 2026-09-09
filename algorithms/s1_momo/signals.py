@@ -109,7 +109,33 @@ class Params:
     """Tunables. Every one of these is swept in the S-1 sensitivity test."""
 
     rank_universe: tuple = tuple(RANK_UNIVERSE)  # sleeve momentum is ranked over
-    weight_mode: str = "equal"             # "equal" | "rank" | "momentum" (see allocate)
+    #: "equal" | "rank" | "momentum" | "invvol". S-12 promoted "invvol": momentum decides
+    #: *which* three names are held, and their share of the exposure budget is then set by
+    #: risk rather than by count. Equal weight equalizes notional, so the most volatile
+    #: winner supplies most of the book's variance - and on this sleeve that gap is a factor
+    #: of two or three (GLD/TLT ~12% vol against XLE/XLK ~30%).
+    weight_mode: str = "invvol"
+    #: S-12 risk parity. Trailing window (sessions) and exponent for `weight_mode="invvol"`:
+    #: a winner's share of the exposure budget is proportional to (1 / sigma) ** power,
+    #: measured on the *unlevered* ranked series. power 0 collapses to equal weight, 1 is
+    #: full inverse-vol, and the intermediate values are the usual shrinkage between the
+    #: two - a single dial rather than a second allocation mode.
+    #:
+    #: LEAN, full period, at power 1.0: window 10 -> 22.8% CAR / 0.857 Sharpe / 29.4% DD,
+    #: **20 -> 24.25 / 0.915 / 25.4**, **21 -> 24.40 / 0.921 / 25.1**, **30 -> 24.18 / 0.911
+    #: / 25.1**, 40 -> 23.74 / 0.893 / 27.4, 60 -> 23.40 / 0.879 / 25.5, against an
+    #: equal-weight champion at 23.61 / 0.874 / 25.9. So it is a shelf over 20-30 that
+    #: collapses at 10 and decays back toward equal weight by 60; 21 is one trading month,
+    #: the a-priori point inside the shelf, and 20 is the argmax. The tilt is also monotone
+    #: in strength at window 21 - power 0.5 gives 24.10 / 0.902, i.e. half the gain for half
+    #: the tilt - which is the dose-response a fitted cell does not have.
+    #:
+    #: It is not free: the vol ratios drift daily, so the book re-weights between rotations
+    #: and orders rise 2,573 -> 4,735 with fees $37.4k -> $45.7k. The extra $8.3k is paid
+    #: for out of the 0.8 points of extra CAR, but it is the reason a *longer* window is the
+    #: honest fallback if commission ever rises.
+    alloc_vol_window: int = 21
+    alloc_vol_power: float = 1.0
     #: D-3 point-in-time universe. 0 keeps `rank_universe` as a fixed list; any positive
     #: value treats `rank_universe` as a *candidate pool* and re-selects that many members
     #: by trailing dollar volume on every rebalance. Needs a `volumes` frame; without one
@@ -287,7 +313,8 @@ MARGIN_REQ = {t: margin_requirement(t) for t in sorted(
     set(TRADED_UNIVERSE) | set(MEGACAP_SLEEVE))}
 
 
-def allocate(winners, scores, mode: str) -> dict:
+def allocate(winners, scores, mode: str, vols: pd.Series | None = None,
+             power: float = 1.0) -> dict:
     """Share of the exposure budget per winner. Shares sum to 1.
 
     * `equal`    - 1/N each. The shipped default.
@@ -296,6 +323,13 @@ def allocate(winners, scores, mode: str) -> dict:
     * `momentum` - proportional to the blended momentum score itself. Winners are already
                    filtered to positive scores, so shares are positive, but a single 3x-ETF
                    score can swallow most of the book.
+    * `invvol`   - S-12 risk parity: proportional to `(1 / sigma) ** power` on the trailing
+                   vol of the *unlevered* ranked name. Equal weight equalizes notional, which
+                   means the riskiest winner supplies most of the portfolio's variance; the
+                   sleeve spans GLD/TLT at ~12% vol and XLE/XLK at ~30%, so the gap is a
+                   factor of two or three. `vols` is a Series indexed by winner; a name whose
+                   vol is missing or non-positive is given the median vol rather than dropped,
+                   so a data gap cannot silently concentrate the book.
     """
     n = len(winners)
     if n == 0:
@@ -306,6 +340,19 @@ def allocate(winners, scores, mode: str) -> dict:
         raw = {t: max(float(scores[t]), 0.0) for t in winners}
         if sum(raw.values()) <= 0:
             raw = {t: 1.0 for t in winners}
+    elif mode == "invvol" and vols is not None:
+        finite = [float(v) for v in (vols.get(t) for t in winners)
+                  if v is not None and np.isfinite(v) and v > 0]
+        if not finite:
+            raw = {t: 1.0 for t in winners}
+        else:
+            fallback = float(np.median(finite))
+            raw = {}
+            for t in winners:
+                v = float(vols.get(t, np.nan))
+                if not np.isfinite(v) or v <= 0:
+                    v = fallback
+                raw[t] = v ** (-float(power))
     else:
         raw = {t: 1.0 for t in winners}
     total = sum(raw.values())
@@ -645,7 +692,16 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     # Dividing by the multiple is what makes target_exposure mean what it says: a 3x ETF
     # gets a third of the weight for the same exposure. Sizing each name at 1/N of equity
     # instead would peg gross weight at 1.0 and leave the vol target able only to cut.
-    shares = allocate(winners, scores, p.weight_mode)
+    # S-12: risk parity needs each winner's own trailing vol. Measured on the unlevered
+    # ranked series, not on the proxy actually traded, because `raw` below already divides
+    # by the proxy's leverage multiple - so the share being split here is unlevered-
+    # equivalent exposure, and it must be equalized against unlevered-equivalent risk.
+    alloc_vols = None
+    if p.weight_mode == "invvol":
+        alloc_vols = (prices[winners].pct_change().iloc[-p.alloc_vol_window:].std(ddof=1)
+                      * np.sqrt(TRADING_DAYS))
+        diag["alloc_vols"] = {t: round(float(v), 4) for t, v in alloc_vols.items()}
+    shares = allocate(winners, scores, p.weight_mode, alloc_vols, p.alloc_vol_power)
 
     # S-8 trailing stop. Shares are allocated over the *pre-stop* winners and a stopped
     # name simply does not get funded, so the book shrinks toward cash instead of doubling

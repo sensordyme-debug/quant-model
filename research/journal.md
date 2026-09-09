@@ -2,6 +2,86 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - S-12: risk parity inside the top 3, new champion at 24.4% / 0.92
+
+**Hypothesis.** Every iteration since S-6 has changed *what* the signal picks (S-9's fourth
+horizon, S-10's skip) or *whether* it re-picks (S-11's whipsaw controls). Nothing has touched
+the last step: once momentum has chosen three names, the exposure budget is split 1/N between
+them. Equal weight equalizes *notional*, not risk, and this sleeve is not homogeneous - GLD and
+TLT run near 12% annualized vol while XLE and XLK run near 30%. So on any day the book holds a
+quiet name and a violent one, the violent one supplies most of the variance and the quiet one is
+close to decoration. **Weighting each winner by 1/sigma on its own trailing vol should raise
+Sharpe**, and it should be nearly free in rotation turnover, because vol ratios move far more
+slowly than rankings do.
+
+Two implementation notes. The vol is measured on the **unlevered ranked series**, not on the
+3x proxy actually traded, because the sizing step already divides by the proxy's leverage
+multiple - the share being split is unlevered-equivalent exposure, so it has to be equalized
+against unlevered-equivalent risk. And the tilt is a *dial*, not a mode: shares are
+`(1/sigma) ** alloc_vol_power`, so power 0 is exactly equal weight and 0.5 is half the tilt.
+That is what makes a dose-response test possible, which is the check that separates an effect
+from a lucky cell.
+
+**Control first.** LEAN run `20260909T034600Z` at the defaults reproduces
+`OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf` bit for bit, so the new code is provably inert
+until it is switched on.
+
+### Result (LEAN, full period 2012-01-03 .. 2026-09-04, power 1.0 unless stated)
+
+| cell | CAR | Sharpe | MaxDD | orders | fees | PSR |
+| --- | --- | --- | --- | --- | --- | --- |
+| S-10 champion (equal weight) | 23.61% | 0.874 | 25.9% | 2,573 | $37,380 | 17.7% |
+| invvol window 10 | 22.77% | 0.857 | 29.4% | 6,318 | $50,184 | 16.2% |
+| invvol window 20 | 24.25% | 0.915 | 25.4% | 4,768 | $45,982 | 22.3% |
+| **invvol window 21 (shipped)** | **24.40%** | **0.921** | **25.1%** | 4,735 | $45,695 | **23.0%** |
+| invvol window 30 | 24.18% | 0.911 | 25.1% | 4,102 | $42,997 | 21.8% |
+| invvol window 40 | 23.74% | 0.893 | 27.4% | 3,644 | $40,034 | 19.8% |
+| invvol window 60 | 23.40% | 0.879 | 25.5% | 3,239 | $39,162 | 18.4% |
+| invvol window 21, power 0.5 | 24.10% | 0.902 | 25.1% | 3,680 | $41,186 | 20.8% |
+
+**It is a shelf, not a spike, in both dimensions.** Across the vol window, 20/21/30 all beat
+the champion on CAR, Sharpe *and* drawdown; 40 and 60 still beat it on Sharpe and drawdown but
+give the CAR back as the tilt decays toward equal weight; 10 loses outright, which is what a
+vol estimate made of noise should do. Across the tilt strength, half the power buys half the
+gain (0.902 sits almost exactly between 0.874 and 0.921). A fitted cell does not have a
+dose-response curve. **21 sessions is one trading month**, the a-priori point inside the
+20-30 shelf; 20 is the argmax and is not what shipped, on the same rule S-9 and S-10 used.
+
+**Sub-periods.** IS 2012-2019 **19.18% / 0.884 / 25.1%** against the champion's
+17.64% / 0.801 / 25.9% - ahead on all three. OOS 2020-2026 **30.86% / 0.985 / 22.6%** against
+31.09% / 0.972 / 21.5% - ahead on Sharpe, 0.23 points of CAR behind, 1.1 points of drawdown
+worse. So the gain is concentrated in the in-sample half, and the out-of-sample half is a
+wash. That is the same shape S-11 found for its whipsaw controls, and it is worth naming: the
+2012-2019 half is the one that holds mixed baskets of quiet and violent names, and the
+2020-2026 half is more often three correlated risk-on names at once, where 1/sigma and 1/N
+are nearly the same weights.
+
+**What it costs.** 84% more orders (2,573 -> 4,735) and $8.3k more commission, because the vol
+ratios drift daily and the book re-weights between rotations. At S-3's measured 2.1bps cost
+floor that is a real bill, and it is paid for here - 0.8 points of CAR and 0.047 of Sharpe
+after fees - but it means the honest fallback if commission ever rises is a longer window
+(30 keeps most of the gain for 633 fewer orders) rather than a smaller tilt.
+
+**Harness agreement.** Unlike S-10, `sweep_s1.py` agreed on the *direction* - it scored the
+shipped cell 22.1% / 1.09 against a 21.2% / 1.03 equal-weight baseline - but it understated the
+size of the win and, as in every previous iteration, understated drawdown by about 6 points.
+It also flagged window 20 as an isolated spike where LEAN sees a 20-30 shelf, so the sweep
+remains a candidate generator only.
+
+- **Decision. Promoted through `scripts/evaluate.py`** (run `20260909T042431Z`, 4,735 orders,
+  drawdown 25.1% < 35%, beats the champion on both `must_beat` metrics). The shipped default
+  is `weight_mode="invvol"`, `alloc_vol_window=21`, `alloc_vol_power=1.0`; `S1_WEIGHT_MODE=equal`
+  restores S-10. New order list **`OrderListHash 5246804e17a67af90028ffceead7d3b3`**, and the
+  I-1 pre-deploy comparison must now be made against that hash. `scripts/paper_trade.py
+  --mock --dry-run` was re-verified against the new signal and reports the tilt in its
+  diagnostics (`alloc_vols`).
+- **Next.** The allocation step is now spent as an idea: momentum picks, risk parity sizes, and
+  the levers left inside a three-name book (correlation-aware weights, an ex-ante covariance
+  target) need more sleeve breadth than nine ETFs to bite. The two things that can still move
+  return materially are a second uncorrelated sleeve (S-2) and intraday data (D-2), and both,
+  like the I-1 paper deploy, wait on the IB Gateway login - checked again at the top of this
+  iteration, ports 4002 and 7497 are both still closed.
+
 ## 2026-09-08 - S-11: the whipsaw is real, and suppressing it buys drawdown, not return
 
 **Hypothesis.** S-10's calendar decomposition said the champion's losses are not crises and

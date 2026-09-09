@@ -11,7 +11,22 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-08 (latest): **S-11 closed negatively - the champion stands at S-10.** Every
+Status 2026-09-09 (latest): **S-12 has promoted a new champion** - the same signal, but the
+exposure budget is now split between the three winners by **1/sigma on their own trailing
+one-month vol** instead of 1/N: CAR 23.61% -> **24.40%**, Sharpe 0.874 -> **0.921**, drawdown
+25.9% -> **25.1%**, PSR 17.7% -> **23.0%**, at 84% more orders and $8.3k more commission. It is
+a shelf in both dimensions (vol windows 20/21/30 all win; the tilt is monotone in strength) and
+21 sessions is the a-priori one trading month inside it, not the argmax. IS 19.18%/0.884/25.1%
+beats S-10 on all three; OOS 30.86%/0.985/22.6% wins on Sharpe and is flat on CAR, so the gain
+is an in-sample-half gain. New order list
+**`OrderListHash 5246804e17a67af90028ffceead7d3b3`**, and I-1's pre-deploy comparison must be
+made against that hash, not `ff4a7cbaaf6e36e58ace2b82ab216bdf`. Ports 4002 and 7497 were checked
+again at the top of this iteration and are both still closed, so I-1/D-2/S-2 remain blocked.
+**With the allocation step now spent, this sleeve has no cheap levers left**: what remains
+inside a three-name ETF book needs breadth (correlation-aware weights want more than nine
+names), so the next real gains are still S-2 and D-2 behind the Gateway login.
+
+Status 2026-09-08: **S-11 closed negatively - the champion stood at S-10.** Every
 whipsaw control (hysteresis, minimum holding period, rank persistence) trades return for
 drawdown roughly in proportion, so the champion's turnover is *paid for*: its rotation is
 signal, not noise. What the iteration does leave behind is a priced frontier - `min_hold=10`
@@ -59,9 +74,9 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   `plan_orders()` already nets against current positions - but it did add the
   `MAX_MARGIN_USED = 1.0` backstop, and the mock plan is now a 1.5x gross book, so the
   paper account must have margin enabled or the first real order will be rejected.
-  Re-verified `--mock --dry-run` against the S-10 champion on 2026-09-08 (1.5x gross, margin
-  0.75, XLK/XLE/IWM); the pre-deploy comparison is against
-  `OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf`.
+  Re-verified `--mock --dry-run` against the **S-12** champion on 2026-09-09 (1.23x gross,
+  margin 0.75, XLE/XLK/TQQQ, with the new `alloc_vols` tilt visible in the diagnostics); the
+  pre-deploy comparison is against `OrderListHash 5246804e17a67af90028ffceead7d3b3`.
 - **D-2 Intraday data (blocks S-2).** `fetch_data.py` writes daily bars only; Yahoo caps
   1-minute history at ~30 days, which is useless for backtesting. Once IB Gateway is logged
   in, pull minute bars with `ib_async` `reqHistoricalData` (1-day chunks, respect pacing
@@ -81,6 +96,24 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Done
 
+- **S-12 Risk parity inside the top_n. PROMOTED 2026-09-09**, run `20260909T042431Z` (control
+  `20260909T034600Z`, reproducing `ff4a7cbaaf6e36e58ace2b82ab216bdf`; window scan
+  `20260909T034953Z` / `035356Z` / `035803Z` / `040157Z` / `040554Z` / `041013Z`; tilt-strength
+  check `20260909T041912Z`; sub-periods `20260909T041413Z` / `041644Z`). Momentum still picks
+  the three names; their share of the exposure budget is now `(1/sigma) ** alloc_vol_power` on
+  the **unlevered** ranked series rather than 1/N, because equal weight equalizes notional and
+  this sleeve spans 12% vol (GLD/TLT) to 30% (XLE/XLK). Shipped: `weight_mode="invvol"`,
+  `alloc_vol_window=21`, `alloc_vol_power=1.0`; `S1_WEIGHT_MODE=equal` restores S-10.
+  LEAN full period CAR 23.61% -> 24.40%, Sharpe 0.874 -> 0.921, drawdown 25.9% -> 25.1%,
+  PSR 17.7% -> 23.0%; IS 19.18%/0.884/25.1% (beats 17.64%/0.801/25.9% on all three), OOS
+  30.86%/0.985/22.6% (Sharpe ahead of 0.972, CAR 0.23 points behind). **Shelf in both
+  dimensions**: windows 20/21/30 beat the champion on CAR, Sharpe and drawdown, 40/60 win on
+  Sharpe and drawdown only, 10 loses; and the tilt is monotone in strength (power 0.5 gives
+  24.10%/0.902, half the gain). 21 = one trading month is the a-priori point, 20 is the argmax.
+  **The cost is turnover**: 2,573 -> 4,735 orders and $37.4k -> $45.7k of fees, because vol
+  ratios drift and the book re-weights between rotations - so window 30 (4,102 orders) is the
+  named fallback if commission ever rises. `weight_mode="rank"`, still never LEAN-tested, loses
+  in the sweep (19.3%/0.93 against 21.2%/1.03) and was not carried forward.
 - **S-11 The whipsaw. Closed negatively 2026-09-08**, runs `20260909T024906Z` (control,
   reproduces `OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf`), `20260909T025256Z` /
   `025647Z` / `030039Z` (hysteresis 0.05/0.10/0.20 sigma), `20260909T030434Z` (min_hold=10),

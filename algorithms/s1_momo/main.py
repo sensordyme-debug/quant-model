@@ -51,7 +51,12 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         }
         self.params = sig.Params(
             rank_universe=sleeves[os.environ.get("S1_SLEEVE", "etf")],
-            weight_mode=os.environ.get("S1_WEIGHT_MODE", "equal"),
+            # S-12: the shipped default is risk parity over a one-month vol window.
+            # S1_WEIGHT_MODE=equal restores the S-10/S-11 champion's equal weighting, and
+            # S1_ALLOC_VOL_POWER=0 is the same thing expressed as a zero tilt.
+            weight_mode=os.environ.get("S1_WEIGHT_MODE", "invvol"),
+            alloc_vol_window=_env("ALLOC_VOL_WINDOW", 21, int),
+            alloc_vol_power=_env("ALLOC_VOL_POWER", 1.0),
             # D-3: 0 keeps the sleeve fixed (the shipped champion); a positive value makes
             # the sleeve above a candidate *pool* and re-picks that many members by
             # trailing dollar volume on each rebalance, using only bars up to that date.

@@ -1,25 +1,25 @@
 {
   "algorithm": "s1_momo",
   "class": "S1MomentumRotationAlgorithm",
-  "promoted_at": "2026-09-09T01:42:17+00:00",
-  "run_dir": "results\\s1_momo\\20260909T013820Z",
+  "promoted_at": "2026-09-09T04:29:06+00:00",
+  "run_dir": "results\\s1_momo\\20260909T042431Z",
   "stats": {
-    "Total Orders": "2573",
-    "Net Profit": "2144.780%",
-    "Compounding Annual Return": "23.605%",
-    "Sharpe Ratio": "0.874",
-    "Sortino Ratio": "0.861",
-    "Drawdown": "25.900%",
-    "Win Rate": "66%",
-    "Profit-Loss Ratio": "1.10",
-    "Alpha": "0.123",
-    "Beta": "0.629",
-    "Annual Standard Deviation": "0.174",
-    "Information Ratio": "0.636",
-    "Total Fees": "$37379.87",
+    "Total Orders": "4735",
+    "Net Profit": "2367.639%",
+    "Compounding Annual Return": "24.404%",
+    "Sharpe Ratio": "0.921",
+    "Sortino Ratio": "0.899",
+    "Drawdown": "25.100%",
+    "Win Rate": "69%",
+    "Profit-Loss Ratio": "0.93",
+    "Alpha": "0.128",
+    "Beta": "0.609",
+    "Annual Standard Deviation": "0.17",
+    "Information Ratio": "0.675",
+    "Total Fees": "$45695.46",
     "Start Equity": "100000",
-    "End Equity": "2244780.44",
-    "Probabilistic Sharpe Ratio": "17.708%"
+    "End Equity": "2467638.72",
+    "Probabilistic Sharpe Ratio": "23.044%"
   },
   "criteria": {
     "min_trades": 30,
@@ -30,7 +30,7 @@
     "max_drawdown_limit": "35%",
     "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
   },
-  "commit": "959ad4e",
-  "tag": "S-10 shipped default: mom_skip=5 on lookbacks>=120; must reproduce OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf",
-  "note": "S-10 changed the signal again, so the order list moved: OrderListHash is now ff4a7cbaaf6e36e58ace2b82ab216bdf, not b763e292cb0eb9a2c81af5739188d437. The only change from S-9 is mom_skip=5 with mom_skip_min_lookback=120: the 120- and 252-day momentum windows now end five sessions (one trading week) before the decision bar, while the 20- and 60-day horizons still end on it. Sub-periods, both from LEAN: IS 2012-2019 17.6% CAR / 0.80 Sharpe / 25.9% DD (run 20260909T013359Z), OOS 2020-2026 31.1% / 0.97 / 21.5% (run 20260909T013608Z) - it beats the S-9 champion's 15.2%/0.70/28.9% and 28.0%/0.88/21.0% on CAR and Sharpe in both halves, and on drawdown in the half where drawdown lives. It is a shelf, not a spike: skips of 3, 5, 8 and 10 sessions all beat the champion (23.0-23.6% CAR), 2 and 15+ do not. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars); S1_MOM_SKIP=0 restores the S-9 champion. I-1 note: the paper runner's order list changes with this promotion, so the pre-deploy comparison must be made against this hash. Harness caveat: scripts/sweep_s1.py *rejected* this cell (it scores the skip 3.8 points of CAR worse than the champion and inverts the drawdown ranking); on this lever the sweep and LEAN disagree in sign, so LEAN decided."
+  "commit": "4fee61d",
+  "tag": "S-12 shipped default: weight_mode=invvol, alloc_vol_window=21, alloc_vol_power=1.0 (risk parity inside the top_n); must reproduce OrderListHash 5246804e17a67af90028ffceead7d3b3",
+  "note": "S-12 changed how the exposure budget is split between the names momentum has already picked, so the order list moved again: OrderListHash is now 5246804e17a67af90028ffceead7d3b3, not ff4a7cbaaf6e36e58ace2b82ab216bdf. The only change from S-10 is weight_mode='invvol' with alloc_vol_window=21 and alloc_vol_power=1.0: a winner's share of the budget is proportional to 1/sigma on its own trailing one-month vol, measured on the *unlevered* ranked series, instead of 1/N. Equal weight equalized notional, so the most volatile winner supplied most of the book's variance, and this sleeve spans GLD/TLT near 12% vol and XLE/XLK near 30%. Sub-periods, both from LEAN: IS 2012-2019 19.18% CAR / 0.884 Sharpe / 25.1% DD (run 20260909T041413Z) beats the S-10 champion's 17.64% / 0.801 / 25.9% on all three; OOS 2020-2026 30.86% / 0.985 / 22.6% (run 20260909T041644Z) beats its 31.09% / 0.972 / 21.5% on Sharpe, is 0.23 points behind on CAR and 1.1 points worse on drawdown. It is a shelf, not a spike: at power 1.0 the vol windows 20, 21 and 30 all beat the champion on CAR, Sharpe and drawdown (24.25/0.915, 24.40/0.921, 24.18/0.911), 40 and 60 beat it on Sharpe and drawdown but not CAR, and 10 loses outright; 21 is one trading month, the a-priori point inside the shelf, and 20 is the argmax. The tilt is also monotone in strength - power 0.5 at the same window gives 24.10 / 0.902, half the gain for half the tilt. Cost: it re-weights as the vol ratios drift, so orders rise 2,573 -> 4,735 and fees $37.4k -> $45.7k; a longer window is the fallback if commission rises. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars); S1_WEIGHT_MODE=equal restores the S-10 champion. I-1 note: the paper runner's order list changes with this promotion, so the pre-deploy comparison must be made against this hash; --mock --dry-run was re-verified against it on 2026-09-09. Harness caveat: scripts/sweep_s1.py agreed on the direction this time but understated it, scoring the same cell at 22.1% CAR / 1.09 against a 21.2% / 1.03 equal-weight baseline, and it also understates the drawdown by ~6 points."
 }

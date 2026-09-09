@@ -116,7 +116,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", default="ablation",
                     choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin",
-                             "s7", "s7bias", "d3", "s8", "s8vol", "s9", "s10", "s11"])
+                             "s7", "s7bias", "d3", "s8", "s8vol", "s9", "s10", "s11", "s12"])
     ap.add_argument("--section", type=int, default=0,
                     help="run one numbered section of the sweep (0 = all). A full-period "
                          "simulation costs ~22s, so a long sweep is split to stay inside a "
@@ -556,6 +556,47 @@ def main() -> int:
                                   ("min_hold=5", replace(P, min_hold=5)),
                                   ("rank_persist=3", replace(P, rank_persist=3))]:
                 both(params, label)
+
+        print("--- benchmarks ---")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
+
+    elif args.mode == "s12":
+        # S-12: risk parity inside the top_n. Every previous iteration changed *what* the
+        # signal picks (S-9, S-10) or *whether* it re-picks (S-11); this one changes only
+        # how the exposure budget is split between the names already picked, which is the
+        # one remaining lever that cannot cost turnover in rotation - the vol ratios of
+        # the sleeve move far more slowly than its rankings.
+        def both(params, label):
+            print(f"\n--- {label} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            return run(prices, params, "  full 2012-2026")
+
+        equal = replace(P, weight_mode="equal")
+        print("=== 0. baseline: the S-10/S-11 champion (equal weight) ===")
+        base = run(prices, equal, "weight_mode=equal")
+        print(f"\nbar to beat: CAR {base['CAR']:.1%} Sharpe {base['Sharpe']:.2f} "
+              f"MaxDD {base['MaxDD']:.1%} turn {base['daily_turnover']:.2f}")
+
+        print("\n=== 1. rank weighting, never LEAN-tested (S-7 only tried momentum) ===")
+        run(prices, replace(P, weight_mode="rank"), "weight_mode=rank")
+
+        print("\n=== 2. inverse vol, power scan at a 60-day window ===")
+        for power in [0.25, 0.5, 0.75, 1.0, 1.5]:
+            run(prices, replace(P, weight_mode="invvol", alloc_vol_window=60,
+                                alloc_vol_power=power), f"invvol power={power}")
+
+        print("\n=== 3. inverse vol, window scan at full strength ===")
+        for window in [10, 20, 21, 30, 40, 60, 90, 120, 252]:
+            run(prices, replace(P, weight_mode="invvol", alloc_vol_window=window),
+                f"invvol window={window}")
+
+        print("\n=== 4. finalists in and out of sample ===")
+        both(equal, "equal weight")
+        for power in [0.5, 1.0]:
+            both(replace(P, weight_mode="invvol", alloc_vol_power=power),
+                 f"invvol power={power} window={P.alloc_vol_window}")
 
         print("--- benchmarks ---")
         for ticker in ["SPY", "QQQ"]:
