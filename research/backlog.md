@@ -11,6 +11,25 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-09 14:0x UTC (latest, I-1 iteration): **the pre-deploy gate is built, and it
+caught a real bug in the runner.** Gateway is up but the API is still refused by 10141, so
+instead of a sleeve experiment this iteration finished I-1's last unbuilt piece:
+`scripts/compare_orders.py`, which walks LEAN's own bars and hands *identical* inputs to
+`main.py:submit_targets` and `paper_trade.py:plan_orders`, diffing the two order lists. Any
+difference is therefore execution-layer by construction, not data or signal. **It failed on
+first run**: the runner banded orders at a flat `MIN_NOTIONAL = $200` while the backtest bands
+at `0.01 x equity` ($1,000 at $100k, $24,000 by the end of the sample), so the runner would
+have placed **9,196 orders against the backtest's 4,653** and agreed on only **36.6%** of
+decision dates - all 4,543 divergences the same shape, the runner sending small drift
+adjustments LEAN bands out. These are exactly the orders S-13 measured as return-neutral, so
+the paper account was about to pay a spread on ~4,500 orders with no return in them and
+underperform its own backtest for a reason nothing would have surfaced. Fixed
+(`max(MIN_NOTIONAL, MIN_ORDER_VALUE * net_liq)`, `MIN_ORDER_VALUE = 0.01` tracking `main.py`);
+the gate now passes **3,689 / 3,689 dates with identical order counts**, and fails with exit 1
+on a deliberately mismatched band, so it discriminates. **Nothing under `algorithms/` was
+touched**, so `OrderListHash 5246804e17a67af90028ffceead7d3b3` stands unchanged and no
+rebaselining run was needed. Champion unchanged at S-12.
+
 Status 2026-09-09 13:40 UTC (daily review, no experiments run): **the Gateway blocker moved,
 and it is now one dialog box.** Port 4002 is open and answering for the first time - Gateway is
 running and logged in - but the API handshake is refused with `Error 10141: Paper trading
@@ -95,9 +114,14 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   `diagnostics["state"]` and an equity curve, sizes whole shares, logs to `live/log/`, and
   refuses to trade without `live/APPROVED_PAPER.md`, a `DU` account, or with `live/HALT`
   present. `scripts/install_paper_task.ps1` schedules 15:45 ET weekdays. Do not rewrite it.
-  Remaining work once Gateway is up: `--check`, then a `--dry-run` on the real account, then
-  compare the runner's order list with what the LEAN backtest would have done on the same
-  date (`results/s1_momo/<ts>/*-order-events.json`). S-6 did not change netting or staging -
+  Remaining work once the 10141 disclaimer is accepted, in order: `--check`, then a
+  `--dry-run` on the real account, then `py -3.11 scripts/compare_orders.py`. **That last
+  step is now automated and already passing** - it was the manual "compare the runner's order
+  list with what the backtest would have done" item, and building it on 2026-09-09 caught the
+  `MIN_NOTIONAL` band bug that would have doubled the paper account's order count (see the
+  journal). It needs no IB connection, so re-run it after any change to `plan_orders`,
+  `submit_targets` or `min_order_value`; exit 1 means the runner and the backtest have
+  drifted apart and the deploy should stop. S-6 did not change netting or staging -
   `plan_orders()` already nets against current positions - but it did add the
   `MAX_MARGIN_USED = 1.0` backstop, and the mock plan is now a 1.5x gross book, so the
   paper account must have margin enabled or the first real order will be rejected.

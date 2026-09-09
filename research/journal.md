@@ -2,6 +2,92 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - I-1: the paper runner would have placed twice the backtest's orders
+
+**Why this and not a backtest.** Port 4002 answered at the top of this iteration for the
+first time - Gateway is up and logged in - so I-1 became the top open item and I took it
+instead of another sleeve experiment. It got exactly one step further before stopping:
+
+```
+Error 10141, reqId -1: Paper trading disclaimer must first be accepted for API connection.
+```
+
+A one-time acknowledgement inside Gateway's GUI, confirmed not to be a stale API session
+(same error on a fresh `--client-id 91`). That is the human's click and is already filed;
+the sibling review job filed the same finding independently this morning. So the question
+became: **what part of I-1 can be finished today, with no connection?**
+
+The answer is its last unbuilt piece. I-1's checklist ends with "compare the runner's order
+list with what the LEAN backtest would have done on the same date" - the gate that decides
+whether the thing about to trade real-shaped orders is the thing that was validated. It had
+never been built, and it does not actually need IB.
+
+**Hypothesis.** The signal cannot diverge - `signals.py` is imported by both LEAN and the
+runner, which was the whole point of splitting it out in S-1. But *everything downstream of
+the signal is duplicated*: `main.py:submit_targets` and `paper_trade.py:plan_orders` are two
+independent implementations of "turn target weights into integer share deltas and drop the
+ones too small to bother with". Nothing had ever compared them. Two implementations of one
+rule, written weeks apart, are where I expected to find a divergence.
+
+**Method.** `scripts/compare_orders.py` walks LEAN's own daily bars with the shipped
+champion signal, maintains a share-level book the way `submit_targets` does, and at every
+decision date hands *identical* inputs - same targets, same positions, same prices, same
+equity - to both implementations, then diffs the two order lists. Because the inputs are
+identical by construction, a difference cannot be a data or signal artifact; it can only be
+the execution layer. It imports `plan_orders` from `paper_trade.py` rather than copying it,
+so it tests the code that will actually trade, and it exits non-zero on any disagreement so
+the deploy checklist can gate on it.
+
+### Result: the runner and the backtest did not agree, and it was not close
+
+| | decision dates | agreement | orders placed |
+| --- | --- | --- | --- |
+| **before** | 3,689 | **1,350 (36.6%)** | LEAN 4,653 / runner **9,196** (+98%) |
+| **after** | 3,689 | **3,689 (100.0%)** | LEAN 4,653 / runner 4,653 (+0) |
+
+**One cause, all 4,543 of them: `MIN_NOTIONAL = 200.0`.** The backtest bands orders at a
+*fraction of equity* (`min_order_value = 0.01`); the runner banded at a *flat $200*. On the
+$100k paper account those are $1,000 and $200 - a 5x tighter band - and the gap widens with
+every dollar the book compounds, because LEAN's band grows to $24,000 by the end of the
+sample while the runner's stays at $200. Every disagreement was the same shape and the same
+sign: the runner sending a small drift adjustment the backtest bands out. Nothing subtle,
+nothing offsetting, and it would have been invisible on the first day's trade (from flat,
+all three orders are tens of thousands of dollars and clear both bands identically) and then
+compounded silently from the second rebalance onward.
+
+**What makes this more than a tidy-up is S-13, last night.** S-13 measured that ~63% of the
+champion's orders are return-neutral - they buy nothing in backtest and cost a spread live -
+and concluded the *research* question was closed. This is the same population of orders seen
+from the execution side: the runner's tight band was about to opt the paper account into
+roughly 4,500 extra small orders a decade, precisely the ones S-13 showed have no return in
+them. The backtest would have looked fine and the paper account would have quietly
+underperformed it on fills, which is the specific failure mode a paper stage exists to catch
+and the hardest one to diagnose after the fact.
+
+**Fix.** `plan_orders` now bands at `max(MIN_NOTIONAL, MIN_ORDER_VALUE * net_liq)` with
+`MIN_ORDER_VALUE = 0.01` tracking `main.py`, and uses the same `max(px, 0.01)` notional. The
+$200 survives only as an absolute floor for a small account, where it binds below ~$20k of
+net liquidation; at the paper account's size the fraction dominates and the two agree
+exactly. Both constants now carry a comment saying they must move together.
+
+**Guarding against a test that passes for the wrong reason.** Re-run with
+`--min-order-value 0.02`, i.e. a deliberately mismatched pair, and the gate fails with 442
+divergent orders and exit code 1; at the matched value it exits 0. So it discriminates.
+
+- **Decision. No promotion and no champion change** - and nothing under `algorithms/` was
+  touched, so `OrderListHash 5246804e17a67af90028ffceead7d3b3` is unchanged by construction
+  and needs no rebaselining run. What shipped is `scripts/compare_orders.py` (new) and a
+  one-line band fix plus documentation in `scripts/paper_trade.py`. `--mock --dry-run`
+  re-verified after the fix: unchanged 1.23x gross, margin 0.75, XLE/XLK/TQQQ - correctly,
+  since from flat every order clears both bands.
+- **Next.** The click is the whole critical path. The moment 10141 clears: `--check`,
+  `--dry-run` against the real account, re-run `compare_orders.py`, then stop at
+  `live/APPROVED_PAPER.md`, which is the human's. If it has not cleared by the next
+  iteration, the honest offline work is the other half of this same audit - the runner and
+  the backtest also disagree about *where prices come from* (yfinance `auto_adjust` against
+  LEAN's adjusted bars), and that is measurable today with the same harness, without IB.
+
+
 ## 2026-09-09 - S-13: the execution band buys nothing and costs nothing, and that is the result
 
 **Hypothesis.** S-12 bought 0.8 points of CAR by re-weighting the book as vol ratios drift,

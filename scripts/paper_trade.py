@@ -36,7 +36,27 @@ HALT = LIVE / "HALT"
 CHAMPION = REPO / "research" / "champion.json"
 
 IB_SYMBOL_MAP = {"BRK-B": "BRK B", "BRKB": "BRK B", "BF-B": "BF B"}
-MIN_NOTIONAL = 200.0          # skip trades smaller than this many dollars
+
+#: No-trade band, as a fraction of net liquidation. This must track
+#: `algorithms/s1_momo/main.py:self.min_order_value`, because the backtest bands orders at
+#: a fraction of *equity* and the runner has to reproduce the backtest's order list for
+#: the I-1 pre-deploy comparison to mean anything.
+#:
+#: It did not, until 2026-09-09. The runner banded at a flat $200 while the backtest bands
+#: at 1% of equity - $1,000 on the $100k paper account, and $24,000 by the end of the
+#: backtest's compounding. `scripts/compare_orders.py` measured the gap on LEAN's own bars:
+#: the runner would have placed **9,196 orders against the backtest's 4,653**, agreeing on
+#: only 36.6% of decision dates, and every single disagreement was the runner sending a
+#: small drift adjustment the backtest bands out. Those are exactly the return-neutral
+#: orders S-13 measured (63% of the champion's order count buy nothing) - so the old
+#: constant would have paid a real spread, live, on thousands of orders the research says
+#: are worthless.
+MIN_ORDER_VALUE = 0.01
+
+#: Absolute floor under the fractional band, so a small account does not send $20 orders.
+#: At the paper account's size the fraction dominates ($1,000 > $200) and the runner
+#: matches LEAN exactly; this only binds below ~$20k of net liquidation.
+MIN_NOTIONAL = 200.0
 FILL_WAIT_SECONDS = 90
 
 
@@ -168,8 +188,17 @@ class MockAccount:
         return {s: float(closes[s].dropna().iloc[-1]) for s in symbols if s in closes}
 
 
-def plan_orders(targets, positions, prices, net_liq):
-    """Return [(symbol, delta_shares, price, target_shares, current_shares)] for symbols that move."""
+def plan_orders(targets, positions, prices, net_liq, min_order_value=None):
+    """Return [(symbol, delta_shares, price, target_shares, current_shares)] for symbols that move.
+
+    The band is `max(MIN_NOTIONAL, min_order_value * net_liq)`, which is the same rule
+    `algorithms/s1_momo/main.py:submit_targets` applies, so the plan this returns is the
+    plan the backtest would have produced from the same targets and holdings.
+    `scripts/compare_orders.py` asserts that equivalence on every date of the champion's
+    sample and is the pre-deploy gate for backlog I-1.
+    """
+    band = MIN_ORDER_VALUE if min_order_value is None else min_order_value
+    threshold = max(MIN_NOTIONAL, band * net_liq)
     plan = []
     symbols = sorted(set(targets) | set(positions))
     for sym in symbols:
@@ -181,7 +210,7 @@ def plan_orders(targets, positions, prices, net_liq):
         target_shares = int(math.copysign(math.floor(abs(w) * net_liq / px), w)) if w else 0
         current = int(positions.get(sym, 0))
         delta = target_shares - current
-        if delta != 0 and abs(delta) * px >= MIN_NOTIONAL:
+        if delta != 0 and abs(delta) * max(px, 0.01) >= threshold:
             plan.append((sym, delta, px, target_shares, current))
     return plan
 

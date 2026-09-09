@@ -95,3 +95,14 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   which is correct for Gateway rather than TWS. While accepting it, please also confirm the
   paper account has **margin enabled** - the champion's plan is a 1.23-1.5x gross book and a
   cash-only account will reject the first order.
+
+  **Addendum 2026-09-09 (I-1 iteration), three things that shorten what happens after the
+  click.** (a) It is definitely the disclaimer and not a stale API session: the same 10141
+  comes back on a fresh `--client-id 91`, so there is nothing to kill or restart first.
+  (b) The pre-deploy order-list comparison that item I-1 lists as remaining work is **no
+  longer a manual step** - `scripts/compare_orders.py` now automates it, and it **passes**
+  (3,689 of 3,689 decision dates, identical order counts). It found and fixed a real runner
+  bug in the process, so the post-click sequence is now just `--check`, `--dry-run` on the
+  real account, and a re-run of that gate. (c) Paper *orders* still require you to create
+  `live/APPROVED_PAPER.md`; it does not exist, the runner refuses to trade without it, and
+  the loop will not create it.
