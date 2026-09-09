@@ -30,7 +30,7 @@
     "max_drawdown_limit": "35%",
     "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
   },
-  "commit": "414e898",
+  "commit": "4100576",
   "tag": "S-9 shipped default: lookbacks 20/60/120/252; must reproduce OrderListHash b763e292cb0eb9a2c81af5739188d437",
   "note": "S-9 changed the signal, so the order list moved for the first time since S-6: OrderListHash is now b763e292cb0eb9a2c81af5739188d437, not 9f58b37cc2656b647ec88a5124daf02d. The only change is a fourth momentum horizon of 252 sessions in mom_lookbacks; everything else is the S-6 champion. Sub-periods, both from LEAN: IS 2012-2019 15.2% CAR / 0.70 Sharpe / 28.9% DD (run 20260908T235224Z), OOS 2020-2026 28.0% / 0.88 / 21.0% (run 20260908T235437Z) - it beats the previous champion's 13.5%/0.64 and 23.8%/0.76 on both halves. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars). I-1 note: the paper runner's order list changes with this promotion, so the pre-deploy comparison must be made against this hash."
 }
