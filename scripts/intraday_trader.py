@@ -82,8 +82,9 @@ class Book:
         """Sleeve P&L since the book was last empty: closed P&L + open symbols' cash flow + marks."""
         return self._closed + sum(self.cost.values()) + sum(q * prices.get(s, 0.0) for s, q in self.pos.items())
 
-    def to_json(self):
-        return {"pos": self.pos, "cost": self.cost, "closed": self._closed, "costs": self.costs, "trades": self.trades}
+    def to_json(self, mode: str = "live"):
+        return {"mode": mode, "date": str(dt.date.today()), "pos": self.pos, "cost": self.cost,
+                "closed": self._closed, "costs": self.costs, "trades": self.trades}
 
     @classmethod
     def from_json(cls, d):
@@ -112,13 +113,20 @@ def book_fill(book: Book, sym: str, qty: int, price: float, cost: float):
 
 
 def save_book(book: Book):
+    """Only the LIVE trader persists its book. Replay/backtest books must never reach this file,
+    or a later live start would try to flatten simulated positions on the real account."""
     BOOK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    BOOK_FILE.write_text(json.dumps(book.to_json(), indent=2) + "\n", encoding="utf-8")
+    BOOK_FILE.write_text(json.dumps(book.to_json("live"), indent=2) + "\n", encoding="utf-8")
 
 
 def load_book() -> Book:
+    """The live book from a previous LIVE run (any date: leftovers from a crash must be
+    flattened). Files written by anything other than a live run are ignored."""
     if BOOK_FILE.exists():
-        return Book.from_json(json.loads(BOOK_FILE.read_text(encoding="utf-8")))
+        d = json.loads(BOOK_FILE.read_text(encoding="utf-8"))
+        if d.get("mode") == "live":
+            return Book.from_json(d)
+        log("ignored_book_file", mode=d.get("mode"), date=d.get("date"))
     return Book()
 
 
@@ -181,15 +189,92 @@ class LiveExecutor:
         return fills
 
 
+# ----------------------------------------------------------------------------- feeds
+class IBFeed:
+    """1-minute bars from IBKR's historical endpoint with keepUpToDate. Current to the minute
+    with a market data subscription; 15 minutes DELAYED without one (measured 2026-09-09)."""
+    name = "ib"
+
+    def __init__(self, ib, contracts):
+        self.ib, self.streams = ib, {}
+        for s, c in contracts.items():
+            self.streams[s] = ib.reqHistoricalData(c, endDateTime="", durationStr="3 D", barSizeSetting="1 min",
+                                                   whatToShow="TRADES", useRTH=True, keepUpToDate=True, formatDate=2)
+            ib.sleep(0.25)
+
+    def bars(self, cutoff) -> dict[str, pd.DataFrame]:
+        out = {}
+        for s, bl in self.streams.items():
+            if not bl:
+                continue
+            df = pd.DataFrame([{"date": b.date, "o": b.open, "h": b.high, "l": b.low, "c": b.close, "v": b.volume} for b in bl])
+            df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(ET)
+            df = df.set_index("date").sort_index()
+            out[s] = df[df.index < cutoff]
+        return out
+
+
+class YahooFeed:
+    """1-minute bars from Yahoo (one batched download per minute). Real-time-ish (about a
+    minute behind) and free, used when IBKR bars are delayed."""
+    name = "yahoo"
+
+    def __init__(self, symbols):
+        self.symbols = list(symbols)
+
+    def bars(self, cutoff) -> dict[str, pd.DataFrame]:
+        import yfinance as yf
+        data = yf.download(self.symbols, period="2d", interval="1m", auto_adjust=False, prepost=False,
+                           progress=False, group_by="column", threads=True)
+        out = {}
+        for s in self.symbols:
+            try:
+                df = pd.DataFrame({"o": data["Open"][s], "h": data["High"][s], "l": data["Low"][s],
+                                   "c": data["Close"][s], "v": data["Volume"][s]}).dropna(subset=["c"])
+            except KeyError:
+                continue
+            df.index = pd.to_datetime(df.index).tz_convert(ET)
+            t = df.index.time
+            df = df[(t >= dt.time(9, 30)) & (t < dt.time(16, 0))]
+            out[s] = df[df.index < cutoff]
+        return out
+
+
+def make_feed(choice: str, ib, contracts):
+    if choice == "yahoo":
+        return YahooFeed(contracts.keys())
+    ibf = IBFeed(ib, contracts)
+    if choice == "ib":
+        return ibf
+    # auto: measure IBKR's delay on one symbol; fall back to Yahoo if it is stale
+    ib.sleep(3)
+    now = pd.Timestamp(dt.datetime.now(ET)).floor("min")
+    probe = ibf.bars(now)
+    latest = max((df.index[-1] for df in probe.values() if not df.empty), default=None)
+    delay = (now - latest).total_seconds() / 60.0 - 1.0 if latest is not None else 99.0
+    log("feed_probe", ib_delay_minutes=delay)
+    if delay > 3:
+        print(f"IBKR bars are {delay:.0f} min delayed (no market data subscription); using Yahoo feed")
+        for bl in ibf.streams.values():
+            try:
+                ib.cancelHistoricalData(bl)
+            except Exception:  # noqa: BLE001
+                pass
+        return YahooFeed(contracts.keys())
+    return ibf
+
+
 # ----------------------------------------------------------------------------- core step
 class Trader:
     def __init__(self, strategy, params, equity_frac: float, book: Book, executor, dry_run: bool, mode: str):
         self.strategy, self.params, self.equity_frac = strategy, params, equity_frac
         self.book, self.ex, self.dry_run, self.mode = book, executor, dry_run, mode
+        self.persist = (mode == "live")
         self.state: dict = {}
         self.stopped = False
         self.nav_open = None
         self.last_report = None
+        self.last_t = None
         self.decisions = 0
 
     def targets_to_orders(self, targets, prices, equity):
@@ -209,6 +294,9 @@ class Trader:
         return orders
 
     def step(self, t: pd.Timestamp, feats: dict[str, pd.DataFrame], prices: dict[str, float], nav: float):
+        if self.last_t is not None and t <= self.last_t:
+            return self.book.pnl(prices)          # same bar seen again (feed not advanced): no new decision
+        self.last_t = t
         if self.nav_open is None:
             self.nav_open = nav
         equity = nav * self.equity_frac
@@ -252,7 +340,8 @@ class Trader:
             if self.mode == "live":
                 notify(f"INTRADAY {t.strftime('%H:%M')}: P&L {pnl:+,.0f}, trades {self.book.trades}, gross {gross_now:,.0f}, "
                        f"positions {len(self.book.pos)}{' (DRY RUN)' if self.dry_run else ''}")
-        save_book(self.book)
+        if self.persist:
+            save_book(self.book)
         return pnl
 
 
@@ -333,20 +422,17 @@ def live(strategy, params, args):
     log("start", account=account, nav=nav, equity_frac=args.equity_frac, strategy=args.strategy, dry_run=args.dry_run)
     notify(f"INTRADAY start: {account} NAV {nav:,.0f}, sleeve {nav * args.equity_frac:,.0f}, {args.strategy} on "
            f"{len(UNIVERSE)} names{' (DRY RUN)' if args.dry_run else ''}")
-    # streaming 1-minute bars (historical endpoint with keepUpToDate: current to the minute)
-    streams = {}
-    for s, c in contracts.items():
-        streams[s] = ib.reqHistoricalData(c, endDateTime="", durationStr="3 D", barSizeSetting="1 min",
-                                          whatToShow="TRADES", useRTH=True, keepUpToDate=True, formatDate=2)
-        ib.sleep(0.25)
+    feed = make_feed(args.feed, ib, contracts)
+    print(f"feed: {feed.name}")
     last_minute = None
+    delay_warned = False
     while True:
         ib.sleep(1)
         now = dt.datetime.now(ET)
         m = minute_index(pd.Timestamp(now))
         if m >= EXIT_MINUTE:
             break
-        if now.second < 2 or now.minute == last_minute:
+        if now.second < 5 or now.minute == last_minute:
             continue
         last_minute = now.minute
         if not ib.isConnected():
@@ -362,14 +448,13 @@ def live(strategy, params, args):
                 notify("INTRADAY: could not reconnect; book left as is")
                 break
         cutoff = pd.Timestamp(now.replace(second=0, microsecond=0))  # bars starting before this minute are complete
+        try:
+            bars = feed.bars(cutoff)
+        except Exception as exc:  # noqa: BLE001
+            log("feed_error", feed=feed.name, error=str(exc)[:300])
+            continue
         feats, prices = {}, {}
-        for s, bl in streams.items():
-            if not bl:
-                continue
-            df = pd.DataFrame([{"date": b.date, "o": b.open, "h": b.high, "l": b.low, "c": b.close, "v": b.volume} for b in bl])
-            df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(ET)
-            df = df.set_index("date").sort_index()
-            df = df[df.index < cutoff]
+        for s, df in bars.items():
             if df.empty or df.index[-1].date() != now.date():
                 continue
             feats[s] = features(df)
@@ -377,6 +462,11 @@ def live(strategy, params, args):
         if not feats:
             continue
         t = max(f.index[-1] for f in feats.values())
+        delay_min = (cutoff - t).total_seconds() / 60.0 - 1.0
+        if delay_min > 3 and not delay_warned:
+            delay_warned = True
+            log("feed_delayed", feed=feed.name, delay_minutes=delay_min)
+            notify(f"INTRADAY warning: {feed.name} bars are {delay_min:.0f} min behind the clock; decisions are stale")
         try:
             trader.step(t, feats, prices, nav)
         except Exception as exc:  # noqa: BLE001
@@ -409,6 +499,8 @@ def main() -> int:
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=4002)
     ap.add_argument("--client-id", type=int, default=71)
+    ap.add_argument("--feed", choices=["auto", "ib", "yahoo"], default="auto",
+                    help="bar feed: auto measures IBKR's delay and falls back to Yahoo when bars are stale")
     args = ap.parse_args()
     strategy = load_strategy(args.strategy)
     params = {**strategy.PARAMS, **(json.loads(args.params) if args.params else {})}
