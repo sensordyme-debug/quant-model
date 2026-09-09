@@ -11,7 +11,19 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-09 (latest): **S-13 closed negatively - the champion stands at S-12.** The
+Status 2026-09-09 13:40 UTC (daily review, no experiments run): **the Gateway blocker moved,
+and it is now one dialog box.** Port 4002 is open and answering for the first time - Gateway is
+running and logged in - but the API handshake is refused with `Error 10141: Paper trading
+disclaimer must first be accepted for API connection`. That is a one-time tick-box inside
+Gateway (Configure -> Settings -> API -> Settings), not work on this side, and it is the only
+thing between the repo and tomorrow's deadline. Re-probe with `paper_trade.py --check` at the
+top of every iteration; the moment it clears, **I-1 is the top item and everything else waits**,
+with D-2 immediately behind it on the same connection. Full review in
+`research/reports/2026-09-09.md`. If the API stays blocked, do **not** hunt for another lever on
+the ETF-9 sleeve - S-11 and S-13 measured that there are none left cheaply; the useful offline
+work is S-5 harness scaffolding and generalizing `sweep_s1.py` off S-1 (E-2's deferred half).
+
+Status 2026-09-09: **S-13 closed negatively - the champion stands at S-12.** The
 execution no-trade band (`min_order_value`, pinned at 0.01 since S-1 and never swept) was
 tested at 0.015/0.02/0.03/0.05/0.08 to win back the commission S-12 spent. It cannot be won
 back, because **there is nothing to win**: the response is non-monotone and flat, with CAR
@@ -77,7 +89,7 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
-- **I-1 IBKR paper runner: BUILT, waiting on the human's IB Gateway login.**
+- **I-1 IBKR paper runner: BUILT; Gateway is now up, waiting on the API disclaimer (10141).**
   `scripts/paper_trade.py` (ib_async) already exists and passes `--mock --dry-run` against
   `algorithms/s1_momo/signals.py`: it introspects the signal signature, feeds back
   `diagnostics["state"]` and an equity curve, sizes whole shares, logs to `live/log/`, and
@@ -107,7 +119,11 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   Sharpe with a floor per sleeve. Still worth building - S-3 proved the market-neutral
   construction really does deliver orthogonality (corr -0.03 with the champion) - but it
   has nothing to allocate *to* until a second sleeve has a positive expected return, so it
-  sits behind S-2.
+  sits behind S-2. **Its plumbing is the designated offline work** if the API stays blocked:
+  it can be scaffolded and tested against the existing S-1 and S-3 return series without
+  touching the champion.
+- **E-2b Generalize `sweep_s1.py` off S-1.** Explicitly deferred when E-2 shipped; the second
+  designated offline item. Needed before any second sleeve can be swept the same way.
 
 ## Done
 

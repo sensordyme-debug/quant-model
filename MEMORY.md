@@ -3,6 +3,43 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## IBKR connection states (learned 2026-09-09, daily review)
+
+- **An open port 4002 does not mean the API is usable.** Gateway accepts the TCP connection,
+  then refuses the handshake with `Error 10141: Paper trading disclaimer must first be
+  accepted for API connection` and drops the socket; `ib_async` surfaces this as a generic
+  `TimeoutError` plus "clientId already in use?", which is misleading - the client id is fine.
+  Always read the 10141 line above the traceback before diagnosing anything else.
+- So the port probe and the API probe are **different checks**. `paper_trade.py --check` is
+  read-only, takes seconds and gives the real answer; run it rather than a socket test whenever
+  the Gateway blocker is being re-evaluated.
+
+## Research method lessons (learned 2026-09-08/09, S-8 through S-13)
+
+- **Promotion requires a shelf, not a spike.** A cell that beats the champion on every gate
+  while both of its neighbours lose is path luck, not an effect - S-13's `min_order_value=0.02`
+  passed `evaluate.py` and agreed in sign on both sub-periods, and was still correctly refused.
+  Sub-period agreement at margins inside the region's own scatter is two draws from that
+  scatter, not independent confirmation.
+- **Prefer the a-priori parameter to the argmax inside a shelf.** S-9 shipped 252 over 250,
+  S-10 shipped a 5-session skip, S-12 shipped a 21-session vol window over the 20 argmax.
+- **`sweep_s1.py` and LEAN can disagree in sign, not only in magnitude** (S-10). The sweep also
+  understates drawdown: ~+2 points at champion size, ~+6 on S-12's cell, +8 to +10 at 2x
+  exposure. Sweeps generate candidates; LEAN decides. A sweep rejection buys one confirmation
+  run, never a closed idea.
+- **The ETF-9 sleeve is out of cheap levers, by measurement.** S-11 showed the champion's
+  turnover cannot be converted into return (suppressing rotation removes return monotonically -
+  the rotation is signal); S-13 showed it cannot be removed for return either (the band is flat
+  and non-monotone across a factor of eight, so ~63% of orders are return-neutral). S-12 spent
+  the allocation step. What remains needs breadth or a second sleeve, i.e. D-2/S-2, not another
+  parameter on this sleeve.
+- **Backtest-neutral is not live-neutral.** LEAN charges commission but models no spread at
+  all, so a change that is worth $0 in the ledger (a wider no-trade band) can still be worth
+  real money live. Route those to the human as execution decisions rather than closing them as
+  negative research results.
+- **Commission floor at this account size is 2.1bps per unit of turnover** (S-3), before any
+  spread - more than the entire gross edge a daily-turnover reversal sleeve could find.
+
 ## LEAN data format gotchas (learned 2026-09-08, backlog D-1)
 
 - **A factor file containing only the `20501231,1,1,0` sentinel makes LEAN return zero bars

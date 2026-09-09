@@ -78,5 +78,20 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   baseline I-1's pre-deploy comparison is built on. Say "keep 0.01" and this is closed; name a
   wider band and the loop will re-run that cell, re-verify the runner against it and rebaseline
   the hash before deploy. Nothing is blocked today - the champion and I-1 are unaffected.
-- **2026-09-08 IBKR paper account.** Install IB Gateway and log in with the paper account so
-  backlog I-1 can be built and tested. LEAN expects API port 4002 (Gateway) or 7497 (TWS).
+- **2026-09-09 IB Gateway API disclaimer (one click, blocks the whole 2026-09-10 deadline).**
+  Supersedes the 2026-09-08 "install IB Gateway and log in" item, which is **done**: port 4002
+  is open and answering as of 13:40 UTC today, so Gateway is running and logged in. The API
+  handshake is refused one stage later:
+
+  ```
+  Error 10141, reqId -1: Paper trading disclaimer must first be accepted for API connection.
+  ```
+
+  This is a one-time acknowledgement inside Gateway, not a code or config problem on this side.
+  **Action, about one minute:** in IB Gateway, Configure -> Settings -> API -> Settings, tick
+  *"Accept paper trading account API connections"*, accept the disclaimer dialog it raises, and
+  leave Gateway running. Then `py -3.11 scripts/paper_trade.py --check` returns an account
+  summary and I-1, D-2 and S-2 all unblock in that order. Ports 7497/7496/4001 are closed,
+  which is correct for Gateway rather than TWS. While accepting it, please also confirm the
+  paper account has **margin enabled** - the champion's plan is a 1.23-1.5x gross book and a
+  cash-only account will reject the first order.
