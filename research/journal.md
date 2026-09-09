@@ -2,6 +2,28 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - A-6: the deployed mix re-derived on 9 months (2025-12-15..2026-09-09, split 2026-06-15)
+
+- **What.** With the minute store extended to 184 sessions per name, every strategy and both
+  candidate mixes were re-run on a fixed window with a 124/60-session split.
+- **Result (annualized after costs, IS -> OOS).** Late-day fade -4.5% (Sharpe -0.76) ->
+  +26.4% (5.20): regime-dependent, carried by the last three months. VWAP fade (30/8/15)
+  -56.0% (-3.26, 22 loss-limit days) -> -7.2%: **the A-0 out-of-sample number was a
+  one-month regime, not an edge; removed.** ORB +35.7% (1.31) -> +8.2% (0.43): positive both
+  halves, 34 trades/day, worst days -34k/-26k, 3-4 loss-limit days. Gap fade -4% both halves:
+  dropped. The A-0 deployed mix (with VWAP fade) -18.0% -> +53.9%: fails the both-halves rule.
+  ORB 0.5 + late fade 1.0: +11.8% (0.89) -> +34.6% (2.03), 46 trades/day, std ~9k.
+  **ORB 1.0 + late fade 1.0: +27.2% (1.10) -> +32.6% (1.15), 46-49 trades/day, daily P&L
+  std ~17k, best +77k, worst -31k, 4-5 loss-limit days per half, costs ~1k/day.**
+- **Decision.** Deploy ORB 1.0 + late-day fade 1.0, VWAP fade 0, per-symbol 0.15, gross 1.5
+  (`live/intraday_config.json`). It is the only candidate positive in both halves that also
+  delivers the owner's volatility mandate (~27% annualized vol on the sleeve). The
+  breakout's worst days are the sleeve's tail risk; the framework's 2.5% daily loss limit is
+  what bounds them and it will fire roughly one day in twelve.
+- **Next.** A-2 (ORB tail control: ATR stop, scale-out) and A-1 (make a VWAP fade pay on the
+  long window, or retire it). Measure the sleeve's correlation with the daily champion from
+  paper logs. Replay of 2026-09-08 with the final config passed before deployment.
+
 ## 2026-09-09 - A-0: the intraday active sleeve, first evidence and the deployed mix
 
 - **What.** Built the intraday sleeve end to end (see AGENTS.md "The intraday active sleeve"):

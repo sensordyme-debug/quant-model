@@ -152,8 +152,14 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-6 Re-derive the deployed mix on the full 9-month store (top item once the extension
-  finishes; check `python scripts/intraday_data.py --status` shows ~184 sessions per name).**
+- **A-2 ORB tail control (top item).** On 9 months ORB is positive in both halves but its
+  worst days (-34k, -26k) are what trips the 2.5% daily loss limit 4-5 times per half. Test an
+  ATR-based stop (1.0-1.5 x ATR14 from entry) instead of the range midpoint, a scale-out at
+  1.5R, a 30-minute range, and a volume filter sweep; judge on OOS Sharpe and worst day after
+  costs on the 9-month window (`--start 2025-12-15 --split 2026-06-15`). If a variant keeps the
+  return and cuts the loss-limit days, update `live/intraday_config.json` per AGENTS.md rule (c).
+- **A-6 DONE 2026-09-09 (see journal): deployed mix re-derived on 9 months = ORB 1.0 + late
+  fade 1.0, no VWAP fade.** Kept for the record:
   A-0 found the edge in the *inverses*: late-day fade (robust in both halves) and VWAP fade
   (huge OOS, negative on the longer IS window, i.e. a regime bet at half size). Re-run
   `scripts/intraday_backtest.py` for orb, vwap_trend(direction -1, band 30/8, mom 15),
