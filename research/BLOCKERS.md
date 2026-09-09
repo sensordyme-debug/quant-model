@@ -2,6 +2,32 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
+## Decisions taken by the owner on 2026-09-09 (all four open items answered)
+
+1. **Volatility mandate vs the 35% drawdown limit: option (c).** The 35% cap stays for
+   anything that can be promoted or deployed. Higher volatility is to be *earned* by adding
+   uncorrelated sleeves (S-2 intraday breakout now that D-2 is unblocked, S-5 allocator) and,
+   later, by portfolio-level sizing across sleeves, not by pushing the single ETF sleeve to the
+   Reg-T ceiling. Raising the cap is to be revisited only once the allocator has two sleeves
+   with positive expected return.
+2. **Sharpe vs return in the promotion rule: return-first with a Sharpe tolerance.**
+   `champion.json` now requires beating the champion on CAR, allows Sharpe to be up to 0.03
+   below the champion, and refuses any run whose drawdown is more than 1 point worse than the
+   champion's (on top of the absolute 35% cap). `scripts/evaluate.py` implements this via
+   `sharpe_tolerance` and `drawdown_tolerance_points`. The S-11 cell (`min_hold=10`,
+   `margin_budget=0.85`) may be re-run through the sub-periods and promoted if it passes.
+3. **Delisted-inclusive history: deferred, not bought now.** The ETF sleeve remains the only
+   promotable universe; single-name results stay tagged `not promotable`. Revisit after two
+   weeks of paper fills, with a cost quote for Norgate or Sharadar in hand.
+4. **Execution no-trade band: keep 0.01.** The order list stays identical to the backtest and
+   `compare_orders.py` remains the deploy gate. Revisit with measured paper slippage after two
+   weeks of fills; if the measured spread cost per order is material, widen to 0.03 and
+   rebaseline the hash.
+
+Also on 2026-09-09: **paper trading is approved.** `live/APPROVED_PAPER.md` exists; the
+15:45 ET weekday task now sends orders to DUT091359. I-1 is done. Do not touch the approval
+file from any automated job.
+
 - **2026-09-08 Intraday market data (decision requested, blocks S-2).** Daily bars are done:
   D-1 shipped 69 symbols of free `yfinance` daily history, 1998-2026, and LEAN reads them.
   Intraday is still missing - Yahoo caps 1-minute history at about 30 days, too short to

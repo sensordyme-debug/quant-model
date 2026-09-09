@@ -24,11 +24,12 @@
   "criteria": {
     "min_trades": 30,
     "must_beat": [
-      "Sharpe Ratio",
       "Compounding Annual Return"
     ],
+    "sharpe_tolerance": 0.03,
+    "drawdown_tolerance_points": 1.0,
     "max_drawdown_limit": "35%",
-    "note": "Promote only through scripts/evaluate.py once it exists; until then record candidates in the journal."
+    "note": "Owner decision 2026-09-09: return-first. A candidate must beat the champion on CAR, may be at most 0.03 Sharpe below it, may not have a drawdown more than 1 point worse than the champion's, and never above 35% absolute. Promote only through scripts/evaluate.py; shelf-not-spike and the 'not promotable' tag still apply."
   },
   "commit": "35ce0a9",
   "tag": "S-12 shipped default: weight_mode=invvol, alloc_vol_window=21, alloc_vol_power=1.0 (risk parity inside the top_n); must reproduce OrderListHash 5246804e17a67af90028ffceead7d3b3",

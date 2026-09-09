@@ -79,6 +79,19 @@ def verdict(run, champion):
         for metric in crit.get("must_beat", ["Sharpe Ratio", "Compounding Annual Return"]):
             if not num(stats.get(metric)) > num(champ_stats.get(metric)):
                 reasons.append(f"{metric} {stats.get(metric)} does not beat champion {champ_stats.get(metric)}")
+        # Return-first rule (owner decision 2026-09-09, see research/BLOCKERS.md): a run may
+        # give up a little Sharpe for more return, but only within a stated tolerance and
+        # never with a worse drawdown than the champion. Absent keys mean no tolerance.
+        tol = crit.get("sharpe_tolerance")
+        if tol is not None and "Sharpe Ratio" not in crit.get("must_beat", []):
+            floor = num(champ_stats.get("Sharpe Ratio")) - float(tol)
+            if not num(stats.get("Sharpe Ratio")) >= floor:
+                reasons.append(f"Sharpe {stats.get('Sharpe Ratio')} below champion {champ_stats.get('Sharpe Ratio')} minus tolerance {tol}")
+        dd_tol = crit.get("drawdown_tolerance_points")
+        if dd_tol is not None:
+            ceiling = num(champ_stats.get("Drawdown")) + float(dd_tol)
+            if num(stats.get("Drawdown")) > ceiling:
+                reasons.append(f"drawdown {stats.get('Drawdown')} worse than champion {champ_stats.get('Drawdown')} plus {dd_tol} points")
     return (len(reasons) == 0), reasons
 
 

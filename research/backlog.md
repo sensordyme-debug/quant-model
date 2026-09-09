@@ -108,7 +108,30 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
-- **I-1 IBKR paper runner: BUILT; Gateway is now up, waiting on the API disclaimer (10141).**
+Owner decisions of 2026-09-09 (see `BLOCKERS.md`): paper trading is approved and running,
+the 35% drawdown cap stays, promotion is now return-first with a 0.03 Sharpe tolerance and a
+1-point drawdown tolerance, delisted-inclusive data is deferred, the no-trade band stays 0.01.
+Priority is therefore **D-2 then S-2 then S-5**: volatility is to be earned with a second,
+uncorrelated intraday sleeve, not by leverage on the ETF sleeve. IB Gateway is up
+(`paper_trade.py --check` works), so D-2 can pull IBKR minute history now.
+
+- **D-2 Intraday data (unblocked 2026-09-09; blocks S-2).** `fetch_data.py` writes daily bars
+  only; Yahoo caps 1-minute history at ~30 days. Pull minute bars with `ib_async`
+  `reqHistoricalData` (`barSizeSetting="1 min"`, `whatToShow="TRADES"`, `useRTH=True`,
+  1-day chunks, respect IBKR pacing of ~60 requests per 10 minutes) for SPY/QQQ/IWM/TQQQ/SQQQ
+  first, as far back as IBKR serves. LEAN minute format:
+  `equity/usa/minute/<symbol>/<yyyyMMdd>_trade.zip` holding
+  `<yyyyMMdd>_<symbol>_minute_trade.csv` with rows `<ms since midnight ET>,o,h,l,c,v`,
+  prices scaled by 10000. Reuse the writer/validator structure already in `fetch_data.py`.
+  Use a distinct `clientId` (e.g. 31) so it never collides with the paper runner's 17.
+- **S-2 Opening-range breakout.** Intraday on SPY/QQQ/IWM (futures later). Enter on a
+  break of the first 15-30 minute range with ATR stops, scale out into strength, flat at
+  close. Hypothesis: high-frequency small edges compound into volatile but positive equity.
+  Needs D-2. Judge with the same IS/OOS split and the promotion rules; it is a *second sleeve*,
+  so record its correlation with the champion's daily returns as a first-class metric.
+- **S-5 Allocator.** Route capital across S-1, S-2 and any future sleeve by trailing 60-day
+  Sharpe with a floor per sleeve. Scaffold now against the S-1 and S-3 return series.
+- **I-1 IBKR paper runner: DONE 2026-09-09, paper trading approved and scheduled.**
   `scripts/paper_trade.py` (ib_async) already exists and passes `--mock --dry-run` against
   `algorithms/s1_momo/signals.py`: it introspects the signal signature, feeds back
   `diagnostics["state"]` and an equity curve, sizes whole shares, logs to `live/log/`, and
