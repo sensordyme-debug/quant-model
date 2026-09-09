@@ -118,7 +118,12 @@ class Params:
     universe_size: int = 0
     dv_window: int = uni.DV_WINDOW         # trailing sessions of dollar volume
     min_history: int = uni.MIN_HISTORY     # sessions a name needs before it is selectable
-    mom_lookbacks: tuple = (20, 60, 120)   # blended momentum horizons, trading days
+    #: Blended momentum horizons, trading days. The fourth is S-9: one trading year, the
+    #: canonical momentum horizon. It is *not* the sweep's argmax (250 was, by 0.06 of
+    #: Sharpe) - the full-period Sharpe forms a shelf over a fourth horizon of 220-300
+    #: (1.01/1.07/1.10/1.04/1.04/1.03) and falls away at 150 and 320, so 252 is the a-priori
+    #: point inside the shelf rather than the fitted peak.
+    mom_lookbacks: tuple = (20, 60, 120, 252)
     top_n: int = 3                         # holdings when risk-on
     trend_window: int = 0                  # risk-off while SPY is below this MA (0 = off)
     regime_vol_window: int = 20            # realized-vol window for the crisis switch
@@ -134,6 +139,34 @@ class Params:
     dd_flat: float = 0.25                  # go flat below this drawdown
     dd_cooldown: int = 21                  # rebalances to stay flat after a dd_flat breach
     min_momentum: float = 0.0              # a holding must beat this blended return
+
+    # --- S-9: change what the signal *says*, not how much of it is bought ---
+    #: How a sleeve member's momentum is scored. "blend" is the champion: the plain mean of
+    #: the trailing returns over `mom_lookbacks`. The other two are the ideas S-7 named and
+    #: left untried, and both default off.
+    #:   "zscore"  - each horizon is cross-sectionally standardized across the sleeve before
+    #:               the horizons are averaged. Under "blend" a 120-day return is numerically
+    #:               several times a 20-day one, so the longest horizon effectively decides
+    #:               the ranking on its own; standardizing gives each horizon one equal vote.
+    #:   "riskadj" - blended momentum divided by the name's own trailing vol, so a quiet
+    #:               mover outranks a violent one at equal return. This is the ranking that
+    #:               matches what the book is sized on, since the vol target then scales the
+    #:               whole portfolio by realized risk anyway.
+    mom_score: str = "blend"
+    mom_vol_window: int = 60               # trailing vol window for mom_score="riskadj"
+    #: Require every horizon in `mom_lookbacks` to be positive before a name is eligible.
+    #: A blended score can be carried entirely by one horizon; this asks the horizons to
+    #: agree instead of averaging a disagreement away.
+    mom_confirm: bool = False
+    #: Entry gate. "absolute" is the champion's `score > min_momentum` floor. "median" is
+    #: cross-sectional: a name must beat the *sleeve median* score by `min_rel_momentum`.
+    #: Note the two are not nested - with top_n < half the sleeve, a zero-threshold median
+    #: gate is looser than the absolute floor (the top 3 of 9 always beat the median), so it
+    #: keeps the book in the least-bad ETF through a decline. `min_rel_momentum` is what
+    #: turns it into a dispersion requirement: trade only when the leaders are actually
+    #: leading.
+    entry_mode: str = "absolute"
+    min_rel_momentum: float = 0.0
 
     # --- S-8: earn drawdown headroom so that size can be spent ---
     #: Elastic margin budget. 0 keeps `margin_budget` a flat constant, which is what the
@@ -162,6 +195,16 @@ class Params:
 
     #: bars of history the signal needs before it can speak
     history_bars: int = field(default=300, compare=False)
+
+    def __post_init__(self):
+        # A lookback longer than the history window is a *silent* failure, not an error:
+        # `target_weights` returns {} with reason "only N bars", the book sits in cash for
+        # the entire sample, and the sweep prints a tidy 0.0% CAR that looks like a result.
+        # S-9 lost a grid cell to exactly this (a 300-day horizon against the 300-bar
+        # default). Widen the window instead, so the horizon is what is being tested.
+        need = max(self.mom_lookbacks) + 50
+        if self.history_bars < need:
+            object.__setattr__(self, "history_bars", need)
 
     def scaled(self, factor: float) -> "Params":
         """Sensitivity helper: stretch the lookbacks and the vol threshold together."""
@@ -207,16 +250,47 @@ def allocate(winners, scores, mode: str) -> dict:
     return {t: v / total for t, v in raw.items()}
 
 
+def horizon_returns(prices: pd.DataFrame, lookbacks) -> pd.DataFrame:
+    """Trailing total return per lookback (index) per ticker (columns)."""
+    rows = {int(lb): prices.iloc[-1] / prices.iloc[-1 - lb] - 1.0
+            for lb in lookbacks if len(prices) > lb}
+    return pd.DataFrame(rows).T if rows else pd.DataFrame()
+
+
 def blended_momentum(prices: pd.DataFrame, lookbacks) -> pd.Series:
     """Mean of the trailing total returns over each lookback, per column."""
-    scores = []
-    for lb in lookbacks:
-        if len(prices) <= lb:
-            continue
-        scores.append(prices.iloc[-1] / prices.iloc[-1 - lb] - 1.0)
-    if not scores:
+    per_horizon = horizon_returns(prices, lookbacks)
+    if per_horizon.empty:
         return pd.Series(dtype=float)
-    return pd.concat(scores, axis=1).mean(axis=1)
+    return per_horizon.mean(axis=0)
+
+
+def momentum_scores(prices: pd.DataFrame, p: Params) -> tuple[pd.Series, pd.Series]:
+    """(ranking score, eligibility mask) per column. See `Params.mom_score` (S-9).
+
+    Returned separately from the eligibility gate because the score is also what
+    `allocate(mode="momentum")` sizes on, and a z-score is not a return.
+    """
+    per_horizon = horizon_returns(prices, p.mom_lookbacks)
+    if per_horizon.empty:
+        return pd.Series(dtype=float), pd.Series(dtype=bool)
+
+    if p.mom_score == "zscore":
+        centered = per_horizon.sub(per_horizon.mean(axis=1), axis=0)
+        spread = per_horizon.std(axis=1, ddof=0).replace(0.0, np.nan)
+        score = centered.div(spread, axis=0).fillna(0.0).mean(axis=0)
+    elif p.mom_score == "riskadj":
+        vol = (prices.pct_change().iloc[-p.mom_vol_window:].std(ddof=1)
+               * np.sqrt(TRADING_DAYS))
+        score = per_horizon.mean(axis=0) / vol.replace(0.0, np.nan)
+        score = score.replace([np.inf, -np.inf], np.nan).fillna(-1e9)  # unrankable = last
+    else:
+        score = per_horizon.mean(axis=0)
+
+    eligible = pd.Series(True, index=score.index)
+    if p.mom_confirm:
+        eligible &= (per_horizon > 0).all(axis=0).reindex(score.index).fillna(False)
+    return score, eligible
 
 
 def realized_vol(returns: pd.Series, window: int) -> float:
@@ -365,8 +439,16 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     ranked = [t for t in pool if t in prices.columns
               and prices[t].iloc[-max_lb - 1:].notna().all()]
     diag["n_ranked"] = len(ranked)
-    scores = blended_momentum(prices[ranked], p.mom_lookbacks).sort_values(ascending=False)
-    winners = [t for t in scores.index[:p.top_n] if scores[t] > p.min_momentum]
+    scores, eligible = momentum_scores(prices[ranked], p)
+    scores = scores.sort_values(ascending=False)
+    # S-9: the entry gate is either an absolute floor on the score (the champion) or a
+    # cross-sectional one measured against the sleeve median on the same rebalance.
+    if p.entry_mode == "median" and len(scores) >= 2:
+        floor = float(scores.median()) + p.min_rel_momentum
+        diag["entry_floor"] = round(floor, 4)
+    else:
+        floor = p.min_momentum
+    winners = [t for t in scores.index[:p.top_n] if scores[t] > floor and eligible.get(t, True)]
     diag["scores"] = {t: round(float(v), 4) for t, v in scores.head(p.top_n + 2).items()}
     if not winners:
         diag["reason"] = "no positive momentum"

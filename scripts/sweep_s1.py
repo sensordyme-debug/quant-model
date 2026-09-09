@@ -116,7 +116,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", default="ablation",
                     choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin",
-                             "s7", "s7bias", "d3", "s8", "s8vol"])
+                             "s7", "s7bias", "d3", "s8", "s8vol", "s9"])
+    ap.add_argument("--section", type=int, default=0,
+                    help="run one numbered section of the sweep (0 = all). A full-period "
+                         "simulation costs ~22s, so a long sweep is split to stay inside a "
+                         "single shell timeout.")
     args = ap.parse_args()
 
     tickers = sig.TRADED_UNIVERSE
@@ -308,6 +312,106 @@ def main() -> int:
             both(replace(P, scale_cap=6.0, target_vol=tv, margin_budget_floor=0.2,
                          margin_budget_cap=1.0),
                  f"target_vol={tv:.0%} elastic [0.2, 1.0] gross<=2")
+
+    elif args.mode == "s9":
+        # S-9: a different *signal* on the honest ETF-9 sleeve. Everything since S-6 has
+        # changed size or universe and none of it moved the champion, so this changes what
+        # gets ranked and what qualifies. Four levers, each judged in and out of sample,
+        # then the survivors combined. Turnover is printed because S-3 measured a 2.1bps
+        # commission floor per unit of turnover at this account size: a cell that wins on
+        # gross return while doubling turnover is not a win.
+        def both(params, label):
+            print(f"\n--- {label} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            return run(prices, params, "  full 2012-2026")
+
+        def section(n):
+            return args.section in (0, n)
+
+        if section(1):
+            print("=== 0. baseline: the champion signal ===")
+            base = both(P, "champion (blend, absolute floor, top_n=3)")
+            print("\n=== 1. scoring scheme: equalize the horizons, or risk-adjust them ===")
+            for mode in ["zscore", "riskadj"]:
+                both(replace(P, mom_score=mode), f"mom_score={mode}")
+            print(f"\nchampion full-period bar to beat: CAR {base['CAR']:.1%} "
+                  f"Sharpe {base['Sharpe']:.2f} MaxDD {base['MaxDD']:.1%} "
+                  f"turn {base['daily_turnover']:.2f}")
+
+        if section(2):
+            print("\n=== 2. risk-adjusted momentum, vol window; horizon agreement ===")
+            for window in [20, 120]:
+                both(replace(P, mom_score="riskadj", mom_vol_window=window),
+                     f"mom_score=riskadj vol_window={window}")
+            both(replace(P, mom_confirm=True), "mom_confirm on (blend)")
+
+        if section(3):
+            print("\n=== 3. cross-sectional entry gate vs the absolute floor ===")
+            for rel in [0.0, 0.03, 0.08]:
+                both(replace(P, entry_mode="median", min_rel_momentum=rel),
+                     f"entry=median +{rel:.0%} (blend)")
+
+        if section(4):
+            print("\n=== 4. a second momentum horizon set ===")
+            for lookbacks in [(10, 40, 120), (20, 60, 120, 250), (60, 120, 250)]:
+                both(replace(P, mom_lookbacks=lookbacks), f"lookbacks={lookbacks}")
+
+        if section(5):
+            # `riskadj` is monotone in its vol window (20 > 60 > 120) and only the 20-day
+            # end beats the champion, so the shortest window is at the *edge* of the tested
+            # grid. Either the edge is a plateau, in which case the lever is real and the
+            # exact window does not matter, or it is a spike, in which case section 2 found
+            # one lucky cell. This is the question, not a search for a better number.
+            print("\n=== 5. is the riskadj vol window a plateau or a spike? ===")
+            for window in [5, 10, 15, 30, 40]:
+                both(replace(P, mom_score="riskadj", mom_vol_window=window),
+                     f"mom_score=riskadj vol_window={window}")
+
+        if section(6):
+            # Adding a 250-day horizon beat the champion on both halves *and* cut turnover.
+            # Before believing it, separate the two things it could be: a genuine 12-month
+            # momentum horizon, or just a fourth vote diluting the noisy 20-day one. If the
+            # effect is the horizon, sets built around 250 win without needing four members
+            # and the exact length does not matter much; if it is dilution, only the
+            # four-member set wins.
+            print("\n=== 6. is it the 12-month horizon, or just a fourth vote? ===")
+            for lookbacks in [(250,), (120, 250), (20, 250), (20, 60, 120, 200),
+                              (20, 60, 120, 300)]:
+                both(replace(P, mom_lookbacks=lookbacks), f"lookbacks={lookbacks}")
+
+        if section(8):
+            # Section 6 left the (20,60,120,250) win looking like a *spike*: shift the
+            # fourth horizon to 200 and 3.6 points of CAR vanish, and 300 could not be
+            # tested at all because `history_bars=300` silently starves any lookback past
+            # 298 - `target_weights` returns "only N bars" and the book sits in cash for
+            # the whole sample. So the scan is re-run with the history raised, one horizon
+            # at a time, full period only. A single peak surrounded by ordinary neighbours
+            # is a fitted parameter; a broad shelf is a real effect.
+            print("\n=== 8. fourth-horizon scan with history_bars raised to 400 ===")
+            long_p = replace(P, history_bars=400)
+            run(prices, long_p, "control: champion horizons, history=400")
+            for fourth in [150, 180, 200, 220, 240, 250, 260, 280, 300, 320]:
+                run(prices, replace(long_p, mom_lookbacks=(20, 60, 120, fourth)),
+                    f"lookbacks=(20,60,120,{fourth})")
+
+        if section(7):
+            # 252 sessions = one trading year, not the scan's argmax (250 was, marginally).
+            # The shelf in section 8 runs 220-300, so the a-priori choice sits inside it and
+            # nothing is being tuned to the last basis point.
+            print("\n=== 7. the long-horizon blend against the levers it must survive ===")
+            L = (20, 60, 120, 252)
+            both(replace(P, mom_lookbacks=L), f"lookbacks={L} (the candidate)")
+            both(replace(P, mom_lookbacks=L, mom_score="riskadj", mom_vol_window=20),
+                 f"lookbacks={L} + riskadj-20")
+            for top_n in [2, 4]:
+                both(replace(P, mom_lookbacks=L, top_n=top_n), f"lookbacks={L} top_n={top_n}")
+            both(replace(P, mom_lookbacks=L, regime_threshold=99.0),
+                 f"lookbacks={L} no crisis-vol filter")
+
+        print("--- benchmarks ---")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
 
     elif args.mode == "d3":
         # D-3: does deciding membership from trailing dollar volume, on the rebalance date,

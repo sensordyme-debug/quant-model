@@ -2,6 +2,93 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-08 - S-9: the champion's momentum was too short-sighted (new champion)
+
+**Hypothesis.** Everything since S-6 changed *size* or *universe* and none of it moved the
+champion, so S-9 changed what the signal says. S-7 named two untried ideas - a second momentum
+horizon scored per sleeve member, and cross-sectional ranking against the sleeve median instead
+of the absolute `min_momentum` floor - and this run answers both, plus two variations, on the
+honest ETF-9 sleeve with no new data and no survivorship caveat.
+
+**Four levers, all defaulted off, control run first.** `mom_score` (`blend` | `zscore` |
+`riskadj`), `mom_confirm`, `entry_mode` (`absolute` | `median`) with `min_rel_momentum`, and the
+horizon set itself. LEAN run `20260908T234444Z` at the defaults reproduces
+`OrderListHash 9f58b37cc2656b647ec88a5124daf02d`, so the plumbing is provably inert.
+
+**Three of the four are rejected on the sweep** (`sweep_s1.py --mode s9`, full period, against
+the champion's CAR 18.7% / Sharpe 0.97 / DD 23.2% / turnover 0.22 in that harness):
+
+| lever | CAR | Sharpe | MaxDD | turn | verdict |
+| --- | --- | --- | --- | --- | --- |
+| `mom_score=zscore` (equalize horizon scale) | 17.8% | 0.94 | 22.8% | 0.26 | loses both halves |
+| `mom_score=riskadj`, 60d vol | 17.6% | 0.93 | 24.4% | 0.21 | loses OOS by 2.1 pts |
+| `mom_score=riskadj`, 20d vol | 19.7% | 1.03 | 21.1% | 0.22 | a ridge, see below |
+| `mom_confirm` (all horizons positive) | 12.3% | 0.69 | 37.1% | 0.34 | badly worse |
+| `entry=median +0%` | 17.9% | 0.94 | 23.4% | 0.22 | loses |
+| `entry=median +3%` | 6.4% | 0.41 | 49.2% | 0.31 | catastrophic |
+
+`mom_confirm` fails for a reason worth keeping: demanding agreement across horizons throws the
+book out of a trend exactly when the short horizon is mid-shakeout, and it pays 55% more
+turnover for the privilege. The median gate fails for the reason the parameter docstring
+predicted - with `top_n=3` of nine names the top three always beat the median, so at +0% it is a
+*looser* gate that keeps the book in the least-bad ETF through a decline; and asking for real
+dispersion (+3%, +8%) strands it in cash through 2012-2019, which is where the -0.7% CAR and
+49.2% drawdown come from.
+
+**`riskadj` is a narrow ridge, and the ridge is the interesting part.** Its full-period Sharpe
+is monotone in the vol window - 5d 0.91, 10d 0.96, 15d 1.02, 20d 1.03, 30d 0.99, 40d 0.95,
+60d 0.93, 120d 0.85 - so only a 15-30 day window beats the champion at all, and it wins entirely
+OOS at 15-20 and entirely IS at 30. That inconsistency is the fingerprint of noise, and the
+margin (+1.0 CAR, +0.06 Sharpe) is inside the sweep's own known error. Not shipped, kept
+available as `mom_score="riskadj"`.
+
+**The fourth horizon is the real finding.** Adding a 250-day member to the blend scored CAR
+22.6% / Sharpe 1.10 / DD 21.4% at *lower* turnover (0.16 vs 0.22). The first check made it look
+like a fitted spike - a fourth horizon of 200 gives only 19.0%, and 300 returned a tidy 0.0%
+CAR. That 0.0% was a **bug in the harness, not a result**: `history_bars` defaults to 300, and a
+lookback past 298 makes `target_weights` bail with "only N bars" and hold cash for the whole
+sample, silently. `Params.__post_init__` now widens the window to `max(lookback) + 50`, so a
+horizon is what is being tested rather than the buffer around it. With that fixed the scan is a
+**shelf, not a spike** - full-period Sharpe over the fourth horizon:
+
+| 150 | 180 | 200 | 220 | 240 | 250 | 260 | 280 | 300 | 320 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.85 | 0.96 | 0.96 | 1.01 | 1.07 | **1.10** | 1.04 | 1.04 | 1.03 | 0.88 |
+
+Everything from 220 to 300 beats the champion on CAR, Sharpe *and* drawdown; it collapses at
+both edges. **252 sessions is shipped, not the 250 argmax** - one trading year is the a-priori
+momentum horizon, it sits inside the shelf, and choosing it costs 0.06 of sweep Sharpe in
+exchange for not tuning to the last basis point. Sensitivity holds either side: `top_n` 2/3/4
+gives 0.93/1.04/0.98, and removing the crisis-vol filter still costs 12 points of drawdown, so
+the S-1 regime overlay is not made redundant by the longer horizon.
+
+**LEAN decides, and it agrees** (run `20260908T235647Z`, shipped default, no env vars):
+
+| | Orders | CAR | Sharpe | MaxDD | Fees | PSR |
+| --- | --- | --- | --- | --- | --- | --- |
+| champion (20/60/120) | 3,410 | 18.14% | 0.693 | 25.2% | $38,630 | 5.1% |
+| **S-9 (20/60/120/252)** | **2,870** | **20.89%** | **0.782** | 28.9% | $37,319 | **10.1%** |
+| IS 2012-2019 | 1,551 | 15.18% | 0.701 | 28.9% | | 12.9% |
+| OOS 2020-2026 | 1,328 | 28.01% | 0.883 | 21.0% | | 25.7% |
+
+It beats the old champion on both halves (13.5%/0.64 IS and 23.8%/0.76 OOS) and on both
+promotion metrics, at 16% fewer orders. `evaluate.py --promote 20260908T235647Z` passed and
+**champion.json now points at it**. The economics are the honest attraction: the whole gain
+comes with *less* trading, which is the only kind of improvement S-3's 2.1bps-per-turnover cost
+floor cannot tax away.
+
+**Two caveats, stated plainly.** Drawdown got worse, 25.2% -> 28.9%, still inside the 35% limit
+but with less headroom - and it is all in the 2012-2019 half, where CAR only improved 13.5% ->
+15.2%. Most of the headline is the OOS half. And the sweep understated LEAN drawdown by **7.8
+points** here (21.1% vs 28.9%), far more than the +2 S-8 calibrated at the champion's size; a
+longer horizon holds positions through deeper retracements than the crude sweep cost model
+models. Sweeps rank, LEAN decides - again.
+
+**Next.** I-1 is still the gate, and this promotion moves its target: the paper runner's order
+list must now be compared against `b763e292cb0eb9a2c81af5739188d437`, not the S-6 hash.
+`paper_trade.py --mock --dry-run` re-verified against the new signal and plans XLK/XLE/IWM at
+1.50x gross, 0.75 margin.
+
 ## 2026-09-08 - S-3: the reversal sleeve is genuinely uncorrelated and genuinely worthless
 
 - **What.** `algorithms/s3_reversal/`, built on the same split as S-1: `signals.py` (plain

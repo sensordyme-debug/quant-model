@@ -59,7 +59,7 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             dv_window=_env("DV_WINDOW", 60, int),
             min_history=_env("MIN_HISTORY", 252, int),
             mom_lookbacks=tuple(int(x) for x in
-                                os.environ.get("S1_LOOKBACKS", "20,60,120").split(",")),
+                                os.environ.get("S1_LOOKBACKS", "20,60,120,252").split(",")),
             top_n=_env("TOP_N", 3, int),
             trend_window=_env("TREND_WINDOW", 0, int),
             regime_vol_window=_env("REGIME_VOL_WINDOW", 20, int),
@@ -82,6 +82,14 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             trail_stop=_env("TRAIL_STOP", 0.0),
             trail_window=_env("TRAIL_WINDOW", 60, int),
             dd_mode=os.environ.get("S1_DD_MODE", "step"),
+            # S-9: all four default to the champion's behaviour. MOM_SCORE=blend is the
+            # plain mean of the trailing returns, MOM_CONFIRM=0 asks no horizon agreement
+            # and ENTRY_MODE=absolute keeps the min_momentum floor.
+            mom_score=os.environ.get("S1_MOM_SCORE", "blend"),
+            mom_vol_window=_env("MOM_VOL_WINDOW", 60, int),
+            mom_confirm=bool(_env("MOM_CONFIRM", 0, int)),
+            entry_mode=os.environ.get("S1_ENTRY_MODE", "absolute"),
+            min_rel_momentum=_env("MIN_REL_MOMENTUM", 0.0),
         )
 
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)
