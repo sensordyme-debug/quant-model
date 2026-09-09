@@ -24,3 +24,5 @@ Thumbs.db
 # OpenClaw temp
 .fs-safe-*.tmp
 .openclaw-smoke-test.txt
+# intraday bar store (regenerated from IBKR)
+data/

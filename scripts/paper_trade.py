@@ -391,6 +391,14 @@ def main() -> int:
         return 3
     sig = load_signal(name)
     universe = list(sig.UNIVERSE)
+    # Sleeve isolation: the account is shared with the intraday sleeve (scripts/intraday_trader.py),
+    # which trades a disjoint universe and is flat by 15:40 ET. Positions outside this signal's
+    # universe are never touched here, so a straggler from another sleeve cannot be sold by this run.
+    foreign = {s: q for s, q in positions.items() if s not in universe}
+    if foreign:
+        print(f"leaving positions outside this signal's universe alone: {foreign}")
+        log_event("foreign_positions_ignored", positions=foreign)
+        positions = {s: q for s, q in positions.items() if s in universe}
     closes = fetch_history_yf(universe) if (args.history == "yfinance" or ib is None) else fetch_history_ib(ib, universe)
     missing = [s for s in universe if s not in closes.columns or closes[s].dropna().empty]
     if missing:
