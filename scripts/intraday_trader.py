@@ -33,7 +33,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from intraday_common import (DAILY_LOSS_LIMIT, ET, EXIT_MINUTE, FLATTEN_MINUTE, GROSS_HARD_CAP, LIVE,  # noqa: E402
                              MIN_CHANGE, PER_SYMBOL_HARD_CAP, REPO, UNIVERSE, commission, load_universe,
-                             log_event, notify, slippage)
+                             log_event, slippage)
+from intraday_common import notify as _notify  # noqa: E402
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
 from base import features  # noqa: E402
@@ -47,6 +48,12 @@ LOG = "intraday"
 
 def log(kind, **f):
     log_event(LOG, kind, **f)
+
+
+def notify(text: str) -> None:
+    """Replay runs never alert; only live/dry runs push to the chat channel."""
+    if LOG == "intraday":
+        _notify(text, LOG)
 
 
 def load_strategy(name: str):
@@ -342,6 +349,8 @@ class Trader:
 
 # ----------------------------------------------------------------------------- replay
 def replay(strategy, params, day: dt.date, equity_frac: float, nav: float):
+    global LOG
+    LOG = "intraday-replay"          # replay events go to live/log/intraday-replay-<date>.jsonl, never the live log
     bars = load_universe(UNIVERSE, day - dt.timedelta(days=7), day)
     bars = {s: df for s, df in bars.items() if (df.index.date == day).any()}
     if not bars:
