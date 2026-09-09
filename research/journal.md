@@ -2,6 +2,79 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - S-13: the execution band buys nothing and costs nothing, and that is the result
+
+**Hypothesis.** S-12 bought 0.8 points of CAR by re-weighting the book as vol ratios drift,
+and paid for it with 84% more orders (2,573 -> 4,735) and $8.3k more commission. Those extra
+orders are by construction *small* - they are drift adjustments, not rotations. The execution
+layer already has a no-trade band for exactly this, `min_order_value`, which skips any delta
+worth less than that fraction of equity - and it has been pinned at 0.01 since S-1 and **never
+swept**. If most of S-12's cost sits just above a 1% band, widening it should hand back the
+commission and keep the risk-parity gain. Cheap to test: the knob is already wired to
+`S1_MIN_ORDER_VALUE`, so no code changed and no control run was needed - the champion run
+`20260909T042431Z` *is* the 0.01 cell.
+
+### Result (LEAN, full period 2012-01-03 .. 2026-09-04, S-12 champion signal throughout)
+
+| band | CAR | Sharpe | MaxDD | orders | fees |
+| --- | --- | --- | --- | --- | --- |
+| **0.01 (champion)** | 24.40% | **0.921** | **25.1%** | 4,735 | $45,695 |
+| 0.015 | 24.35% | 0.919 | 26.9% | 3,887 | $44,239 |
+| 0.02 | **24.54%** | **0.927** | 25.2% | 3,355 | $43,960 |
+| 0.03 | 24.34% | 0.917 | 25.5% | 2,737 | $42,329 |
+| 0.05 | 23.92% | 0.900 | 29.2% | 2,112 | $39,729 |
+| 0.08 | 24.47% | 0.920 | 25.4% | 1,727 | $39,568 |
+
+**The response is non-monotone and essentially flat.** Across a factor of eight in the band -
+and a factor of 2.7 in order count - CAR walks 24.40, 24.35, 24.54, 24.34, 23.92, 24.47 and
+Sharpe walks 0.921, 0.919, 0.927, 0.917, 0.900, 0.920. There is no trend, in either direction.
+The one cell that visibly deviates, 0.05, deviates in *drawdown* (29.2%, four points wide of
+every other cell) with no mechanism that explains why a 5% threshold should be worse than both
+a 3% and an 8% one. That is the signature of path dependence: the band changes *which day* a
+rebalance fires, and a different fill date reshuffles the entire subsequent equity path.
+
+**So the honest reading is not "0.02 wins".** 0.02 does beat the champion on both `must_beat`
+metrics at a 25.2% drawdown, and `scripts/evaluate.py --candidate 20260909T043527Z` returns
+**BEATS champion**. Its sub-periods even agree in sign - IS 2012-2019 19.32% / 0.891 / 25.2%
+against the champion's 19.18% / 0.884 / 25.1%, OOS 2020-2026 30.98% / 0.988 / 22.7% against
+30.86% / 0.985 / 22.6%. **It was refused anyway**, on the shelf-not-spike rule that promoted
+S-9, S-10 and S-12: both of 0.02's neighbours *lose* to the champion, so there is no shelf and
+no dose-response, and the whole 0.01-0.03 region scatters by +/-0.1 points of CAR with 0.02's
+margin (+0.14) sitting inside that scatter. Promoting it would be fitting an execution
+threshold to path luck, which is the specific thing `AGENTS.md` says to fight. Both sub-periods
+agreeing is worth less than it looks here: at +0.11 and +0.14 points they are two draws from
+the same scatter, not independent confirmation.
+
+**What the flatness is actually worth, which is more than a promotion would have been.**
+Turnover between 1,727 and 4,735 orders is *return-neutral*. About 3,000 of the champion's
+orders - 63% of them - buy nothing at all. In the backtest that costs only the $6.1k of
+commission the 0.08 cell saves, which is why no cell wins: LEAN charges commission and the
+fee difference is too small to move a 24% CAR. **Live it is not neutral**, because every one
+of those orders also crosses a spread that the backtest does not model at all. S-3 measured
+the commission floor at 2.1bps per unit of turnover; a half-spread on a liquid 3x ETF is of
+the same order, so the true saving from the wide band is plausibly around double the modelled
+$6.1k - and, more importantly, 63% fewer chances for a real fill to come back worse than the
+close the signal decided on.
+
+That makes the band a **live-execution decision rather than a research one**, and it is not
+the loop's call to make three days before a paper deploy: switching to 0.08 would move the
+order list and invalidate the `OrderListHash` I-1's pre-deploy comparison is built on, in
+exchange for a backtest improvement of exactly zero. Filed for the human instead.
+
+- **Decision. No promotion; the champion is unchanged at S-12.** No parameter shipped -
+  `min_order_value` stays 0.01, the signal is untouched, and `OrderListHash
+  5246804e17a67af90028ffceead7d3b3` still stands, so I-1 needs no rebaselining. The six-cell
+  curve is recorded in `main.py` next to the parameter so a later session does not re-fit it,
+  and the wide-band option is a one-line question in `BLOCKERS.md`.
+- **Next.** This is the second iteration running (with S-11) to find that the champion's
+  turnover cannot be converted into return, and now also that it cannot be *removed* for
+  return - the sleeve is simply insensitive to execution timing at this frequency. Combined
+  with S-12 spending the allocation step, the ETF-9 sleeve is out of cheap levers by
+  measurement rather than by assumption. Ports 4002 and 7497 were checked again at the top of
+  this iteration and are both still closed, so S-2 (a second sleeve), D-2 (intraday data) and
+  the I-1 paper deploy all remain behind the IB Gateway login, and that login is now the only
+  thing standing between this repo and its 2026-09-10 deadline.
+
 ## 2026-09-09 - S-12: risk parity inside the top 3, new champion at 24.4% / 0.92
 
 **Hypothesis.** Every iteration since S-6 has changed *what* the signal picks (S-9's fourth

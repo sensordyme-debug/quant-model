@@ -60,5 +60,23 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   the answer is plausibly yes, but changing a promotion rule is a change of risk posture and
   is not the loop's call. Answer it here (or say "keep Sharpe as a hard gate") and the loop
   will either re-run that cell through the sub-periods and promote it, or stop proposing it.
+- **2026-09-09 The execution no-trade band for the paper account (decision requested; affects
+  the live order list only, not the backtest).** S-13 swept `min_order_value` - the fraction of
+  equity below which a rebalancing delta is skipped - and found the strategy is **insensitive**
+  to it: from 0.01 to 0.08 the full-period CAR walks 24.40, 24.35, 24.54, 24.34, 23.92, 24.47
+  with no trend, while order count falls 4,735 -> 1,727. So roughly **63% of the champion's
+  orders are return-neutral**. In LEAN that is worth only the $6.1k of commission the widest
+  band saves over 14 years, which is why no cell wins on the promotion rules and nothing was
+  shipped. **Live it is worth more than that**, because LEAN charges commission but models no
+  spread at all, and every skipped order is also a spread not crossed and a fill that cannot
+  come back worse than the close the signal decided on.
+
+  **Decision needed:** should `scripts/paper_trade.py` run a wider band (0.03 or 0.08) than the
+  backtest's 0.01? The loop did not make this call for two reasons: it is an execution/cost
+  judgement about real fills rather than a research result, and changing it would move the
+  order list away from `OrderListHash 5246804e17a67af90028ffceead7d3b3`, which is the exact
+  baseline I-1's pre-deploy comparison is built on. Say "keep 0.01" and this is closed; name a
+  wider band and the loop will re-run that cell, re-verify the runner against it and rebaseline
+  the hash before deploy. Nothing is blocked today - the champion and I-1 are unaffected.
 - **2026-09-08 IBKR paper account.** Install IB Gateway and log in with the paper account so
   backlog I-1 can be built and tested. LEAN expects API port 4002 (Gateway) or 7497 (TWS).

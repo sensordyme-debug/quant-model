@@ -11,7 +11,22 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-09 (latest): **S-12 has promoted a new champion** - the same signal, but the
+Status 2026-09-09 (latest): **S-13 closed negatively - the champion stands at S-12.** The
+execution no-trade band (`min_order_value`, pinned at 0.01 since S-1 and never swept) was
+tested at 0.015/0.02/0.03/0.05/0.08 to win back the commission S-12 spent. It cannot be won
+back, because **there is nothing to win**: the response is non-monotone and flat, with CAR
+walking 24.40 -> 24.35 -> 24.54 -> 24.34 -> 23.92 -> 24.47 across a factor of eight in the
+band and a factor of 2.7 in order count. The 0.02 cell beats the champion and `evaluate.py`
+says **BEATS champion**, and it was **refused** on the shelf-not-spike rule - both its
+neighbours lose, so its +0.14 CAR is inside the region's own scatter. Nothing shipped;
+`OrderListHash 5246804e17a67af90028ffceead7d3b3` is unchanged and I-1 needs no rebaselining.
+The durable finding is the flatness: **~3,000 of the champion's 4,735 orders (63%) are
+return-neutral**, free to remove in backtest and strictly *better* to remove live, where the
+unmodelled spread is paid per order. That is a live-execution decision and is now a one-line
+question in `BLOCKERS.md`. Ports 4002 and 7497 checked again at the top of this iteration:
+both still closed.
+
+Status 2026-09-09: **S-12 has promoted a new champion** - the same signal, but the
 exposure budget is now split between the three winners by **1/sigma on their own trailing
 one-month vol** instead of 1/N: CAR 23.61% -> **24.40%**, Sharpe 0.874 -> **0.921**, drawdown
 25.9% -> **25.1%**, PSR 17.7% -> **23.0%**, at 84% more orders and $8.3k more commission. It is
@@ -96,6 +111,24 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Done
 
+- **S-13 The execution no-trade band. Closed negatively 2026-09-09**, runs
+  `20260909T043527Z` (0.02), `045041Z` (0.015), `044105Z` (0.03), `044610Z` (0.05),
+  `045910Z` (0.08), sub-periods `20260909T045454Z` / `045705Z`; the champion run
+  `20260909T042431Z` is the 0.01 cell, so no control was needed and **no code changed** -
+  `min_order_value` was already wired to `S1_MIN_ORDER_VALUE`. Full period: 0.01 24.40%/0.921/
+  25.1%/4,735 orders, 0.015 24.35%/0.919/26.9%/3,887, 0.02 24.54%/0.927/25.2%/3,355,
+  0.03 24.34%/0.917/25.5%/2,737, 0.05 23.92%/0.900/29.2%/2,112, 0.08 24.47%/0.920/25.4%/1,727.
+  **Non-monotone and flat** - no trend in either direction across a factor of eight in the
+  band, and the one deviant cell (0.05, drawdown 29.2%, four points wide of every neighbour)
+  deviates in a metric no mechanism predicts, which is what path dependence looks like when a
+  threshold moves *which day* a rebalance fires. 0.02 passes `evaluate.py` outright (and its
+  sub-periods agree in sign: IS 19.32%/0.891/25.2% vs 19.18%/0.884/25.1%, OOS 30.98%/0.988/
+  22.7% vs 30.86%/0.985/22.6%) and was **refused as a spike** - both neighbours lose to the
+  champion, so there is no shelf and the +0.14 CAR sits inside the region's scatter. **The
+  finding is the flatness**: ~3,000 of the champion's orders are return-neutral, worth only
+  the $6.1k of commission the widest band saves in backtest, but worth that *plus* an
+  unmodelled spread per order live. Filed as a live-execution question in `BLOCKERS.md`;
+  the shipped default stays 0.01 precisely so the I-1 order list does not move.
 - **S-12 Risk parity inside the top_n. PROMOTED 2026-09-09**, run `20260909T042431Z` (control
   `20260909T034600Z`, reproducing `ff4a7cbaaf6e36e58ace2b82ab216bdf`; window scan
   `20260909T034953Z` / `035356Z` / `035803Z` / `040157Z` / `040554Z` / `041013Z`; tilt-strength

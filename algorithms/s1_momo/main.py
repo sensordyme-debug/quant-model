@@ -140,6 +140,32 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.overlay_state = {}
         # Skip rebalancing trades worth less than this fraction of equity; daily
         # rotation on 3x ETFs otherwise pays commission on a stream of tiny adjustments.
+        #
+        # S-13 swept this for the first time (it had been pinned at 0.01 since S-1) to try to
+        # win back the $8.3k of commission S-12's risk parity added. LEAN, full period:
+        #
+        #   band   CAR     Sharpe  MaxDD   orders  fees
+        #   0.01   24.40%  0.921   25.1%   4,735   $45,695   <- shipped
+        #   0.015  24.35%  0.919   26.9%   3,887   $44,239
+        #   0.02   24.54%  0.927   25.2%   3,355   $43,960
+        #   0.03   24.34%  0.917   25.5%   2,737   $42,329
+        #   0.05   23.92%  0.900   29.2%   2,112   $39,729
+        #   0.08   24.47%  0.920   25.4%   1,727   $39,568
+        #
+        # The response is **non-monotone and essentially flat**: across a factor of eight in
+        # the band, and a factor of 2.7 in order count, CAR moves 24.40 -> 24.35 -> 24.54 ->
+        # 24.34 -> 23.92 -> 24.47 with no trend. So this parameter does not have a best value
+        # to find - the differences between neighbouring cells are path luck (a threshold
+        # changes *which* day a rebalance fires, which reshuffles the whole subsequent path;
+        # note the 4-point drawdown swing at 0.05, which no mechanism explains). 0.02 beats
+        # the champion and `evaluate.py` would promote it; it was refused as a spike, because
+        # both of its neighbours lose to 0.01. Do not re-fit this parameter.
+        #
+        # The useful reading is the flatness itself: ~3,000 of the champion's 4,735 orders
+        # buy **nothing**, so a wide band is close to free *in backtest* and strictly better
+        # live, where the spread the backtest does not model is paid per order. That is a
+        # live-execution decision, not a research one - see BLOCKERS.md - so the shipped
+        # default stays 0.01 and the I-1 OrderListHash is unchanged.
         self.min_order_value = _env("MIN_ORDER_VALUE", 0.01)
         self.max_observed_gross = 0.0
         self.max_observed_margin = 0.0
