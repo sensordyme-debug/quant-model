@@ -11,7 +11,23 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-09 16:0x UTC (latest, D-2 iteration): **the intraday data blocker is gone for
+Status 2026-09-09 19:0x UTC (latest, A-2 iteration): **the ORB tail does not come off for
+free.** Nine variants on the 9-month window (2025-12-15..2026-09-08, split 2026-06-15, 124/59
+sessions): the response to stop distance is **monotone and rotates return between the halves**
+rather than adding any - midpoint (shipped) 35.7 IS / 10.7 OOS, +4x ATR backstop 31.4 / 19.3,
++3x 21.5 / 26.5, pure 1.5x ATR -12.3 / 43.1, with the two-half mean roughly conserved. The
+worst day and the loss-limit days only fall materially at a stop tight enough to zero the
+in-sample return (pure 1.0x ATR: worst -33.9k -> -21.4k, loss-limit days 0/0, IS CAR -0.3%),
+so **A-2's stated hypothesis - cut the tail, keep the return - is refused**. Scale-out at 1.5R,
+a 30-minute range and a 1.6x volume filter all lose in both halves. What shipped is the shelf
+point on that frontier: `disaster_atr=4.0` on ORB in `live/intraday_config.json` (sleeve mix
+IS 27.2/1.10 -> 24.2/1.01, OOS 36.2/1.24 -> 55.3/1.73, worst day flat, one fewer loss-limit
+day), with a 2026-09-08 replay passed before the write. The ORB module now carries every lever
+as a parameter and the control run reproduces A-6 to the digit. **Champion unchanged at S-12**;
+the daily sleeve was not touched. Next is A-1, then A-7 (the tail is a framework-constant
+question now, not a signal one).
+
+Status 2026-09-09 16:0x UTC (D-2 iteration): **the intraday data blocker is gone for
 SPY.** The 10141 disclaimer has been accepted - `paper_trade.py --check` answers on account
 `DUT091359` ($1,000,344 net liq, no positions) - so D-2 became the top item and shipped:
 `scripts/fetch_minute.py` pulls IBKR 1-minute TRADES bars and writes LEAN minute files, paced
@@ -152,12 +168,31 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-2 ORB tail control (top item).** On 9 months ORB is positive in both halves but its
-  worst days (-34k, -26k) are what trips the 2.5% daily loss limit 4-5 times per half. Test an
-  ATR-based stop (1.0-1.5 x ATR14 from entry) instead of the range midpoint, a scale-out at
-  1.5R, a 30-minute range, and a volume filter sweep; judge on OOS Sharpe and worst day after
-  costs on the 9-month window (`--start 2025-12-15 --split 2026-06-15`). If a variant keeps the
-  return and cuts the loss-limit days, update `live/intraday_config.json` per AGENTS.md rule (c).
+- **A-1 Make the VWAP fade pay for its turnover, or retire the module (top item).** A-6 set
+  its alloc to 0 because it loses -56%/yr on the long window; it is still the only turnover
+  engine in the sleeve. One candidate per iteration: wider entry band (20-30 bps) with a
+  minimum hold (10-15 bars); trade only with the session's trend; skip 11:30-14:00; require
+  range expansion; 5-minute aggregates instead of 1-minute closes. Judge on OOS Sharpe and
+  P&L per trade after costs on `--start 2025-12-15 --split 2026-06-15`. If nothing on that
+  list makes it positive in both halves, delete the alloc entry and close it.
+- **A-7 The daily loss limit and the per-symbol cap are the real tail levers.** A-2 measured
+  that every *signal*-level control leaves the loss-limit days where they are (3-4 per half)
+  unless it is tight enough to destroy the in-sample return. The framework constants are
+  therefore what bounds the tail: sweep `DAILY_LOSS_LIMIT` (1.5-3.5%), `PER_SYMBOL_HARD_CAP`
+  and the sleeve `gross` against OOS Sharpe, worst day and the *cost* of stopping early
+  (a limit that fires often forfeits the rest of the session's edge). These are shared
+  constants in `scripts/intraday_common.py`, so any change needs a replay per AGENTS.md rule (a).
+- **A-2 DONE 2026-09-09 (see journal): shipped a 4x ATR14 disaster backstop on ORB; the
+  stated hypothesis was refused.** No variant cuts the tail while keeping the return - the
+  response to stop distance is monotone and *rotates* return from the IS half to the OOS half
+  (midpoint 35.7/10.7, +4x ATR 31.4/19.3, +3x 21.5/26.5, pure 1.5x ATR -12.3/43.1), with the
+  two-half mean roughly conserved. The tail only comes off at a stop tight enough to zero the
+  in-sample return: pure 1.0x ATR takes the worst day -33.9k -> -21.4k and the loss-limit days
+  to 0/0 at IS CAR -0.3%. Scale-out at 1.5R (24.8/8.0), a 30-minute range (15.9/-1.1) and a
+  1.6x volume filter (15.0/-9.8) all lose in both halves and are not carried forward. Shipped
+  `disaster_atr=4.0` on the sleeve mix (IS 27.2/1.10 -> 24.2/1.01, OOS 36.2/1.24 -> 55.3/1.73,
+  worst day flat, one fewer loss-limit day, $201k -> $221k over 183 sessions) as a shelf point
+  - 8x is indistinguishable from off, 6x/4x/3x walk the frontier smoothly. Follow-up is A-7.
 - **A-6 DONE 2026-09-09 (see journal): deployed mix re-derived on 9 months = ORB 1.0 + late
   fade 1.0, no VWAP fade.** Kept for the record:
   A-0 found the edge in the *inverses*: late-day fade (robust in both halves) and VWAP fade
@@ -169,17 +204,12 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   journal and `live/intraday_config.json`. Also verify the store has no dropped first-of-window
   sessions (compare session count to the daily calendar; `intraday_data.py` now overlaps
   windows, re-run `--months 9 --force` if gaps exist).
-- **A-1 Make the VWAP fade pay for its turnover (was: VWAP trend).** It is the turnover engine (21
-  trades/day on two names) and loses ~12%/yr after $400/day of costs on 2 names. Candidates,
-  one per iteration: wider entry band (20-30 bps) with a minimum hold (10-15 bars); only trade
-  in the direction of the session's trend (`day_ret` sign, or price on the same side of VWAP
-  for 30+ bars); skip 11:30-14:00; require range expansion (`atr14` above its session median);
-  evaluate on 5-minute aggregates instead of 1-minute closes. Judge on OOS Sharpe and P&L per
-  trade after costs, not on trade count.
-- **A-2 Strengthen ORB, the only sub-strategy with positive evidence.** 30-minute range
-  variant, ATR-based stop instead of the midpoint, scale-out at 1.5R, volume filter sweep
-  (1.0-2.0x), entry window sweep. Check that it survives on the leveraged ETFs (SOXL/SOXS)
-  where the range is wider.
+- **A-8 The one ORB lever A-2 did not spend: the entry window.** `entry_after` /
+  `entry_before` / `time_stop` were left at 15 / 150 / 240 throughout A-2, and the frontier it
+  found says the shipped edge is concentrated in *which* breakouts are taken, not in how they
+  are stopped. Sweep the entry window and the time stop, and check the result separately on
+  the leveraged ETFs (SOXL/SOXS) where the range is wider, since the backstop now scales with
+  ATR and those names are where it binds most.
 - **A-3 Deployed mix.** Set `alloc` and `gross` in `live/intraday_config.json` from OOS
   evidence: strategies with negative OOS after costs get alloc 0 until fixed. Target gross
   1.0-1.5x of NAV so daily P&L swings are in the tens of thousands on the $1M account, with the

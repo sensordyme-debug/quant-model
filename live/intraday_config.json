@@ -1,11 +1,12 @@
 {
-  "_comment": "Deployed intraday sleeve config, read by scripts/intraday_launch.py. Change only with OOS evidence recorded in research/journal.md (AGENTS.md rule c). Set 2026-09-09 (A-6) from the 9-month window 2025-12-15..2026-09-09 split 2026-06-15: ORB 1.0 + late-day fade 1.0, no VWAP fade (it lost -56%/yr on the long window). IS +27.2%/yr Sharpe 1.10 (124 sessions, worst -31k, 4 loss-limit days), OOS +32.6%/yr Sharpe 1.15 (60 sessions, worst -27k, 5 loss-limit days), 46-49 trades/day, daily P&L std ~17k, costs ~1k/day.",
+  "_comment": "Deployed intraday sleeve config, read by scripts/intraday_launch.py. Change only with OOS evidence recorded in research/journal.md (AGENTS.md rule c). Set 2026-09-09 (A-6) from the 9-month window 2025-12-15..2026-09-09 split 2026-06-15: ORB 1.0 + late-day fade 1.0, no VWAP fade (it lost -56%/yr on the long window). Amended 2026-09-09 (A-2): ORB now carries a 4x ATR14 disaster backstop on top of the midpoint stop, which binds only when the opening range is unusually wide. Mix on 2025-12-15..2026-09-08 split 2026-06-15: IS +24.2%/yr Sharpe 1.01 (124 sessions, worst -30.3k, 4 loss-limit days) against the unbackstopped +27.2%/1.10 (worst -31.4k, 4 days); OOS +55.3%/yr Sharpe 1.73 (59 sessions, worst -26.9k, 4 loss-limit days) against +36.2%/1.24 (worst -26.9k, 5 days). Replay of 2026-09-08 with this config passed (46 trades, flat at close).",
   "strategy": "active",
   "equity_frac": 1.0,
   "params": {
     "alloc": {"orb": 1.0, "vwap_trend": 0.0, "late_momo": 1.0},
     "sub_params": {
-      "late_momo": {"direction": -1}
+      "late_momo": {"direction": -1},
+      "orb": {"disaster_atr": 4.0}
     },
     "per_symbol": 0.15,
     "gross": 1.5

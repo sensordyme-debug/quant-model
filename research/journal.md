@@ -2,6 +2,74 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - A-2: ORB tail control. The tail does not come off for free; what the stop does is rotate return between regimes
+
+- **What.** Nine variants of `algorithms/intraday/orb/signal.py` on the 9-month store, fixed
+  window 2025-12-15..2026-09-08 (the 09-09 session is still in progress), split 2026-06-15,
+  124 IS / 59 OOS sessions. The module was rewritten to carry the levers as parameters, all
+  defaulted to the shipped behaviour: `stop` ("mid" | "atr") with `stop_atr`, `range_minutes`,
+  `scale_out`/`scale_r`/`scale_breakeven`, and `disaster_atr` (an ATR backstop *on top of* the
+  midpoint stop, whichever triggers first). The refactor is exact: the control run reproduces
+  the A-6 in-sample cell to the digit - 16.225% net, 4,359 trades, 35.739% CAR.
+- **Why.** Top backlog item. ORB is positive in both halves but its worst days (-34k, -26k)
+  are what trip the framework's 2.5% daily loss limit 3-4 times per half, and A-6 named those
+  days as the sleeve's tail risk.
+
+### The frontier (ORB standalone, annualized after costs, IS -> OOS)
+
+| stop | IS CAR / Sharpe | OOS CAR / Sharpe | worst day IS / OOS | loss-limit days |
+| --- | --- | --- | --- | --- |
+| midpoint (shipped) | 35.7 / 1.31 | 10.7 / 0.51 | -33.9k / -26.4k | 3 / 4 |
+| + 8x ATR backstop | 35.3 / 1.30 | 10.9 / 0.52 | -33.8k / -26.4k | 3 / 4 |
+| + 6x ATR backstop | 34.7 / 1.27 | 13.3 / 0.60 | -33.4k / -26.2k | 3 / 3 |
+| **+ 4x ATR backstop** | **31.4 / 1.19** | **19.3 / 0.80** | **-30.5k / -26.0k** | **3 / 4** |
+| + 3x ATR backstop | 21.5 / 0.88 | 26.5 / 1.04 | -31.9k / -27.1k | 4 / 3 |
+| pure 3.0x ATR | 25.1 / 0.99 | 19.8 / 0.83 | -32.6k / -26.7k | 4 / 3 |
+| pure 1.5x ATR | -12.3 / -0.51 | 43.1 / 1.65 | -25.0k / -22.9k | 1 / 0 |
+| pure 1.0x ATR | -0.3 / 0.08 | 36.8 / 1.56 | -21.4k / -18.0k | 0 / 0 |
+
+- **The hypothesis as written is refused.** No variant cuts the tail while keeping the return.
+  The tail only comes off materially at a *tight* stop - 1.0x ATR14 takes the worst day from
+  -33.9k to -21.4k and the loss-limit days to zero in both halves - and that same stop takes
+  the in-sample return to zero. Read across the table and the response is **monotone in the
+  stop distance**: tightening does not create return, it moves it from the first half of the
+  sample to the second. The mean of the two halves is roughly conserved (23% at the midpoint
+  stop, 25% at 4x, 24% at 3x, 15% at 1.5x). That is a regime property, not an edge, and it is
+  the same shape that got the VWAP fade removed in A-6 - only this time both ends stay
+  positive over the window as a whole.
+- **The other three levers all lose outright.** Scale-out of 50% at 1.5R with a breakeven stop:
+  IS 24.8 / OOS 8.0, worse in both halves at the same worst day (it clips the best days,
+  86k -> 60k, and the tail is not where it acts). A 30-minute opening range: 15.9 / -1.1.
+  Volume filter at 1.6x instead of 1.2x: 15.0 / -9.8. All are worse than the control in both
+  halves; none is carried forward.
+
+### What shipped, and what it is worth
+
+`disaster_atr = 4.0` on the ORB sub-strategy in `live/intraday_config.json`. At the sleeve
+level (ORB 1.0 + late fade 1.0, per-symbol 0.15, gross 1.5, same window and split):
+
+| mix | IS CAR / Sharpe | OOS CAR / Sharpe | worst day | loss-limit days |
+| --- | --- | --- | --- | --- |
+| deployed (no backstop) | 27.2 / 1.10 | 36.2 / 1.24 | -31.4k / -26.9k | 4 / 5 |
+| + 4x ATR backstop | 24.2 / 1.01 | 55.3 / 1.73 | -30.3k / -26.9k | 4 / 4 |
+
+- **Decision: ship it, with the reason stated plainly.** It satisfies AGENTS.md rule (c) - OOS
+  improves, +19 points of CAR and +0.49 of Sharpe - both halves stay positive, the worst day
+  is no worse, one loss-limit day comes off, and total P&L over the 183 sessions rises from
+  $201k to $221k. It sits on a shelf, not a spike: 8x is indistinguishable from off, and 6x,
+  4x and 3x walk the frontier smoothly, so 4x is a point on a monotone response rather than an
+  argmax found by search. The mechanism is defensible before the fact - a breakout entered at
+  the extreme of an unusually wide range has its midpoint stop very far away, and the backstop
+  caps exactly those trades - which is why the 8x cell changes nothing (it almost never binds).
+  **What it is not** is a free improvement: the in-sample half pays 3 points of CAR and 0.09
+  of Sharpe for it, and if the next quarter looks like the first half of this sample rather
+  than the second, this change will have cost money. Replay of 2026-09-08 with the deployed
+  config passed before it was written (46 trades, flat at the close, -4,881 P&L on the day).
+- **Next.** A-1 (make the VWAP fade pay on the long window, or retire the module). The tail
+  itself is now a *framework* question rather than a signal one: the loss-limit days survive
+  every signal-level control tried here, so the lever that actually bounds them is the 2.5%
+  daily limit and the per-symbol cap, and sweeping those is A-7.
+
 ## 2026-09-09 - A-6: the deployed mix re-derived on 9 months (2025-12-15..2026-09-09, split 2026-06-15)
 
 - **What.** With the minute store extended to 184 sessions per name, every strategy and both
