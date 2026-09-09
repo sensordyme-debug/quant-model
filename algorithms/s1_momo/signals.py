@@ -199,6 +199,32 @@ class Params:
     #: reweights an already-unequal vote.
     mom_weights: tuple = ()
 
+    # --- S-11: stop the book rotating on noise (the champion's remaining weakness) ---
+    #: The three levers below all attack the same failure: S-10's calendar decomposition
+    #: says the champion's losses are not crises and not the OOS half but 2014/2015/2016
+    #: and 2024, and its worst drawdown is a 16-month grind, which is the signature of a
+    #: ranking that keeps buying whichever sleeve member has just topped out. Each cuts
+    #: turnover, which is also the direction S-3's 2.1bps cost floor rewards.
+    #:
+    #: (a) Hysteresis. An incumbent holding's score is credited with this many *cross-
+    #: sectional standard deviations* of the day's scores before the ranking is cut at
+    #: `top_n`, so a challenger has to win by a margin rather than by a rounding error.
+    #: The unit is deliberately the day's own score dispersion rather than a return: the
+    #: blended score is a mean of raw returns whose scale moves by an order of magnitude
+    #: between 2017 and 2020, and a fixed return margin would be inert in one regime and
+    #: binding in the other.
+    hysteresis: float = 0.0
+    #: (b) Minimum holding period, in rebalances. A newly funded name is kept for at least
+    #: this many further decisions unless it fails the entry gate outright (score at or
+    #: below the floor, or ineligible) or the book goes to cash for regime/drawdown
+    #: reasons - so the lock never overrides a risk control, only the ranking.
+    min_hold: int = 0
+    #: (c) Rank persistence. A name that is not already held must have been inside the
+    #: top `top_n` on each of the last this-many decision bars before it can be funded.
+    #: Computed by re-scoring truncated price windows rather than from stored history, so
+    #: it stays reproducible for the I-1 paper runner without extra persisted state.
+    rank_persist: int = 0
+
     # --- S-8: earn drawdown headroom so that size can be spent ---
     #: Elastic margin budget. 0 keeps `margin_budget` a flat constant, which is what the
     #: champion ships and what makes its vol target inert: the vol target asks for up to
@@ -233,7 +259,7 @@ class Params:
         # the entire sample, and the sweep prints a tidy 0.0% CAR that looks like a result.
         # S-9 lost a grid cell to exactly this (a 300-day horizon against the 300-bar
         # default). Widen the window instead, so the horizon is what is being tested.
-        need = max(self.mom_lookbacks) + self.mom_skip + 50
+        need = max(self.mom_lookbacks) + self.mom_skip + max(0, self.rank_persist - 1) + 50
         if self.history_bars < need:
             object.__setattr__(self, "history_bars", need)
         if self.mom_weights and len(self.mom_weights) != len(self.mom_lookbacks):
@@ -363,6 +389,48 @@ def momentum_scores(prices: pd.DataFrame, p: Params) -> tuple[pd.Series, pd.Seri
     return score, eligible
 
 
+def entry_floor(scores: pd.Series, p: "Params") -> float:
+    """The score a name must beat to be funded (S-9's `entry_mode`)."""
+    if p.entry_mode == "median" and len(scores) >= 2:
+        return float(scores.median()) + p.min_rel_momentum
+    return p.min_momentum
+
+
+def leaders(scores: pd.Series, eligible: pd.Series, p: "Params") -> list:
+    """The `top_n` highest scores that also clear the entry gate, best first."""
+    scores = scores.sort_values(ascending=False)
+    floor = entry_floor(scores, p)
+    return [t for t in scores.index[:p.top_n] if scores[t] > floor and eligible.get(t, True)]
+
+
+def persistent_leaders(prices: pd.DataFrame, p: "Params") -> set:
+    """S-11(c): names that have led on *every* one of the last `rank_persist` bars.
+
+    Re-scores truncated windows instead of remembering past rankings, which keeps the
+    lever stateless: the paper runner reproduces it from prices alone.
+    """
+    sets = []
+    for back in range(max(1, p.rank_persist)):
+        window = prices if back == 0 else prices.iloc[:-back]
+        scores, eligible = momentum_scores(window, p)
+        if scores.empty:
+            return set()
+        sets.append(set(leaders(scores, eligible, p)))
+    return set.intersection(*sets)
+
+
+def remember_holdings(state: dict, winners, prev_ages: dict) -> dict:
+    """Write the funded set and its ages back onto the overlay state.
+
+    Age is counted in rebalances *since* entry, so a name funded for the first time is 0
+    and `min_hold=n` locks it through the next n decisions. Kept JSON-serializable for
+    the live runner, which persists this dict between daily invocations.
+    """
+    state["held"] = list(winners)
+    state["held_age"] = {t: int(prev_ages.get(t, -1)) + 1 for t in winners}
+    return state
+
+
 def realized_vol(returns: pd.Series, window: int) -> float:
     """Annualized realized vol over the last `window` returns."""
     tail = returns.dropna().iloc[-window:]
@@ -483,14 +551,25 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     # The skip pushes the window back in time, so it lengthens the history the longest
     # horizon needs by exactly the gap (S-10).
     max_lb = max(p.mom_lookbacks) + (p.mom_skip if max(p.mom_lookbacks) >= p.mom_skip_min_lookback else 0)
-    if len(prices) < max_lb + 2:
+    # Rank persistence re-scores windows truncated by up to `rank_persist - 1` bars, so it
+    # needs that many extra rows before the signal can speak at all.
+    need_bars = max_lb + 2 + max(0, p.rank_persist - 1)
+    if len(prices) < need_bars:
         diag["state"] = dict(state or {})
-        diag["reason"] = f"only {len(prices)} bars, need {max_lb + 2}"
+        diag["reason"] = f"only {len(prices)} bars, need {need_bars}"
         return {}, diag
+
+    # S-11: who was funded last time, and for how long. Read before the drawdown overlay,
+    # because that call rebuilds the state dict from scratch and would drop these keys.
+    prev_held = list((state or {}).get("held") or [])
+    prev_ages = {str(t): int(a) for t, a in ((state or {}).get("held_age") or {}).items()}
 
     dd_mult, state = drawdown_multiplier(equity_curve, p, state)
     diag["dd_multiplier"] = dd_mult
     diag["state"] = state
+    # Default to "holding nothing": every early return below is a decision to sit in cash,
+    # so an incumbent set must not survive one. The funded set is written back at the end.
+    remember_holdings(state, [], prev_ages)
 
     on, regime_diag = risk_on(prices, p)
     diag.update(regime_diag)
@@ -515,12 +594,47 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     scores = scores.sort_values(ascending=False)
     # S-9: the entry gate is either an absolute floor on the score (the champion) or a
     # cross-sectional one measured against the sleeve median on the same rebalance.
+    floor = entry_floor(scores, p)
     if p.entry_mode == "median" and len(scores) >= 2:
-        floor = float(scores.median()) + p.min_rel_momentum
         diag["entry_floor"] = round(floor, 4)
-    else:
-        floor = p.min_momentum
-    winners = [t for t in scores.index[:p.top_n] if scores[t] > floor and eligible.get(t, True)]
+
+    def passes(ticker) -> bool:
+        return float(scores.get(ticker, -np.inf)) > floor and bool(eligible.get(ticker, True))
+
+    # S-11(a) hysteresis. Incumbents are *ranked* with a bonus but still *gated* on their
+    # raw score, so the bonus can defend a holding against a marginal challenger and can
+    # never fund a name the entry gate refuses.
+    held = [t for t in prev_held if t in scores.index]
+    ranking = scores
+    if p.hysteresis > 0 and held:
+        spread = float(scores.std(ddof=0))
+        if np.isfinite(spread) and spread > 0:
+            bonus = p.hysteresis * spread
+            ranking = (scores + pd.Series({t: bonus if t in held else 0.0
+                                           for t in scores.index})).sort_values(ascending=False)
+            diag["hysteresis_bonus"] = round(bonus, 4)
+    winners = [t for t in ranking.index[:p.top_n] if passes(t)]
+
+    # S-11(c) rank persistence. A name that is not already held has to have led on every
+    # one of the last `rank_persist` bars; incumbents are exempt, because the lever is
+    # about what gets bought, not about what gets kept.
+    if p.rank_persist > 1:
+        confirmed = persistent_leaders(prices[ranked], p)
+        blocked = [t for t in winners if t not in held and t not in confirmed]
+        if blocked:
+            diag["persist_blocked"] = blocked
+            winners = [t for t in winners if t not in blocked]
+
+    # S-11(b) minimum holding period. A young holding keeps its slot unless the gate
+    # itself refuses it, which is what stops a one-day rank crossing from trading.
+    if p.min_hold > 0 and held:
+        locked = [t for t in ranking.index
+                  if t in held and prev_ages.get(t, 0) < p.min_hold and passes(t)]
+        if locked:
+            diag["locked"] = locked
+            keep = set((locked + [t for t in winners if t not in locked])[:p.top_n])
+            winners = [t for t in ranking.index if t in keep]
+
     diag["scores"] = {t: round(float(v), 4) for t, v in scores.head(p.top_n + 2).items()}
     if not winners:
         diag["reason"] = "no positive momentum"
@@ -598,4 +712,7 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     diag["effective_exposure"] = round(sum(w * leverage[t] for t, w in weights.items()), 4)
     diag["winners"] = winners
     diag["reason"] = "risk-on"
+    # S-11: hand the funded set forward. Empty weights (everything rounded away) count as
+    # cash, so the next call sees no incumbents to defend.
+    remember_holdings(state, winners if weights else [], prev_ages)
     return weights, diag

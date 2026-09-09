@@ -79,3 +79,20 @@ resolution the statistics block cannot be trusted until execution is verified se
   bug, because that is what it was every time.
 - Judge a component on each sub-period independently, not on the full sample. That is what
   justified dropping both the vol-below-median filter and the 200-day trend filter from S-1.
+
+## Research-method notes (learned 2026-09-08, S-11)
+
+- **A turnover reduction is only free if the turnover was noise.** Three independent whipsaw
+  controls on the S-1 champion (score hysteresis, minimum holding period, rank persistence)
+  each removed return roughly in proportion to the drawdown they removed, monotonically in
+  the strength of the control. When suppressing rotation costs return, the rotation was
+  carrying information and the cost floor is being paid for something. Measure the exchange
+  rate (CAR points given up per drawdown point bought) before treating a cost saving as a win.
+- **A lever that blocks an entry is not automatically a lever that cuts trading.** Rank
+  persistence *raised* order count 6% and fees 24% in LEAN, because refusing to fund a name
+  parks the book in cash and then buys it back a few days later. Check realized order counts,
+  not just the intent of the rule.
+- **Path-dependent signal state must be threaded, not rebuilt.** `drawdown_multiplier`
+  returns a fresh state dict, so any new persistent field (here `held` / `held_age`) has to be
+  read before that call and written back after it. Every early return that means "sit in cash"
+  must clear the field, or the next call defends holdings that do not exist.

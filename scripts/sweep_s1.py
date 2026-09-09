@@ -116,7 +116,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", default="ablation",
                     choices=["ablation", "grid", "sensitivity", "splits", "regimes", "margin",
-                             "s7", "s7bias", "d3", "s8", "s8vol", "s9", "s10"])
+                             "s7", "s7bias", "d3", "s8", "s8vol", "s9", "s10", "s11"])
     ap.add_argument("--section", type=int, default=0,
                     help="run one numbered section of the sweep (0 = all). A full-period "
                          "simulation costs ~22s, so a long sweep is split to stay inside a "
@@ -494,6 +494,68 @@ def main() -> int:
             peak_day = worst.idxmax()
             print(f"\nworst drawdown {worst.max():.1%} bottoms {peak_day.date()}; "
                   f"equity peak before it {curve.loc[:peak_day].idxmax().date()}")
+
+        print("--- benchmarks ---")
+        for ticker in ["SPY", "QQQ"]:
+            row(f"  {ticker} full 2012-2026", metrics(prices[ticker].loc["2012-01-03":]))
+
+    elif args.mode == "s11":
+        # S-11: the champion's remaining weakness is whipsaw - S-10's calendar
+        # decomposition put the losses in 2014/2015/2016 and 2024 and its worst drawdown
+        # in a 16-month grind, none of which the crisis filter can see. Three levers,
+        # cheapest first, each of which also cuts turnover:
+        #   (a) hysteresis        - an incumbent's score is credited with `hysteresis`
+        #                           cross-sectional standard deviations before the cut;
+        #   (b) min_hold          - a funded name is kept for N more decisions;
+        #   (c) rank_persist      - a new name must have led for k consecutive bars.
+        # The sweep only generates candidates. S-10 measured this harness disagreeing with
+        # LEAN *in sign* on the skip lever, so nothing here is decided until LEAN says so.
+        def both(params, label):
+            print(f"\n--- {label} ---")
+            run(prices, params, "  IS  2012-2019", start="2012-01-03", end=IS_END)
+            run(prices, params, "  OOS 2020-2026", start=OOS_START)
+            return run(prices, params, "  full 2012-2026")
+
+        def section(n):
+            return args.section in (0, n)
+
+        if section(1):
+            print("=== 0. baseline: the S-10 champion ===")
+            base = run(prices, P, "champion (no whipsaw control)")
+            print(f"\nbar to beat: CAR {base['CAR']:.1%} Sharpe {base['Sharpe']:.2f} "
+                  f"MaxDD {base['MaxDD']:.1%} turn {base['daily_turnover']:.2f}")
+            print("\n=== 1. (a) hysteresis, in cross-sectional score sigmas ===")
+            for h in [0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1.0]:
+                run(prices, replace(P, hysteresis=h), f"hysteresis={h}")
+
+        if section(2):
+            print("\n=== 2. (b) minimum holding period, in rebalances ===")
+            for hold in [2, 3, 5, 10, 21, 42]:
+                run(prices, replace(P, min_hold=hold), f"min_hold={hold}")
+
+        if section(3):
+            print("\n=== 3. (c) rank persistence, in consecutive leading bars ===")
+            for k in [2, 3, 5, 8]:
+                run(prices, replace(P, rank_persist=k), f"rank_persist={k}")
+
+        if section(4):
+            # Only worth combining levers that survive alone; the pairs are here so the
+            # LEAN shortlist can include one interaction rather than three single knobs.
+            print("\n=== 4. pairs ===")
+            for h, hold in [(0.2, 5), (0.35, 5), (0.2, 10)]:
+                run(prices, replace(P, hysteresis=h, min_hold=hold),
+                    f"hysteresis={h} min_hold={hold}")
+            for h, k in [(0.2, 3), (0.35, 3)]:
+                run(prices, replace(P, hysteresis=h, rank_persist=k),
+                    f"hysteresis={h} rank_persist={k}")
+
+        if section(5):
+            print("\n=== 5. finalists in and out of sample ===")
+            both(P, "champion")
+            for label, params in [("hysteresis=0.35", replace(P, hysteresis=0.35)),
+                                  ("min_hold=5", replace(P, min_hold=5)),
+                                  ("rank_persist=3", replace(P, rank_persist=3))]:
+                both(params, label)
 
         print("--- benchmarks ---")
         for ticker in ["SPY", "QQQ"]:

@@ -48,5 +48,17 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   the S-5 allocator) rather than by leverage. Nothing is blocked today - the champion and the
   I-1 paper deployment are unaffected - but until this is answered the loop cannot pursue the
   mandate as written.
+
+  **Addendum 2026-09-08 (S-11), which sharpens option (b) into a specific trade.** The whipsaw
+  controls buy drawdown cheaply, and spending that headroom on size produces a run that beats
+  the champion on *absolute* return at the *same* drawdown: `min_hold=10` with
+  `margin_budget=0.85` earns CAR 25.07% at 25.7% drawdown (champion: 23.61% at 25.9%), on 306
+  fewer orders and $2k less commission - but at Sharpe 0.861 against 0.874. `evaluate.py`
+  refuses it, correctly, because `champion.json` requires beating the champion on Sharpe *and*
+  CAR. So there is now a second, smaller decision inside this one: **is +1.5 points of annual
+  return at unchanged drawdown worth 0.013 of Sharpe?** Under `USER.md`'s aggressive mandate
+  the answer is plausibly yes, but changing a promotion rule is a change of risk posture and
+  is not the loop's call. Answer it here (or say "keep Sharpe as a hard gate") and the loop
+  will either re-run that cell through the sub-periods and promote it, or stop proposing it.
 - **2026-09-08 IBKR paper account.** Install IB Gateway and log in with the paper account so
   backlog I-1 can be built and tested. LEAN expects API port 4002 (Gateway) or 7497 (TWS).

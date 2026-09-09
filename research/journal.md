@@ -2,6 +2,86 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-08 - S-11: the whipsaw is real, and suppressing it buys drawdown, not return
+
+**Hypothesis.** S-10's calendar decomposition said the champion's losses are not crises and
+not the out-of-sample half - they are 2014/2015/2016 and 2024, and the worst drawdown is a
+16-month grind from 2015-07-20 - which is the signature of a ranking that rotates into
+whichever sleeve member has just topped out. Three levers, all defaulted off, all of which
+also cut turnover (the direction S-3's 2.1bps cost floor rewards): (a) **hysteresis** - an
+incumbent's score is credited with `hysteresis` *cross-sectional standard deviations* of the
+day's scores before the ranking is cut at `top_n`; (b) **min_hold** - a funded name keeps its
+slot for N more decisions unless the entry gate itself refuses it; (c) **rank_persist** - a
+name not already held must have led for k consecutive bars before it is funded.
+
+Two implementation notes worth keeping. The hysteresis margin is measured in the day's own
+score dispersion, not in return: the blended score is a mean of raw returns whose scale moves
+by an order of magnitude between 2017 and 2020, so a fixed return margin would be inert in
+one regime and binding in the other. And `rank_persist` is computed by **re-scoring truncated
+price windows** rather than from remembered rankings, so it stays stateless and the I-1 paper
+runner reproduces it from prices alone; (a) and (b) do need memory, and it rides in the
+existing `state` dict (`held`, `held_age`) that the runner already persists. `drawdown_multiplier`
+rebuilds that dict from scratch, so the incumbent set is read before it is called and written
+back after - and every early return (risk-off, drawdown-flat, no winners, all stopped) leaves
+`held` empty, because each of those is a decision to sit in cash and must not leave a phantom
+incumbent to defend.
+
+**Control first.** LEAN run `20260909T024906Z` at the defaults reproduces
+`OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf` bit for bit, so the plumbing is provably inert.
+
+### Result (LEAN, full period 2012-01-03 .. 2026-09-04)
+
+| cell | CAR | Sharpe | MaxDD | orders | fees |
+| --- | --- | --- | --- | --- | --- |
+| champion (control) | **23.61%** | **0.874** | 25.9% | 2,573 | $37,380 |
+| (a) hysteresis 0.05 sigma | 23.57% | 0.873 | 24.6% | 2,200 | $29,562 |
+| (a) hysteresis 0.10 sigma | 23.12% | 0.858 | 23.8% | 1,998 | $25,673 |
+| (a) hysteresis 0.20 sigma | 22.34% | 0.827 | 23.5% | 1,832 | $22,729 |
+| (b) min_hold 10 | 23.15% | 0.860 | **22.8%** | 1,901 | $27,194 |
+| (c) rank_persist 2 | 22.77% | 0.832 | 21.6% | 2,727 | $46,345 |
+
+**The champion's rotation is not noise.** Every device that refuses a rank crossing takes
+return with it, monotonically in the strength of the refusal: the frontier slides along, it
+does not move up. Nothing here beats the champion on both CAR and Sharpe, and `evaluate.py`
+refuses the best of them on exactly that (`Sharpe 0.873 does not beat 0.874`,
+`CAR 23.568% does not beat 23.605%`).
+
+**But the exchange rate is cheap in drawdown terms**, which matters because S-8 established
+that drawdown, not vol, is what binds this book's size. `min_hold=10` gives up 0.45 points of
+CAR and buys 3.1 points of drawdown and $10k of fees; hysteresis at 0.05 sigma gives up 0.04
+points of CAR - a rounding error - for 1.3 points of drawdown, 373 fewer orders and $7.8k less
+commission. Sub-periods on that cell say the gain lands exactly where S-10 diagnosed the
+problem: **IS 2012-2019 17.73% / 0.806 / 24.6% beats the champion's 17.64% / 0.801 / 25.9% on
+all three**, while OOS 2020-2026 30.85% / 0.965 / 21.5% is a hair behind 31.09% / 0.972 / 21.5%.
+The whipsaw control fixes the whipsaw years and does nothing in the years that had no whipsaw.
+
+**Spending the headroom on size does not recover the return.** Two frontier points:
+hysteresis 0.05 + `margin_budget` 0.90 earns 25.21% CAR at 30.4% drawdown and 0.840 Sharpe;
+`min_hold=10` + budget 0.85 earns **25.07% CAR at 25.7% drawdown** - matched with the champion
+on drawdown, ahead by 1.47 points of CAR, cheaper by 306 orders and $2k of fees - but at 0.861
+Sharpe. Return/vol is simply lower for these signals (1.30 vs 1.36), so no size setting fixes
+it; the promotion rule that requires beating Sharpe *and* CAR is doing its job here rather
+than getting in the way.
+
+**Harness agreement, for the record.** The sweep and LEAN disagreed again on magnitude and on
+the sign of the CAR effect (the sweep scored hysteresis 0.05 at 21.8% CAR / 1.06 against a
+21.2% / 1.03 control, i.e. a clear win; LEAN says a hair worse) but they agreed on the two
+things that decided the iteration: the drawdown improvement, and the fact that `rank_persist`
+*raises* turnover (sweep 0.15 vs 0.13; LEAN 2,727 orders and $46k of fees against 2,573 and
+$37k) because blocking an entry parks the book in cash and then buys it back.
+
+- **Decision. No promotion; champion unchanged at S-10.** All three parameters ship defaulted
+  off in `signals.py`/`main.py` (`S1_HYSTERESIS`, `S1_MIN_HOLD`, `S1_RANK_PERSIST`) with the
+  measured numbers in the docstrings. S-11 closes as a *measured trade-off*, not a dead end:
+  it says the champion's turnover is paid for, and it hands the human a concrete frontier
+  point - 25.07% CAR at the same 25.9%-class drawdown for 0.013 of Sharpe - if the promotion
+  rule's Sharpe clause is ever to be traded against the aggressive-return mandate.
+- **Next.** The two things left that can move return without spending turnover are a *second*
+  uncorrelated sleeve (S-5 has nothing to allocate to until S-2 exists) and intraday data
+  (D-2). Both sit behind the IB Gateway login, which is also the only thing between the built
+  I-1 runner and the 2026-09-10 paper deadline. That login is the binding constraint on this
+  repository now, and it is in `research/BLOCKERS.md`.
+
 ## 2026-09-08 - S-10: the textbook skip-a-month is wrong, a skip-a-week is right (new champion)
 
 **Hypothesis.** S-9 opened three follow-ups and this run answers all three on the honest

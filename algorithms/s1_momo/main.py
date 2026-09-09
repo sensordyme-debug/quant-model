@@ -98,6 +98,12 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             mom_skip_min_lookback=_env("MOM_SKIP_MIN_LOOKBACK", 120, int),
             mom_weights=tuple(float(x) for x in
                               os.environ.get("S1_MOM_WEIGHTS", "").split(",") if x.strip()),
+            # S-11: all three default to the champion's behaviour (no hysteresis, no
+            # holding lock, no persistence requirement), so an unset environment
+            # reproduces the S-10 order list exactly.
+            hysteresis=_env("HYSTERESIS", 0.0),
+            min_hold=_env("MIN_HOLD", 0, int),
+            rank_persist=_env("RANK_PERSIST", 0, int),
         )
 
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)

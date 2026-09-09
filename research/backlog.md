@@ -11,6 +11,16 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-08 (latest): **S-11 closed negatively - the champion stands at S-10.** Every
+whipsaw control (hysteresis, minimum holding period, rank persistence) trades return for
+drawdown roughly in proportion, so the champion's turnover is *paid for*: its rotation is
+signal, not noise. What the iteration does leave behind is a priced frontier - `min_hold=10`
+plus `margin_budget=0.85` earns 25.07% CAR at 25.7% drawdown (champion 23.61% at 25.9%) for
+0.013 of Sharpe - which is now a one-line question to the human in `BLOCKERS.md`. Signal work
+that adds return without adding turnover has therefore run out of cheap moves on this sleeve;
+the next real gains are a second uncorrelated sleeve (S-2/S-5) and intraday data (D-2), and
+both of those, like I-1, wait on the IB Gateway login.
+
 Status 2026-09-08: **S-10 has promoted a new champion** - S-9 with the 120- and 252-day
 momentum windows ending one trading week before the decision bar: CAR 20.9% -> **23.6%**,
 Sharpe 0.78 -> **0.87**, drawdown 28.9% -> **25.9%**, at 10% fewer orders, beating the old
@@ -59,19 +69,6 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   `equity/usa/minute/<symbol>/<yyyyMMdd>_trade.zip` holding
   `<yyyyMMdd>_<symbol>_minute_trade.csv` with rows `<ms since midnight ET>,o,h,l,c,v`,
   prices scaled by 10000. Reuse the writer/validator structure already in `fetch_data.py`.
-- **S-11 The whipsaw, which is now the champion's whole remaining weakness (new).**
-  S-10's calendar decomposition says the losses are not crises and not the OOS half: they
-  are 2014 (-4.9% excess vs SPY), 2015 (-5.9%), 2016 (-11.3%) and 2024 (-17.0%), and the
-  worst drawdown is one 16-month grind from 2015-07-20 to 2016-11-07. The crisis-vol filter
-  already handles crashes (2022 is the best excess year at +33.3%). What is left is a
-  ranking that rotates the book into whichever sleeve member has just topped out. Three
-  concrete levers, cheapest first: (a) **hysteresis** - require a challenger to beat the
-  incumbent's score by a margin before the swap, so a rank crossing on noise does not trade;
-  (b) **minimum holding period** - a name entered must be held N sessions unless it fails the
-  entry gate outright; (c) **rank persistence** - require a name to have been in the top
-  `top_n` for k consecutive sessions before it is funded. All three cut turnover, which is
-  the direction S-3's 2.1bps cost floor rewards. Judge against the new champion:
-  23.6% / 0.874 / 25.9%, 2,573 orders. Confirm every cell in LEAN, not only in the sweep.
 - **S-2 Opening-range breakout.** Intraday on SPY/QQQ/IWM (futures later). Enter on a
   break of the first 15-30 minute range with ATR stops, scale out into strength, flat at
   close. Hypothesis: high-frequency small edges compound into volatile but positive equity.
@@ -84,6 +81,29 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Done
 
+- **S-11 The whipsaw. Closed negatively 2026-09-08**, runs `20260909T024906Z` (control,
+  reproduces `OrderListHash ff4a7cbaaf6e36e58ace2b82ab216bdf`), `20260909T025256Z` /
+  `025647Z` / `030039Z` (hysteresis 0.05/0.10/0.20 sigma), `20260909T030434Z` (min_hold=10),
+  `20260909T030824Z` (rank_persist=2), `20260909T031243Z` and `20260909T032059Z` (the two
+  size-spend frontier points), `20260909T031632Z` / `031842Z` (sub-periods). No promotion.
+  All three levers shipped in `signals.py` defaulted off (`hysteresis`, `min_hold`,
+  `rank_persist`; env `S1_HYSTERESIS`, `S1_MIN_HOLD`, `S1_RANK_PERSIST`), plus
+  `sweep_s1.py --mode s11`. **The core finding is that the champion's rotation is not
+  noise**: refusing a rank crossing removes return monotonically in the strength of the
+  refusal (hysteresis 0.05 -> 0.20 sigma walks CAR 23.57% -> 22.34% and Sharpe 0.873 ->
+  0.827), so the frontier slides along rather than moving up. It is however a *cheap* trade
+  in drawdown: `min_hold=10` costs 0.45 points of CAR and buys 3.1 points of drawdown and
+  $10k of fees; hysteresis 0.05 costs 0.04 points of CAR (a rounding error) for 1.3 points of
+  drawdown, 373 fewer orders and $7.8k less commission, and its sub-periods put the whole
+  gain in the IS half where S-10 diagnosed the whipsaw (IS 17.73%/0.806/24.6% beats the
+  champion's 17.64%/0.801/25.9% on all three; OOS is a hair behind). Spending the headroom on
+  size does not recover the return - `min_hold=10` + `margin_budget=0.85` reaches 25.07% CAR
+  at a matched 25.7% drawdown but 0.861 Sharpe, refused by `evaluate.py` on the Sharpe rule
+  and now a named question for the human in `BLOCKERS.md`. `rank_persist` is the one lever
+  both harnesses reject outright: blocking an entry parks the book in cash and buys it back,
+  so it *raises* turnover (2,727 orders, $46k fees against 2,573 and $37k). Implementation
+  note for I-1: (a) and (b) persist `held`/`held_age` in the existing `state` dict the runner
+  already round-trips; (c) is stateless by construction.
 - **S-10 Skip-a-month momentum and horizon weighting. PROMOTED 2026-09-08**, run
   `20260909T013820Z` (control `20260909T005513Z`, sub-periods `20260909T013359Z` /
   `20260909T013608Z`, LEAN skip scan `20260909T0059-0122`). Two levers, both defaulted off,
