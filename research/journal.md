@@ -2,6 +2,38 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - A-0: the intraday active sleeve, first evidence and the deployed mix
+
+- **What.** Built the intraday sleeve end to end (see AGENTS.md "The intraday active sleeve"):
+  16-name disjoint universe, IBKR 1-minute store (`data/minute`, 3 months, being extended to
+  9), causal features, four strategies (ORB, VWAP trend, late-day momentum, gap fade), a
+  minute backtester with 1.5 bps slippage + IBKR commission, and a live trader with an offline
+  replay. Deployed via the 09:25 ET task with a replay preflight.
+- **Why.** Owner mandate: a volatile, high-turnover book on most of the capital by the
+  2026-09-10 open. The daily champion runs ~16% vol; this sleeve is where the turnover lives.
+- **Result (16 names, fixed window 2026-06-11..2026-09-09, split 2026-08-15, after costs).**
+  Trend-following loses *before* costs at the 1-minute horizon: VWAP trend -82%/yr IS,
+  -89%/yr OOS at ~150 trades/day; late-day momentum -25%/yr IS, -29%/yr OOS with 29% winning
+  days. Their inverses are the edge: **late-day fade** +18%/yr Sharpe 2.9 IS, +25%/yr Sharpe
+  8.2 OOS, 11 trades/day, worst day -1.7k OOS; **VWAP fade** (30 bps band, 8 bps exit,
+  15-bar momentum) +124%/yr Sharpe 4.2 OOS at ~100 trades/day, but negative over the longer
+  (unstable, extension-in-progress) in-sample window, so it is a regime bet. ORB is ~0 IS,
+  +14%/yr OOS. Gap fade fails OOS (-31%/yr).
+- **Deployed mix** (`live/intraday_config.json`): late fade x1.0, VWAP fade x0.5, ORB x0.5,
+  per-symbol 0.15, gross 1.5. Fixed-window result: IS +22.6%/yr Sharpe 1.31 (45 sessions,
+  1 loss-limit day, worst -27k), OOS +119%/yr Sharpe 9.5 (17 sessions, worst -7.6k), 133-146
+  trades/day, turnover ~8x equity/day, costs ~$1.6k/day, daily P&L std $5-10k. The
+  conservative alternative without VWAP fade: IS +15.6%, OOS +35%, 45 trades/day.
+- **Caveats, stated plainly.** 62 sessions is a short sample; OOS is 17 sessions. The
+  in-sample counts in the ledger rows from 15:4x-16:1x UTC differ because the 9-month
+  extension was writing older sessions between runs; only rows with `--start 2026-06-11` are
+  comparable. IBKR quotes are 15 minutes delayed without a subscription, so the live trader
+  uses the Yahoo 1-minute feed (measured real-time) until the owner subscribes; paper fills
+  may still be simulated on delayed data.
+- **Next.** A-6: once the 9-month store lands, re-run every strategy and the mix on the full
+  window with a 2-way split; re-derive the deployed mix from that; measure the sleeve's
+  correlation with the daily champion; then A-1/A-2 refinements.
+
 ## 2026-09-09 - D-2: intraday data, and the month boundary that ate a session a month
 
 **Why this.** `paper_trade.py --check` was the first thing run this iteration and it now

@@ -42,12 +42,13 @@ class Pacer:
 
 
 def month_ends(months: int) -> list[dt.datetime]:
-    """End timestamps (ET) for each 1-month request, newest first."""
+    """End timestamps (ET) for each 1-month request, newest first. Windows step 25 days but
+    each request covers a month, so consecutive windows overlap by ~5 days: IBKR can drop the
+    first session of a window whose start falls after that session's close (found by
+    scripts/fetch_minute.py on 2026-09-09), and the overlap plus de-duplication in save_bars
+    recovers it."""
     now = dt.datetime.now(ET)
-    ends = []
-    for i in range(months):
-        ends.append(now - dt.timedelta(days=30 * i))
-    return ends
+    return [now - dt.timedelta(days=25 * i) for i in range(months)]
 
 
 def fetch_symbol(ib, symbol: str, months: int, pacer: Pacer, force: bool) -> int:

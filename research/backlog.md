@@ -152,7 +152,18 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-1 Make the VWAP-trend engine pay for its turnover.** It is the turnover engine (21
+- **A-6 Re-derive the deployed mix on the full 9-month store (top item once the extension
+  finishes; check `python scripts/intraday_data.py --status` shows ~184 sessions per name).**
+  A-0 found the edge in the *inverses*: late-day fade (robust in both halves) and VWAP fade
+  (huge OOS, negative on the longer IS window, i.e. a regime bet at half size). Re-run
+  `scripts/intraday_backtest.py` for orb, vwap_trend(direction -1, band 30/8, mom 15),
+  late_momo(direction -1), gap_fade and the `active` mix with `--start <first session>
+  --split <2/3 point>`; keep only strategies positive after costs in both halves; if VWAP fade
+  is negative on the long window, set its alloc to 0.25 or 0. Record the mix change in the
+  journal and `live/intraday_config.json`. Also verify the store has no dropped first-of-window
+  sessions (compare session count to the daily calendar; `intraday_data.py` now overlaps
+  windows, re-run `--months 9 --force` if gaps exist).
+- **A-1 Make the VWAP fade pay for its turnover (was: VWAP trend).** It is the turnover engine (21
   trades/day on two names) and loses ~12%/yr after $400/day of costs on 2 names. Candidates,
   one per iteration: wider entry band (20-30 bps) with a minimum hold (10-15 bars); only trade
   in the direction of the session's trend (`day_ret` sign, or price on the same side of VWAP

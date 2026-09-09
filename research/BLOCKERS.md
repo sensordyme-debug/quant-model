@@ -2,6 +2,16 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
+## Open request to the owner (2026-09-09, intraday sleeve)
+
+- **Real-time market data subscription.** The paper account has no quote subscription:
+  IBKR bars and quotes arrive 15 minutes late (measured), so the intraday trader runs on the
+  Yahoo 1-minute feed. IBKR simulates paper fills from the data the account is entitled to,
+  so fills may be stale until a subscription exists. Client Portal -> Settings -> Market Data
+  Subscriptions -> "US Securities Snapshot and Futures Value Bundle" (~$10/month, waived with
+  commissions) or the US equity streaming add-on; then restart Gateway once. After that the
+  trader's feed auto-detection will pick IBKR bars (`feed_probe` in the intraday log).
+
 ## Decisions taken by the owner on 2026-09-09 (all four open items answered)
 
 1. **Volatility mandate vs the 35% drawdown limit: option (c).** The 35% cap stays for
