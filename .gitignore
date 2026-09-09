@@ -10,6 +10,7 @@ __pycache__/
 *.key
 *.pem
 live/secrets*.json
+live/secrets.env
 # machine-local paper-trading state and gates (never committed by automation)
 live/log/
 live/state/
