@@ -327,9 +327,24 @@ def main() -> int:
             positions[sym] = positions.get(sym, 0) + int(pos.position)
         print(f"account {account_id}  net liquidation {net_liq:,.2f}  positions {positions or 'none'}")
         if args.check:
-            for tag in ("TotalCashValue", "BuyingPower", "GrossPositionValue", "AvailableFunds"):
+            for tag in ("TotalCashValue", "BuyingPower", "GrossPositionValue", "AvailableFunds", "UnrealizedPnL", "RealizedPnL"):
                 if tag in summary:
                     print(f"  {tag}: {summary[tag]}")
+            items = [p for p in ib.portfolio(account_id) if p.position]
+            if items:
+                print(f"\n{'symbol':<8}{'shares':>10}{'avg cost':>12}{'price':>12}{'mkt value':>16}{'unreal P&L':>14}")
+                for p in sorted(items, key=lambda x: -abs(x.marketValue)):
+                    print(f"{p.contract.symbol:<8}{p.position:>10g}{p.averageCost:>12.2f}{p.marketPrice:>12.2f}"
+                          f"{p.marketValue:>16,.2f}{p.unrealizedPNL:>14,.2f}")
+                print(f"{'total':<8}{'':>10}{'':>12}{'':>12}{sum(p.marketValue for p in items):>16,.2f}"
+                      f"{sum(p.unrealizedPNL for p in items):>14,.2f}")
+            today_log = LOG_DIR / f"{dt.date.today():%Y-%m-%d}.jsonl"
+            if today_log.exists():
+                fills = [json.loads(l) for l in today_log.read_text(encoding="utf-8").splitlines() if '"event": "fill"' in l]
+                if fills:
+                    print("\ntoday's fills:")
+                    for f_ in fills:
+                        print(f"  {f_.get('symbol'):<8}{f_.get('status'):<12}filled {f_.get('filled')} @ {f_.get('avg_price')}")
             ib.disconnect()
             return 0
 
