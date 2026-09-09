@@ -15,7 +15,10 @@ if ($tz -notlike "*Eastern*") {
     Write-Warning "Local time zone is '$tz', not Eastern. 15:45 local will not be 15:45 ET; adjust -At below."
 }
 $repo = (Resolve-Path "$PSScriptRoot\..").Path
-$python = (Get-Command python).Source
+# Resolve through any Store/App-Execution alias to the real interpreter; Task Scheduler does
+# not reliably launch the WindowsApps alias files.
+$python = (& python -c "import sys; print(sys.executable)").Trim()
+if (-not (Test-Path $python)) { throw "could not resolve the python executable (got '$python')" }
 $action = New-ScheduledTaskAction -Execute $python -Argument "`"$repo\scripts\paper_trade.py`"" -WorkingDirectory $repo
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At 15:45
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 20) -StartWhenAvailable

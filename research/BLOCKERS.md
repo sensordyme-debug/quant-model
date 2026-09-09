@@ -78,6 +78,11 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   baseline I-1's pre-deploy comparison is built on. Say "keep 0.01" and this is closed; name a
   wider band and the loop will re-run that cell, re-verify the runner against it and rebaseline
   the hash before deploy. Nothing is blocked today - the champion and I-1 are unaffected.
+- **RESOLVED 2026-09-09 ~14:30 UTC: IB Gateway API is up.** The human accepted the paper
+  disclaimer; `paper_trade.py --check` returns account `DUT091359`, net liquidation
+  $1,000,344, margin enabled (buying power $4M), no positions. I-1's remaining step is the
+  human creating `live/APPROVED_PAPER.md`; D-2 (IBKR minute history) is unblocked now.
+  Kept below for the record:
 - **2026-09-09 IB Gateway API disclaimer (one click, blocks the whole 2026-09-10 deadline).**
   Supersedes the 2026-09-08 "install IB Gateway and log in" item, which is **done**: port 4002
   is open and answering as of 13:40 UTC today, so Gateway is running and logged in. The API
