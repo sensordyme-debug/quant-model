@@ -2,6 +2,38 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - Paper session 2026-09-09 (ops close)
+
+End-of-day operations check. The daily sleeve rebalanced and filled; the intraday sleeve did
+**not** run a live session today - the paper deploy date for it is 2026-09-10, and everything
+in `live/log/intraday-2026-09-09.jsonl` is research replay plus two short dry-run launches.
+
+| sleeve | trades | P&L | costs | worst event |
+| --- | --- | --- | --- | --- |
+| daily (`s1_momo`) | 3 fills (TQQQ 3700, XLE 7333, XLK 2616, all BUY MKT, all Filled) | -497.79 unrealised at 15:50 ET | not itemised in the log; slippage vs stale ref prices: XLE +0.96%, TQQQ -0.93%, XLK -0.01% | 4x `connect_failed` to 127.0.0.1:4002 between 09:38 and 09:46 ET (IB Gateway not yet up); the 15:45 run connected first try |
+| intraday (`active`) | 0 live trades | 0 | 0 | 2 dry-run launches (11:08, 11:12 ET) ran ~7 min and were stopped; no `end` event, no live snapshot, no fills |
+
+- **Daily rebalance, 15:45 ET.** Plan `s1_momo` as-of 2026-09-08, regime risk-on (vol 0.0832 vs
+  median 0.127), winners XLE/XLK/QQQ, vol_scale 1.31, gross weight 1.2331, effective exposure
+  1.7669. Targets XLE 0.4748, XLK 0.4913, TQQQ 0.2669 on net liq 1,000,344.32. Three market
+  orders sent at 19:45:07-08 UTC, all filled by 19:46:38 UTC: TQQQ 3700 @ 71.49, XLE 7333 @
+  65.39, XLK 2616 @ 187.8508. Post-trade gross position value 1,235,006.07 (1.23x net liq),
+  cash -235,503.86, available funds 558,561.03, unrealised -497.79.
+- **Intraday sleeve.** No live session. Preflight/replay ran repeatedly over 2026-09-04 and
+  2026-09-08 (the last replay of 09-08 ends -5,271 P&L, 40 trades, 854 costs - research, not
+  the paper book). Two `start` events today both carry `dry_run: true`. One `stale_book` event
+  at 11:08 ET reported a leftover book (NVDA -667, AAPL -478, MSFT 202) from an earlier dry
+  run; the 11:12 relaunch logged `ignored_book_file` and discarded it. `feed_probe` measured
+  IB delayed quotes at 14.0 minutes, as expected on the paper data subscription.
+- **Flat check.** `live/state/intraday_book.json` does not exist and the broker account holds
+  only daily-sleeve names (XLK, XLE, TQQQ) - no intraday universe symbols. The sleeve is flat;
+  no `--flatten` was required or run.
+- **Loss limit / halt / error events.** None in either log today.
+- **Open item.** `notify_failed` at 10:06 ET: Telegram bot token missing, so the daily plan
+  notification did not send. Ops-only, does not affect trading.
+- **Next.** Tomorrow is the intraday sleeve's first scheduled live paper session (09:25 ET task).
+  Verify the preflight replay passes and that the launch is not `--dry-run`.
+
 ## 2026-09-09 - A-2: ORB tail control. The tail does not come off for free; what the stop does is rotate return between regimes
 
 - **What.** Nine variants of `algorithms/intraday/orb/signal.py` on the 9-month store, fixed
