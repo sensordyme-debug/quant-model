@@ -11,6 +11,9 @@ talks to it over the local API socket.
   automated job.
 - `HALT` - kill switch. If present, the next run flattens every position and stops. Delete it
   to resume.
+- `alerts.json` - optional phone alerts: `{"channel": "telegram", "target": "<your chat id>"}`.
+  When present, every plan, fill, refusal, flatten and connection failure is pushed through
+  OpenClaw's chat channel (`openclaw message send`). Alert failures are logged, never fatal.
 - `log/YYYY-MM-DD.jsonl` - every plan, order, fill and refusal, one JSON object per line.
 - `state/last_run.json` - last targets, equity high-water mark used by drawdown overlays.
 

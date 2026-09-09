@@ -15,6 +15,7 @@ live/log/
 live/state/
 live/HALT
 live/APPROVED_PAPER.md
+live/alerts.json
 # editor / os noise
 .vscode/
 .idea/

@@ -33,6 +33,7 @@ LOG_DIR = LIVE / "log"
 STATE_DIR = LIVE / "state"
 APPROVAL = LIVE / "APPROVED_PAPER.md"
 HALT = LIVE / "HALT"
+ALERTS = LIVE / "alerts.json"          # {"channel": "telegram", "target": "<chat id>"}; optional
 CHAMPION = REPO / "research" / "champion.json"
 
 IB_SYMBOL_MAP = {"BRK-B": "BRK B", "BRKB": "BRK B", "BF-B": "BF B"}
@@ -65,6 +66,37 @@ def log_event(kind: str, **fields) -> None:
     rec = {"ts": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "event": kind, **fields}
     with (LOG_DIR / f"{dt.date.today():%Y-%m-%d}.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, default=str) + "\n")
+
+
+def notify(text: str) -> None:
+    """Push a short message through OpenClaw's chat channel (Telegram etc.) if live/alerts.json
+    exists. Never raises: a broken alert path must not stop or alter trading."""
+    if not ALERTS.exists():
+        return
+    try:
+        import os
+        import shutil
+        import subprocess
+        cfg = json.loads(ALERTS.read_text(encoding="utf-8"))
+        channel, target = cfg.get("channel"), str(cfg.get("target", ""))
+        if not channel or not target:
+            return
+        node_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "nodejs"
+        entry = node_dir / "node_modules" / "openclaw" / "dist" / "index.js"
+        if (node_dir / "node.exe").exists() and entry.exists():
+            cmd = [str(node_dir / "node.exe"), str(entry)]
+        else:
+            exe = shutil.which("openclaw")
+            if not exe:
+                log_event("notify_failed", error="openclaw CLI not found")
+                return
+            cmd = [exe]
+        cmd += ["message", "send", "--channel", channel, "--target", target, "--message", text[:3500]]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+        if res.returncode != 0:
+            log_event("notify_failed", error=(res.stderr or res.stdout)[-400:])
+    except Exception as exc:  # noqa: BLE001
+        log_event("notify_failed", error=str(exc)[:400])
 
 
 class DemoSignal:
@@ -282,6 +314,8 @@ def main() -> int:
             print(f"cannot connect to IB Gateway at {args.host}:{args.port}: {exc}")
             print("Is IB Gateway running and logged in, with API enabled on that port?")
             log_event("connect_failed", host=args.host, port=args.port, error=str(exc))
+            notify(f"paper_trade: cannot connect to IB Gateway {args.host}:{args.port}. Book unchanged. "
+                   "Is Gateway logged in (weekly IB Key) and the paper disclaimer accepted?")
             return 1
         accounts = ib.managedAccounts()
         account_id = accounts[0] if accounts else ""
@@ -303,6 +337,7 @@ def main() -> int:
     if not account_id.startswith("DU"):
         print(f"REFUSED: account {account_id!r} is not an IBKR paper account (paper ids start with DU)")
         log_event("refused", reason="not_paper_account", account=account_id)
+        notify(f"paper_trade REFUSED: connected account {account_id!r} is not a paper account. No orders.")
         if ib:
             ib.disconnect()
         return 3
@@ -323,6 +358,10 @@ def main() -> int:
             for t in trades:
                 log_event("fill", symbol=t.contract.symbol, status=t.orderStatus.status,
                           filled=t.orderStatus.filled, avg_price=t.orderStatus.avgFillPrice)
+            notify(f"paper_trade FLATTEN ({reason}): " + ", ".join(
+                f"{t.contract.symbol} {t.orderStatus.status} {t.orderStatus.filled}@{t.orderStatus.avgFillPrice}" for t in trades))
+        else:
+            notify(f"paper_trade FLATTEN requested ({reason}); dry run or nothing to close. Positions: {positions or 'none'}")
         if ib:
             ib.disconnect()
         return 2
@@ -360,14 +399,21 @@ def main() -> int:
     save_state({**state, "signal": name, "as_of": str(as_of.date()), "targets": targets,
                 "ran_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "dry_run": args.dry_run or args.mock})
 
+    mode = "MOCK" if args.mock else ("DRY RUN" if args.dry_run else "LIVE PAPER")
+    order_lines = [f"{'BUY' if d > 0 else 'SELL'} {abs(d)} {s} @~{p:.2f}" for s, d, p, _, _ in plan if d is not None]
+    plan_text = (f"paper_trade [{mode}] {account_id} NLV {net_liq:,.0f} signal {name} as of {as_of.date()} "
+                 f"({diag.get('reason', '')}) targets {targets or 'flat'}; orders: "
+                 + ("; ".join(order_lines) if order_lines else "none"))
     if args.dry_run or args.mock:
         print("dry run: no orders sent")
+        notify(plan_text)
         if ib:
             ib.disconnect()
         return 0
     if not APPROVAL.exists():
         print(f"REFUSED: {APPROVAL} is missing; create it to allow paper orders")
         log_event("refused", reason="no_approval_file")
+        notify("paper_trade REFUSED: live/APPROVED_PAPER.md is missing, no orders sent. " + plan_text)
         ib.disconnect()
         return 3
 
@@ -385,10 +431,13 @@ def main() -> int:
         log_event("order", symbol=sym, action=action, qty=abs(delta), type=args.order_type, ref_price=px)
         print(f"sent {action} {abs(delta)} {sym} ({args.order_type})")
     ib.sleep(FILL_WAIT_SECONDS if args.order_type == "MKT" else 5)
+    fill_lines = []
     for t in trades:
         st = t.orderStatus
         log_event("fill", symbol=t.contract.symbol, status=st.status, filled=st.filled, remaining=st.remaining, avg_price=st.avgFillPrice)
         print(f"{t.contract.symbol}: {st.status} filled {st.filled} @ {st.avgFillPrice}")
+        fill_lines.append(f"{t.contract.symbol} {st.status} {st.filled:g}@{st.avgFillPrice:.2f}" + (f" (rem {st.remaining:g})" if st.remaining else ""))
+    notify(plan_text + " | fills: " + ("; ".join(fill_lines) if fill_lines else "none"))
     ib.disconnect()
     return 0
 
