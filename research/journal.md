@@ -2,6 +2,94 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - A-1: the VWAP fade is repairable but not additive. Retired from the mix, alloc stays 0
+
+- **What.** Eleven variants of `algorithms/intraday/vwap_trend/signal.py` plus six sleeve-level
+  runs, fixed window 2025-12-15..2026-09-08, split 2026-06-15, 124 IS / 59 OOS sessions.
+  The module was given the five levers A-1 named, every one defaulted to the shipped
+  behaviour: `min_hold`, `skip_from`/`skip_to` (a midday blackout), `trend_align`/`trend_min`
+  (a session-trend filter), `atr_expand_min` (a range-expansion gate on the session-so-far
+  mean ATR14, accumulated causally) and `agg` (a coarser decision cadence). The refactor is
+  exact - the control run reproduces the A-6 fade to the digit, IS -56.040% / OOS -10.132%.
+- **Why.** Top backlog item. The fade is the sleeve's only turnover engine at ~98 trades/day
+  and A-6 set its alloc to 0 because it loses -56%/yr in-sample. A-1's own exit criterion:
+  make it positive in both halves after costs, or delete the alloc entry and close it.
+
+### Standalone (annualized after costs, IS -> OOS)
+
+| variant | IS CAR / Sharpe | OOS CAR / Sharpe | trades/day IS | $/trade OOS |
+| --- | --- | --- | --- | --- |
+| control (30/8, shipped) | -56.0 / -3.26 | -10.1 / -0.26 | 97.8 | -4 |
+| band 50/12 + hold 12 | -50.9 / -2.92 | -11.1 / -0.35 | 67.8 | -6 |
+| 5-minute cadence | -57.5 / -3.57 | -9.7 / -0.29 | 72.6 | -5 |
+| skip 11:30-14:00 | -50.1 / -2.96 | -3.7 / -0.02 | 83.3 | -2 |
+| **trend filter, 20 bps** | **-11.9 / -1.00** | **+16.9 / +1.23** | 31.7 | +18 |
+| trend filter, 10 bps | -8.9 / -0.71 | +23.6 / +1.64 | 34.2 | +23 |
+| trend filter, 40 bps | -5.3 / -0.49 | +15.6 / +1.16 | 26.1 | +19 |
+| trend filter **inverted** | -46.3 / -2.78 | -5.5 / -0.13 | 74.9 | -3 |
+| trend + 50/12 + hold 12 | -1.4 / -0.09 | +9.7 / +0.81 | 17.2 | +18 |
+| trend + 50/12 + hold 12, 40 bps | -1.9 / -0.15 | +11.1 / +0.92 | 14.5 | +24 |
+| **trend + 70/15 + hold 20** | **+0.8 / +0.13** | **+11.3 / +0.94** | 11.0 | +32 |
+| + range expansion 1.2x | -0.7 / -0.27 | +5.4 / +2.45 | 0.8 | +263 |
+
+- **Only one of the five levers is a mechanism.** Min hold, the midday blackout and the coarse
+  cadence each remove trades roughly in proportion to the loss they remove and leave the
+  module deeply negative - they shrink the position, they do not change the sign. The
+  **session-trend filter does change the sign**: taking only the fades that lean *with* the
+  day's direction (buy the dip below VWAP on an up day, short the pop above VWAP on a down
+  day) moves the module from -56.0/-10.1 to -11.9/+16.9 while cutting turnover by two thirds.
+  **Inverting the filter is the control and it fails as predicted** (-46.3/-5.5), so this is
+  the mechanism and not a threshold that happened to land well: the fade was losing because it
+  was fighting trend days, and the losses are concentrated in exactly the trades the filter
+  removes. It is also a shelf - `trend_min` at 10, 20 and 40 bps all give OOS Sharpe 1.16-1.64
+  and the same sign in both halves.
+- **Range expansion is not usable.** Requiring atr14 >= 1.2x the session's mean kills the
+  module: 0.8 trades/day, 104 trades over 124 sessions. The OOS Sharpe of 2.45 on 50 trades is
+  not a result, it is an empty sample, and it is not carried forward.
+- **Stacking the levers onto the trend filter walks a frontier, it does not climb.** Widening
+  the band and adding a hold trades OOS return for IS return one-for-one - 20 bps alone is
+  -11.9/+16.9, plus 50/12 and hold 12 is -1.4/+9.7, plus 70/15 and hold 20 is +0.8/+11.3.
+  The best cell in both halves is the last one, and it is the only cell positive in both -
+  by +0.8% CAR at Sharpe 0.13 on 124 sessions, which is indistinguishable from zero
+  (SE of an annualized Sharpe on 124 days is ~1.4).
+
+### The sleeve is what decides, and the sleeve says no
+
+| mix (ORB 4x ATR + late fade, + trend-filtered fade at) | IS CAR / Sharpe / DD | OOS CAR / Sharpe / DD | trades/day | total P&L, 183 sessions |
+| --- | --- | --- | --- | --- |
+| **0 (deployed control)** | **24.21 / 1.007 / 14.5** | **55.33 / 1.731 / 7.30** | **46-49** | **$221,211** |
+| 0.25 (70/15, hold 20, 20 bps) | 23.48 / 0.977 / 15.7 | 57.95 / 1.827 / 7.06 | 58.0 | $222,294 |
+| 0.5 (70/15, hold 20, 20 bps) | 22.25 / 0.932 / 16.6 | 59.11 / 1.880 / 6.73 | 58.1 | $218,785 |
+| 0.5 (50/12, hold 12, 40 bps) | 23.34 / 0.959 / 16.6 | 60.04 / 1.901 / 6.89 | 62.4 | $225,155 |
+| 0.5 (70/15, hold 20, 40 bps) | 21.04 / 0.886 / 16.8 | 61.24 / 1.927 / 6.87 | 56.9 | $216,934 |
+| 1.0 (70/15, hold 20, 20 bps) | 20.74 / 0.866 / 18.4 | 54.32 / 1.769 / 5.87 | 57.5 | $204,124 |
+
+- **Every cell is the same trade: IS return and IS drawdown for OOS return.** The IS response
+  is monotone in the allocation (24.21 -> 23.48 -> 22.25 -> 20.74) and IS drawdown widens by
+  1.2-3.9 points in every one; OOS rises to a peak near 0.5 and falls again at 1.0. Three
+  different fade parameter cells at 0.5 give the same shape, so this is a shelf and not a
+  spike - the effect is real, it is just not a gain.
+- **Over the whole window it is a wash bought with turnover.** Total P&L across all 183
+  sessions is $221.2k deployed against $222.3k / $218.8k / $225.2k / $216.9k for the four
+  cells at alloc 0.25-0.5 - a spread of +/-2% around doing nothing - and $204.1k at 1.0.
+  The price of that wash is 22-34% more trades per day (46-49 -> 57-62) and 2 points of IS
+  drawdown, on a sleeve whose live costs are only estimated (1.5 bps plus commission) and
+  whose first live paper session is tomorrow morning.
+- **Decision: refused. `vwap_trend` alloc stays 0 and `live/intraday_config.json` is not
+  touched.** Rule (c) asks for OOS improvement and the fade does deliver that, but OOS
+  improvement bought by an equal IS loss is the same regime rotation A-2 documented on the ORB
+  stop, and here the two-half total does not move at all. Paying 25% more turnover for a
+  measured zero is not a trade worth making the day before the sleeve goes live.
+- **A-1 is closed.** The module is not deleted: the trend filter repaired it from -56%/yr to
+  break-even, which is a genuine finding about *why* VWAP fading loses on these names, and all
+  five levers ship in the module defaulted off with the control reproducing A-6 exactly. It
+  stays available for A-5 to reconsider once measured live slippage replaces the estimate, or
+  for a future allocator with a real regime signal - but it earns no capital on this evidence.
+- **Next.** A-7: the daily loss limit and the per-symbol cap. A-2 and A-1 have now both
+  measured that signal-level levers cannot move this sleeve's tail or its turnover economics,
+  which leaves the framework constants in `scripts/intraday_common.py` as the untested surface.
+  Any change there needs a replay per AGENTS.md rule (a).
+
 ## 2026-09-09 - Paper session 2026-09-09 (ops close)
 
 End-of-day operations check. The daily sleeve rebalanced and filled; the intraday sleeve did

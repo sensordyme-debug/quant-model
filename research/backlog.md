@@ -11,7 +11,23 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-09 19:0x UTC (latest, A-2 iteration): **the ORB tail does not come off for
+Status 2026-09-09 21:3x UTC (latest, A-1 iteration): **the VWAP fade can be repaired, and it
+still is not worth capital.** Eleven standalone variants and six sleeve runs on the 9-month
+window (2025-12-15..2026-09-08, split 2026-06-15, 124/59 sessions). Only one of A-1's five
+levers is a mechanism: the **session-trend filter** takes the module from IS -56.0 / OOS -10.1
+to -11.9 / +16.9 at a third of the turnover, and **the inverted filter fails as predicted**
+(-46.3 / -5.5), so the fade was losing by fighting trend days rather than by mistuning. Min
+hold, a midday blackout and a 5-minute cadence only shrink the position; range expansion leaves
+0.8 trades/day. The only cell positive in both halves is +0.8 / +11.3, and Sharpe 0.13 on 124
+sessions is zero. **At the sleeve it is a wash bought with turnover**: three fade cells at
+alloc 0.25-0.5 give total P&L $216.9-225.2k over 183 sessions against the deployed $221.2k,
+with IS CAR falling monotonically in the allocation and IS drawdown 1.2-3.9 points wider, for
+22-34% more trades per day. **Refused; `vwap_trend` alloc stays 0 and `live/intraday_config.json`
+was not touched.** A-1 is closed. Champion unchanged at S-12; the daily sleeve was not touched.
+**A-7 is now the top open item** - A-1 and A-2 together say the signal layer is spent and the
+framework constants in `scripts/intraday_common.py` are the untested surface.
+
+Status 2026-09-09 19:0x UTC (A-2 iteration): **the ORB tail does not come off for
 free.** Nine variants on the 9-month window (2025-12-15..2026-09-08, split 2026-06-15, 124/59
 sessions): the response to stop distance is **monotone and rotates return between the halves**
 rather than adding any - midpoint (shipped) 35.7 IS / 10.7 OOS, +4x ATR backstop 31.4 / 19.3,
@@ -168,20 +184,30 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-1 Make the VWAP fade pay for its turnover, or retire the module (top item).** A-6 set
-  its alloc to 0 because it loses -56%/yr on the long window; it is still the only turnover
-  engine in the sleeve. One candidate per iteration: wider entry band (20-30 bps) with a
-  minimum hold (10-15 bars); trade only with the session's trend; skip 11:30-14:00; require
-  range expansion; 5-minute aggregates instead of 1-minute closes. Judge on OOS Sharpe and
-  P&L per trade after costs on `--start 2025-12-15 --split 2026-06-15`. If nothing on that
-  list makes it positive in both halves, delete the alloc entry and close it.
-- **A-7 The daily loss limit and the per-symbol cap are the real tail levers.** A-2 measured
+- **A-7 The daily loss limit and the per-symbol cap are the real tail levers (top item).**
+  A-2 measured
   that every *signal*-level control leaves the loss-limit days where they are (3-4 per half)
   unless it is tight enough to destroy the in-sample return. The framework constants are
   therefore what bounds the tail: sweep `DAILY_LOSS_LIMIT` (1.5-3.5%), `PER_SYMBOL_HARD_CAP`
   and the sleeve `gross` against OOS Sharpe, worst day and the *cost* of stopping early
   (a limit that fires often forfeits the rest of the session's edge). These are shared
   constants in `scripts/intraday_common.py`, so any change needs a replay per AGENTS.md rule (a).
+- **A-1 DONE 2026-09-09 (see journal): the VWAP fade is repairable but not additive; retired
+  from the mix, alloc stays 0, `live/intraday_config.json` untouched.** Of the five levers,
+  only the **session-trend filter** is a mechanism: taking only the fades that lean with the
+  day's direction moves the module from IS -56.0 / OOS -10.1 to -11.9 / +16.9 at a third of
+  the turnover, and **inverting the filter fails as predicted** (-46.3 / -5.5), so the fade was
+  losing by fighting trend days. Min hold, a midday blackout and a 5-minute cadence only shrink
+  the position (all still worse than -50 IS); range expansion leaves 0.8 trades/day and is an
+  empty sample. Stacking levers walks a frontier rather than climbing: the only cell positive
+  in both halves is trend 20 bps + band 70/15 + hold 20 at **+0.8 / +11.3**, and +0.8% CAR at
+  Sharpe 0.13 on 124 sessions is indistinguishable from zero. **The sleeve decides and says
+  no**: at alloc 0.25/0.5/1.0 across three fade cells, IS CAR falls monotonically
+  (24.21 -> 23.48 -> 22.25 -> 20.74) and IS drawdown widens 1.2-3.9 points while OOS rises to a
+  peak near 0.5, so total P&L over all 183 sessions is $221.2k deployed against $216.9-225.2k
+  for the fade cells - a +/-2% wash bought with 22-34% more trades per day. Refused on that.
+  The module and all five levers stay in the tree defaulted off, control reproducing A-6 to the
+  digit; revisit only when A-5 replaces estimated slippage with measured.
 - **A-2 DONE 2026-09-09 (see journal): shipped a 4x ATR14 disaster backstop on ORB; the
   stated hypothesis was refused.** No variant cuts the tail while keeping the return - the
   response to stop distance is monotone and *rotates* return from the IS half to the OOS half
