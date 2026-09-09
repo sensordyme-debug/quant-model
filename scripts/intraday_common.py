@@ -43,6 +43,15 @@ COMMISSION_MIN = 1.0
 SLIPPAGE_BPS = 1.5
 
 
+#: Framework constants shared by the backtester and the live trader so they cannot drift.
+MIN_CHANGE = 0.02            # rebalance a name only when the change is >= 2% of sleeve equity (or to flat)
+PER_SYMBOL_HARD_CAP = 0.20   # |weight| ceiling per name, on top of any strategy cap
+GROSS_HARD_CAP = 1.6         # sum |weights| ceiling; with the daily sleeve's ~1.2x overnight book this stays under 4x DT buying power
+DAILY_LOSS_LIMIT = 0.025     # -2.5% of start-of-day NAV -> flatten and stop for the day
+FLATTEN_MINUTE = 368         # 15:38 ET: target zero from here so the book is flat before the 15:45 daily rebalance
+EXIT_MINUTE = 372            # 15:42 ET: live loop exits
+
+
 def commission(shares: float, price: float) -> float:
     c = max(COMMISSION_MIN, abs(shares) * COMMISSION_PER_SHARE)
     return min(c, 0.01 * abs(shares) * price)
@@ -92,7 +101,9 @@ def save_bars(symbol: str, df: pd.DataFrame) -> int:
             old.index = old.index.tz_localize("UTC")
         df = pd.concat([old, df])
     df = df[~df.index.duplicated(keep="last")].sort_index()
-    df.to_parquet(p)
+    tmp = p.with_suffix(".parquet.tmp")
+    df.to_parquet(tmp)
+    os.replace(tmp, p)          # atomic: readers never see a half-written file
     return len(df)
 
 

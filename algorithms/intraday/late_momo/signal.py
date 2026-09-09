@@ -18,6 +18,7 @@ PARAMS = {
     "entry_minute": 330,     # 15:00 ET
     "min_move": 0.006,       # |day return| at 15:00 must exceed 60 bps
     "max_names": 6,          # strongest movers only
+    "direction": 1,          # +1 continuation, -1 fade the day's move into the close
 }
 
 
@@ -41,4 +42,5 @@ def decide(now, feats, book, equity, state, params):
         top = sorted(moves.items(), key=lambda kv: -abs(kv[1]))[: p["max_names"]]
         chosen = {s: (1.0 if r > 0 else -1.0) for s, r in top}
         state["chosen"] = chosen
-    return {s: side * p["weight"] for s, side in chosen.items()}
+    sign = 1.0 if p["direction"] >= 0 else -1.0
+    return {s: side * sign * p["weight"] for s, side in chosen.items()}

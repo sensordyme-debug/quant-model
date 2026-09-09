@@ -31,8 +31,9 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from intraday_common import (ET, LIVE, REPO, UNIVERSE, commission, load_universe, log_event, notify,  # noqa: E402
-                             slippage)
+from intraday_common import (DAILY_LOSS_LIMIT, ET, EXIT_MINUTE, FLATTEN_MINUTE, GROSS_HARD_CAP, LIVE,  # noqa: E402
+                             MIN_CHANGE, PER_SYMBOL_HARD_CAP, REPO, UNIVERSE, commission, load_universe,
+                             log_event, notify, slippage)
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
 from base import features  # noqa: E402
@@ -41,12 +42,6 @@ APPROVAL = LIVE / "APPROVED_PAPER.md"
 HALT_FILES = [LIVE / "HALT", LIVE / "HALT_INTRADAY"]
 BOOK_FILE = LIVE / "state" / "intraday_book.json"
 ORDER_REF = "INTRADAY"
-MIN_CHANGE = 0.01
-FLATTEN_MINUTE = 368          # 15:38 ET
-EXIT_MINUTE = 372             # 15:42 ET
-DAILY_LOSS_LIMIT = 0.025
-PER_SYMBOL_HARD_CAP = 0.20    # framework backstop on top of the strategy's own cap
-GROSS_HARD_CAP = 1.6          # intraday gross ceiling; with the daily sleeve's ~1.2x overnight book this stays under 4x day-trading buying power
 LOG = "intraday"
 
 

@@ -31,15 +31,13 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from intraday_common import (REPO, UNIVERSE, commission, load_universe, sessions, slippage)  # noqa: E402
+from intraday_common import (DAILY_LOSS_LIMIT, FLATTEN_MINUTE, GROSS_HARD_CAP, MIN_CHANGE,  # noqa: E402
+                             PER_SYMBOL_HARD_CAP, REPO, UNIVERSE, commission, load_universe, sessions, slippage)
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
 from base import features  # noqa: E402
 
 EXPERIMENTS = REPO / "research" / "experiments.jsonl"
-MIN_CHANGE = 0.01          # rebalance a name only if the change is >= 1% of equity
-FLATTEN_MINUTE = 368       # 15:38 ET: target zero from here, so the book is flat before 15:45
-DAILY_LOSS_LIMIT = 0.025   # -2.5% of start-of-day equity -> flatten and stop for the day
 
 
 def load_strategy(name: str):
@@ -79,12 +77,15 @@ class Book:
 
 
 def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, float], equity: float):
+    """Same sizing rules as scripts/intraday_trader.py:Trader.targets_to_orders."""
     orders = {}
+    gross = sum(abs(w) for w in targets.values())
+    scale = min(1.0, GROSS_HARD_CAP / gross) if gross > GROSS_HARD_CAP else 1.0
     for sym in set(targets) | set(book.pos):
         px = prices.get(sym)
         if not px or px <= 0:
             continue
-        w = float(targets.get(sym, 0.0))
+        w = max(-PER_SYMBOL_HARD_CAP, min(PER_SYMBOL_HARD_CAP, float(targets.get(sym, 0.0)) * scale))
         tgt = int(math.copysign(math.floor(abs(w) * equity / px), w)) if w else 0
         cur = book.pos.get(sym, 0)
         delta = tgt - cur

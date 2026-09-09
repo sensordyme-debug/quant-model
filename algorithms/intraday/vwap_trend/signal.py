@@ -23,6 +23,7 @@ PARAMS = {
     "start_minute": 30,      # no entries before 10:00 ET
     "stop_minute": 360,      # no entries after 15:30 ET
     "vol_floor": 0.0004,     # skip names with 30-bar realized vol below 4 bps/min (dead tape)
+    "direction": 1,          # +1 trend-following (ride the VWAP side), -1 reversal (fade the extension)
 }
 
 
@@ -57,5 +58,5 @@ def decide(now, feats, book, equity, state, params):
                 cur = -1
         side_state[sym] = cur
         if cur:
-            targets[sym] = cur * p["weight"]
+            targets[sym] = cur * p["weight"] * (1 if p["direction"] >= 0 else -1)
     return targets
