@@ -11,7 +11,35 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-09 14:0x UTC (latest, I-1 iteration): **the pre-deploy gate is built, and it
+Status 2026-09-09 16:0x UTC (latest, D-2 iteration): **the intraday data blocker is gone for
+SPY.** The 10141 disclaimer has been accepted - `paper_trade.py --check` answers on account
+`DUT091359` ($1,000,344 net liq, no positions) - so D-2 became the top item and shipped:
+`scripts/fetch_minute.py` pulls IBKR 1-minute TRADES bars and writes LEAN minute files, paced
+for IBKR's 60-per-10-minutes rule, resumable by month chunk, `clientId` 31. **SPY 2020-01-02
+.. 2026-09-08 is complete and validated: 1,679 sessions, 652,650 bars, 0 missing against the
+daily calendar, 0 truncated, 0 clamped, 14 MB.** The acceptance test is a LEAN run
+(`algorithms/d2_minute_smoke`, run `20260909T160005Z`) rather than a file check, because D-1's
+worst bug was a file that passed structural validation and made LEAN return zero bars silently;
+**all seven checks PASS** and LEAN's bar count matches the writer's exactly. One bug found and
+fixed, worth remembering: `durationStr="1 M"` ending on the month's last day starts *after*
+the first session's close, so IBKR silently drops **the first session of every month** - ~5% of
+the sample, invisible because every session that survives is a complete 390 bars. Chunks are
+now `5 W` with the overlap filtered back. Two durable facts: minute and daily closes agree to a
+median 0.007%, but diverge up to ~1% on violent days (COVID, April 2025) because the daily
+close is the **auction print** and the last minute bar is not - so **S-2 must model the 16:00
+auction, not assume a 15:59 fill**; and IBKR serves ~260-790 bars/s, making a five-symbol
+backfill a multi-hour job, which is why only SPY was completed. Champion unchanged at S-12.
+**S-2 is now the top open item.**
+
+Note for whoever takes S-2: a parallel session is building an intraday harness outside LEAN
+(`scripts/intraday_backtest.py`, `algorithms/intraday/{orb,vwap_trend,late_momo,gap_fade}`)
+and its ledger entries from 2026-09-09 15:4x-16:0x all split IS/OOS at 2026-08-15 - a ~30-day
+sample, i.e. the Yahoo 1-minute cap. **That constraint is now lifted**: those signals can be
+re-run against 6.7 years of SPY instead of one month, which is the difference between a
+sample that can reject a hypothesis and one that cannot. Reconcile the two harnesses before
+promoting anything from either - LEAN decides, per the S-10 methodology finding.
+
+Status 2026-09-09 14:0x UTC (I-1 iteration): **the pre-deploy gate is built, and it
 caught a real bug in the runner.** Gateway is up but the API is still refused by 10141, so
 instead of a sleeve experiment this iteration finished I-1's last unbuilt piece:
 `scripts/compare_orders.py`, which walks LEAN's own bars and hands *identical* inputs to
@@ -144,20 +172,21 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
 - **A-5 Execution quality from the live log.** After each session compare
   `live/log/intraday-<date>.jsonl` fills against the replay of the same day: slippage per
   order, fill rate, latency. Feed the measured slippage back into `SLIPPAGE_BPS` if it differs.
-- **D-2 Intraday data (unblocked 2026-09-09; LEAN-format part, for LEAN-based S-2 work).** `fetch_data.py` writes daily bars
-  only; Yahoo caps 1-minute history at ~30 days. Pull minute bars with `ib_async`
-  `reqHistoricalData` (`barSizeSetting="1 min"`, `whatToShow="TRADES"`, `useRTH=True`,
-  1-day chunks, respect IBKR pacing of ~60 requests per 10 minutes) for SPY/QQQ/IWM/TQQQ/SQQQ
-  first, as far back as IBKR serves. LEAN minute format:
-  `equity/usa/minute/<symbol>/<yyyyMMdd>_trade.zip` holding
-  `<yyyyMMdd>_<symbol>_minute_trade.csv` with rows `<ms since midnight ET>,o,h,l,c,v`,
-  prices scaled by 10000. Reuse the writer/validator structure already in `fetch_data.py`.
-  Use a distinct `clientId` (e.g. 31) so it never collides with the paper runner's 17.
-- **S-2 Opening-range breakout.** Intraday on SPY/QQQ/IWM (futures later). Enter on a
-  break of the first 15-30 minute range with ATR stops, scale out into strength, flat at
-  close. Hypothesis: high-frequency small edges compound into volatile but positive equity.
-  Needs D-2. Judge with the same IS/OOS split and the promotion rules; it is a *second sleeve*,
-  so record its correlation with the champion's daily returns as a first-class metric.
+- **D-2b Extend the LEAN minute store past SPY.** SPY is done (see Done). QQQ, IWM, TQQQ and
+  SQQQ are one command each - `py -3.11 scripts/fetch_minute.py --symbols QQQ --start 2020-01-01` -
+  and the script is resumable by month, so an interrupted run is restarted by re-running it.
+  Budget ~40 minutes of wall clock per symbol-decade; IBKR serves ~260-790 bars/s and that is
+  the binding constraint, not pacing. Run it in the background of another iteration rather
+  than spending a whole iteration on it.
+- **S-2 Opening-range breakout (LEAN sleeve; unblocked for SPY 2026-09-09).** Intraday on
+  SPY first, then QQQ/IWM as D-2b delivers them. Enter on a break of the first 15-30 minute
+  range with ATR stops, scale out into strength, flat at close. Hypothesis: high-frequency
+  small edges compound into volatile but positive equity. Judge with the same IS/OOS split
+  and the promotion rules; it is a *second sleeve*, so record its correlation with the
+  champion's daily returns as a first-class metric. **Model the 16:00 closing auction**: D-2
+  measured the daily close diverging from the last 1-minute bar by up to ~1% on violent days,
+  so a close-flat rule that assumes a 15:59 fill books P&L that does not exist. Cross-check
+  against the A-track harness before promoting either.
 - **S-5 Allocator.** Route capital across S-1, S-2 and any future sleeve by trailing 60-day
   Sharpe with a floor per sleeve. Scaffold now against the S-1 and S-3 return series.
 - **I-1 IBKR paper runner: DONE 2026-09-09, paper trading approved and scheduled.**
@@ -203,6 +232,28 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
 
 ## Done
 
+- **D-2 Intraday data, LEAN minute store. SPY DONE 2026-09-09**, acceptance run
+  `20260909T160005Z` (`algorithms/d2_minute_smoke`, tagged not promotable; no champion change).
+  `scripts/fetch_minute.py`: IBKR `reqHistoricalData` 1-min / TRADES / `useRTH=True` -> LEAN
+  `equity/usa/minute/<sym>/<yyyyMMdd>_trade.zip`, raw prices with dividends left in the D-1
+  factor files, sliding-window pacer for the 60-per-10-minutes rule, resumable by month chunk,
+  `clientId` 31. **SPY 2020-01-02 .. 2026-09-08: 1,679 sessions, 652,650 bars, 0 missing
+  against the daily calendar, 0 truncated, 0 clamped, 14 MB.** The acceptance test runs
+  *through LEAN* and asserts seven properties - all PASS, and LEAN's bar count equals the
+  writer's exactly - because D-1's worst bug was a file that passed structural validation and
+  made LEAN return zero bars with no error; only asking the engine catches that class.
+  **The bug found: `durationStr="1 M"` ending on the month's last day silently drops the first
+  session of every month**, because IBKR measures the window back from `endDateTime` and lands
+  after that session's close. ~5% of the sample, invisible - every surviving session is a
+  complete 390 bars. Chunks are `5 W` with the overlap filtered back to the chunk.
+  **Two durable facts.** (1) Minute and daily closes agree to a median 0.007%, but the six
+  sessions over 0.2% are all violent days (2020-03-13/17/18/19/23/24, 2025-04-03/09): the
+  daily close is the **auction print**, the last minute bar is not, so an intraday sleeve that
+  flattens at the close must model the 16:00 auction or book up to ~1% of imaginary P&L on
+  exactly its best days. (2) IBKR serves ~260-790 bars/s, so a symbol-decade is ~40 minutes
+  and the five-symbol set is a multi-hour job - hence the resumability, and hence only SPY in
+  one iteration. Remainder is D-2b. Complements, does not duplicate, `scripts/intraday_data.py`
+  (parquet, clientId 61) which feeds the non-LEAN A-track harness.
 - **S-13 The execution no-trade band. Closed negatively 2026-09-09**, runs
   `20260909T043527Z` (0.02), `045041Z` (0.015), `044105Z` (0.03), `044610Z` (0.05),
   `045910Z` (0.08), sub-periods `20260909T045454Z` / `045705Z`; the champion run

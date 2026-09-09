@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-09-09T15:59:17+00:00",
+  "source": "IBKR reqHistoricalData 1 min TRADES useRTH=True (raw prices; dividends carried by the D-1 factor files)",
+  "start": "2020-01-01",
+  "end": "2026-09-08",
+  "connected": true,
+  "request_errors": [],
+  "data": {
+    "spy": {
+      "sessions": 1679,
+      "bars": 652650,
+      "first": "20200102",
+      "last": "20260908",
+      "expected_sessions": 1678,
+      "missing_sessions": [],
+      "short_sessions": [],
+      "close_dev": 0.009569,
+      "close_dev_day": "20250409",
+      "problems": [],
+      "clamped_bars": 0
+    }
+  }
+}

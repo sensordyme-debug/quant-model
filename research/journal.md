@@ -2,6 +2,77 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-09 - D-2: intraday data, and the month boundary that ate a session a month
+
+**Why this.** `paper_trade.py --check` was the first thing run this iteration and it now
+answers - account `DUT091359`, net liquidation $1,000,344, no positions. The 10141 disclaimer
+has been accepted, so the IB API is open for the first time and **D-2 is the top open item**,
+exactly as the backlog said it would be. Everything the owner decided yesterday routes through
+it: volatility is to be earned with a second, uncorrelated intraday sleeve (S-2), and S-2 has
+never had a bar to test on because Yahoo caps 1-minute history at ~30 days.
+
+**What was built.** `scripts/fetch_minute.py`: IBKR `reqHistoricalData` at `1 min` /
+`TRADES` / `useRTH=True`, written as LEAN minute files
+(`equity/usa/minute/<sym>/<yyyyMMdd>_trade.zip` -> `<yyyyMMdd>_<sym>_minute_trade.csv`,
+`<ms since midnight ET>,o,h,l,c,v`, prices x10000), reusing `fetch_data.py`'s
+writer/validator shape. Three properties it needed and has: a sliding-window pacer for
+IBKR's 60-requests-per-10-minutes rule, resumability by month chunk (an interrupted
+backfill restarts by re-running the same command), and `clientId` 31, clear of the paper
+runner's 17. Prices are raw; dividends stay in the D-1 factor files, as at every other
+resolution.
+
+**The bug worth recording.** The obvious chunking - `durationStr="1 M"` ending at 23:59 on
+the month's last day - is wrong, and wrong *silently*. IBKR measures a duration backwards
+from `endDateTime`, so a 1-month window ending 23:59 on 31 July begins 23:59 on 1 July,
+which is **after that session's close**. The first session of every month is dropped. The
+smoke run made it visible - 21 sessions for July 2026 when the daily file says 22, one
+missing date, `20260701` - and at scale that is ~5% of the sample gone, in a shape that
+looks like nothing: the bar counts are all exactly 390, every session that is present is
+complete, and only a cross-check against an independent trading calendar shows the hole.
+Fixed by requesting `5 W` (35 days, four days of slack on the longest month) and filtering
+the overlap back to the chunk, so a session is still written exactly once. Re-run: 22
+sessions for July, 0 missing.
+
+**Result - SPY 2020-01-02 .. 2026-09-08 complete.**
+
+| | |
+| --- | --- |
+| sessions | **1,679**, 0 missing against the daily calendar, 0 truncated |
+| bars | **652,650** (mean 388.7/session; 12 half days at 210) |
+| clamped bars | 0 |
+| close vs D-1 daily, median | **0.007%** |
+| close vs D-1 daily, worst | 0.957% (2025-04-09) |
+| on disk | 14 MB |
+
+**The acceptance test is a LEAN run, not a file check**, because D-1's worst bug was a file
+that passed every structural check and made LEAN return *zero bars* with no error.
+`algorithms/d2_minute_smoke` streams the whole backfill at minute resolution and asserts
+seven properties: run `20260909T160005Z`, **all seven PASS**. LEAN sees 652,650 bars over
+1,679 sessions - bit-identical to what the writer counted, so nothing was silently dropped -
+every session opens at 09:31 and closes at 16:00 (1,667) or 13:00 (12 half days), no
+inconsistent OHLC, 65 zero-volume bars out of 652,650. `evaluate.py` correctly refuses it:
+0 orders, and it is tagged `not promotable`. Champion unchanged at S-12.
+
+**The close deviation is real and is not a data error.** The six sessions deviating more
+than 0.2% are 2020-03-13/17/18/19/23/24 and 2025-04-03/09 - the COVID crash and the April
+2025 tariff selloff. On violent days the closing auction clears away from the last 1-minute
+RTH trade, and the daily close is the auction print while the minute file's last bar is not.
+**This is a design constraint for S-2, not a defect**: a sleeve that flattens at the close
+must model the 16:00 auction, and assuming the 15:59 bar's close is a fill price will book
+up to ~1% of free P&L on exactly the days an intraday strategy makes its money.
+
+**Decision.** No promotion - D-2 is infrastructure. SPY is complete and validated end to end,
+so **S-2 is unblocked on its primary instrument** and is the next item.
+
+**Cost, honestly.** IBKR serves ~260-790 bars/s, so this is slow: one symbol-decade is
+~40 minutes of wall clock and the full five-symbol set is a multi-hour job. That is why the
+script is resumable by month, and why only SPY was taken to completion in one iteration.
+QQQ, IWM, TQQQ and SQQQ are one command each (`--symbols QQQ --start 2020-01-01`) and are
+the first thing to run in the background of the next iteration.
+
+**Next.** S-2 opening-range breakout on SPY minute bars, judged on the same IS/OOS split and
+promotion rules, with its correlation to the champion's daily returns as a first-class metric.
+
 ## 2026-09-09 - I-1: the paper runner would have placed twice the backtest's orders
 
 **Why this and not a backtest.** Port 4002 answered at the top of this iteration for the
