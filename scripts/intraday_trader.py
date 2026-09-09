@@ -46,7 +46,7 @@ FLATTEN_MINUTE = 368          # 15:38 ET
 EXIT_MINUTE = 372             # 15:42 ET
 DAILY_LOSS_LIMIT = 0.025
 PER_SYMBOL_HARD_CAP = 0.20    # framework backstop on top of the strategy's own cap
-GROSS_HARD_CAP = 1.25
+GROSS_HARD_CAP = 1.6          # intraday gross ceiling; with the daily sleeve's ~1.2x overnight book this stays under 4x day-trading buying power
 LOG = "intraday"
 
 
@@ -76,35 +76,11 @@ class Book:
         self.costs = 0.0
         self.trades = 0
 
-    def apply_fill(self, sym: str, qty: int, price: float, cost: float):
-        prev = self.pos.get(sym, 0)
-        new = prev + qty
-        cash = -qty * price - cost
-        self.costs += cost
-        self.trades += 1
-        # realized P&L when reducing/closing
-        if prev and (qty * prev < 0):
-            closing = min(abs(qty), abs(prev)) * (1 if prev > 0 else -1)
-            avg = self.cost.get(sym, 0.0) / prev if prev else price
-            self.realized += closing * (price - (-avg))  # cost is stored negative for longs
-        self.cost[sym] = self.cost.get(sym, 0.0) + cash
-        if new == 0:
-            self.cost.pop(sym, None)
-            self.pos.pop(sym, None)
-        else:
-            self.pos[sym] = new
-
-    def unrealized(self, prices: dict[str, float]) -> float:
-        return sum(q * prices.get(s, 0.0) + self.cost.get(s, 0.0) for s, q in self.pos.items())
+    _closed = 0.0   # P&L of symbols that have gone flat (see book_fill)
 
     def pnl(self, prices: dict[str, float]) -> float:
-        # total sleeve P&L since the book was empty: cash flows + marks
-        return sum(self.cost.values()) + sum(q * prices.get(s, 0.0) for s, q in self.pos.items()) + self.realized_closed()
-
-    def realized_closed(self) -> float:
-        return self._closed
-
-    _closed = 0.0
+        """Sleeve P&L since the book was last empty: closed P&L + open symbols' cash flow + marks."""
+        return self._closed + sum(self.cost.values()) + sum(q * prices.get(s, 0.0) for s, q in self.pos.items())
 
     def to_json(self):
         return {"pos": self.pos, "cost": self.cost, "closed": self._closed, "costs": self.costs, "trades": self.trades}

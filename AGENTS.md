@@ -67,9 +67,36 @@ approval, in live trading.
 
 ## Data
 
-Only LEAN sample data exists so far (SPY minute bars for October 2013 plus a few daily files).
-Until backlog item D-1 delivers a real data pipeline, validate mechanics, not alpha, and say so
-in every result you report.
+- Daily: 69 symbols of yfinance history 1998-2026 in LEAN format (`scripts/fetch_data.py`),
+  survivorship-biased for single names; the ETF sleeve is the trusted universe.
+- Minute: IBKR 1-minute TRADES bars. LEAN format via `scripts/fetch_minute.py` (clientId 31);
+  parquet store `data/minute/<SYM>.parquet` via `scripts/intraday_data.py` (clientId 61) for
+  the intraday sleeve. Extend with `python scripts/intraday_data.py --months N`.
+
+## The intraday active sleeve (deployed on paper since 2026-09-10)
+
+The owner's mandate is a volatile, high-turnover book using most of the capital. That is
+delivered by a second sleeve, disjoint in universe from the daily champion:
+
+- Universe and costs: `scripts/intraday_common.py` (16 most liquid single names and leveraged
+  sector ETFs; never SPY/QQQ/IWM/TQQQ etc., which belong to the daily sleeve).
+- Strategies: `algorithms/intraday/<name>/signal.py` per `algorithms/intraday/CONTRACT.md`;
+  `algorithms/intraday/active/signal.py` is the deployed combination and the only module the
+  live trader loads. Causal features live in `algorithms/intraday/base.py`.
+- Research harness: `python scripts/intraday_backtest.py --strategy <name> --split YYYY-MM-DD
+  --tag "..."` (records `intraday/<name>` rows in the ledger; judge on OOS Sharpe, average daily
+  P&L after costs, trades/day and worst day; costs are 1.5 bps slippage plus IBKR commission
+  and are real, so turnover must earn its keep).
+- Live: `scripts/intraday_trader.py` (clientId 71) runs 09:25-15:42 ET from the Windows task
+  "Quant Intraday Sleeve" through `scripts/intraday_launch.py`, which first replays the last
+  stored session as a preflight and refuses to trade if the replay fails. Deployed parameters
+  come from `live/intraday_config.json` (strategy, equity_frac, params).
+- Rules for the loop: improve signals and parameters freely, but (a) never change the trader's
+  execution, risk or flatten code without running `--replay <date>` and reading the log,
+  (b) never touch `live/APPROVED_PAPER.md`, `live/HALT*` or the scheduled tasks, (c) a change to
+  the deployed `active` config must show OOS improvement in the harness and be recorded in
+  the journal before it is written to `live/intraday_config.json`, (d) keep the sleeve flat by
+  15:38 ET (framework constant) and the universe disjoint from the daily sleeve.
 
 ## Memory
 

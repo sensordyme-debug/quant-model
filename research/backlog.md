@@ -111,11 +111,40 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 Owner decisions of 2026-09-09 (see `BLOCKERS.md`): paper trading is approved and running,
 the 35% drawdown cap stays, promotion is now return-first with a 0.03 Sharpe tolerance and a
 1-point drawdown tolerance, delisted-inclusive data is deferred, the no-trade band stays 0.01.
-Priority is therefore **D-2 then S-2 then S-5**: volatility is to be earned with a second,
-uncorrelated intraday sleeve, not by leverage on the ETF sleeve. IB Gateway is up
-(`paper_trade.py --check` works), so D-2 can pull IBKR minute history now.
+Priority is therefore the **intraday active sleeve (A-track)**: volatility is to be earned with
+a second, uncorrelated intraday sleeve, not by leverage on the ETF sleeve. IB Gateway is up.
 
-- **D-2 Intraday data (unblocked 2026-09-09; blocks S-2).** `fetch_data.py` writes daily bars
+Owner instruction 2026-09-09 (afternoon): by the 2026-09-10 open the paper account must run a
+volatile, active, high-turnover book on most of the capital. The infrastructure for that now
+exists (see AGENTS.md "The intraday active sleeve"): 16-name disjoint universe, IBKR minute
+store, causal features, three strategies, a minute backtester, and a live trader with replay,
+scheduled 09:25 ET. **The loop's job from here is signal quality**: the first honest numbers
+(2 names, 62 sessions) were ORB +10% annualized / Sharpe 2.5, VWAP-trend -12% after costs,
+late-day momentum flat. Every A-track iteration: pick one strategy, change one thing, run
+`scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
+improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
+
+- **A-1 Make the VWAP-trend engine pay for its turnover.** It is the turnover engine (21
+  trades/day on two names) and loses ~12%/yr after $400/day of costs on 2 names. Candidates,
+  one per iteration: wider entry band (20-30 bps) with a minimum hold (10-15 bars); only trade
+  in the direction of the session's trend (`day_ret` sign, or price on the same side of VWAP
+  for 30+ bars); skip 11:30-14:00; require range expansion (`atr14` above its session median);
+  evaluate on 5-minute aggregates instead of 1-minute closes. Judge on OOS Sharpe and P&L per
+  trade after costs, not on trade count.
+- **A-2 Strengthen ORB, the only sub-strategy with positive evidence.** 30-minute range
+  variant, ATR-based stop instead of the midpoint, scale-out at 1.5R, volume filter sweep
+  (1.0-2.0x), entry window sweep. Check that it survives on the leveraged ETFs (SOXL/SOXS)
+  where the range is wider.
+- **A-3 Deployed mix.** Set `alloc` and `gross` in `live/intraday_config.json` from OOS
+  evidence: strategies with negative OOS after costs get alloc 0 until fixed. Target gross
+  1.0-1.5x of NAV so daily P&L swings are in the tens of thousands on the $1M account, with the
+  framework's 2.5% daily loss limit as the floor.
+- **A-4 Extend the minute store** to 9-12 months (`python scripts/intraday_data.py --months 12`,
+  paced, resumable) so IS/OOS splits have enough sessions; then re-run A-1/A-2 conclusions.
+- **A-5 Execution quality from the live log.** After each session compare
+  `live/log/intraday-<date>.jsonl` fills against the replay of the same day: slippage per
+  order, fill rate, latency. Feed the measured slippage back into `SLIPPAGE_BPS` if it differs.
+- **D-2 Intraday data (unblocked 2026-09-09; LEAN-format part, for LEAN-based S-2 work).** `fetch_data.py` writes daily bars
   only; Yahoo caps 1-minute history at ~30 days. Pull minute bars with `ib_async`
   `reqHistoricalData` (`barSizeSetting="1 min"`, `whatToShow="TRADES"`, `useRTH=True`,
   1-day chunks, respect IBKR pacing of ~60 requests per 10 minutes) for SPY/QQQ/IWM/TQQQ/SQQQ
