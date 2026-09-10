@@ -11,7 +11,37 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-09 23:0x UTC (latest, A-7 iteration): **the framework risk limits are a tail
+Status 2026-09-10 02:2x UTC (latest, A-4 iteration): **the minute store is now 260 sessions,
+and on them the intraday sleeve's return is not distinguishable from zero.** The store was
+extended to 12 months (2025-08-26..2026-09-08) and repaired - `intraday_data.py` was ending each
+request at the wall-clock time of the run, so IBKR truncated the newest session of every window
+into a partial day; `snap_after_close`, `--repair` and `truncated_sessions()` fix it, and all 16
+symbols now hold 261 clean sessions with only the two real NYSE half days short. Re-running
+A-7's control on the repaired bars moves it a tenth of a point, so **every prior A-track
+conclusion stands**. The 77 sessions before 2025-12-15 are a true **holdout** - no A-track
+parameter has ever seen them - and the deployed mix **loses -$813/day on them** (CAR -19.1%,
+Sharpe -0.73) against +$1,289/day on the 183 it was fitted to. **But nothing here is
+measurable**: Welch t between the halves is **-0.96** for the mix, and a single run over all 260
+sessions earns $610/day at std $16,222 - net +15.87%, **CAR 15.3%, Sharpe 0.69, t = +0.61, 95%
+CI on the year's total P&L [-$354k, +$671k]** around $158.6k, on 49.0 trades/day and $1,025/day
+of costs. **The power calculation is the result**: at Sharpe
+0.69 you need `(2/0.69)^2` years = **~8.4 years / 2,120 sessions** to reject zero at 2 sigma,
+so no achievable backtest sample can validate this sleeve, and A-1/A-2/A-7 - all hunting
+differences *smaller* than the base rate - were never capable of answering. The **late-day fade
+is worth $1,099 over 260 sessions** ($4/day on $232/day of costs; marginal inside the mix +$65/day,
+t = +0.27), so A-6 shipped it on the tuning window alone. What *is* measurable, at **t = +10.25**,
+is that the sleeve is a **long-volatility position**: daily P&L correlates +0.538 with the
+universe's same-day range, the holdout is the calmer window (mean range 3.78% vs 4.44%), and the
+negative holdout is therefore a **regime, not decay**. Prior-day range does not predict it
+(t = +0.47), but the **opening range's width relative to ATR14 is known at ORB's entry and is
+never used** (ORB gates on volume only) - that is **A-9, the new top item**, the one lever with
+a mechanism behind it. **Nothing shipped; `live/intraday_config.json` untouched**, so the trader
+is byte-identical and no replay was owed - dropping the late fade improves the holdout but costs
+$16.8k over the full store at t = +0.27, which is not the OOS improvement rule (c) requires.
+The unmeasurability of the sleeve is now a one-line question to the owner in `BLOCKERS.md`.
+Champion unchanged at S-12; the daily sleeve was not touched.
+
+Status 2026-09-09 23:0x UTC (A-7 iteration): **the framework risk limits are a tail
 dial with no price, and the sample is now the binding constraint.** Fifteen cells on the usual
 9-month window (2025-12-15..2026-09-08, split 2026-06-15, 124/59 sessions), deployed mix, via a
 new backtest-only `--risk` override and `scripts/sweep_a7.py`. The daily loss limit does exactly
@@ -207,15 +237,38 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-4 Extend the minute store to 12 months (top item).**
-  `python scripts/intraday_data.py --months 12`, paced and resumable, then re-run the A-6 mix
-  and the A-2/A-7 conclusions on the longer window. This is now the top item on the evidence of
-  A-7: with 183 sessions, one standard error on the sleeve's total P&L is $229.6k against a
-  $221.2k total, so **every A-track cell tested to date is statistically indistinguishable from
-  every other** (|t| <= 1.06 paired, across fifteen risk cells and eleven A-1 signal cells).
-  Levers are not the constraint; the sample is. Run it in the background of another iteration
-  if the fetch is slow, and check for dropped first-of-window sessions (`intraday_data.py`
-  overlaps windows; re-run `--months 12 --force` if the session count misses the daily calendar).
+- **A-9 Gate the breakout on the opening range's width, not on volume (top item).**
+  The one lever with a measured mechanism. A-4 found the sleeve's daily P&L correlates
+  **+0.538 (t = +10.25, n = 260)** with the universe's same-day mean range: ORB's payoff scales
+  with the day's range while its cost floor does not, so it wins on wide days and bleeds on calm
+  ones, and the negative A-4 holdout is that regime rather than signal decay. A day-ahead gate is
+  not available (prior-day range predicts at t = +0.47), **but ORB enters after the 15-minute
+  opening range, so that range's width relative to `atr14` is known at entry and is causal**.
+  `algorithms/intraday/orb/signal.py` gates only on `vol_ratio_min = 1.2` and never on width.
+  Add a `range_atr_min` parameter (opening range / ATR14 floor), sweep it on the full 260-session
+  store split 2025-12-15, and judge on **both** halves - a gate that only lifts the tuning window
+  is the same fitting A-4 just diagnosed. Check it separately on SOXL/SOXS/SMCI/MSTR, where the
+  range is 5-10% and the cost floor is proportionally smallest. Read A-4's power result first:
+  a cell whose edge is a fraction of the sleeve's own Sharpe cannot be resolved here, so only a
+  large, monotone, both-halves effect is shippable.
+- **A-4 DONE 2026-09-09 (see journal): the store is 260 sessions and the sleeve's return is not
+  distinguishable from zero; nothing shipped.** Store extended to 2025-08-26..2026-09-08 and a
+  truncation bug fixed - requests ended at the wall-clock time of the run, so IBKR truncated the
+  newest session of every window into a partial day that strategies then traded as a full one;
+  `snap_after_close`, `--repair` and `truncated_sessions()` in `scripts/intraday_data.py` fix it,
+  all 16 symbols now hold 261 sessions with only the two real NYSE half days short, and A-7's
+  control reproduces on the repaired bars to a tenth of a point. New `scripts/sweep_a4.py`.
+  Holdout (77 sessions never seen by any A-track parameter) vs tuning window (183):
+  mix **-19.1% / -0.73 / -$813 day** vs **+33.8% / 1.27 / +$1,289 day**, orb only -5.2 / -0.08 /
+  -$209 vs 24.5 / 1.00 / +$943, late fade only -13.5 / -2.46 / -$563 vs 6.2 / 1.09 / +$243.
+  **None of it is measurable**: Welch t between halves -0.96 / -0.51 / -1.65, and pooled over
+  260 sessions the mix is $610/day, std $16,222, **CAR 15.3%, Sharpe 0.69, t = +0.61, 95% CI on
+  the year [-$354k, +$671k]** around $158.6k. **The power calculation is the durable result:
+  ~8.4 years / 2,120 sessions are needed to reject zero at 2 sigma**, so no reachable sample validates this
+  sleeve and no A-track lever hunt on this harness ever could. The late fade is worth **$1,099
+  over 260 sessions** and +$65/day marginal (t = +0.27). Refused to drop it: it improves the
+  holdout but costs $16.8k over the full store, which is not rule (c)'s OOS improvement.
+  Successor is A-9; the owner question is in `BLOCKERS.md`.
 - **A-7 DONE 2026-09-09 (see journal): the framework risk limits are a tail dial with no
   measurable price; nothing shipped.** The daily loss limit's tail response is monotone and
   mechanical - worst day -20.5k (1.5%), -25.8k (2.0%), -30.3k (2.5%, shipped), -37.2k (3.0%),
@@ -278,9 +331,11 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   found says the shipped edge is concentrated in *which* breakouts are taken, not in how they
   are stopped. Sweep the entry window and the time stop, and check the result separately on
   the leveraged ETFs (SOXL/SOXS) where the range is wider, since the backstop now scales with
-  ATR and those names are where it binds most. **Run it after A-4, not before**: A-7 measured
-  that 183 sessions cannot resolve a 20% swing in total P&L, so an entry-window sweep judged on
-  this window would produce another table of statistically identical cells.
+  ATR and those names are where it binds most. **Parked, and A-4 says park it harder**: the
+  extra 77 sessions did not buy the power A-7 was missing - at Sharpe 0.62 the sleeve needs
+  ~2,600 sessions to prove *itself*, so an entry-window sweep would again produce a table of
+  statistically identical cells. Take it only after A-9, and only if A-9 finds an effect large
+  enough to be visible on 260 sessions.
 - **A-3 Deployed mix.** Set `alloc` and `gross` in `live/intraday_config.json` from OOS
   evidence: strategies with negative OOS after costs get alloc 0 until fixed. Target gross
   1.0-1.5x of NAV so daily P&L swings are in the tens of thousands on the $1M account, with the

@@ -4,6 +4,25 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
 
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
+- **The intraday sleeve cannot be validated by backtest, at any sample size we can reach
+  (A-4). Decide how it should be judged.** The minute store now holds a full year - 260
+  sessions, 2025-08-26..2026-09-08 - and on it the deployed mix earns **$610/day, std $16,222,
+  CAR 15.3%, Sharpe 0.69, t = +0.61**, i.e. a 95% interval on the year's total P&L of
+  **[-$354k, +$671k]** around a $158.6k point estimate. The 77 sessions before 2025-12-15 were never used to choose any
+  parameter and the mix **loses -$813/day on them** against +$1,289/day on the 183 it was fitted
+  to - though even that gap is only t = -0.96, so it neither confirms nor refutes anything. At
+  Sharpe 0.69 the sample needed to reject "this sleeve earns zero" at two standard errors is
+  **~8.4 years, about 2,120 sessions**. We will never have it. What *is* measured, at
+  t = +10.25, is that the book is a long-volatility position (daily P&L correlates +0.538 with
+  the universe's same-day range) and that the holdout is simply the calmer window. **Decision
+  wanted, one of three:** (a) let the paper account run it as deployed and treat the live record
+  as the experiment, accepting that months of paper P&L will also be inside the noise;
+  (b) shrink it - `equity_frac` or `gross` down until a losing year is a size you would shrug
+  at, at the cost of the volatile-book mandate; or (c) hold it flat until A-9 (the
+  opening-range-width gate, the one lever with a measured mechanism) reports. The loop's default
+  in the absence of an answer is (a): the config is untouched and the sleeve trades as scheduled,
+  because changing a deployed book on a coin flip is worse than either alternative.
+
 - **The intraday daily loss limit is a pure risk-posture dial - pick a point (A-7).** Swept
   1.5-3.5% and off on the deployed mix over 183 sessions. It has **no measurable effect on
   return** (every cell |t| <= 1.06 paired against the shipped 2.5%; total P&L 200.5k at 2.0%,
