@@ -99,6 +99,18 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   the measured slippage is low enough to move the level. **The loop will not restore size, and it
   will not go to zero on its own while an owner question is open on exactly that number.**
 
+## Open requests to the owner (2026-09-10, the 3-10%/day mandate)
+
+- **Options permission and data.** The fastest high-win-rate instruments for the mandate are
+  defined-risk options (0DTE/1DTE spreads). Needed: options trading permission on the IBKR
+  account (paper inherits it) and the OPRA add-on. Theta Data history is already wired for
+  validation; nothing deploys until it is positive in two of three regimes.
+- **Drawdown cap.** A book that moves 3-10% a day will see 30-50% drawdowns as a matter of
+  arithmetic. The current promotion cap is 35%. Say the number you accept for the aggressive
+  track (50% is the consistent choice with the mandate) or the loop will keep refusing the
+  strategies the mandate asks for.
+- **Real-time data bundle** (below) so paper fills and live bars are current.
+
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
 - **The intraday sleeve cannot be validated by backtest, at any sample size we can reach

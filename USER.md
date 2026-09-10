@@ -30,6 +30,14 @@ with an observation date and status. Supersede in place, never contradict.
   paper account by 2026-09-10. Prefer the shortest credible path (daily strategies, shared
   signal code between LEAN and the live runner) over elegance.
 
+<!-- observed: 2026-09-10 | status: active -->
+
+- Always aim the research at fast, aggressive, high-win-rate strategies that move the whole
+  portfolio 3-10% per day. The owner judges the current strategy set as too weak and too calm;
+  small daily moves are a failure of the mandate, not a success of risk control. Earn the
+  volatility with edge (options, leveraged instruments, regime gating, breadth), never by
+  sizing up a signal the data cannot defend.
+
 <!-- observed: 2026-09-08 | status: active -->
 
 - Always keep the stack as chosen: Interactive Brokers for execution, QuantConnect LEAN for
