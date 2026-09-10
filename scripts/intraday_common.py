@@ -18,7 +18,9 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
 LIVE = REPO / "live"
-DATA_DIR = REPO / "data" / "minute"          # <SYM>.parquet, gitignored
+#: Minute-bar store: <SYM>.parquet, gitignored. Default is the IBKR store; set INTRADAY_DATA_DIR
+#: to data/minute_alpaca to run the same code on the Alpaca SIP store (scripts/alpaca_data.py).
+DATA_DIR = Path(os.environ.get("INTRADAY_DATA_DIR", REPO / "data" / "minute"))
 ET = ZoneInfo("America/New_York")
 
 #: Intraday sleeve universe. Deliberately DISJOINT from the daily champion's traded universe
