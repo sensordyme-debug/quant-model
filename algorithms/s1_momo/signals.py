@@ -53,7 +53,9 @@ Design notes worth keeping
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -276,6 +278,27 @@ class Params:
     #: taking the last 10 points of drawdown at half size.
     dd_mode: str = "step"
 
+    # --- O-1b: options-implied size scaler ---
+    #: O-1 refused implied vol as a *gate* on the intraday sleeve but measured a real
+    #: residual: corr(SPY ATM IV, |daily P&L|) = +0.252 at t = +12.67, positive in all three
+    #: regimes for all three features. Implied vol forecasts how *big* a day is, not which
+    #: way - worthless on a book whose level is negative, possibly worth something on this
+    #: one, where the level is positive. This is a size dial, not a signal: the final weights
+    #: are multiplied by
+    #:
+    #:      clip( (trailing median IV / prior-day IV) ** iv_scale_power, min, max )
+    #:
+    #: 0 = off and reproduces the champion bit for bit. Positive power is the *inverse*
+    #: reading (spend less when the market prices a big day); negative is the direct one.
+    #: The store (`data/options/iv_regime.csv`) starts 2017-01-03 and the champion's sample
+    #: starts 2012, so uncovered days get factor 1.0 - they run exactly as the champion,
+    #: which is why the study is judged on the 2017-2026 sub-period as well as the full one.
+    iv_scale_power: float = 0.0
+    iv_scale_field: str = "iv_atm_1w"
+    iv_scale_window: int = 60              # trailing median window, in store rows
+    iv_scale_min: float = 0.5
+    iv_scale_max: float = 1.5
+
     #: bars of history the signal needs before it can speak
     history_bars: int = field(default=300, compare=False)
 
@@ -311,6 +334,67 @@ TRADED_UNIVERSE = traded_universe(DEFAULTS)
 #: margin per dollar of notional; anything unlisted falls back to Reg-T 50%
 MARGIN_REQ = {t: margin_requirement(t) for t in sorted(
     set(TRADED_UNIVERSE) | set(MEGACAP_SLEEVE))}
+
+
+#: O-1b store location. `scripts/iv_regime.py` writes the parquet and mirrors it here as
+#: CSV, because the LEAN-side Python 3.11 has no pyarrow. Overridable so a sweep can point
+#: at an alternative build without editing code.
+IV_REGIME_CSV = Path(os.environ.get(
+    "IV_REGIME_CSV", Path(__file__).resolve().parents[2] / "data" / "options" / "iv_regime.csv"))
+
+_IV_CACHE: dict = {}
+
+
+def iv_regime_series(field: str) -> pd.Series:
+    """`field` from the IV store, indexed by date, ascending. Empty if the store is absent.
+
+    Cached per field: `target_weights` is called once per session and the file is small,
+    but a full backtest calls it ~3,700 times.
+    """
+    if field in _IV_CACHE:
+        return _IV_CACHE[field]
+    series = pd.Series(dtype=float)
+    try:
+        frame = pd.read_csv(IV_REGIME_CSV, usecols=["day", field])
+        series = pd.Series(frame[field].astype(float).values,
+                           index=pd.to_datetime(frame["day"])).sort_index().dropna()
+    except Exception:                      # missing file or column: the scaler stays inert
+        series = pd.Series(dtype=float)
+    _IV_CACHE[field] = series
+    return series
+
+
+def iv_size_factor(as_of, p: "Params") -> tuple[float, dict]:
+    """Size multiplier from options-implied vol, and its diagnostics (O-1b).
+
+    Causal by construction: only store rows dated **strictly before** the last price bar
+    are read, so whatever timestamp convention the caller's price index uses - LEAN stamps
+    a daily bar at the start of the next session, the paper runner at the session itself -
+    the value used was published before the order can be sent. The reference is the trailing
+    median of the same field over `iv_scale_window` rows ending at that same row, so the
+    dial has no level parameter to fit.
+
+    Returns 1.0, i.e. the champion's behaviour, whenever the scaler is off, the store is
+    missing, the day is not covered (the store starts 2017 and the sample starts 2012) or
+    there is not yet a full median window.
+    """
+    if not p.iv_scale_power:
+        return 1.0, {}
+    series = iv_regime_series(p.iv_scale_field)
+    if series.empty:
+        return 1.0, {"iv_scale_reason": "no store"}
+    prior = series.loc[series.index < pd.Timestamp(as_of)]
+    if len(prior) < p.iv_scale_window:
+        return 1.0, {"iv_scale_reason": "uncovered"}
+    latest = float(prior.iloc[-1])
+    median = float(prior.iloc[-p.iv_scale_window:].median())
+    if not (np.isfinite(latest) and np.isfinite(median)) or latest <= 0 or median <= 0:
+        return 1.0, {"iv_scale_reason": "bad value"}
+    factor = float(np.clip((median / latest) ** p.iv_scale_power,
+                           p.iv_scale_min, p.iv_scale_max))
+    return factor, {"iv_scale": round(factor, 4), "iv_latest": round(latest, 4),
+                    "iv_median": round(median, 4),
+                    "iv_asof": str(prior.index[-1].date())}
 
 
 def allocate(winners, scores, mode: str, vols: pd.Series | None = None,
@@ -760,6 +844,18 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
         shrink = min(shrink, p.max_gross_weight / gross)
     if shrink < 1.0:
         weights = {t: w * shrink for t, w in weights.items()}
+
+    # O-1b. Applied *after* the budget shrink, not to `scale`. With a flat margin budget the
+    # vol target is already inert upwards (S-8): the budget refuses the extra size, so a
+    # multiplier folded into `scale` could only ever cut. A size dial has to be able to do
+    # both, so it multiplies the funded book. The consequence is explicit rather than hidden:
+    # a factor above 1 spends more than `margin_budget`, which is why `iv_scale_max` exists
+    # and why main.py measures the margin actually carried.
+    iv_factor, iv_diag = iv_size_factor(prices.index[-1], p)
+    diag.update(iv_diag)
+    if iv_factor != 1.0:
+        weights = {t: w * iv_factor for t, w in weights.items()}
+
     weights = {t: round(w, 6) for t, w in weights.items() if w > 1e-4}
 
     diag["margin_used"] = round(sum(w * MARGIN_REQ.get(t, BASE_MARGIN_REQ)

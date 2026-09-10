@@ -17,6 +17,44 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-10 12:5x UTC (O-1b): **the implied-vol size dial is a leverage dial, and it pays 50%
+more turnover for it. Refused; nothing shipped.** O-1's deferred half, on the daily champion, where
+the level is positive. `signals.py` gains `iv_regime_series` / `iv_size_factor` and five `Params`
+fields (`iv_scale_power`, default **0.0 = off**, `iv_scale_field`, `iv_scale_window`,
+`iv_scale_min/max`), `main.py` the matching `S1_IV_SCALE_*` overrides, and
+`scripts/iv_regime.py --export-csv` mirrors the parquet to `data/options/iv_regime.csv` (the
+LEAN-side Python 3.11 has no pyarrow). The factor multiplies the **final** weights - after the
+margin-budget shrink, because with a flat budget the vol target is inert upwards (S-8) - and reads
+only store rows dated **strictly before** the last price bar, so it is causal under either harness's
+timestamp convention. Covered period **2017-04-03..2026-09-04** (uncovered days get factor 1.0 and
+run as the champion, so a full-period run can only move the verdict toward the control). Against its
+own control (2,951 orders / $13,090 / CAR 29.456% / Sharpe 1.025 / DD 22.6% / std 0.179 / PSR 37.7%):
+**the inverse reading, the one the residual motivates, is the losing side** - power +1.0 gives
+27.692% / 0.950 / 21.1% / std **0.182** / PSR 29.5%, worse on return *and* carrying more vol than
+the control. The winning side is the direct one (lever up when IV is high, i.e. A-10's
+long-volatility reading on a book that is paid for it), and its response is a **pure vol dial**:
+std 0.179 -> 0.189 -> 0.198 -> 0.204 monotone in the tilt, CAR 29.46 / 31.38 / 31.71 / 29.77 rolling
+over, Sharpe peaking at -0.5 (1.050) and decaying to 0.939. **The benchmark settles it**: degenerate
+the clip into a constant gross-up and the IV timing is gone while the gross is identical - CONSTANT
+1.056 scores 3,027 orders / $14,556 / **31.107% / 1.040 / 23.8% / std 0.189** / 38.9% against the
+dial's 4,550 / $17,963 / 31.376% / 1.050 / 23.3% / std 0.189 / 40.0%. **At identical realized vol
+the dial's entire edge over a dumb constant is +0.27 CAR and +0.010 Sharpe, bought with 50% more
+orders and 23% more commission** - one unit of the +/-0.3 CAR path scatter S-13 measured on a
+parameter with no mechanism. Two thirds of the raw gain is not timing at all: CONSTANT 1.0198
+(the dial's own mean factor) already earns +0.57 CAR. **And the constant needs none of this code**:
+`margin_budget` 0.75 -> **0.792** gives 3,039 orders / $14,530 / **31.006% / 1.042 / DD 22.8% /
+std 0.188 / PSR 39.1%** - +1.55 CAR over the shipped champion for **+0.2 points of drawdown and 88
+extra orders**, against the dial's further +0.37 CAR for +0.5 points and **1,511** extra orders.
+**The no-op is proved**: the shipped-defaults
+full-period run reproduces **`OrderListHash 5246804e17a67af90028ffceead7d3b3`** with 4,735 orders,
+CAR 24.404%, Sharpe 0.921, DD 25.100%, fees $45,695.46 - bit-identical to the champion - so the
+IBKR paper runner's path is unchanged and `live/` was not touched. **Do not re-open as a feature or
+threshold question**: the only thing implied vol can give a momentum book is the *level* of gross,
+and that level is free and turnover-less through `margin_budget`; the 1.6 points of CAR it buys is
+a risk-posture decision, now a one-line question in `BLOCKERS.md`. **A-5 part 2 had no input**:
+`slippage_report.py` at the top of this iteration still finds no session with live fills (this ran
+at 08:3x ET, before today's open). Champion unchanged at S-12; the intraday sleeve was not touched.
+
 Status 2026-09-10 11:4x UTC (O-1): **implied vol forecasts the day this sleeve is paid for, and
 that forecast is worth nothing - the sleeve is paid for volatility *surprise*.** New
 `scripts/iv_regime.py` builds `data/options/iv_regime.parquet` from Theta EOD greeks (**2,383 days,
@@ -379,7 +417,7 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-5 part 2 Measured fill slippage. TOP ITEM as of O-1, and a standing per-session job.**
+- **A-5 part 2 Measured fill slippage. TOP ITEM as of O-1b, and a standing per-session job.**
   See the full A-5 entry below for what part 1 settled. The one-line version: the sleeve's
   breakeven slippage is **2.62-2.64 bps against a shipped 1.5**, P&L is linear in the constant at
   $546/day per bp, and the bars cannot pin it tighter than [0.36, 2.65] because every spread
@@ -391,7 +429,20 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   `SLIPPAGE_BPS` only when |measured - 1.5| exceeds two standard errors, with a replay and a
   journal entry (rule a). This is now the only open measurement on the A-track: A-10 settled the
   level and O-1 settled the conditioner.
-- **O-1b The size scaler, on the daily champion (the deferred half of O-1).** O-1 refused the
+- **O-1b DONE 2026-09-10 (see journal): the implied-vol size dial is a leverage dial and costs 50%
+  more turnover than the constant that replaces it. Refused, nothing shipped.** Built the dial on
+  the champion (`iv_scale_power` etc. in `signals.py`, `S1_IV_SCALE_*` in `main.py`,
+  `iv_regime.py --export-csv` for the pyarrow-free LEAN Python), causal by strict prior-day
+  lookup, applied after the margin-budget shrink, uncovered pre-2017 days at factor 1.0 and the
+  study judged on 2017-04-03..2026-09-04. **The inverse reading that the O-1 residual motivates
+  loses on both axes** (CAR 27.69 vs 29.46 control, and std 0.182 vs 0.179). The direct reading is
+  a pure vol dial - std monotone 0.179/0.189/0.198/0.204 in the tilt, Sharpe peaking at power -0.5
+  and decaying - and **at matched realized vol a constant gross-up with no IV in it scores 31.107%
+  / 1.040 / 0.189 against the dial's 31.376% / 1.050 / 0.189, on 3,027 orders against 4,550**. The
+  shipped-defaults regression reproduces `OrderListHash 5246804e17a67af90028ffceead7d3b3` exactly.
+  **Do not re-open as a field, window or threshold question** - the negative is that the only
+  contribution available is the *level* of gross, which `margin_budget` already provides free.
+  Kept for the record, the original item: O-1 refused the
   *gate* but measured a real residual: corr(SPY implied vol, |intraday daily P&L|) = **+0.252 at
   t = +12.67**, positive in all three regimes for all three features. Implied vol forecasts how
   big a day will be and not which way, which is worthless on a book whose level is negative - and

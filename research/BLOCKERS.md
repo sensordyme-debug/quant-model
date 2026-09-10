@@ -2,6 +2,34 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
+## Open question to the owner (2026-09-10, daily champion - risk posture, from O-1b)
+
+- **The daily champion's gross is one constant away from ~1.6 points more CAR, and moving it is
+  your call, not the loop's.** O-1b tried to buy that size with an options-implied dial and refused
+  it - and in doing so measured that the size is available for free. All rows are LEAN runs over
+  **2017-04-03..2026-09-04**, the window the options store covers:
+
+  | cell | orders | fees | CAR | Sharpe | MaxDD | ann.std |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | shipped champion | 2,951 | $13,090 | 29.456% | 1.025 | **22.6%** | 0.179 |
+  | `margin_budget` 0.75 -> **0.792** | 3,039 | $14,530 | **31.006%** | 1.042 | **22.8%** | 0.188 |
+  | the options-implied dial (refused) | 4,550 | $17,963 | 31.376% | 1.050 | 23.3% | 0.189 |
+
+  **One constant buys +1.55 points of CAR for +0.2 points of drawdown and 88 extra orders.** The
+  dial buys another +0.37 for +0.5 points of drawdown and **1,511** extra orders, which is why it
+  was refused. No new data feed is involved in the middle row.
+- **Why it is a question and not a change.** The 0.25 buffer under Reg-T is a deliberate risk
+  choice, not a fitted parameter (see the `signals.py` docstring): a live account holding at the
+  full budget has *zero* excess liquidity, so any adverse move is an immediate margin call. The
+  measured window above starts in 2017 and misses 2012-2016; the full-period champion's drawdown is
+  already 25.1% against your 35% cap, and a wider budget widens it - S-6 measured a *full* 1.0
+  budget at 35.4% drawdown, over the cap, which is where this road ends. Three options:
+  **(a)** leave `margin_budget` at 0.75 (default, nothing changes); **(b)** move it to 0.792, which
+  the loop would then confirm on the full 2012-2026 sample through `evaluate.py` before promoting;
+  **(c)** name a drawdown you are willing to carry and let the loop solve for the budget under it.
+  Nothing has been changed pending your answer, and this is a size decision, so the loop will not
+  take it on its own.
+
 ## Open request to the owner (2026-09-10, intraday sleeve - supersedes the size half of the 2026-09-09 item)
 
 - **The question "can this sleeve be validated?" is now answered, and the answer is that it

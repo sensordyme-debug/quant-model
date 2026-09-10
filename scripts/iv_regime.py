@@ -243,6 +243,21 @@ def load_gate(feature: str = "iv_atm_1w", lookback: int = 60) -> pd.DataFrame:
     return out.dropna(subset=["day"]).set_index("day")
 
 
+def export_csv(df: pd.DataFrame) -> Path:
+    """Mirror the store to CSV next to the parquet, and return the path.
+
+    O-1b: the LEAN-side Python is 3.11 with no pyarrow, so `algorithms/s1_momo/signals.py`
+    cannot read the parquet. The CSV is the read path for anything running inside the
+    engine or the paper runner; the parquet stays the source of truth.
+    """
+    out = STORE.with_suffix(".csv")
+    frame = df.copy()
+    frame["day"] = pd.to_datetime(frame["day"]).dt.strftime("%Y-%m-%d")
+    frame.to_csv(out, index=False)
+    print(f"wrote {out}  {len(frame)} days  {frame['day'].iloc[0]}..{frame['day'].iloc[-1]}")
+    return out
+
+
 # --------------------------------------------------------------------------------- cli
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -251,7 +266,13 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--rebuild", action="store_true", help="aggregate the raw cache, fetch nothing")
     ap.add_argument("--force", action="store_true", help="refetch expirations already cached")
+    ap.add_argument("--export-csv", action="store_true",
+                    help="read the existing parquet and (re)write the CSV mirror, fetch nothing")
     args = ap.parse_args()
+    if args.export_csv:
+        df = pd.read_parquet(STORE).sort_values("day").reset_index(drop=True)
+        export_csv(df)
+        return 0
     lo, hi = dt.date.fromisoformat(args.start), dt.date.fromisoformat(args.end)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -274,6 +295,7 @@ def main() -> int:
         sys.exit("no rows aggregated")
     df.to_parquet(STORE, index=False)
     print(f"\nwrote {STORE}  {len(df)} days  {df['day'].min()}..{df['day'].max()}")
+    export_csv(df)
     with pd.option_context("display.width", 200):
         print(df.describe().T[["count", "mean", "std", "min", "50%", "max"]].round(4).to_string())
         print(df.tail(3).to_string(index=False))

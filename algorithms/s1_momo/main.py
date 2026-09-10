@@ -109,6 +109,14 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             hysteresis=_env("HYSTERESIS", 0.0),
             min_hold=_env("MIN_HOLD", 0, int),
             rank_persist=_env("RANK_PERSIST", 0, int),
+            # O-1b: the options-implied size dial. IV_SCALE_POWER=0 is off and reproduces
+            # the S-12 champion exactly; positive is the inverse reading (smaller book when
+            # the market prices a big day), negative the direct one.
+            iv_scale_power=_env("IV_SCALE_POWER", 0.0),
+            iv_scale_field=os.environ.get("S1_IV_SCALE_FIELD", "iv_atm_1w"),
+            iv_scale_window=_env("IV_SCALE_WINDOW", 60, int),
+            iv_scale_min=_env("IV_SCALE_MIN", 0.5),
+            iv_scale_max=_env("IV_SCALE_MAX", 1.5),
         )
 
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)

@@ -2,6 +2,103 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-10 - O-1b: the implied-vol size dial is a leverage dial, and it pays 50% more turnover for it
+
+- **What.** O-1's deferred half, on the daily champion instead of the intraday sleeve. A size
+  multiplier on S-12's funded book, driven by SPY options-implied vol:
+  `clip((trailing median IV / prior-day IV) ** iv_scale_power, iv_scale_min, iv_scale_max)`,
+  applied to the final weights. `iv_scale_power = 0` is off and is the shipped default.
+- **Why.** O-1 refused implied vol as a *gate* but measured a residual that survived every cut it
+  tried: corr(SPY ATM IV, |intraday daily P&L|) = **+0.252 at t = +12.67**, positive in all three
+  regimes for all three features. Implied vol forecasts how *big* a day will be and not which way.
+  That is worthless on a book whose level is negative, and it is exactly what a size dial wants -
+  so the only place it could pay is a book whose level is positive. S-12 is that book.
+- **Plumbing.** `signals.py` gains `iv_regime_series` / `iv_size_factor` and five `Params` fields,
+  `main.py` gains the matching `S1_IV_SCALE_*` overrides, and `scripts/iv_regime.py --export-csv`
+  mirrors the parquet to `data/options/iv_regime.csv` because the LEAN-side Python 3.11 has no
+  pyarrow. Two things kept honest by construction: the factor reads only store rows dated
+  **strictly before** the last price bar, so it is causal under either harness's timestamp
+  convention; and it multiplies the weights *after* the margin-budget shrink rather than folding
+  into `scale`, because with a flat budget the vol target is already inert upwards (S-8) and a
+  dial that can only cut is not a dial.
+- **Coverage, stated rather than hidden.** The store runs 2017-01-03..2026-09-09 and the champion's
+  sample starts 2012. Uncovered days get factor 1.0, i.e. they run as the champion, so the study is
+  judged on the covered period **2017-04-03..2026-09-04** (the start is pushed to April so the
+  60-row median window is full on day one). A full-period run would be a blend of a bit-identical
+  half and the half measured below, so it can only move the verdict toward the control.
+
+### Every cell, covered period, against its own control
+
+| cell | orders | fees | CAR | Sharpe | MaxDD | ann.std | PSR |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| control, dial off | 2,951 | $13,090 | 29.456% | 1.025 | 22.6% | 0.179 | 37.7% |
+| power **+1.0** (inverse: cut when a big day is priced) | 4,991 | $19,128 | 27.692% | 0.950 | 21.1% | 0.182 | 29.5% |
+| power **-0.5** (direct) | 4,550 | $17,963 | **31.376%** | **1.050** | 23.3% | 0.189 | **40.0%** |
+| power **-1.0** (direct) | 4,966 | $21,937 | 31.705% | 1.025 | 24.6% | 0.198 | 36.7% |
+| power **-2.0** (direct) | 4,768 | $23,702 | 29.772% | 0.939 | 25.4% | 0.204 | 27.4% |
+
+**The inverse reading - the one the residual actually motivates - is the losing side.** Spending
+less when the market prices a big day costs 1.76 points of CAR and 0.075 of Sharpe *while carrying
+more vol than the control* (0.182 against 0.179), so it is worse on both axes at once. The side
+that wins is the direct one: lever up when implied vol is high. That is not a risk dial, it is the
+long-volatility reading A-10 found in the intraday sleeve, arriving on a book that is paid for it.
+
+And the response in `power` is a **pure vol dial**: annualized std walks 0.179 -> 0.189 -> 0.198 ->
+0.204 monotonically as the tilt strengthens, CAR peaks at -0.5/-1.0 and rolls over at -2.0, and
+Sharpe peaks at -0.5 and then decays. That is the shape leverage plus compounding decay makes, not
+the shape information makes.
+
+### The benchmark that settles it: the same gross, with no IV in it
+
+The mean factor is only **1.0198** at power -0.5, so most of the level is unchanged; the dial's
+claim has to be about *timing*. Degenerating the clip (`iv_scale_min = iv_scale_max = c`) turns the
+same code path into a constant gross-up with the IV timing removed:
+
+| cell | orders | fees | CAR | Sharpe | MaxDD | ann.std | PSR |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| CONSTANT 1.0198 (matches the dial's mean gross) | 2,973 | $13,588 | 30.022% | 1.030 | 23.0% | 0.183 | 38.0% |
+| CONSTANT 1.056 (matches the dial's realized vol) | 3,027 | $14,556 | 31.107% | 1.040 | 23.8% | **0.189** | 38.9% |
+| IV dial, power -0.5 | 4,550 | $17,963 | 31.376% | 1.050 | 23.3% | **0.189** | 40.0% |
+
+**At identical realized vol the whole of the dial's edge over a dumb constant gross-up is +0.27
+points of CAR and +0.010 of Sharpe, bought with 50% more orders (4,550 vs 3,027) and 23% more
+commission ($17,963 vs $14,556).** S-13 measured this harness's own path scatter on a parameter
+with no mechanism at roughly +/-0.3 CAR and +/-0.01 Sharpe across neighbouring cells. The dial's
+entire measured contribution is one unit of that scatter, and it is charged for.
+
+Two thirds of the raw "gain" is not even timing: constant 1.0198 already earns +0.57 CAR over the
+control for a 2% gross-up.
+
+And the constant does not need the dial's code at all. Expressed as the knob the owner actually
+sets - `margin_budget` 0.75 -> **0.792**, no IV feed, no new module - the same window gives
+**3,039 orders / $14,530 / CAR 31.006% / Sharpe 1.042 / DD 22.8% / std 0.188 / PSR 39.1%**. That is
+**+1.55 CAR over the shipped champion for +0.2 points of drawdown and 88 extra orders**, against the
+dial's further +0.37 CAR for +0.5 points of drawdown and **1,511** extra orders. The dial is
+strictly the worse way to buy the same thing.
+
+- **Decision. Refused; nothing shipped.** `iv_scale_power` stays 0.0, the champion stays S-12, and
+  `research/champion.json` is unchanged. The plumbing is kept in the tree defaulted off because it
+  is the read path any future options study needs.
+- **The no-op is proved, not asserted.** `signals.py` is the module the IBKR paper runner imports,
+  so the shipped-defaults run was repeated on the full period: 4,735 orders, CAR 24.404%, Sharpe
+  0.921, DD 25.100%, fees $45,695.46, end equity $2,467,638.72 and
+  **`OrderListHash 5246804e17a67af90028ffceead7d3b3`** - bit-identical to the champion. The live
+  paper path is unchanged and `live/` was not touched.
+- **Do not re-open this as a feature or threshold question.** The negative is not that
+  `iv_atm_1w` is the wrong field or 60 the wrong window: it is that the only thing implied vol can
+  contribute to a *long-only-in-spirit* momentum book is the level of gross, and the level of gross
+  is already available for free and without turnover through `margin_budget`. If the owner wants
+  the extra 1.6 points of CAR that the covered period shows, the honest instrument is a one-line
+  constant, not an options feed - and it is a risk-posture decision, so it goes to `BLOCKERS.md`.
+- **Also this iteration: A-5 part 2 had no input.** `python scripts/slippage_report.py` at the top
+  of the iteration reports no session on disk with live fills - the only intraday log with orders
+  is still absent, and 2026-09-09's is the hand-started dry run. Today's 09:25 ET session (this
+  iteration ran at 08:3x ET, before the open) is the first that can produce one, so the measurement
+  moves to the post-close run.
+- **Next.** After today's close: `scripts/slippage_report.py` for A-5 part 2, which is the only
+  measurement that can still move `SLIPPAGE_BPS` and therefore the intraday sleeve's sign. The
+  A-track has no untried lever left; O-2 (defined-risk 0DTE options) needs owner permissions.
+
 ## 2026-09-10 - O-1: implied vol forecasts the day this sleeve pays for, and pays nothing
 
 - **What.** The last idea on the A-track with a measured mechanism behind it. `scripts/iv_regime.py`
