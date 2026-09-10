@@ -20,7 +20,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from secrets import require  # noqa: E402
+from apikeys import require  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 EVENTS = REPO / "data" / "events" / "earnings.json"

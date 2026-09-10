@@ -28,7 +28,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault("INTRADAY_DATA_DIR", str(Path(__file__).resolve().parents[1] / "data" / "minute_alpaca"))
 from intraday_common import DATA_DIR, ET, UNIVERSE, load_bars, save_bars  # noqa: E402
-from secrets import require  # noqa: E402
+from apikeys import require  # noqa: E402
 
 BASE = "https://data.alpaca.markets/v2/stocks/bars"
 

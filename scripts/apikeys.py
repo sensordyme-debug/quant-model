@@ -1,6 +1,6 @@
 """Load API keys from live/secrets.env (gitignored) into a dict / os.environ.
 
-    from secrets import keys
+    from apikeys import keys
     k = keys()                  # {"ALPACA_API_KEY": ..., ...}
     keys(export=True)           # also sets os.environ so client libraries pick them up
 
