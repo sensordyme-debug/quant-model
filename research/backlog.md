@@ -264,6 +264,29 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
+- **A-10 Statistical power at last: validate the sleeve on the Alpaca SIP store (top item
+  once `python scripts/alpaca_data.py --status` shows sessions).** A-4 proved the IBKR store
+  (260 sessions) cannot resolve the deployed mix's edge (t = +0.61, ~2,000 sessions needed).
+  `scripts/alpaca_data.py` now pulls consolidated 1-minute bars for any US symbol back to
+  2016, free. Fetch the 16-name universe from 2016 (`--start 2016-01-01`, ~10 minutes), then
+  re-run the deployed mix and each sub-strategy with `INTRADAY_DATA_DIR=data/minute_alpaca`
+  and a 3-way split (2016-2019 / 2020-2023 / 2024-2026). Report t-stats per regime and the
+  range-correlation from A-4. If the mix is not positive in at least two of three regimes at
+  t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
+  the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
+  test: the 50 megacaps from D-1 are now fetchable at minute resolution.
+- **O-1 Options-implied regime features (Theta Data).** `scripts/theta_data.py` serves SPY
+  and single-name implied vol and first-order greeks history at 5-minute resolution since
+  2012. Build `data/options/iv_regime.parquet`: SPY ATM IV (nearest weekly), 25-delta
+  put/call skew and the IV term ratio (1w/1m) per day and per 30-minute bucket. Test them
+  as (a) a gate on the late-day fade and ORB (trade only when IV is above/below its 60-day
+  median), (b) a size scaler for the daily champion. Causal only: use the bucket before the
+  decision bar.
+- **O-2 0DTE/1DTE defined-risk options sleeve (needs owner: IBKR options permission + OPRA
+  data).** With Theta quotes at 1-minute resolution, backtest SPY same-day credit spreads
+  sold against the intraday regime signal with realistic fills at the quoted bid/ask (never
+  the mid). Judge after costs, both halves, worst day. Do not deploy anything until the
+  owner enables options permissions; record the evidence in the journal.
 - **A-5 Execution quality from the live log (top item).** The one number in the intraday
   harness that is a guess rather than a measurement: `SLIPPAGE_BPS = 1.5` in
   `scripts/intraday_common.py`, charged on 49 trades/day, i.e. **$1,025/day of modelled cost

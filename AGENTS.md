@@ -72,6 +72,19 @@ approval, in live trading.
 - Minute: IBKR 1-minute TRADES bars. LEAN format via `scripts/fetch_minute.py` (clientId 31);
   parquet store `data/minute/<SYM>.parquet` via `scripts/intraday_data.py` (clientId 61) for
   the intraday sleeve. Extend with `python scripts/intraday_data.py --months N`.
+- Minute, deep and broad: Alpaca SIP (consolidated) 1-minute bars for ANY US symbol back to
+  2016, free, `scripts/alpaca_data.py --symbols ... --start YYYY-MM-DD` into
+  `data/minute_alpaca/`. Run any intraday harness on it with `INTRADAY_DATA_DIR=data/minute_alpaca`.
+  Use it for statistical power (A-4 showed ~2,000 sessions are needed to resolve the sleeve's
+  edge) and for universe breadth; the IBKR store stays the execution-matched reference.
+- Options: Theta Data STANDARD plan through the local Theta Terminal (`scripts/theta_data.py`,
+  `--start-terminal` if it is down): chains, quotes/OHLC/trades at 1m+, implied vol and
+  first-order greeks history, EOD full greeks, open interest, snapshots, back to 2012.
+  Alpaca also serves options 1-minute bars (`/v1beta1/options/bars`) and indicative snapshots.
+- Events: `scripts/events.py` writes `data/events/earnings.json` from FMP (basic plan: only a
+  narrow window around today); `events.earnings_window(symbol, day)` is the gate helper.
+- API keys live in `live/secrets.env` (gitignored) and are read through `scripts/apikeys.py`.
+  Never name a module `secrets` (it shadows the stdlib module numpy imports from).
 
 ## The intraday active sleeve (deployed on paper since 2026-09-10)
 
