@@ -101,14 +101,43 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
 
 ## Open requests to the owner (2026-09-10, the 3-10%/day mandate)
 
-- **Options permission and data.** The fastest high-win-rate instruments for the mandate are
-  defined-risk options (0DTE/1DTE spreads). Needed: options trading permission on the IBKR
-  account (paper inherits it) and the OPRA add-on. Theta Data history is already wired for
-  validation; nothing deploys until it is positive in two of three regimes.
-- **Drawdown cap.** A book that moves 3-10% a day will see 30-50% drawdowns as a matter of
-  arithmetic. The current promotion cap is 35%. Say the number you accept for the aggressive
-  track (50% is the consistent choice with the mandate) or the loop will keep refusing the
-  strategies the mandate asks for.
+- **Options permission and data - now answered on the research side, and the answer is "not yet"
+  (O-2, 2026-09-10).** The measurement no longer needs your permission: Theta already serves the
+  quotes, and O-2 ran the whole study on **1,884 SPY 0DTE expirations, 2016-2026, every fill priced
+  at the quoted bid/ask**. Three things came out of it, and only the third is a question for you.
+  **(1) The premium is real.** The market's own quoted probability of a 0DTE short strike being
+  breached exceeds the realized rate at **z = -2.7 to -3.8 in six of six delta/right cells**. That
+  is the variance risk premium, measured directly, and it is the first gross edge in this repository
+  that survives crossing the bid/ask on entry.
+  **(2) It is still refused, and not on a parameter.** Closed at the quoted spread the trade earns
+  **-1.53% of its own max risk per session** and loses in 8 of 11 years; the only version that pays
+  (+0.767%, t = +3.05) assumes an untouched position expires free at the bell. **The median session
+  closes 0.28% of spot from the short strike** and 37.4% close within 0.2%, so requiring the close to
+  clear the strike by just **0.10% of spot - about 65 cents - takes it to +0.445% at t = 1.78 and
+  0 of 3 regimes.** SPY settles on the official 16:00 print and is exercisable against until
+  17:30 ET, so that buffer is a real exposure, not a modelling nicety.
+  **(3) The mandate is arithmetically out of reach for this instrument.** Even at the un-buffered
+  best cell, a 3%/day book needs **3.9x equity at risk every session**, and a defined-risk position
+  posts its risk in full as margin - the ceiling is 1.0x, where the worst session in eleven years is
+  **-105%**. At a survivable 0.25x it scores CAR 21.5% at a **60.6% drawdown**.
+  **What would change the answer, and what it costs you.** Not permission - **data**. To price the
+  exit honestly the loop needs OPRA quotes through the closing auction and the official settlement
+  print, so the expire-or-close decision can be measured instead of assumed. If you want an options
+  sleeve pursued further, that subscription is the purchase to make; **IBKR options permission on
+  its own would only let the loop deploy something it has just refused.** Nothing is blocked today,
+  and the loop will not open an options position.
+- **Drawdown cap - this is now the binding constraint, and it is the only open item that can
+  change any verdict.** A book that moves 3-10% a day will see 30-50% drawdowns as a matter of
+  arithmetic. The current promotion cap is 35%. **As of 2026-09-10 every candidate on your list has
+  been measured and refused** - O-1, O-1b, L-1, X-1 and O-2 - and in the one case where the cap was
+  the reason rather than the edge (O-2 sized at 0.25x equity at risk: CAR 21.5%, drawdown 60.6%) it
+  is decisive. Say the number you accept for the aggressive track (50% is the choice consistent with
+  the mandate), or say that 35% stands and the loop will stop proposing strategies the mandate asks
+  for. Note what raising it would and would not do: it would make a **21% CAR at 60% drawdown**
+  promotable, which is worse on both axes than the daily champion's 24.4% at 25.1%. On the evidence
+  in this repository, the aggressive mandate and the drawdown cap are not in tension because the cap
+  is too low - they are in tension because **no measured edge here is large enough to pay for that
+  much volatility.**
 - **Real-time data bundle** (below) so paper fills and live bars are current.
 
 ## Open request to the owner (2026-09-09, intraday sleeve)

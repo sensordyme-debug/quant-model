@@ -80,6 +80,9 @@ approval, in live trading.
 - Options: Theta Data STANDARD plan through the local Theta Terminal (`scripts/theta_data.py`,
   `--start-terminal` if it is down): chains, quotes/OHLC/trades at 1m+, implied vol and
   first-order greeks history, EOD full greeks, open interest, snapshots, back to 2012.
+  The 0DTE chain store (`scripts/odte_data.py` -> `data/options/odte/SPY/<date>.parquet`) holds
+  1,884 SPY same-day expirations 2016-2026 at 5-minute bid/ask, both rights, +/-30 strikes;
+  `scripts/sweep_o2.py` reads it and prices every fill at the quote, never the mid.
   Alpaca also serves options 1-minute bars (`/v1beta1/options/bars`) and indicative snapshots.
 - Events: `scripts/events.py` writes `data/events/earnings.json` from FMP (basic plan: only a
   narrow window around today); `events.earnings_window(symbol, day)` is the gate helper.

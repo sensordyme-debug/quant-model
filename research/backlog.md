@@ -17,6 +17,48 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-10 20:4x UTC (O-2): **SPY 0DTE credit spreads are the first candidate in this
+repository with a real, calibrated gross edge - and they are refused, because the only version that
+pays depends on a settlement convention the data cannot price.** Built the 0DTE chain store
+(`scripts/odte_data.py`: **1,884 expirations, 2016-01-08..2026-09-10, 5-minute bid/ask both rights,
++/-30 strikes, ~17.8M rows, 125 MB** from Theta), the study (`scripts/sweep_o2.py`) and the
+confirmation (`scripts/_o2_confirm.py`); 16 ledger rows under `options/odte_put_spread`. **The
+instrument was proved first**: the chain's own slope (`dP/dK`) is a calibrated probability -
+realized breach tracks the quoted prob at every delta on both rights and sits **consistently below**
+it at **z = -2.7 to -3.8** in six of six cells - which is the variance risk premium measured rather
+than assumed, and the reason gross is positive here where O-1/L-1/X-1 had none. **Stage 1, the
+pre-registered grid (36 cells, closed at the quote): 0 of 36 pass, every cell negative in every
+regime.** Decomposition, as % of the position's own max loss per session: gross **+0.783**, quoted
+spread **-1.363**, commission **-0.950**, net **-1.530** - **the mid edge is a third of the cost of
+harvesting it**, and on a $355 risk unit IBKR's fee alone exceeds the whole gross. Made as cheap as
+the data allows (72 cells, width 0.75-5%, entry 10:00-14:00, with and without commission) the best
+net is **+0.30% at t = +0.94 and that is at zero commission**. **Stage 2 is the finding**: a real
+0DTE book does not buy back an untouched position, it lets it expire, and modelling exactly that
+**flips the sign** - entry time becomes a monotone shelf (**09:35 +0.09 / t 0.19 -> 12:00 +0.685 /
+2.09 -> 14:30 +0.907 / 4.32 -> 15:30 +0.684 / 5.20**), the best cell earns **+0.767% of risk at
+t = +3.05, positive in 10 of 11 years**, and 3 of 36 cells pass the rule. **The same cells closed at
+the quote earn -0.282% at t = -1.16, positive in 3 of 11 years: the entire result is the exit.**
+**And the exit does not survive settlement.** SPY settles on the official 16:00 print and is
+exercisable against until 17:30 ET, so a barely-OTM close is not a free expiry; charging the quote
+unless the close clears the short strike by a buffer walks the result **+0.767 (t 3.05, 2 regimes)
+-> +0.583 (2.32, 1) -> +0.445 (1.78, **0**) at 0.10% of spot -> +0.202 (0.81) at 0.20%**. The pin
+distribution is why: **the median session closes 0.28% of spot from the short strike** (p25 0.14%,
+p10 0.06%, p5 0.03%) and **37.4% close within 0.2% of it**. At ~65 cents of buffer on today's SPY
+the trade fails the pre-registered rule outright. **The mandate refuses it a second time**: at the
+un-buffered best cell a book earns +0.767% per session per unit of equity at risk, so **3%/day needs
+3.9x equity at risk and a defined-risk position posts its risk in full as margin** - ceiling 1.0x,
+where the worst session is **-105%**. At a survivable 0.25x the ledger row is CAR 21.5% at a
+**60.6% drawdown**, far outside the 35% cap. **Refused and closed; nothing shipped**, no file the
+live trader or the daily runner loads was touched, `live/` and the scheduled tasks untouched, rule
+(a) owes no replay (new scripts only). Champion unchanged at S-12. **A-5 part 2 ran as the standing
+job on the first full session of intraday fills: 32 fills / $1.87M / 100% filled, realized slippage
++2.92 bps (se 1.32) against the shipped 1.50 - |diff|/se = 1.08, not yet 2 se, so `SLIPPAGE_BPS` was
+not touched - but it has moved from +1.30 (partial session) to +2.92, i.e. above A-5 part 1's
+2.52 bps breakeven; ~6.7 more sessions settle it.** **The owner's 3-10%/day list is now exhausted.**
+O-1, O-1b, L-1, X-1 and O-2 have each been measured on the full history and each refused; nothing in
+this repository reaches the mandate, and the only edge that survives out of sample is the daily
+champion. The binding constraint is now an owner decision, not a missing idea.
+
 Status 2026-09-10 19:3x UTC (X-1): **breadth does not rescue the intraday sleeve - fifty megacaps
 carry a cross-sectional spread of +0.36 bps against a 4.70 bps round trip.** Fetched the 40 missing
 megacaps (2016-2026, ~1.04M bars each; the Alpaca store is now 60 symbols) and re-derived
@@ -464,7 +506,12 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
-Owner instruction 2026-09-10 (midday): the strategy set is too weak and too calm. Target is
+**Owner instruction 2026-09-10 (midday) - the list is now exhausted, 2026-09-10 20:4x UTC.**
+O-1, O-1b, L-1, X-1 and O-2 have each been measured on the full history and each refused. Nothing
+in this repository reaches 3-10%/day: the closest candidate, O-2, needs 3.9x equity at risk per
+session against a defined-risk ceiling of 1.0x. What is left is not another lever - it is the three
+open owner questions in `BLOCKERS.md`, of which the **drawdown cap** now binds every candidate the
+mandate asks for. Original instruction: the strategy set is too weak and too calm. Target is
 3-10% portfolio moves per day from fast, high-win-rate strategies. Volatility must come from
 EDGE and instruments with intrinsic leverage, not from sizing up unproven signals (A-10 showed
 the intraday mix has none yet). Research priority from here, in order: **O-1** (options-implied
@@ -639,11 +686,35 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
   the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
   test: the 50 megacaps from D-1 are now fetchable at minute resolution.
-- **O-2 0DTE/1DTE defined-risk options sleeve (needs owner: IBKR options permission + OPRA
-  data).** With Theta quotes at 1-minute resolution, backtest SPY same-day credit spreads
-  sold against the intraday regime signal with realistic fills at the quoted bid/ask (never
-  the mid). Judge after costs, both halves, worst day. Do not deploy anything until the
-  owner enables options permissions; record the evidence in the journal.
+- **O-2 DONE 2026-09-10 (see journal): the SPY 0DTE credit spread has a real, calibrated gross
+  edge and it is still refused - at the quote it loses in 8 of 11 years, and the version that wins
+  needs a settlement convention the data cannot price. Nothing shipped.** Research needed no owner
+  action: permission blocks deployment, not measurement. Built `scripts/odte_data.py` (1,884
+  expirations 2016-01-08..2026-09-10, 5-minute bid/ask both rights, +/-30 strikes, ~17.8M rows),
+  `scripts/sweep_o2.py` and `scripts/_o2_confirm.py`; 16 ledger rows under `options/odte_put_spread`.
+  **The instrument was proved before its verdict**: strike selection reads the risk-neutral prob-ITM
+  off the chain's own slope (`dP/dK`, no vol model, no external data) and realized breach tracks the
+  quoted probability at every delta on both rights while sitting **below** it at **z = -2.7 to -3.8
+  in six of six cells** - the variance risk premium, measured. **Stage 1 (36 pre-registered cells,
+  closed at the quote at 15:50): 0 of 36 pass.** As % of the position's own max loss per session:
+  gross **+0.783**, quoted spread **-1.363**, commission **-0.950**, net **-1.530**; the mid edge is
+  **a third** of the cost of harvesting it and on a $355 risk unit the commission alone exceeds the
+  gross. Cheapest possible version (72 cells) tops out at **+0.30% at t = +0.94, at zero commission**.
+  **Stage 2 is the whole result**: letting an untouched position expire instead of buying it back
+  flips the sign to **+0.767% at t = +3.05, 10 of 11 years positive**, with entry time a monotone
+  shelf (09:35 +0.09 / 12:00 +0.685 / 14:30 +0.907 / 15:30 +0.684, t rising 0.19 -> 5.20) - while the
+  same cells closed at the quote earn **-0.282% at t = -1.16**. **The exit assumption is what fails**:
+  SPY settles on the official 16:00 print and is exercisable against until 17:30 ET, so requiring the
+  close to clear the short strike by a buffer walks the result +0.767 (2 regimes) -> +0.583 (1) ->
+  **+0.445 at t = 1.78 and 0 regimes at a 0.10%-of-spot buffer** -> +0.202 at 0.20%. **The median
+  session closes 0.28% of spot from the short strike** (p25 0.14%, p10 0.06%, p5 0.03%) and 37.4%
+  close within 0.2%, so the edge lives in the last few cents at the bell. **On the mandate**: the
+  best cell earns +0.767% per unit of equity at risk, so 3%/day needs **3.9x equity at risk** against
+  a defined-risk ceiling of 1.0x, where the worst session is **-105%**; at a survivable 0.25x the
+  ledger row is CAR 21.5% at a **60.6% drawdown**. **Do not re-open as a delta, width, entry-time,
+  structure or stop question** - the grid spans all five and the negative is decided one level above
+  them. What would re-open it is **different data**: OPRA quotes through the close plus a measured
+  settlement print, which is an owner purchase (see `BLOCKERS.md`), not a loop decision.
 - **A-11 Cap order size at a share of the fill minute's volume (was A-10; demoted by A-10).**
   **Implementation status as of 2026-09-10 (A-5 part 2)**: an interrupted session left the whole
   thing in the tree, and it is now committed - `intraday_common.volume_limits()` (trailing median
