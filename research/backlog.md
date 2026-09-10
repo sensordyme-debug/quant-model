@@ -401,6 +401,26 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
+Owner instruction 2026-09-10 (midday): the strategy set is too weak and too calm. Target is
+3-10% portfolio moves per day from fast, high-win-rate strategies. Volatility must come from
+EDGE and instruments with intrinsic leverage, not from sizing up unproven signals (A-10 showed
+the intraday mix has none yet). Research priority from here, in order: **O-1** (options-implied
+regime gate, data ready), **L-1**, **X-1**, **O-2** (needs owner's options permission), then the
+A-track refinements. Every candidate is judged on ten years of Alpaca bars with a three-regime
+split and real costs; nothing is deployed without being positive in at least two regimes.
+
+- **L-1 Leveraged-ETF intraday mean reversion.** SOXL/SOXS/TQQQ/SQQQ/UPRO/SPXU move 3-6% a
+  day and mean-revert intraday because of their daily-reset construction and dealer hedging.
+  Test 1-5 minute VWAP-band fades with tight time stops on those names only (add TQQQ/SQQQ/
+  UPRO/SPXU to a separate universe file so the daily sleeve's TQQQ is not touched), 2016-2026
+  on Alpaca bars, costs included. This is the most direct route to the owner's daily-move
+  target with defined intraday risk.
+- **X-1 Cross-sectional intraday momentum on the 50 megacaps.** Pull the D-1 megacap list
+  at minute resolution from Alpaca (10 years, ~10 minutes of fetching), rank names each 30
+  minutes by intraday return vs the basket, go long the top decile and short the bottom
+  decile, flat by 15:38. Breadth is where a robust intraday edge is more likely than in a
+  16-name book; judge by regime.
+
 Owner decisions of 2026-09-09 (see `BLOCKERS.md`): paper trading is approved and running,
 the 35% drawdown cap stays, promotion is now return-first with a 0.03 Sharpe tolerance and a
 1-point drawdown tolerance, delisted-inclusive data is deferred, the no-trade band stays 0.01.
