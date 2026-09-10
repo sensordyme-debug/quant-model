@@ -17,6 +17,20 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-10 17:0x UTC (L-1): **leveraged ETFs do not revert intraday, and the statistic that
+said they did was weighted wrong.** Event study on 2016-2026 Alpaca bars for SOXL/SOXS/TQQQ/SQQQ/
+UPRO/SPXU (the last four fetched here): fading a `z`-ATR VWAP deviation at the next bar's open earns
+**-0.28 to -3.16 gross bps per round trip in all sixteen cells and on all six names**, against a
+**6.4-8.2 bps** cost. Through the shipped framework on 2,686 sessions the fade is **-$902/day at
+t = -9.45** (three deployable names -$667/-9.02) and the **continuation control loses too**
+(-$587/-6.26): 0/3 regimes everywhere. **The keeper is the weighting**: session-equal averaging
+made the same study pass 3/3 at +7.09 bps, because `corr(events/session, session mean gross) =
+-0.340 at t = -17.5` - a book puts the same notional on every event, so a session earns the sum.
+`_l1_reconcile.py` proved the harness and the event study agree per fill (235 round trips,
+corr 1.000) before either was believed. **Refused and closed; nothing shipped**, `live/` and the
+scheduled tasks untouched, 2026-09-08 replay reproduces the deployed sleeve exactly. Champion
+unchanged at S-12. **X-1 is the top open item.**
+
 Status 2026-09-10 16:0x UTC (A-5 part 2): **the first live fills say nothing about slippage and
 prove a cost the harness never charged.** The sleeve placed real orders for the first time this
 morning. On the partial session (19 fills, $1.11M, 100% fill rate) realized slippage is **+1.30 bps
@@ -443,12 +457,28 @@ regime gate, data ready), **L-1**, **X-1**, **O-2** (needs owner's options permi
 A-track refinements. Every candidate is judged on ten years of Alpaca bars with a three-regime
 split and real costs; nothing is deployed without being positive in at least two regimes.
 
-- **L-1 Leveraged-ETF intraday mean reversion.** SOXL/SOXS/TQQQ/SQQQ/UPRO/SPXU move 3-6% a
-  day and mean-revert intraday because of their daily-reset construction and dealer hedging.
-  Test 1-5 minute VWAP-band fades with tight time stops on those names only (add TQQQ/SQQQ/
-  UPRO/SPXU to a separate universe file so the daily sleeve's TQQQ is not touched), 2016-2026
-  on Alpaca bars, costs included. This is the most direct route to the owner's daily-move
-  target with defined intraday risk.
+- **L-1 DONE 2026-09-10 (see journal): leveraged ETFs do not revert intraday - gross is negative
+  before costs, in both directions, on all six names. Refused, nothing shipped.** Two stages, the
+  event study first so the mechanism was measured with nothing to fit: over 2016-2026 Alpaca bars
+  (TQQQ/SQQQ/UPRO/SPXU fetched here, ~1.03M bars each, joining SOXL/SOXS), fading a VWAP deviation
+  of `z` ATRs at the next bar's open and unwinding `h` bars later earns **-0.28 to -3.16 gross bps
+  per round trip in all sixteen cells**, against a **6.4-8.2 bps** round-trip cost. Stage 2 through
+  the shipped framework on 2,686 sessions: fade on six names **-$902/day at t = -9.45**, on the
+  three deployable names -$667/-9.02, and the **continuation control also loses** (-$587/-6.26) -
+  0/3 regimes for every variant against the 2/3-at-t>2 rule fixed before the runs. **The durable
+  finding is a statistics one**: the same event study *passes* 3/3 regimes at +7.09 bps if sessions
+  are equally weighted, because `corr(events per session, session mean gross) = -0.340 at t = -17.5`
+  - quiet sessions produce 2.4 stretches that revert (+37.9 bps), violent ones produce 25.5 that do
+  not (-10.6). **A per-event average over sessions is not an estimate of what a book earns**;
+  `sweep_l1.py` now prints it as a labelled diagnostic and decides on the money-weighted number.
+  The harness was audited before it was believed: `scripts/_l1_reconcile.py` matches 235 harness
+  round trips to event-study entries at **corr 1.000** (+1.12 vs +1.12 bps). Cost is structural
+  here - the inverse ETFs trade at $20-26 and IBKR charges per share, so SOXS pays 13.58 bps a
+  round trip against TQQQ's 4.85. **Do not re-open as a threshold, horizon or name-selection
+  question** - the negative is on gross, in both signs. Only `scripts/intraday_common.py` changed
+  (two constants, no behaviour); the 2026-09-08 replay reproduces the deployed sleeve exactly.
+  **On the mandate**: at 0.9 gross on 3x ETFs the book's daily P&L sd is 0.49% of equity - the
+  leveraged instruments supply volatility, not edge.
 - **X-1 Cross-sectional intraday momentum on the 50 megacaps.** Pull the D-1 megacap list
   at minute resolution from Alpaca (10 years, ~10 minutes of fetching), rank names each 30
   minutes by intraday return vs the basket, go long the top decile and short the bottom

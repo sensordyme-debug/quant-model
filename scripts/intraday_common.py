@@ -31,6 +31,15 @@ UNIVERSE = ["NVDA", "TSLA", "AAPL", "MSFT", "META", "AMD", "AMZN", "GOOGL", "AVG
 DAILY_SLEEVE_UNIVERSE = {"SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "TLT", "GLD", "UPRO", "TQQQ", "TMF"}
 assert not set(UNIVERSE) & DAILY_SLEEVE_UNIVERSE
 
+#: L-1 research universe: the 3x index ETFs, in inverse pairs (semis, Nasdaq-100, S&P 500).
+#: **This is not the deployed sleeve universe** - it is what scripts/sweep_l1.py studies. TQQQ and
+#: UPRO are the daily champion's own instruments, so only LEVERAGED_DEPLOYABLE could ever be traded
+#: by this sleeve without breaking the disjointness rule (AGENTS.md); the other two are carried in
+#: the study because dropping half of each pair would confound "does leverage revert" with "which
+#: leg was available".
+LEVERAGED_UNIVERSE = ["SOXL", "SOXS", "TQQQ", "SQQQ", "UPRO", "SPXU"]
+LEVERAGED_DEPLOYABLE = [s for s in LEVERAGED_UNIVERSE if s not in DAILY_SLEEVE_UNIVERSE]
+
 #: Regular session in ET. Bars are stamped at their START (IBKR convention), so the last
 #: regular bar starts at 15:59.
 SESSION_OPEN = dt.time(9, 30)

@@ -2,6 +2,103 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-10 - L-1: leveraged ETFs do not revert intraday, and the statistic that said they did was weighted wrong
+
+- **What.** The owner's midday mandate put L-1 at the top of the backlog: fade VWAP bands on the
+  3x index ETFs, where the daily-reset construction and dealer hedging are supposed to push price
+  away from fair value and back. Fetched the missing half of that universe from Alpaca
+  (TQQQ, SQQQ, UPRO, SPXU: **2016-01-04 .. 2026-09-10, ~1.03-1.04M regular-hours bars each**,
+  joining SOXL/SOXS), wrote `algorithms/intraday/lev_revert/signal.py` and `scripts/sweep_l1.py`,
+  and judged it on the same three a-priori regimes A-10 uses.
+- **Why in two stages.** Every A-track false positive came from fitting a strategy on one window
+  and reading its P&L, so the mechanism is measured first with no strategy and nothing to fit:
+  an **event study** on the raw bars. Whenever the deviation from session VWAP exceeds `z` of the
+  name's own 14-bar ATR, buy the cheap side at the *next* bar's open - the harness's own fill
+  convention - and unwind `h` bars later at that bar's open. Only a cell that clears cost earns a
+  strategy run.
+
+### The result: refused, in both instruments, in all three regimes
+
+| | gross bps/round trip | cost bps | net bps | t (net) |
+| --- | --- | --- | --- | --- |
+| z >= 3, hold 5 (540,740 events) | **-0.28** | 7.32 | -7.60 | -62.1 |
+| z >= 5, hold 30 (93,373) | **-1.79** | 7.14 | -8.94 | -15.5 |
+| z >= 8, hold 30 (55,454) | **-1.18** | 6.83 | -8.01 | -11.6 |
+| z >= 12, hold 30 (26,552) | **-1.68** | 6.46 | -8.15 | -9.7 |
+| z >= 12, hold 60 (14,495) | **-3.16** | 6.47 | -9.63 | -6.1 |
+
+**Gross is negative in all sixteen cells and for all six names**, before a cent of cost: a stretched
+3x ETF drifts a little further, it does not come back. The drift is small (-0.04 to -3.30 bps) and
+only reaches |t| ~ 3 at the loose thresholds, so the honest statement is that there is no
+tradeable deviation in either direction - which the harness confirms by losing on the inverted
+control too. **Stage 2, the module through the shipped framework, 2,686 sessions:**
+
+| variant | $/day | t | Sharpe | 2016-19 | 2020-23 | 2024-26 | tr/day | costs/day |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| fade, 6 names | **-902** | **-9.45** | -2.93 | t -7.09 | t -6.20 | t -3.42 | 17.5 | $738 |
+| fade, 3 deployable names | -667 | -9.02 | -2.77 | t -6.81 | t -6.12 | t -3.25 | 10.6 | $542 |
+| continuation control | -587 | -6.26 | -1.96 | t -5.93 | t -2.57 | t -3.32 | 17.6 | $787 |
+
+0/3 regimes for every variant, against a rule of 2/3 at t > 2 fixed before the runs.
+
+### The finding worth keeping: the aggregation chose the sign
+
+Stage 1 originally **passed 3/3 regimes at +7.09 bps net, t = +6.56**. That number came from
+averaging the events inside a session and then averaging the sessions - one vote per session. A
+book does not do that: it puts the same notional on every event, so a session earns the **sum**,
+not the average, and the money-weighted statistic is **-1.68 bps**. The two disagree by 15 bps and
+in sign because the fade's payoff is inversely proportional to how much of it there is:
+
+| sessions ranked by signal count (z >= 12, hold 30) | events/session | gross bps/event |
+| --- | --- | --- |
+| Q1 fewest | 2.4 | **+37.94** |
+| Q2 | 6.9 | +16.37 |
+| Q3 | 12.5 | +3.40 |
+| Q4 most | 25.5 | **-10.60** |
+
+`corr(events/session, session mean gross) = -0.340 at t = -17.5` (z >= 8: **-0.412 at t = -23.4**,
+monotone in every quartile). On a quiet tape two stretches appear and both revert; on a violent
+tape twenty-five appear, the book is fully deployed in all of them, and they run. **A per-event
+average over sessions is not an estimate of what a strategy earns unless the strategy trades one
+event per session**, and this repo now has a cell where that distinction is worth 15 bps and a
+verdict. `sweep_l1.py` prints the session-equal number as a labelled diagnostic and decides on the
+P&L-weighted one.
+- **The harness was audited before it was believed.** When stage 1 and stage 2 disagreed in sign
+  the first suspect was the backtester, so `scripts/_l1_reconcile.py` pairs the harness's own
+  trade log into round trips and matches them to the event study entry by entry on 2023 Q1:
+  **235 matched entries, event +1.12 bps vs harness +1.12 bps, corr 1.000, zero disagreements
+  above 1 bp.** The two instruments agree per fill; only the weighting differed.
+- **Cost is the second wall, and it is structural on this universe.** A round trip costs
+  **6.4-8.2 bps** here against ~3.8 on the megacap sleeve, because the inverse ETFs trade at
+  \$20-26 and IBKR charges per *share*: SOXS pays **13.58 bps** a round trip, SPXU 9.12, SQQQ 9.08,
+  against TQQQ's 4.85 and UPRO's 4.79. A mechanism worth +/-1-3 bps cannot pay a 7 bps toll no
+  matter which way it points, and the continuation control losing $587/day is that sentence
+  measured.
+- **Secondary observation, not the reason it loses.** In the reconciliation window 17 of 433 round
+  trips exited early - the 2.5% daily loss limit or the 15:38 flatten - and those averaged **-93
+  to -129 bps** against the full-length trades' -6.2. A loss limit truncates a fade at exactly the
+  moment the fade is claiming to be right, so a mean-reverting sleeve would have to price that
+  interaction. Irrelevant here, because gross is negative with or without them.
+- **Decision. L-1 is refused and closed.** Nothing shipped. `live/intraday_config.json`,
+  `live/APPROVED_PAPER.md` and the scheduled tasks were not touched; `algorithms/intraday/active/`
+  is unchanged, so the live trader loads exactly the code it loaded this morning. The only shared
+  file edited is `scripts/intraday_common.py`, which gains two module-level constants
+  (`LEVERAGED_UNIVERSE`, `LEVERAGED_DEPLOYABLE`) and no behaviour; the 2026-09-08 replay was run
+  anyway and reproduces the deployed sleeve exactly (see below). Two of the six names (TQQQ, UPRO)
+  are the daily champion's own instruments, so only `LEVERAGED_DEPLOYABLE` could ever have been
+  traded - the study carried all six so that "does leverage revert" was not confounded with "which
+  leg was available", and the answer is the same on both sets.
+- **On the mandate.** Even the passing version of this was never going to deliver 3-10% days: the
+  book's daily P&L standard deviation is **0.49% of equity** at 0.9 gross on 3x ETFs, because the
+  fade holds offsetting stretches for thirty minutes at a time. Leveraged instruments supply the
+  *volatility*; they do not supply the *edge*, and a sleeve with no edge sized up to move 5% a day
+  loses 5% a day just as often.
+- **Next.** X-1, cross-sectional intraday momentum on the 50 megacaps - the last untried item on
+  the owner's list that does not need options permission, and the only one whose premise (breadth,
+  a market-neutral ranking) is not already refuted by an A-track measurement. Fetch the D-1 megacap
+  list into `data/minute_alpaca` and judge it the same way: event study first, money-weighted, then
+  the harness, three regimes, 2/3 at t > 2.
+
 ## 2026-09-10 - A-5 part 2: the first live fills say nothing about slippage and prove a missing cost
 
 - **What.** The intraday sleeve placed real orders for the first time this morning, so A-5 part 2
