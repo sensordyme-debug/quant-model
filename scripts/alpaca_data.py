@@ -42,8 +42,12 @@ def fetch_symbol(symbol: str, start: dt.date, end: dt.date, headers: dict, feed:
             return 0
         if last > start:
             start = last                       # resume from the last stored day (inclusive; dedup on save)
-    params = {"symbols": symbol, "timeframe": "1Min", "start": f"{start}T13:30:00Z", "end": f"{end}T20:00:00Z",
-              "feed": feed, "limit": 10000, "adjustment": "raw"}
+    # The free plan refuses SIP requests that touch the most recent 15 minutes, so the window
+    # end is clamped to 16 minutes before now (UTC).
+    end_ts = min(dt.datetime.combine(end, dt.time(20, 0), tzinfo=dt.timezone.utc),
+                 dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=16))
+    params = {"symbols": symbol, "timeframe": "1Min", "start": f"{start}T13:30:00Z",
+              "end": end_ts.strftime("%Y-%m-%dT%H:%M:%SZ"), "feed": feed, "limit": 10000, "adjustment": "raw"}
     total, token = 0, None
     frames = []
     while True:
