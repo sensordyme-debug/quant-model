@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quant Dashboard</title>
+<link rel="stylesheet" href="/static/style.css">
+<!-- pinned CDN chart library; onerror sets a flag so app.js can degrade to the canvas fallback -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" onerror="window.__chartFailed=true"></script>
+<script defer src="/static/app.js"></script>
+</head>
+<body>
+<div class="grid" id="grid">
+
+<!-- ROW 0 - STATUS BAR -->
+<section class="panel bar" id="p-status" data-endpoint="/api/status" data-interval="10000" tabindex="-1">
+  <span class="worst" id="worst" title="worst panel staleness on the page"></span>
+  <span class="clock" id="clock" title="America/New_York">--:--:--</span>
+  <span class="pill off" id="phase" title="calendar-naive (no holiday table)">--</span>
+  <span id="pills"></span>
+  <span class="right">
+    <label class="tg">date <input type="date" id="gdate" list="dates-dl" title="re-queries the sleeve and chart panels (d toggles today / previous session)"></label>
+    <datalist id="dates-dl"></datalist>
+    <input id="cmd" placeholder="/  NVDA | NVDA 2026-09-09 | exp s1_momo | log intraday" autocomplete="off" spellcheck="false">
+    <span id="paused" hidden>PAUSED 00:00</span>
+    <span class="asof" data-asof></span><span class="dot" data-dot></span>
+    <button id="help-btn" title="keyboard shortcuts (?)">?</button>
+  </span>
+  <div class="apistrip" id="apistrip" hidden></div>
+  <div class="err" data-err hidden style="width:100%"></div>
+</section>
+
+<!-- ROW 1 - PORTFOLIO -->
+<section class="panel" id="p-portfolio" data-endpoint="/api/account" data-interval="10000" tabindex="-1">
+  <header class="ph"><span class="idx">1</span><h2>Portfolio</h2><span class="hchips" id="h-portfolio"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div id="gw-banner" class="banner red" hidden></div>
+    <div class="kpi" id="kpi">
+      <div class="tile" id="k-nav"><div class="l">NAV</div><div class="v">--</div><div class="s"></div></div>
+      <div class="tile" id="k-cash"><div class="l">Cash</div><div class="v">--</div><div class="s"></div></div>
+      <div class="tile" id="k-bp"><div class="l">Buying power</div><div class="v">--</div><div class="s"></div></div>
+      <div class="tile" id="k-gross"><div class="l">Gross exposure</div><div class="v">--</div><div class="s"></div></div>
+      <div class="tile" id="k-upnl"><div class="l">Unrealized P&amp;L - IB marks (delayed)</div><div class="v">--</div><div class="s"></div></div>
+      <div class="tile" id="k-rpnl"><div class="l">Realized P&amp;L (IB today)</div><div class="v">--</div><div class="s"></div></div>
+      <div class="tile" id="k-ipnl"><div class="l">Intraday P&amp;L today - runner log</div><div class="v">--</div><div class="s"></div></div>
+      <div class="tile" id="k-dpnl"><div class="l">Daily sleeve uP&amp;L</div><div class="v">--</div><div class="s"></div></div>
+    </div>
+    <div class="tw"><table id="pos-table">
+      <thead><tr><th scope="col">Sym</th><th scope="col">Slv</th><th scope="col" class="r">Qty</th><th scope="col" class="r">Book</th><th scope="col" class="r">Avg</th><th scope="col" class="r">Last</th><th scope="col" class="r">Mkt val</th><th scope="col" class="r">uP&amp;L</th><th scope="col" class="r">%NAV</th><th scope="col" class="r">Tgt</th><th scope="col">Recon</th></tr></thead>
+      <tbody></tbody></table></div>
+    <div id="pos-foot" class="small mono mut"></div>
+    <div class="h3">Open orders</div>
+    <div id="oo-note" class="banner amber" hidden></div>
+    <div class="tw short"><table id="oo-table">
+      <thead><tr><th scope="col">Id</th><th scope="col">Sym</th><th scope="col">Action</th><th scope="col" class="r">Qty</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col" class="r">Filled</th><th scope="col">Ref</th><th scope="col" class="r">Client</th></tr></thead>
+      <tbody></tbody></table></div>
+  </div>
+</section>
+
+<!-- ROW 2 - NAV HISTORY | INTEGRITY -->
+<section class="panel s8 h320" id="p-nav" data-endpoint="/api/nav_history" data-interval="60000" tabindex="-1">
+  <header class="ph"><span class="idx">2</span><h2>NAV history</h2><span class="hchips" id="h-nav"></span>
+    <span class="hchips" id="nav-range"><button data-days="1" class="on">1D</button><button data-days="5">5D</button><button data-days="30">1M</button><button data-days="400">ALL</button>
+      <label class="tg"><input type="checkbox" id="nav-gross">gross</label><label class="tg"><input type="checkbox" id="nav-cash">cash</label></span>
+    <span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div class="ch"><canvas id="nav-cv"></canvas></div>
+    <div id="nav-empty" class="empty" hidden></div>
+    <div id="nav-legend" class="small mono mut"></div>
+  </div>
+</section>
+<section class="panel s4 h320" id="p-integrity" tabindex="-1">
+  <header class="ph"><span class="idx">&nbsp;</span><h2>Integrity</h2><span class="hchips" id="h-integrity"></span><span class="grow"></span><span class="asof" id="int-asof"></span></header>
+  <div class="pb"><div id="integrity"></div></div>
+</section>
+
+<!-- ROW 3 - INTRADAY | DAILY -->
+<section class="panel s8 h360" id="p-intraday" data-endpoint="/api/sleeves/intraday" data-interval="10000" tabindex="-1">
+  <header class="ph"><span class="idx">3</span><h2>Intraday sleeve</h2><span class="hchips" id="h-intraday"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div id="in-drift" class="banner red" hidden></div>
+    <div class="ch short"><canvas id="pnl-cv"></canvas></div>
+    <div class="row" id="in-stats"></div>
+    <div class="row" id="in-config"></div>
+    <div class="h3">Last decision targets</div><div id="in-targets"></div>
+    <div class="row" id="in-events"></div>
+    <div class="h3">Trades (log)</div>
+    <div class="tw short"><table id="in-trades">
+      <thead><tr><th scope="col">Time ET</th><th scope="col">Sym</th><th scope="col">Side</th><th scope="col" class="r">Qty</th><th scope="col" class="r">Price</th><th scope="col" class="r">Comm</th><th scope="col">Status</th><th scope="col" class="r">Id</th><th scope="col" class="r">Lat s</th></tr></thead>
+      <tbody></tbody></table></div>
+    <div id="in-tfoot" class="small mono mut"></div>
+    <div class="h3">Positions now</div><div id="in-pos" class="mono small"></div>
+    <div class="h3">Errors</div><div id="in-errors" class="mono small"></div>
+    <div id="in-note" class="small mono mut"></div>
+  </div>
+</section>
+<section class="panel s4 h360" id="p-daily" data-endpoint="/api/sleeves/daily" data-interval="60000" tabindex="-1">
+  <header class="ph"><span class="idx">4</span><h2>Daily sleeve</h2><span class="hchips" id="h-daily"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div id="dl-banner" class="banner red" hidden></div>
+    <div id="dl-champ" class="small mono"></div>
+    <div id="dl-plan"></div>
+    <div id="dl-exec"></div>
+    <div class="h3">Fills</div>
+    <div class="tw short"><table id="dl-fills">
+      <thead><tr><th scope="col">Time ET</th><th scope="col">Sym</th><th scope="col" class="r">Qty</th><th scope="col" class="r">Avg</th><th scope="col">Status</th><th scope="col" class="r">Slip bps</th></tr></thead>
+      <tbody></tbody></table></div>
+    <div id="dl-warn" class="small mono"></div>
+    <div class="h3">Last 10 sessions</div>
+    <div class="tw short"><table id="dl-hist">
+      <thead><tr><th scope="col">Date</th><th scope="col">Kind</th><th scope="col">Targets</th><th scope="col" class="r">Fills</th><th scope="col" class="r">Net liq</th><th scope="col">Err</th></tr></thead>
+      <tbody></tbody></table></div>
+    <div id="dl-next" class="small mono mut"></div>
+  </div>
+</section>
+
+<!-- ROW 4 - PRICE CHART -->
+<section class="panel h420" id="p-chart" data-endpoint="/api/chart" data-interval="60000" tabindex="-1">
+  <header class="ph"><span class="idx">5</span><h2>Price chart</h2>
+    <span class="hchips"><input id="c-sym" list="sym-dl" size="8" autocomplete="off" spellcheck="false" title="symbol"><datalist id="sym-dl"></datalist>
+      <select id="c-src" title="bar source"><option value="auto">auto</option><option value="yahoo">yahoo</option><option value="ibkr_parquet">ibkr_parquet</option><option value="alpaca_parquet">alpaca_parquet</option></select>
+      <label class="tg"><input type="checkbox" id="c-markers" checked>markers</label>
+      <label class="tg"><input type="checkbox" id="c-vwap" checked>vwap</label>
+      <label class="tg"><input type="checkbox" id="c-vol" checked>volume</label></span>
+    <span class="hchips" id="h-chart"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div class="ch tall"><canvas id="price-cv"></canvas></div>
+    <div id="c-empty" class="empty" hidden></div>
+  </div>
+</section>
+
+<div class="divider">RESEARCH / SYSTEM</div>
+
+<!-- ROW 5 - STRATEGIES | RESEARCH -->
+<section class="panel s8 collapsible" id="p-strategies" data-endpoint="/api/strategies" data-interval="60000" tabindex="-1">
+  <header class="ph"><span class="idx">6</span><h2>Strategies</h2><span class="hchips" id="h-strategies"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span><button class="chev" aria-label="collapse">&#9662;</button></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div class="card" id="st-daily"></div>
+    <div class="card" id="st-intra"></div>
+  </div>
+</section>
+<section class="panel s4 collapsible" id="p-research" data-endpoint="/api/research/summary" data-interval="60000" tabindex="-1">
+  <header class="ph"><span class="idx">7</span><h2>Research</h2><span class="hchips" id="h-research"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span><button class="chev" aria-label="collapse">&#9662;</button></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div id="rs-counts" class="small mono mut"></div>
+    <div class="card" id="rs-champ"></div>
+    <div class="h3">Last runs</div>
+    <div class="tw short"><table id="rs-last"><thead><tr><th scope="col">Ts ET</th><th scope="col">Algo</th><th scope="col">Tag</th><th scope="col" class="r">CAR</th><th scope="col" class="r">Sharpe</th><th scope="col" class="r">DD</th><th scope="col" class="r">$/day</th></tr></thead><tbody></tbody></table></div>
+    <div class="h3">By algorithm</div>
+    <div class="tw short"><table id="rs-alg"><thead><tr><th scope="col">Algorithm</th><th scope="col" class="r">Runs</th><th scope="col" class="r">Best Sharpe</th><th scope="col" class="r">Best CAR</th><th scope="col">Last</th></tr></thead><tbody></tbody></table></div>
+    <div class="h3" id="rs-backlog-h">Backlog open</div><div id="rs-backlog" class="small"></div>
+    <div class="h3">Journal</div><div id="rs-journal" class="small"></div>
+    <div class="h3">Blockers</div><div id="rs-blockers" class="small"></div>
+    <div id="rs-notes" class="small mono mut"></div>
+  </div>
+</section>
+
+<!-- ROW 6 - LEDGER EXPLORER -->
+<section class="panel collapsible collapsed" id="p-ledger" data-endpoint="/api/research/experiments" data-interval="0" tabindex="-1">
+  <header class="ph"><span class="idx">8</span><h2>Ledger explorer</h2>
+    <span class="hchips" id="lg-bar"><span id="lg-track"><button data-track="all" class="on">all</button><button data-track="daily">daily</button><button data-track="intraday">intraday</button></span>
+      <select id="lg-alg" title="algorithm"><option value="">all algorithms</option></select>
+      <input id="lg-q" placeholder="search tag / commit / class" size="24" autocomplete="off">
+      <input type="date" id="lg-from" title="from"><input type="date" id="lg-to" title="to">
+      <label class="tg"><input type="checkbox" id="lg-smoke" checked>hide smoke/template</label>
+      <label class="tg"><input type="checkbox" id="lg-prom">only promotable</label></span>
+    <span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span><button class="chev" aria-label="expand">&#9656;</button></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div class="tw tall"><table id="lg-table"><thead></thead><tbody></tbody></table></div>
+    <div id="lg-foot" class="small mono mut"></div>
+  </div>
+</section>
+
+<!-- ROW 7 - DATA | SYSTEM -->
+<section class="panel s4 collapsible" id="p-data" data-endpoint="/api/data" data-interval="60000" tabindex="-1">
+  <header class="ph"><span class="idx">9</span><h2>Data network</h2><span class="hchips" id="h-data"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span><button class="chev" aria-label="collapse">&#9662;</button></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div class="tw short"><table id="da-stores"><thead><tr><th scope="col">Store</th><th scope="col" class="r">Symbols</th><th scope="col" class="r">Sessions</th><th scope="col">First..last</th><th scope="col">Last-bar age</th></tr></thead><tbody></tbody></table></div>
+    <div id="da-misc" class="small mono"></div>
+    <div class="h3">Keys present</div><div id="da-keys"></div>
+    <div class="sub" id="s-options" data-endpoint="/api/options" data-interval="60000">
+      <div class="sh">Options <span id="op-title"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span></div>
+      <div class="err" data-err hidden></div>
+      <div class="sb" id="op-body"></div>
+    </div>
+  </div>
+</section>
+<section class="panel s8 collapsible" id="p-system" data-endpoint="/api/system" data-interval="60000" tabindex="-1">
+  <header class="ph"><span class="idx">0</span><h2>System</h2><span class="hchips" id="h-system"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span><button class="chev" aria-label="collapse">&#9662;</button></header>
+  <div class="err" data-err hidden></div>
+  <div class="pb">
+    <div class="h3">Automations <span id="sy-auto-asof"></span></div>
+    <div class="tw short"><table id="sy-auto"><thead><tr><th scope="col">Name</th><th scope="col">Schedule</th><th scope="col">Next</th><th scope="col">Last</th><th scope="col">Status</th></tr></thead><tbody></tbody></table></div>
+    <div class="h3">Research loop runs <span id="sy-runs-asof"></span></div>
+    <div class="tw short"><table id="sy-runs"><thead><tr><th scope="col">Job</th><th scope="col">Status</th><th scope="col" class="r">Dur</th><th scope="col">Run ET</th><th scope="col">Error</th><th scope="col">Summary tail</th></tr></thead><tbody></tbody></table></div>
+    <div class="h3">Scheduled tasks <span id="sy-tasks-asof"></span></div>
+    <div class="tw short"><table id="sy-tasks"><thead><tr><th scope="col">Task</th><th scope="col">State</th><th scope="col">Next ET</th><th scope="col">Last ET</th><th scope="col">Result</th></tr></thead><tbody></tbody></table></div>
+    <div class="h3">Git log <span id="sy-git-asof"></span></div>
+    <div class="log" id="sy-git"></div>
+    <div class="h3">Gateway log tail <span id="sy-gw-asof"></span> <button id="gw-filter" title="show only ERROR / WARN">ERROR/WARN</button></div>
+    <div class="log" id="sy-gw"></div>
+    <div class="sub" id="s-logs" data-endpoint="/api/logs" data-interval="10000">
+      <div class="sh">Raw log viewer
+        <select id="lv-name"><option value="intraday">intraday</option><option value="daily">daily</option><option value="alerts">alerts</option></select>
+        <input type="date" id="lv-date" title="log date">
+        <select id="lv-n"><option value="200">200</option><option value="1000">1000</option></select>
+        <button id="lv-fetch">fetch</button>
+        <input id="lv-q" placeholder="filter" size="14" autocomplete="off">
+        <span id="lv-summary"></span><span class="grow"></span><span class="asof" data-asof></span><span class="dot" data-dot></span></div>
+      <div class="err" data-err hidden></div>
+      <div class="sb"><div id="lv-chips"></div><div class="log" id="lv-lines"><div class="empty">press fetch (or l) to load a log</div></div><div id="lv-foot" class="small mono mut"></div></div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="overlay" id="help" hidden>
+  <div class="box">
+    <div><kbd>/</kbd> command box &nbsp; <kbd>Enter</kbd> run &nbsp; <kbd>Esc</kbd> close / blur</div>
+    <div><kbd>r</kbd> refresh all now &nbsp; <kbd>p</kbd> pause / resume &nbsp; <kbd>l</kbd> log viewer</div>
+    <div><kbd>1</kbd>-<kbd>9</kbd>, <kbd>0</kbd> jump to panel &nbsp; <kbd>d</kbd> toggle date today / previous session</div>
+    <div><kbd>?</kbd> this overlay</div>
+    <div class="mut">commands: <code>NVDA</code>, <code>NVDA 2026-09-09</code> chart · <code>exp s1_momo</code> ledger by algorithm · <code>log intraday 2026-09-09</code> log viewer · anything else searches the ledger</div>
+    <div class="mut">click a symbol to chart it · a commit hash to filter the ledger · a backlog id to search the ledger</div>
+  </div>
+</div>
+</body>
+</html>

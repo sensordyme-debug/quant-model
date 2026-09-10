@@ -51,3 +51,25 @@ openclaw automations run <job-id>               # fire an iteration now
 openclaw automations disable <job-id>           # pause the loop
 Get-Content research\journal.md -TotalCount 40  # what the agent learned
 ```
+
+## Dashboard
+
+`scripts/dashboard.py` serves a local single-page monitor: the IBKR paper account (NAV, cash,
+exposure, positions, open orders, fills), the intraday and daily sleeves as read from
+`live/log`, integrity checks across those sources, NAV history, 1-minute price charts with
+trade markers, the research ledger (`research/experiments.jsonl`, champion, backlog, journal),
+data-store coverage, and system state (OpenClaw automations, scheduled tasks, git log,
+gateway log).
+
+```powershell
+python scripts/dashboard.py --open      # installs fastapi/uvicorn if missing, opens the browser
+```
+
+URL: <http://127.0.0.1:8787/> (loopback only; `--port` changes the port). The dashboard is
+read-only: the only file it ever writes is `live/state/nav_history.jsonl`, one NAV snapshot
+per minute while IB Gateway is up. It never places orders, never edits config, and never
+serves `live/secrets.env`. It holds one read-only IB connection with `clientId=81`, so the
+launcher refuses to start when the port is already taken - never run two instances.
+
+To start it at logon, `.\scripts\install_dashboard_task.ps1` registers the "Quant Dashboard"
+scheduled task (`-Remove` unregisters it).
