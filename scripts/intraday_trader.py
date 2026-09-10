@@ -167,6 +167,7 @@ class LiveExecutor:
             o = self.MarketOrder("BUY" if q > 0 else "SELL", abs(q))
             o.orderRef = ORDER_REF
             o.outsideRth = False
+            o.tif = "DAY"                 # explicit: an empty TIF makes IBKR emit code 10349, which ib_async mislabels as a cancel
             tr = self.ib.placeOrder(self.contracts[s], o)
             self.open.append(tr)
             # `t` is the decision bar; scripts/slippage_report.py joins on `id` and prices the
@@ -177,22 +178,45 @@ class LiveExecutor:
         """Collect fills from orders sent earlier; returns (sym, signed_qty, avg_px, commission)."""
         self.ib.sleep(3)
         fills, still = [], []
+        now = time.time()
+        seen = getattr(self, "_seen", None)
+        if seen is None:
+            seen = self._seen = {}
         for tr in self.open:
             st = tr.orderStatus
-            done = st.status in ("Filled", "Cancelled", "Inactive", "ApiCancelled")
-            if st.filled and st.status == "Filled":
-                q = int(st.filled) * (1 if tr.order.action == "BUY" else -1)
-                comm = sum((f.commissionReport.commission or 0.0) for f in tr.fills if f.commissionReport) or commission(q, st.avgFillPrice)
-                fills.append((tr.contract.symbol, q, float(st.avgFillPrice), float(comm)))
+            oid = tr.order.orderId
+            seen.setdefault(oid, now)
+            # Truth comes from executions, not from the library's status flag: IBKR's informational
+            # code 10349 ("TIF set to DAY") made ib_async mark live orders Cancelled on 2026-09-10
+            # while they filled normally seconds later.
+            execs = [f.execution for f in tr.fills]
+            filled_qty = float(sum(e.shares for e in execs))
+            sign = 1 if tr.order.action == "BUY" else -1
+            complete = filled_qty >= tr.order.totalQuantity - 1e-9 or (st.status == "Filled" and filled_qty > 0)
+            if complete:
+                q = int(round(filled_qty)) * sign
+                avg = sum(e.shares * e.price for e in execs) / filled_qty
+                comm = sum((f.commissionReport.commission or 0.0) for f in tr.fills if f.commissionReport) or commission(q, avg)
+                fills.append((tr.contract.symbol, q, float(avg), float(comm)))
                 # filled_at is the exchange's own fill time; the record's `ts` is only when this
                 # loop noticed, so A-5 needs both to separate latency from polling cadence.
                 at = max((f.time for f in tr.fills if getattr(f, "time", None)), default=None)
-                log("fill", symbol=tr.contract.symbol, qty=q, avg_price=st.avgFillPrice, commission=comm,
-                    status=st.status, id=tr.order.orderId, filled_at=str(at) if at else None)
-            elif not done:
-                still.append(tr)
-            else:
-                log("order_dead", symbol=tr.contract.symbol, status=st.status, filled=st.filled)
+                log("fill", symbol=tr.contract.symbol, qty=q, avg_price=avg, commission=comm,
+                    status=st.status, id=oid, filled_at=str(at) if at else None)
+                seen.pop(oid, None)
+                continue
+            dead_status = st.status in ("Cancelled", "Inactive", "ApiCancelled")
+            if dead_status and now - seen[oid] > 90:
+                # 90 s of grace so a false "Cancelled" has time to be overwritten by the real status
+                if filled_qty > 0:                                   # partial fill: book what happened
+                    q = int(round(filled_qty)) * sign
+                    avg = sum(e.shares * e.price for e in execs) / filled_qty
+                    fills.append((tr.contract.symbol, q, float(avg), commission(q, avg)))
+                    log("fill", symbol=tr.contract.symbol, qty=q, avg_price=avg, status="partial", id=oid)
+                log("order_dead", symbol=tr.contract.symbol, status=st.status, filled=filled_qty, id=oid)
+                seen.pop(oid, None)
+                continue
+            still.append(tr)
         self.open = still
         return fills
 
@@ -407,6 +431,26 @@ def live(strategy, params, args):
     ib.qualifyContracts(*contracts.values())
     book = load_book()
     ex = LiveExecutor(ib, contracts)
+    if args.flatten_from_account:
+        # Safety net: close every account position in the intraday universe, whatever the book
+        # says (the universe is disjoint from the daily sleeve's, so nothing else is touched).
+        acct = {p.contract.symbol: int(p.position) for p in ib.positions(account)
+                if p.contract.symbol in UNIVERSE and p.position}
+        print(f"account intraday positions: {acct or 'none'}; book: {book.pos or 'empty'}")
+        log("flatten_from_account", account_positions=acct, book=book.pos)
+        if acct:
+            ex.submit({s: -q for s, q in acct.items()}, None)
+            ib.sleep(25)
+            for sym, q, px, cost in ex.settle(None):
+                book_fill(book, sym, q, px, cost)
+        left = {p.contract.symbol: int(p.position) for p in ib.positions(account) if p.contract.symbol in UNIVERSE and p.position}
+        book.pos = {}
+        book.cost = {}
+        save_book(book)
+        print(f"remaining intraday positions: {left or 'none'}; book cleared")
+        log("flatten_from_account_done", remaining=left)
+        ib.disconnect()
+        return 0 if not left else 2
     if args.flatten:
         if book.pos:
             ex.submit({s: -q for s, q in book.pos.items()}, None)
@@ -507,6 +551,8 @@ def main() -> int:
     ap.add_argument("--nav", type=float, default=1_000_000, help="NAV assumed in replay")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--flatten", action="store_true")
+    ap.add_argument("--flatten-from-account", action="store_true",
+                    help="close every account position in the intraday universe regardless of the book, then clear the book")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=4002)
     ap.add_argument("--client-id", type=int, default=71)

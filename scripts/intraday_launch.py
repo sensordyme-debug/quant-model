@@ -36,12 +36,18 @@ def config():
 
 
 def last_session() -> dt.date | None:
-    days = set()
+    """Most recent session that is COMPLETE (>= 300 bars) for the sampled symbols. A truncated
+    last day (the store was refreshed mid-session) replays with open positions and a nonsense
+    P&L, which happened on 2026-09-10; a preflight must exercise a whole session."""
+    complete = None
     for s in UNIVERSE[:4]:
         df = load_bars(s)
-        if not df.empty:
-            days.update(df.index.date)
-    return max(days) if days else None
+        if df.empty:
+            continue
+        counts = df.groupby(df.index.date).size()
+        ok = set(counts[counts >= 300].index)
+        complete = ok if complete is None else complete & ok
+    return max(complete) if complete else None
 
 
 def main() -> int:
