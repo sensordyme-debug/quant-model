@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import intraday_common  # noqa: E402
 from intraday_common import (DAILY_LOSS_LIMIT, FLATTEN_MINUTE, GROSS_HARD_CAP, MIN_CHANGE,  # noqa: E402
                              PER_SYMBOL_HARD_CAP, REPO, SLIPPAGE_BPS, UNIVERSE, commission,
-                             load_universe, sessions, share_scale, slippage)
+                             load_universe, sessions, share_scale, slippage, volume_limits)
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
 from base import features  # noqa: E402
@@ -44,8 +44,12 @@ EXPERIMENTS = REPO / "research" / "experiments.jsonl"
 #: Framework risk limits for a research run. Defaults are exactly the shared constants the live
 #: trader uses; --risk overrides them *for the backtest only* so A-7 can price them. Shipping a
 #: change means editing scripts/intraday_common.py and replaying a session (AGENTS.md rule a).
+#: `part_cap` is A-11's participation cap and is 0.0 = OFF in the shipped constants, i.e. the live
+#: trader has no such cap and this default reproduces every prior A-track run bit for bit.
 RISK = {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
-        "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE, "flatten_minute": FLATTEN_MINUTE}
+        "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE, "flatten_minute": FLATTEN_MINUTE,
+        "part_cap": 0.0}
+SHIPPED_RISK = dict(RISK)
 
 
 def set_slippage(bps: float | None) -> float | None:
@@ -68,9 +72,7 @@ def set_risk(overrides: dict | None) -> dict:
         if k not in RISK:
             sys.exit(f"unknown risk key {k!r}; known: {sorted(RISK)}")
         RISK[k] = float(v)
-        if RISK[k] != {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
-                       "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE,
-                       "flatten_minute": FLATTEN_MINUTE}[k]:
+        if RISK[k] != SHIPPED_RISK[k]:
             changed[k] = RISK[k]
     return changed
 
@@ -116,13 +118,20 @@ class Book:
 
 
 def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, float], equity: float,
-                      day: dt.date | None = None):
+                      day: dt.date | None = None, caps: dict[str, float] | None = None,
+                      clipped: list | None = None):
     """Same sizing rules as scripts/intraday_trader.py:Trader.targets_to_orders.
 
     The whole-share floor is applied at the price that was really quoted, not the adjusted one:
     on a split-adjusted store a 2016 share of SOXS is priced in the millions, so flooring the
     adjusted count would silently size every early position to zero. `f` is 1.0 on the raw IBKR
     store, where this reduces to the shipped `floor(w * equity / px)` exactly.
+
+    A-11: when `RISK["part_cap"]` is non-zero, `caps[sym]` is the maximum share count this bar may
+    trade (a share of the trailing median volume of the minute the order will fill in). The
+    no-trade band is still tested on the *desired* delta - the strategy re-decides every minute, so
+    a clipped order is worked over several bars rather than suppressed - and the clip is applied to
+    what actually executes. `caps=None` (the default) is the shipped, uncapped behaviour.
     """
     orders = {}
     cap, gross_cap, min_change = RISK["per_symbol_hard_cap"], RISK["gross_hard_cap"], RISK["min_change"]
@@ -143,6 +152,15 @@ def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, f
         cur = book.pos.get(sym, 0)
         delta = tgt - cur
         if delta and (abs(delta) * px >= min_change * equity or tgt == 0):
+            if caps is not None:
+                lim = caps.get(sym)
+                if lim is not None and lim == lim and abs(delta) > lim:  # lim == lim rejects NaN
+                    if clipped is not None:
+                        clipped.append({"sym": sym, "want": abs(delta), "got": lim, "px": px})
+                    delta = math.copysign(math.floor(lim / f) * f, delta)
+                    delta = int(delta) if f == 1.0 else delta
+                    if not delta:
+                        continue
             orders[sym] = delta
     return orders
 
@@ -156,6 +174,11 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
     state: dict = {}
     daily = []
     orders_total = 0
+    part_cap = RISK["part_cap"]
+    # A-11: trailing median volume per (session, minute-of-day), strictly prior sessions only.
+    vlim = {s: volume_limits(df) for s, df in bars.items()} if part_cap else {}
+    clipped: list = []
+    forced_eod = {"orders": 0, "notional": 0.0}
     t0 = time.time()
     for day in days:
         # per-session slices (positional views for speed)
@@ -167,6 +190,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
         times = sorted(set().union(*[set(f.index) for f in fd.values()]))
         # positional cursors
         idx = {s: 0 for s in fd}
+        vrow = {s: v.loc[day] for s, v in vlim.items() if day in v.index} if part_cap else None
         eq_open = book.value({s: f["o"].iloc[0] for s, f in fd.items()})
         stopped = False
         stop_minute = -1
@@ -209,13 +233,28 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             else:
                 view = {s: fd[s].iloc[:j] for s, j in cur_rows.items()}
                 targets = strategy.decide(t, view, dict(book.pos), equity, state, params) or {}
-            pending = targets_to_orders(targets, book, closes, equity, day)
+            # the order placed now fills at the NEXT bar's open, so it is worked in minute + 1
+            caps = ({s: part_cap * float(r.get(minute + 1, float("nan")))
+                     for s, r in vrow.items()} if vrow is not None else None)
+            pending = targets_to_orders(targets, book, closes, equity, day, caps, clipped)
             if minute >= RISK["flatten_minute"] and book.pos and not pending:
                 pending = {s: -q for s, q in book.pos.items()}
+                if caps is not None:   # the flatten is worked too: 22 bars exist between 15:38 and the close
+                    for s in list(pending):
+                        lim = caps.get(s)
+                        if lim is not None and lim == lim and abs(pending[s]) > lim:
+                            f_ = share_scale(s, day)
+                            q = math.copysign(math.floor(lim / f_) * f_, pending[s])
+                            pending[s] = int(q) if f_ == 1.0 else q
+                            if not pending[s]:
+                                del pending[s]
         # end of session: anything still open is closed at the last bar's close (should be none)
         last_closes = {s: float(f["c"].iloc[-1]) for s, f in fd.items()}
         for s, q in list(book.pos.items()):
-            book.fill(times[-1], s, -q, last_closes.get(s, closes.get(s, 0.0)), "eod")
+            px_eod = last_closes.get(s, closes.get(s, 0.0))
+            forced_eod["orders"] += 1
+            forced_eod["notional"] += abs(q) * px_eod
+            book.fill(times[-1], s, -q, px_eod, "eod")
             orders_total += 1
         eq_close = book.value({})
         daily.append({"day": day, "pnl": eq_close - eq_open, "ret": eq_close / eq_open - 1.0, "equity": eq_close,
@@ -223,6 +262,15 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
                       "stop_minute": stop_minute})
     elapsed = time.time() - t0
     s = summarize(daily, book, equity0, elapsed)
+    if part_cap:
+        # what the cap actually did: how much size it refused, and whether it left anything to be
+        # dumped into the closing bar (the one fill in the session that cannot be worked).
+        want = sum(c["want"] * c["px"] for c in clipped)
+        got = sum(c["got"] * c["px"] for c in clipped)
+        s["clipped_orders"] = len(clipped)
+        s["clipped_notional_refused"] = want - got
+        s["forced_eod_orders"] = forced_eod["orders"]
+        s["forced_eod_notional"] = forced_eod["notional"]
     if collect_trades:
         # opt-in because the list is large; A-9 uses it to attribute P&L to (symbol, session)
         s["trades_log"] = book.trades
@@ -283,8 +331,7 @@ def record(name: str, tag: str, s: dict, params, start, end):
                      "Avg Daily PnL": f"{s['avg_daily_pnl']:.0f}", "Costs Per Day": f"{s['costs_per_day']:.0f}",
                      "Worst Day": f"{s['worst_day']:.0f}", "Loss Limit Days": str(s["stopped_days"]),
                      "Sessions": str(s["sessions"])}}
-    if RISK != {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
-                "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE, "flatten_minute": FLATTEN_MINUTE}:
+    if RISK != SHIPPED_RISK:
         rec["risk"] = dict(RISK)
     if intraday_common.SLIPPAGE_BPS != SLIPPAGE_BPS:
         rec["slippage_bps"] = intraday_common.SLIPPAGE_BPS

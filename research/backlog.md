@@ -17,6 +17,40 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-10 16:0x UTC (A-5 part 2): **the first live fills say nothing about slippage and
+prove a cost the harness never charged.** The sleeve placed real orders for the first time this
+morning. On the partial session (19 fills, $1.11M, 100% fill rate) realized slippage is **+1.30 bps
+notional-weighted, se 1.65, against the shipped 1.50 - z = 0.12**, so `SLIPPAGE_BPS` was not
+touched. **The reference worry is refuted by direct measurement**: the same 17 fills score +1.10 /
+sd **7.55** against the next-bar open and +1.55 / sd **7.13** against the decision close (realized
+gap sd 2.16, corr -0.33 with the fill error), even though the whole-store gap sd of 6.20 bps on
+this symbol mix predicted the fallback would carry 76% of the variance - **a population noise
+estimate does not transfer to the minutes a strategy selects.** What costs precision is the ~10 s
+detection latency (median 10 s, worst 13 s), which is mean-zero drift, so only fills buy it:
+**166 fills, ~3-4 full sessions**, to resolve the constant against breakeven at 2 se. **What did
+land is a missing cost, measured exactly.** IBKR's `commissionReport` matched the harness to
+$0.004 on all twelve buys and undercharged all five sells; fitting the excess on notional and
+shares reproduces every sell **to the cent**, so the harness omitted the US sell-side regulatory
+pass-throughs - **SEC Section 31 $20.60/$1M of proceeds (0.206 bps) and FINRA TAF $0.000198/share**
+- now charged in `intraday_common.commission()` when `shares < 0` (measured commission 0.501 bps
+against 0.434 modelled; 0.501 after). Paired 260-session control at A-5's parameters: costs/day
+**$1,025 -> $1,078**, $/day **$610 -> $557**, CAR **15.3% -> 14.0%**, Sharpe **0.689 -> 0.640**,
+trades 12,743 -> 12,742. **Breakeven slippage is therefore 2.52 bps, not 2.62**, the deployed
+half-size sleeve pays ~$22/day of it, and the 2,686-session Alpaca result moves from -$697/day to
+roughly -$740/day: every number moves against the sleeve, which is where omitted costs always
+move. **Two no-ops proved**: the old-model control reproduces A-5's ledger row to every digit,
+which incidentally proves the participation-cap path an interrupted session left uncommitted in
+`intraday_backtest.py` is **bit-for-bit inert at `part_cap = 0.0`** (committed here on that
+evidence; A-11 itself is still unrun), and the rule-(a) replay of 2026-09-08 against the current
+trader gives identical 34 trades / 368 decisions / flat at close under both models, differing only
+by the $22 of fees. `scripts/slippage_report.py` gains the two-reference split (never pooled),
+per-fill pricing under both references, fill latency, a fills-to-breakeven power line and
+`--refresh`. Nothing else shipped: `live/intraday_config.json`, `live/APPROVED_PAPER.md` and the
+scheduled tasks were not touched, and the champion is unchanged at S-12. **Note for the next
+iteration**: the owner's midday mandate (3-10%/day; priority O-1 / L-1 / X-1 / O-2) landed at
+11:40 ET while this ran, and it judges every candidate "with real costs" - so L-1 and X-1 must be
+run against the corrected model from their first backtest, not compared to pre-fix numbers.
+
 Status 2026-09-10 12:5x UTC (O-1b): **the implied-vol size dial is a leverage dial, and it pays 50%
 more turnover for it. Refused; nothing shipped.** O-1's deferred half, on the daily champion, where
 the level is positive. `signals.py` gains `iv_regime_series` / `iv_size_factor` and five `Params`
@@ -437,18 +471,32 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-5 part 2 Measured fill slippage. TOP ITEM as of O-1b, and a standing per-session job.**
-  See the full A-5 entry below for what part 1 settled. The one-line version: the sleeve's
-  breakeven slippage is **2.62-2.64 bps against a shipped 1.5**, P&L is linear in the constant at
-  $546/day per bp, and the bars cannot pin it tighter than [0.36, 2.65] because every spread
-  estimator on 1-minute data is measuring volatility (corr +0.906 with return std). **Only fills
-  settle it, and there are still none**: `python scripts/slippage_report.py`, run at the top of
-  this iteration, reports no session on disk with orders (2026-09-09's log is the hand-started
-  dry run). **Today's 09:25 ET session is the first that can produce one.** Run the report after
-  every paper close, report the running notional-weighted mean and its standard error, and move
-  `SLIPPAGE_BPS` only when |measured - 1.5| exceeds two standard errors, with a replay and a
-  journal entry (rule a). This is now the only open measurement on the A-track: A-10 settled the
-  level and O-1 settled the conditioner.
+- **A-5 part 2 Measured fill slippage. First fills measured 2026-09-10 (see journal); slippage is
+  still open, the commission half is CLOSED and shipped. Standing per-session job.**
+  **Slippage, still open**: 19 fills / $1.1M on the partial first session give **+1.30 bps
+  notional-weighted (se 1.65) against the shipped 1.50, z = 0.12** - not distinguishable, so
+  `SLIPPAGE_BPS` was not touched. **The reference question is settled and it was a red herring**:
+  the same 17 fills priced against the next-bar open score +1.10 bps / sd **7.55** and against the
+  decision-close fallback +1.55 / sd **7.13**, with the realized close-to-open gap at sd 2.16 and
+  correlation -0.33 to the fill error, so the fallback is if anything *quieter*. The whole-store
+  gap sd of 6.20 bps predicted the opposite; a population noise estimate does not transfer to the
+  minutes a strategy selects. The cost is the **~10 s detection latency** (median 10 s, worst 13),
+  which is mean-zero drift, so only fills buy precision: **166 fills, ~3-4 full sessions at 49
+  trades/day**, to resolve the constant against breakeven at 2 se. Run
+  `python scripts/slippage_report.py --refresh` after **every** paper close (`--refresh` pulls the
+  closed sessions into `data/minute` and refuses a session still trading), report the running
+  notional-weighted mean and its standard error, and move `SLIPPAGE_BPS` only when the gap exceeds
+  two standard errors, with a replay and a journal entry (rule a). **Do not re-open the reference
+  as a question.** **Commission, closed**: IBKR's own `commissionReport` matched the harness on all
+  twelve buys to $0.004 and undercharged all five sells; fitting the excess reproduces every sell
+  **to the cent**, so the harness was omitting the US sell-side regulatory pass-throughs - **SEC
+  Section 31 $20.60 per $1M of proceeds (0.206 bps) and FINRA TAF $0.000198/share**, now charged in
+  `intraday_common.commission()` when `shares < 0`. Paired 260-session control: costs/day
+  $1,025 -> **$1,078**, $/day $610 -> **$557**, CAR 15.3% -> **14.0%**, Sharpe 0.689 -> **0.640**,
+  trades 12,743 -> 12,742. **The breakeven is therefore 2.52 bps, not 2.62**, and every intraday
+  number quoted before 2026-09-10 12:00 ET is 5.2% light on cost. Rule (a) replay passed twice
+  (2026-09-08, deployed config, current trader): identical 34 trades / 368 decisions / flat at
+  close, P&L -2,280 -> -2,302, the whole difference being the measured fees.
 - **O-1b DONE 2026-09-10 (see journal): the implied-vol size dial is a leverage dial and costs 50%
   more turnover than the constant that replaces it. Refused, nothing shipped.** Built the dial on
   the champion (`iv_scale_power` etc. in `signals.py`, `S1_IV_SCALE_*` in `main.py`,
@@ -537,6 +585,15 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   the mid). Judge after costs, both halves, worst day. Do not deploy anything until the
   owner enables options permissions; record the evidence in the journal.
 - **A-11 Cap order size at a share of the fill minute's volume (was A-10; demoted by A-10).**
+  **Implementation status as of 2026-09-10 (A-5 part 2)**: an interrupted session left the whole
+  thing in the tree, and it is now committed - `intraday_common.volume_limits()` (trailing median
+  volume per session and minute-of-day, strictly prior sessions, so it is causal),
+  `part_cap` in `intraday_backtest.py`'s `RISK` defaulted **0.0 = off** with the clip applied to
+  what executes rather than to the no-trade band, and `scripts/sweep_a11.py`. **The default is
+  proved bit-for-bit inert**: the A-5 part 2 control run went through that path and reproduced
+  A-5's recorded ledger row to every digit. **No sweep has been run**, so the item itself is
+  untouched; what remains is exactly the study below, and it must now be judged against the
+  corrected commission model (breakeven 2.52 bps, control $557/day), not A-5's pre-fix numbers.
   Still a real cost-model defect - over 12,743 fills the order is median 1.03%, p90 5.55%, p99
   26.1% and at worst 199% of the minute's volume, concentrated in SMCI/SOXS/COIN/MSTR - but A-10
   measured the sleeve as negative *before* removing any impossible fill, so a participation cap

@@ -91,15 +91,57 @@ def share_scale(symbol: str, day) -> float:
     return float(f) or 1.0
 
 
+#: US regulatory pass-throughs. They are charged on SELLS only, they are not part of IBKR's
+#: commission tier, and the harness omitted them until A-5 part 2 measured them against IBKR's own
+#: commissionReport on the first live session (2026-09-10). Both rates were fitted jointly on that
+#: session's five sells and reproduce every one of them exactly, to the cent (the twelve buys
+#: already matched the old model to $0.004), so these are IBKR's posted 2026 rates, not estimates:
+#: SEC Section 31 fee $20.60 per $1,000,000 of proceeds and FINRA TAF $0.000198 per share.
+SEC_FEE_RATE = 20.60e-6
+TAF_PER_SHARE = 0.000198
+TAF_CAP = 8.30
+
+
 def commission(shares: float, price: float, scale: float = 1.0) -> float:
-    """IBKR per-share commission. `scale` is share_scale(): the per-share term is charged on the
-    real share count, while the 1% cap is on notional, which splits leave unchanged."""
-    c = max(COMMISSION_MIN, abs(shares) / (scale or 1.0) * COMMISSION_PER_SHARE)
-    return min(c, 0.01 * abs(shares) * price)
+    """IBKR per-share commission plus the sell-side regulatory fees.
+
+    `scale` is share_scale(): the per-share term is charged on the real share count, while the
+    1% cap is on notional, which splits leave unchanged.
+
+    **`shares` must keep its sign.** A negative `shares` is a sale and pays SEC_FEE_RATE on the
+    proceeds and TAF_PER_SHARE on the real share count on top of the commission; a purchase pays
+    neither. Both live call sites pass a signed quantity. Passing an absolute value silently
+    reverts to the pre-2026-09-10 model, which undercharged a round trip by ~0.21 bps of the
+    sell leg (~0.10 bps of turnover, ~$55/day on this sleeve's $5.46M/day)."""
+    real = abs(shares) / (scale or 1.0)
+    c = max(COMMISSION_MIN, real * COMMISSION_PER_SHARE)
+    c = min(c, 0.01 * abs(shares) * price)
+    if shares < 0:
+        c += abs(shares) * price * SEC_FEE_RATE + min(real * TAF_PER_SHARE, TAF_CAP)
+    return c
 
 
 def slippage(shares: float, price: float) -> float:
     return abs(shares) * price * SLIPPAGE_BPS / 1e4
+
+
+def volume_limits(df: pd.DataFrame, lookback: int = 20, min_sessions: int = 5) -> pd.DataFrame:
+    """Trailing median volume per (session, minute-of-day) - the causal denominator for A-11.
+
+    Returns a frame indexed by session date with one column per minute-of-day (0 = 09:30), whose
+    row for day D is the median volume of that minute over the `lookback` sessions *strictly
+    before* D. Nothing from D itself enters, so a participation cap built on it is knowable at
+    decision time. NaN until `min_sessions` prior sessions exist; callers treat NaN as "no cap".
+
+    Volumes are in the same share convention as the store's prices: the Alpaca store adjusts both
+    (dollar volume is continuous across NVDA's 2024 10:1 split), so an order's participation ratio
+    is split-scale-invariant and needs no `share_scale()` correction.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    mod = (df.index.hour - 9) * 60 + df.index.minute - 30
+    piv = df["v"].groupby([df.index.date, mod]).sum().unstack()
+    return piv.shift(1).rolling(lookback, min_periods=min_sessions).median()
 
 
 def parquet_path(symbol: str) -> Path:
