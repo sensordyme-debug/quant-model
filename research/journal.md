@@ -2,6 +2,113 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-10 - X-1: fifty megacaps, eleven years, and an intraday cross-sectional edge worth a fourteenth of its own cost
+
+- **What.** The last item on the owner's midday list that needs no options permission: rank the 50
+  US megacaps every 30 minutes by intraday return against the basket, hold the top decile long and
+  the bottom decile short, flat by 15:38. Fetched the 40 names the store lacked from Alpaca
+  (**2016-01-04 .. 2026-09-10, ~1.04M regular-hours bars each**; the store is now 60 symbols, 357 MB
+  -> 1.1 GB), re-derived every split factor, wrote `algorithms/intraday/xsect/signal.py` and
+  `scripts/sweep_x1.py`, and judged it on A-10's three a-priori regimes.
+- **Why breadth was worth one more iteration.** A-10 measured the deployed 16-name sleeve at
+  -$697/day on 2,686 sessions and O-1/A-9/L-1 each refused a lever on it; the one structural
+  criticism those results do not answer is that a 16-name book has no cross-section. A ranking
+  strategy is also the only candidate on the owner's list that is dollar-neutral by construction,
+  so it is the one whose P&L is not a disguised market bet.
+- **Method: L-1's two stages, and L-1's weighting.** Stage 1 is a cost-free event study on the raw
+  bars - at each rebalance minute the cross-section is demeaned, the top and bottom `k` are entered
+  at the **next bar's open** (the harness's fill convention) and unwound `h` bars later at that
+  bar's open, each leg scored **relative to the equal-weight basket** over the same window. The
+  decision statistic is the **per-session sum** of leg returns, never the session-equal average that
+  inverted L-1's verdict; both are printed. (For this study the two agree to 0.01 bps and
+  `corr(legs/session, session mean gross) = +0.006, t = +0.32` - the L-1 pathology is specific to a
+  strategy whose signal count varies with the tape, and a fixed-`k` ranking is not one.) Demeaning
+  is exact bookkeeping rather than a choice here: with `k` longs and `k` shorts the basket term
+  cancels out of the session sum identically.
+
+### Stage 1: the effect is real, tiny, and the wrong order of magnitude
+
+Sixteen parameter cells (lookback 15/30/60 minutes and since-the-open, hold 30/60 bars, k = 5/10),
+2016-2026, **2,684 sessions and 267,000-587,000 legs per cell**:
+
+| lookback | hold | k | legs | gross bps | t | cost bps | net bps | t net |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| since open | 60 | 5 | 267,230 | **+0.36** | +2.00 | 4.70 | -4.34 | -23.9 |
+| since open | 60 | 10 | 533,380 | +0.26 | +1.93 | 4.52 | -4.26 | -31.6 |
+| since open | 30 | 5 | 294,060 | +0.19 | +1.96 | 4.70 | -4.51 | -45.6 |
+| 30 min | 30 | 5 | 294,040 | +0.03 | +0.35 | 4.66 | -4.63 | -46.1 |
+| 60 min | 60 | 10 | 479,760 | +0.14 | +1.09 | 4.51 | -4.37 | -35.0 |
+
+**Gross is positive - momentum, not reversal - and it is 0.36 bps against a 4.70 bps round trip.**
+The whole eleven-year edge is **7.7% of the cost of harvesting it**; the book would need a **13x**
+larger spread to break even. Per regime the same cell is +0.35 / +0.27 / +0.51 bps (t = +1.44 /
++0.83 / +1.34): stable in sign, never significant on its own, and the pooled t of +2.00 is what
+2,684 sessions buy. **No cell reaches t > 2 in two of three regimes on either sign - and that is
+before costs**; net of costs the verdict is 0 of 32.
+
+Two secondary readings, both consistent with the main one:
+
+| entry | 10:00 | 10:30 | 11:00 | 13:00 | 14:00 | 14:30 | 15:00 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| gross bps | +0.25 | **+0.63** | +0.48 | +0.35 | -0.26 | **-0.69** | -0.19 |
+| t | +0.48 | +1.46 | +1.30 | +1.39 | -1.02 | **-2.80** | -0.70 |
+
+Continuation in the morning, mean reversion in the afternoon, and the only |t| > 2 in the table is
+the 14:30 **reversal** - a shape worth remembering, and still an order of magnitude under cost at
+every hour. And the cost falls monotonically across the regimes (5.45 -> 4.42 -> 4.00 bps per round
+trip) purely because the megacaps' share prices rose against a fixed per-share commission, which is
+the only reason the net numbers improve at all.
+
+### Stage 2: the harness agrees, and it agrees on both signs at once
+
+`algorithms/intraday/xsect/signal.py` through the shipped framework (defaults: lookback 30, hold to
+the next 30-minute re-rank, k = 5, 0.06 of equity per leg, 0.6 gross), **one year per regime**
+(2018, 2022, 2025 - a full 11-year pass is ~45 minutes of wall clock per year at 50 names and buys
+nothing stage 1 has not already settled):
+
+| variant | $/day | t | Sharpe | 2016-19 | 2020-23 | 2024-26 | tr/day | costs/day |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| momentum | **-1,681** | **-16.9** | -10.2 | t -13.5 | t -9.4 | t -7.8 | 158.9 | $1,760 |
+| reversal (control) | **-1,786** | **-18.8** | -11.2 | t -15.8 | t -9.1 | t -9.7 | 158.8 | $1,689 |
+
+0/3 regimes for both signs, against the 2/3-at-t>2 rule fixed before the runs. **The two signs
+losing the same amount is the whole result**: back out the modelled costs and the implied gross is
+**+$79/day for momentum and -$97/day for reversal** on a $1M book - zero to within a few dollars a
+day, in both directions, exactly as stage 1 said. Turnover is 8.07x equity per day, so the sleeve
+pays $1,760/day for the privilege; the compounding of that bleed, not any drawdown of the signal, is
+what makes the eleven-year equity curve read -80%.
+- **The reconciliation is arithmetic, not luck.** Stage 1's cell for the module's own defaults
+  (lookback 30, hold 30, k = 5) is +0.03 bps per leg on 109.6 legs/day, i.e. **+$20/day** at 0.06 of
+  equity per leg; the harness's implied gross is +$79/day on the three sampled years. The two
+  instruments are measuring the same nothing, so no audit of the harness was owed this time (L-1
+  needed `_l1_reconcile.py` because they disagreed in *sign*).
+- **On the mandate.** Daily P&L standard deviation is **$2,730 on $1M, 0.27% of equity**. Even
+  levered to the framework's 1.5 gross cap this book moves a quarter of one percent on a typical
+  day, so it was never a 3-10%/day candidate: a market-neutral ranking is the *least* volatile thing
+  the owner's list contained, and its edge is smaller still.
+- **Decision. X-1 is refused and closed.** Nothing shipped. `live/intraday_config.json`,
+  `live/APPROVED_PAPER.md` and the scheduled tasks were not touched, and no file the live trader
+  loads was edited - `algorithms/intraday/xsect/` is a new directory that only `scripts/sweep_x1.py`
+  imports, so **rule (a) owes no replay** (the deployed `active` module, `base.py` and
+  `intraday_common.py` are byte-identical to this morning's).
+- **What did ship is data.** `data/minute_alpaca` now holds **60 symbols** (the 16-name sleeve, the
+  six leveraged ETFs, and all 50 megacaps, 2016-2026, ~1.04M bars each), and `_splits.json` was
+  re-derived for all 60 in one pass. That file is rewritten wholesale by `alpaca_data.py --splits`,
+  so it had to be re-derived for the *union*, not the new names - **every pre-existing factor came
+  back identical**, so A-10's and L-1's costed results are unaffected. The store is gitignored;
+  rebuild with `python scripts/alpaca_data.py --symbols <names> --start 2016-01-01` (~4 min/symbol,
+  three parallel processes stay inside Alpaca's 200 requests/minute).
+- **Next.** The owner's list is now exhausted except **O-2**, which needs options permission on the
+  paper account (open question in `BLOCKERS.md`), and the A-track refinements. Three of the four
+  ideas that were supposed to deliver 3-10%/day have now been measured and refused on ten years of
+  bars - O-1 (no forecastable regime), L-1 (no reversion in leveraged ETFs), X-1 (no cross-sectional
+  spread) - and the honest summary for the owner is that **this repo has found exactly one edge that
+  survives out of sample, and it is the daily champion S-12**. The next iteration should either take
+  O-2 (options, which is the only untried instrument class with intrinsic convexity) or answer the
+  standing question in `BLOCKERS.md` about whether the intraday sleeve should keep trading paper
+  capital at all. **A-5 part 2 is still owed today**: the sleeve trades until 15:42 ET, so
+  `python scripts/slippage_report.py --refresh` runs after the close, not inside this iteration.
+
 ## 2026-09-10 - L-1: leveraged ETFs do not revert intraday, and the statistic that said they did was weighted wrong
 
 - **What.** The owner's midday mandate put L-1 at the top of the backlog: fade VWAP bands on the

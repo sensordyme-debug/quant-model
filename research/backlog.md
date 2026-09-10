@@ -17,6 +17,21 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-10 19:3x UTC (X-1): **breadth does not rescue the intraday sleeve - fifty megacaps
+carry a cross-sectional spread of +0.36 bps against a 4.70 bps round trip.** Fetched the 40 missing
+megacaps (2016-2026, ~1.04M bars each; the Alpaca store is now 60 symbols) and re-derived
+`_splits.json` for the union with every pre-existing factor identical. Stage 1, sixteen cells over
+2,684 sessions: gross is **positive (momentum) and never above +0.36 bps per leg**, and **no cell
+reaches t > 2 in two of three regimes before a cent of cost**; net, 0 of 32. Stage 2 through the
+shipped framework, one year per regime: momentum **-$1,681/day (t = -16.9)** and the reversal
+control **-$1,786/day (t = -18.8)** - **both signs losing the same amount**, i.e. gross of +$79 and
+-$97/day on a $1M book against $1,760/day of costs at 8.07x turnover. Time-of-day residual worth
+keeping: **+0.63 bps at 10:30, -0.69 bps (t = -2.80) at 14:30**. **Refused and closed; nothing
+shipped**, no file the live trader loads was touched (rule (a) owes no replay). Champion unchanged
+at S-12. **The owner's 3-10%/day list is now exhausted except O-2**, which needs options permission:
+O-1, L-1 and X-1 have each been measured on ten years of bars and refused, and the only edge in this
+repo that survives out of sample is the daily champion.
+
 Status 2026-09-10 17:0x UTC (L-1): **leveraged ETFs do not revert intraday, and the statistic that
 said they did was weighted wrong.** Event study on 2016-2026 Alpaca bars for SOXL/SOXS/TQQQ/SQQQ/
 UPRO/SPXU (the last four fetched here): fading a `z`-ATR VWAP deviation at the next bar's open earns
@@ -479,11 +494,26 @@ split and real costs; nothing is deployed without being positive in at least two
   (two constants, no behaviour); the 2026-09-08 replay reproduces the deployed sleeve exactly.
   **On the mandate**: at 0.9 gross on 3x ETFs the book's daily P&L sd is 0.49% of equity - the
   leveraged instruments supply volatility, not edge.
-- **X-1 Cross-sectional intraday momentum on the 50 megacaps.** Pull the D-1 megacap list
-  at minute resolution from Alpaca (10 years, ~10 minutes of fetching), rank names each 30
-  minutes by intraday return vs the basket, go long the top decile and short the bottom
-  decile, flat by 15:38. Breadth is where a robust intraday edge is more likely than in a
-  16-name book; judge by regime.
+- **X-1 DONE 2026-09-10 (see journal): the cross-sectional intraday spread on the megacaps is
+  +0.36 bps against a 4.70 bps round trip - real, tiny, and 13x too small. Refused, nothing
+  shipped.** Fetched the 40 missing megacaps (2016-2026, ~1.04M bars each; the Alpaca store is now
+  60 symbols) and re-derived `_splits.json` for the union, every pre-existing factor identical.
+  Stage 1, sixteen parameter cells over **2,684 sessions and 267k-587k legs each**: gross is
+  **positive (momentum, not reversal) and never above +0.36 bps per leg**, best cell "since the
+  open, hold 60, k=5" at t = +2.00 pooled and +1.44 / +0.83 / +1.34 by regime - **no cell reaches
+  t > 2 in two of three regimes even before costs**, and net of costs the verdict is 0 of 32.
+  Stage 2, the module through the shipped framework on one year per regime: momentum
+  **-$1,681/day (t = -16.9)** and the reversal control **-$1,786/day (t = -18.8)**, 0/3 regimes
+  both. **The symmetry is the finding**: backing out costs leaves +$79/day and -$97/day of gross
+  on a $1M book - zero in both directions - while turnover of 8.07x equity/day pays $1,760/day.
+  Stage 1 predicted +$20/day of gross at the module's defaults, so the two instruments agree and
+  no harness audit was owed. **Do not re-open as a lookback, horizon, decile or rebalance-frequency
+  question** - the grid spans all four and the mechanism is an order of magnitude under the cost
+  floor everywhere. Worth keeping for a later idea: the gross effect is **+0.63 bps at 10:30 and
+  -0.69 bps (t = -2.80) at 14:30** - continuation in the morning, reversion in the afternoon - and
+  the per-share commission means the same strategy costs 5.45 bps in 2016-2019 and 4.00 in
+  2024-2026. **On the mandate**: this book's daily P&L sd is 0.27% of equity, the least volatile
+  thing on the owner's list.
 
 Owner decisions of 2026-09-09 (see `BLOCKERS.md`): paper trading is approved and running,
 the 35% drawdown cap stays, promotion is now return-first with a 0.03 Sharpe tolerance and a
