@@ -2,6 +2,49 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
+## Open request to the owner (2026-09-10, intraday sleeve - supersedes the size half of the 2026-09-09 item)
+
+- **The question "can this sleeve be validated?" is now answered, and the answer is that it
+  loses money. Decide whether it keeps trading paper capital at all.** A-4 said ~2,120 sessions
+  were needed and that we would never have them. We do: `scripts/alpaca_data.py` holds
+  split-adjusted SIP 1-minute bars for the same 16 names back to 2016-01-04 - **2,686 sessions**,
+  free, and the per-share commission model has been corrected for the split adjustment (the raw
+  IBKR store is unaffected; A-5's control reproduces to the digit). On that sample, with the
+  shipped costs and the deployed framework:
+
+  | | sessions | $/day | t |
+  | --- | --- | --- | --- |
+  | mix, 2016-2019 | 1,006 | -579 | -2.42 |
+  | mix, 2020-2023 | 1,006 | -1,127 | -2.92 |
+  | mix, 2024-2026 | 674 | -231 | -0.37 |
+  | **mix, all** | **2,686** | **-697** | **-3.01** |
+  | ORB alone, all | 2,686 | -289 | -1.17 |
+  | late-day fade alone, all | 2,686 | -468 | **-7.38** |
+  | mix, the window it was fitted on | 261 | +302 | +0.32 |
+
+  The last row is the point: the only profitable window in eleven years is the one the parameters
+  were chosen on, and even there the t-statistic is 0.32. **The loop has done what it can inside
+  its own rules**: the late-day fade is dropped (`alloc.late_momo` 1.0 -> 0.0, refused at 7 sigma
+  in every regime, and it costs nothing in sample), and `equity_frac` stays at the 0.5 this
+  morning's preliminary set rather than being restored to 1.0. What remains is ORB alone at
+  -$289/day, t = -1.17 - not proven to lose, not proven to earn.
+
+  **Decision wanted, one of three:** (a) keep it at `equity_frac` 0.5 as a live execution
+  experiment - the sleeve's real purpose for the next few weeks would be A-5 part 2, measuring
+  actual fill slippage against the 1.5 bps the harness assumes, which needs it to place orders;
+  (b) flatten it to `equity_frac` 0.0 and let the loop work on O-1 (options-implied regime gating)
+  until something tests positive out of sample - this is the choice the numbers alone support,
+  and it costs the slippage measurement; or (c) accept the drawdowns as the price of the volatile
+  mandate and restore size - which the evidence does not support and the loop will not do on its
+  own. **The loop's default without an answer is (a)**, because it is the only option that keeps
+  producing information.
+
+  One thing the study *confirms* rather than kills: the book is genuinely a long-volatility
+  position. corr(daily P&L, universe mean daily range) is **+0.202 at t = +10.70** over 2,686
+  sessions and positive in all three regimes separately. The mechanism is real; only the level is
+  negative. That is why O-1's regime gate, not another stop or size lever, is where the loop
+  goes next.
+
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
 - **The intraday sleeve cannot be validated by backtest, at any sample size we can reach

@@ -23,11 +23,12 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault("INTRADAY_DATA_DIR", str(Path(__file__).resolve().parents[1] / "data" / "minute_alpaca"))
-from intraday_common import DATA_DIR, ET, UNIVERSE, load_bars, save_bars  # noqa: E402
+from intraday_common import DATA_DIR, ET, SPLITS_FILE, UNIVERSE, load_bars, save_bars  # noqa: E402
 from apikeys import require  # noqa: E402
 
 BASE = "https://data.alpaca.markets/v2/stocks/bars"
@@ -107,6 +108,81 @@ def _fetch_range(symbol: str, start: dt.date, end: dt.date, headers: dict, feed:
     return total
 
 
+def _daily_closes(symbol: str, start: dt.date, headers: dict, feed: str, adjustment: str) -> pd.Series:
+    """Daily closes for one symbol, one page-loop, used only to derive split factors."""
+    params = {"symbols": symbol, "timeframe": "1Day", "start": f"{start}T00:00:00Z",
+              "end": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "feed": feed, "limit": 10000, "adjustment": adjustment}
+    rows, token = [], None
+    while True:
+        q = dict(params)
+        if token:
+            q["page_token"] = token
+        req = urllib.request.Request(BASE + "?" + urllib.parse.urlencode(q), headers=headers)
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        rows += data.get("bars", {}).get(symbol, [])
+        token = data.get("next_page_token")
+        if not token:
+            break
+        time.sleep(0.35)
+    if not rows:
+        return pd.Series(dtype=float)
+    df = pd.DataFrame(rows)
+    df["t"] = pd.to_datetime(df["t"], utc=True).dt.tz_convert(ET).dt.date
+    return df.set_index("t")["c"].astype(float)
+
+
+def _sig(x: float, digits: int = 6) -> float:
+    """Round to significant digits, not decimals: SOXS's cumulative factor in 2016 is ~4e-7 and
+    rounding that to 6 decimals would store a zero."""
+    if not x or not np.isfinite(x):
+        return float(x)
+    return float(round(x, digits - 1 - int(np.floor(np.log10(abs(x))))))
+
+
+def write_splits(symbols, start: dt.date, headers: dict, feed: str) -> dict:
+    """Write DATA_DIR/_splits.json: the cumulative split factor raw_close/adjusted_close per date.
+
+    The store holds split-ADJUSTED bars, which is right for features and wrong for a per-share
+    commission: a 2016 NVDA share is priced at ~1/40th of what it traded at, so a dollar position
+    buys ~40x the shares that were really bought. Asking Alpaca for the same daily bars twice -
+    once raw, once split-adjusted - gives that factor exactly, with no split table to maintain.
+    Dividends are left raw in both series, so the ratio is pure split.
+    """
+    out = {}
+    for s in symbols:
+        raw = _daily_closes(s, start, headers, feed, "raw")
+        adj = _daily_closes(s, start, headers, feed, "split")
+        common = raw.index.intersection(adj.index)
+        if len(common) < 100:
+            print(f"  {s}: too few daily bars ({len(common)}) to derive splits; assuming 1.0", flush=True)
+            continue
+        ratio = (raw.reindex(common) / adj.reindex(common)).sort_index()
+        # Both closes are rounded to the cent, so the ratio wobbles by a few parts in 1e5 every
+        # day. Only a split moves it by percent, so runs are cut at a 1% relative break and each
+        # run is represented by its median - that turns 2,700 noisy points into one segment per
+        # split event.
+        segs, run = [], []
+        for d, f in ratio.items():
+            if not (f > 0):
+                continue
+            if run and abs(f / float(np.median([x[1] for x in run])) - 1.0) > 0.01:
+                segs.append([str(run[0][0]), _sig(float(np.median([x[1] for x in run])))])
+                run = []
+            run.append((d, f))
+        if run:
+            segs.append([str(run[0][0]), _sig(float(np.median([x[1] for x in run])))])
+        out[s] = segs
+        changes = [f"{d}:{f:g}" for d, f in segs[1:]]
+        print(f"  {s:<6} factor {segs[0][1]:g} at {segs[0][0]} -> {segs[-1][1]:g} today; "
+              f"{len(segs) - 1} split(s){': ' + ', '.join(changes) if changes else ''}", flush=True)
+    p = DATA_DIR / SPLITS_FILE
+    p.write_text(json.dumps(out, indent=1), encoding="utf-8")
+    print(f"wrote {p} ({len(out)} symbols)")
+    return out
+
+
 def status(symbols):
     print(f"store: {DATA_DIR}")
     for s in symbols:
@@ -126,6 +202,8 @@ def main() -> int:
     ap.add_argument("--feed", default="sip", choices=["sip", "iex"])
     ap.add_argument("--adjustment", default="split", choices=["split", "raw", "all"])
     ap.add_argument("--status", action="store_true")
+    ap.add_argument("--splits", action="store_true",
+                    help="derive and write _splits.json (needed before costing an adjusted store)")
     args = ap.parse_args()
     symbols = args.symbols or UNIVERSE
     if args.status:
@@ -134,6 +212,9 @@ def main() -> int:
     k = require("ALPACA_API_KEY", "ALPACA_SECRET_KEY")
     headers = {"APCA-API-KEY-ID": k["ALPACA_API_KEY"], "APCA-API-SECRET-KEY": k["ALPACA_SECRET_KEY"]}
     start, end = dt.date.fromisoformat(args.start), dt.date.fromisoformat(args.end)
+    if args.splits:
+        write_splits(symbols, start, headers, args.feed)
+        return 0
     t0 = time.time()
     for s in symbols:
         try:

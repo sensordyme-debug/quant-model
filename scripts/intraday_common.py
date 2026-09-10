@@ -54,8 +54,47 @@ FLATTEN_MINUTE = 368         # 15:38 ET: target zero from here so the book is fl
 EXIT_MINUTE = 372            # 15:42 ET: live loop exits
 
 
-def commission(shares: float, price: float) -> float:
-    c = max(COMMISSION_MIN, abs(shares) * COMMISSION_PER_SHARE)
+#: Cumulative split factor per store, {SYM: [[iso_date, factor], ...]} sorted by date, written by
+#: `scripts/alpaca_data.py --splits`. A store of SPLIT-ADJUSTED bars (data/minute_alpaca) prices a
+#: 2016 share of NVDA at ~1/40th of what it traded at, so sizing a position in dollars buys ~40x
+#: the shares that were really bought - and IBKR charges per SHARE, so the commission model reads
+#: 40x too high (and hits its 1% cap, i.e. 100 bps, on names that split a lot). `factor` is
+#: raw_close / adjusted_close on that date, so real_shares = adjusted_shares / factor. The raw IBKR
+#: store has no such file and every factor is 1.0, which is why this is a no-op for the live trader.
+SPLITS_FILE = "_splits.json"
+_SPLITS: dict[str, list] | None = None
+
+
+def _splits() -> dict[str, list]:
+    global _SPLITS
+    if _SPLITS is None:
+        p = DATA_DIR / SPLITS_FILE
+        try:
+            _SPLITS = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        except Exception:  # noqa: BLE001 - a broken file must not silently change costs
+            _SPLITS = {}
+    return _SPLITS
+
+
+def share_scale(symbol: str, day) -> float:
+    """adjusted shares per real share on `day` (1.0 when the store is unadjusted)."""
+    segs = _splits().get(symbol.upper())
+    if not segs:
+        return 1.0
+    d = str(day)
+    f = segs[0][1]
+    for start, factor in segs:
+        if start <= d:
+            f = factor
+        else:
+            break
+    return float(f) or 1.0
+
+
+def commission(shares: float, price: float, scale: float = 1.0) -> float:
+    """IBKR per-share commission. `scale` is share_scale(): the per-share term is charged on the
+    real share count, while the 1% cap is on notional, which splits leave unchanged."""
+    c = max(COMMISSION_MIN, abs(shares) / (scale or 1.0) * COMMISSION_PER_SHARE)
     return min(c, 0.01 * abs(shares) * price)
 
 

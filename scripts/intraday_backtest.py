@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import intraday_common  # noqa: E402
 from intraday_common import (DAILY_LOSS_LIMIT, FLATTEN_MINUTE, GROSS_HARD_CAP, MIN_CHANGE,  # noqa: E402
                              PER_SYMBOL_HARD_CAP, REPO, SLIPPAGE_BPS, UNIVERSE, commission,
-                             load_universe, sessions, slippage)
+                             load_universe, sessions, share_scale, slippage)
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
 from base import features  # noqa: E402
@@ -102,17 +102,28 @@ class Book:
         if delta == 0:
             return
         px = price * (1 + math.copysign(1, delta) * 0)  # slippage charged explicitly below
-        cost = commission(delta, px) + slippage(delta, px)
+        # share_scale is 1.0 on the raw IBKR store; on the split-adjusted Alpaca store it converts
+        # the adjusted share count back to the shares IBKR would really have charged for.
+        cost = commission(delta, px, share_scale(sym, when.date())) + slippage(delta, px)
         self.cash -= delta * px + cost
         self.costs += cost
         self.pos[sym] = self.pos.get(sym, 0) + delta
-        if self.pos[sym] == 0:
+        # on an adjusted store the share count is a float multiple of the split factor, so an
+        # exact zero can leave a ~1e-16 relative residue; treat that as flat.
+        if self.pos[sym] == 0 or abs(self.pos[sym]) < 1e-9 * abs(delta):
             del self.pos[sym]
         self.trades.append({"t": when, "sym": sym, "qty": delta, "px": px, "cost": cost, "why": reason})
 
 
-def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, float], equity: float):
-    """Same sizing rules as scripts/intraday_trader.py:Trader.targets_to_orders."""
+def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, float], equity: float,
+                      day: dt.date | None = None):
+    """Same sizing rules as scripts/intraday_trader.py:Trader.targets_to_orders.
+
+    The whole-share floor is applied at the price that was really quoted, not the adjusted one:
+    on a split-adjusted store a 2016 share of SOXS is priced in the millions, so flooring the
+    adjusted count would silently size every early position to zero. `f` is 1.0 on the raw IBKR
+    store, where this reduces to the shipped `floor(w * equity / px)` exactly.
+    """
     orders = {}
     cap, gross_cap, min_change = RISK["per_symbol_hard_cap"], RISK["gross_hard_cap"], RISK["min_change"]
     gross = sum(abs(w) for w in targets.values())
@@ -122,7 +133,13 @@ def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, f
         if not px or px <= 0:
             continue
         w = max(-cap, min(cap, float(targets.get(sym, 0.0)) * scale))
-        tgt = int(math.copysign(math.floor(abs(w) * equity / px), w)) if w else 0
+        f = share_scale(sym, day) if day is not None else 1.0
+        if w:
+            real = math.floor(abs(w) * equity / (px * f))       # whole shares at the real price
+            tgt = math.copysign(real * f, w)
+            tgt = int(tgt) if f == 1.0 else tgt
+        else:
+            tgt = 0
         cur = book.pos.get(sym, 0)
         delta = tgt - cur
         if delta and (abs(delta) * px >= min_change * equity or tgt == 0):
@@ -192,7 +209,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             else:
                 view = {s: fd[s].iloc[:j] for s, j in cur_rows.items()}
                 targets = strategy.decide(t, view, dict(book.pos), equity, state, params) or {}
-            pending = targets_to_orders(targets, book, closes, equity)
+            pending = targets_to_orders(targets, book, closes, equity, day)
             if minute >= RISK["flatten_minute"] and book.pos and not pending:
                 pending = {s: -q for s, q in book.pos.items()}
         # end of session: anything still open is closed at the last bar's close (should be none)

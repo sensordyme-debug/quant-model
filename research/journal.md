@@ -2,6 +2,90 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-10 - A-10: with 2,686 sessions the sleeve is not unproven, it is negative
+
+- **What.** The power test A-4 said could not be run on any reachable sample. `scripts/sweep_a10.py`
+  runs the deployed mix and each sub-strategy alone on the Alpaca SIP store - the same 16 names,
+  split-adjusted 1-minute bars, **2016-01-04 .. 2026-09-09, 2,686 sessions** against the IBKR
+  store's 260 - as one backtest per calendar year from a fresh $1,000,000 book, then pools the
+  daily series into three a-priori regimes. The yearly reset is deliberate: it makes a dollar in
+  2016 comparable with a dollar in 2026, which is what a t-statistic on daily P&L needs, and it
+  stops eleven years of compounding from letting the last two years own the sample.
+- **Why.** A-4 measured Sharpe 0.69 at t = +0.61 and computed that ~2,120 sessions are needed to
+  reject zero at two sigma. A-5 sharpened it: on the 77 sessions no A-track parameter had seen,
+  gross P&L *before any slippage* was -$11/day. The Alpaca store is the first sample large enough
+  to answer, and the decision rule was fixed before the runs (backlog A-10): positive at t > 2 in
+  at least two of three regimes, or the size comes down.
+
+### The cost-model bug that had to be fixed first
+
+The Alpaca store is **split-adjusted**, which is right for features and wrong for a per-share
+commission. A 2016 share of NVDA is priced at 1/40th of what it traded at, so a dollar position
+buys 40x the shares that were really bought - and IBKR charges per share, capped at 1% of trade
+value. The uncorrected model charged **$1,523/day of commission on 7 trades/day** in a two-name
+2016 smoke test (it was pinned to the 1% cap, i.e. 100 bps a side). Worse, SOXS's cumulative
+factor is 8.3e-08, so its adjusted 2016 price is in the tens of millions and the whole-share floor
+silently sized every early SOXS position to **zero**.
+
+Fixed in shared code, so the backtester and the live trader cannot drift: `alpaca_data.py --splits`
+asks Alpaca for the same daily bars twice, raw and split-adjusted, and writes the ratio as
+`data/minute_alpaca/_splits.json` (NVDA 40 -> 10 -> 1, TSLA 15 -> 3 -> 1, SOXS 8.3e-08 through
+seven reverse splits - no split table to maintain and nothing to keep up to date by hand);
+`intraday_common.share_scale()` reads it; `commission()` takes an optional scale so the per-share
+term is charged on real shares while the 1% cap stays on notional; and the whole-share floor is
+applied at the price that was really quoted. **The raw IBKR store has no such file, every factor
+is 1.0, and the regression proves it is a no-op there**: A-5's control reproduces to the digit -
+260 sessions, CAR 15.343%, Sharpe 0.689, $610/day, 12,743 fills, worst day -28,368, 12 loss-limit
+days. Same 2016 smoke test after the fix: costs/day $222, not $1,523.
+
+### The result
+
+Deployed framework, shipped costs (1.5 bps + IBKR commission), $1M book, 2,686 sessions:
+
+| variant | regime | sessions | $/day | t | Sharpe | CAR % | max DD % |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **mix** | 2016-2019 | 1,006 | **-579** | **-2.42** | -1.18 | -15.0 | 50.0 |
+| **mix** | 2020-2023 | 1,006 | **-1,127** | **-2.92** | -1.30 | -30.2 | 77.2 |
+| **mix** | 2024-2026 | 674 | -231 | -0.37 | -0.24 | -9.1 | 52.5 |
+| **mix** | ALL | 2,686 | **-697** | **-3.01** | -0.91 | -19.7 | 92.0 |
+| orb | ALL | 2,686 | -289 | -1.17 | -0.32 | -8.6 | 67.2 |
+| **fade** | ALL | 2,686 | **-468** | **-7.38** | -2.24 | -12.2 | 77.1 |
+| mix | *(fitted window, >= 2025-08-26)* | 261 | +302 | +0.32 | +0.27 | +3.7 | 15.6 |
+
+**0 of 3 regimes pass. The rule fires.** And the finding is stronger than the rule asked for: at
+t = -3.01 on a sample above A-4's own 2,120-session threshold, the mix is not *unproven*, it is
+**significantly negative**. The last row is the whole story - the only window in eleven years
+where this sleeve makes money is the one its parameters were fitted on, and even there
+**t = +0.32**. Year by year the mix is positive in 4 of 11 years and no year reaches |t| = 1.
+
+**The late-day fade is the clearest negative the A-track has produced: -$468/day at t = -7.38**,
+negative in every regime separately (-4.33 / -6.75 / -1.60) and on the fitted window too
+(-$106/day). A-4 explicitly refused to drop it because on 260 IBKR sessions it scored +$65/day
+marginal at t = +0.27. That sample could not see a 7-sigma effect; this one can. This is the
+overfitting lesson A-9 predicted, arriving from the other direction.
+
+**A-4's long-volatility mechanism survives, with power.** corr(daily P&L, universe mean range) is
+**+0.202 at t = +10.70** over 2,686 sessions and positive in all three regimes separately
+(+0.240 / +0.161 / +0.300) against A-4's +0.538 on 260. So the *variation* really is a range bet -
+the level is just below zero. That keeps O-1 (options-implied regime features) alive as the one
+remaining idea with a measured mechanism behind it, and kills size as a lever.
+
+- **Shipped** (rule c, with a passed replay of 2026-09-08 first: 34 trades, 368 decisions, flat at
+  close, P&L -2,280 on 500k of sleeve equity): `live/intraday_config.json` `alloc.late_momo`
+  **1.0 -> 0.0**. It is refused at 7 sigma out of sample and costs nothing in sample - on the 261
+  sessions any A-track parameter has seen, ORB alone earns +$322/day against the mix's +$302.
+- **Held, not restored:** `equity_frac` stays at **0.5** (this morning's A-10 preliminary cut it
+  from 1.0). What is left after dropping the fade is ORB alone at -$289/day, t = -1.17 - not
+  proven to lose, not proven to earn. Restoring size to a book with no demonstrated edge is not
+  something evidence supports, and taking it to zero would also end A-5 part 2 before it starts:
+  the live slippage measurement needs the sleeve to place orders.
+- **Next.** Not another size or stop lever - A-1, A-2, A-7, A-9 and now A-10 have between them
+  spent the signal layer and the framework constants. The two live threads are **A-5 part 2**
+  (run `scripts/slippage_report.py` after today's close, the first session that will place real
+  orders) and **O-1**, whose regime gate is the only untried idea with a mechanism this study
+  actually confirms. Whether the sleeve should trade paper capital at all in its current form is
+  now a one-line question to the owner in `BLOCKERS.md`.
+
 ## 2026-09-10 - A-10 preliminary: the sleeve on ten years of Alpaca bars, and a size cut for today
 
 - **What.** `scripts/alpaca_data.py` now holds split-adjusted SIP 1-minute bars for the 16-name

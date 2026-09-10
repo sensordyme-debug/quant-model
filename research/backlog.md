@@ -11,7 +11,38 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-10 06:3x UTC (latest, A-5 part 1): **the sleeve breaks even at 2.6 bps of
+Status 2026-09-10 08:5x UTC (latest, A-10): **with 2,686 sessions the sleeve is not
+unproven, it is negative - and the late-day fade is refused at 7 sigma.** A-4 said ~2,120 sessions
+were needed and unreachable; the Alpaca SIP store has 2,686 (2016-01-04..2026-09-09, same 16
+names). New `scripts/sweep_a10.py` runs the deployed mix and each sub-strategy alone as one
+backtest per calendar year from a fresh $1M book, pooled into three a-priori regimes.
+**A cost-model bug had to be fixed first**: the store is split-adjusted, so a dollar position
+bought up to 40x the shares really bought and the per-share commission pinned to its 1% cap
+($1,523/day on 7 trades/day in a 2016 smoke test, $222 after the fix), while SOXS's 8.3e-08
+cumulative factor put its adjusted 2016 price in the tens of millions and the whole-share floor
+sized every early SOXS position to **zero**. Fixed in shared code - `alpaca_data.py --splits`
+derives the factor by asking Alpaca for the same daily bars raw and adjusted and writes
+`_splits.json`, `intraday_common.share_scale()` reads it, `commission()` takes a scale, and the
+whole-share floor is applied at the price really quoted. **The raw IBKR store has every factor
+1.0 and the regression proves the no-op**: A-5's control reproduces to the digit (260 sessions,
+CAR 15.343%, Sharpe 0.689, $610/day, 12,743 fills). The result: mix **-$697/day at t = -3.01**
+over 2,686 sessions, negative in all three regimes (**-$579 / t -2.42**, **-$1,127 / t -2.92**,
+-$231 / t -0.37), positive in 4 of 11 years and no year at |t| = 1. **The only profitable window
+in eleven years is the 261 sessions the parameters were fitted on, and even there t = +0.32.**
+**The late-day fade alone is -$468/day at t = -7.38**, negative in every regime separately and on
+the fitted window too - A-4 kept it on 260 IBKR sessions at t = +0.27 because that sample could
+not see a 7-sigma effect. **A-4's mechanism survives with power**: corr(daily P&L, universe range)
+**+0.202 at t = +10.70**, positive in all three regimes. **Shipped** after a passed 2026-09-08
+replay (34 trades, 368 decisions, flat at close): `alloc.late_momo` **1.0 -> 0.0** in
+`live/intraday_config.json` - refused at 7 sigma OOS and free in sample (ORB alone earns +$322/day
+on the fitted window against the mix's +$302). **`equity_frac` held at 0.5**, not restored: what
+is left is ORB alone at -$289/day, t = -1.17. Whether the sleeve should trade paper capital at all
+is now the top question in `BLOCKERS.md`. **O-1 (options-implied regime gating) is the new top
+item** - it is the only untried idea whose mechanism this study confirms; the participation cap
+A-5 found is demoted, because it can only make a losing book smaller. Champion unchanged at S-12;
+the daily sleeve was not touched.
+
+Status 2026-09-10 06:3x UTC (A-5 part 1): **the sleeve breaks even at 2.6 bps of
 slippage and is charged 1.5, so the cost constant owns its sign.** A-5's live-fill measurement
 needs a session that placed orders and there is none yet, so this iteration priced the cost model
 from the store instead. New `scripts/sweep_a5.py` (`spread` / `impact` / `breakeven`), a
@@ -293,8 +324,30 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-10 Statistical power at last: validate the sleeve on the Alpaca SIP store (top item
-  once `python scripts/alpaca_data.py --status` shows sessions).** A-4 proved the IBKR store
+- **O-1 Options-implied regime features (Theta Data). TOP ITEM as of A-10.** A-10 measured the
+  only mechanism this sleeve has that survives a 2,686-session sample: daily P&L correlates
+  **+0.202 with the universe's mean daily range at t = +10.70**, positive in all three regimes
+  separately. The level is negative everywhere, so the question is no longer "how big" but
+  "when": is there a causal, known-at-entry regime signal that separates the range days the book
+  earns on from the ones it pays on? A-9 proved the *opening range* is not it (the stop is the
+  range midpoint, so width scales win and loss together). Options-implied volatility is the
+  untried candidate and it is knowable before the open. Build `data/options/iv_regime.parquet`
+  from `scripts/theta_data.py`: SPY ATM IV (nearest weekly), 25-delta put/call skew and the IV
+  term ratio (1w/1m) per day and per 30-minute bucket, back to 2012. Gate ORB on it (trade only
+  when IV is above/below its 60-day median, and test both signs) and judge it on the **Alpaca
+  store with `scripts/sweep_a10.py`'s three regimes**, not on the 260-session IBKR window - that
+  window is what produced every A-track false positive. Causal only: the bucket before the
+  decision bar. A gate that does not reach t > 2 in at least two regimes is refused.
+- **A-10 DONE 2026-09-10 (see journal): the sleeve is significantly negative on 2,686 sessions;
+  the late-day fade is dropped.** Mix -$697/day at t = -3.01; regimes -$579/-2.42, -$1,127/-2.92,
+  -$231/-0.37; ORB alone -$289/-1.17; late fade alone **-$468/-7.38**, negative in every regime
+  and on the fitted window. The only profitable window in eleven years is the 261 sessions the
+  parameters were chosen on (+$302/day, t = +0.32). Shipped `alloc.late_momo` 1.0 -> 0.0 after a
+  passed replay; `equity_frac` held at 0.5. Also shipped the prerequisite cost fix (`--splits`,
+  `share_scale()`, scaled `commission()`, whole-share floor at the real price) with an
+  IBKR-store regression that reproduces A-5's control to the digit. **Do not re-open this as a
+  parameter question** - the negative is about the level of the whole sleeve on unseen data.
+  Kept for the record, the original item: A-4 proved the IBKR store
   (260 sessions) cannot resolve the deployed mix's edge (t = +0.61, ~2,000 sessions needed).
   `scripts/alpaca_data.py` now pulls consolidated 1-minute bars for any US symbol back to
   2016, free. Fetch the 16-name universe from 2016 (`--start 2016-01-01`, ~10 minutes), then
@@ -316,7 +369,12 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   sold against the intraday regime signal with realistic fills at the quoted bid/ask (never
   the mid). Judge after costs, both halves, worst day. Do not deploy anything until the
   owner enables options permissions; record the evidence in the journal.
-- **A-10 Cap order size at a share of the fill minute's volume (top item).** The one thing A-5
+- **A-11 Cap order size at a share of the fill minute's volume (was A-10; demoted by A-10).**
+  Still a real cost-model defect - over 12,743 fills the order is median 1.03%, p90 5.55%, p99
+  26.1% and at worst 199% of the minute's volume, concentrated in SMCI/SOXS/COIN/MSTR - but A-10
+  measured the sleeve as negative *before* removing any impossible fill, so a participation cap
+  can now only make a losing book smaller. Take it when a signal tests positive on the Alpaca
+  regimes, and take it before any such signal is sized. Original statement: The one thing A-5
   found that the bars *prove* is wrong rather than merely leave uncertain. Over the deployed mix's
   12,743 fills on the 260-session store, the order is **median 1.03%, p75 2.43%, p90 5.55%, p99
   26.1% and at worst 199%** of the volume of the minute it fills in, and the tail is not random:
