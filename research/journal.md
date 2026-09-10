@@ -2,6 +2,28 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-10 - A-10 preliminary: the sleeve on ten years of Alpaca bars, and a size cut for today
+
+- **What.** `scripts/alpaca_data.py` now holds split-adjusted SIP 1-minute bars for the 16-name
+  universe from 2016-01-04 (~2,686 sessions each). Two runs of the deployed mix
+  (`INTRADAY_DATA_DIR=data/minute_alpaca`), before the loop's split-factor commission fix
+  landed, so costs are overstated on pre-split history (NVDA/AVGO/SMCI in H1 2024):
+  (a) the A-6 window 2025-12-15..2026-09-09, split 2026-06-15: IS +11.5%/yr Sharpe 0.57,
+  OOS +38.2%/yr Sharpe 1.33, 47-50 trades/day, 4 loss-limit days per half - same sign and
+  shape as the IBKR store (+24.2/+55.3), smaller magnitude; (b) 2024-01-02..2026-09-09 (674
+  sessions): -3.8%/yr, Sharpe -0.02, max drawdown 48.5%, 44 loss-limit days, best day +107k,
+  worst -37k.
+- **Reading.** The data source is not the story; the period is. 2024 to mid-2025 was a
+  losing regime for this mix and the last nine months a winning one, consistent with A-4's
+  finding that the sleeve is long the day's range. A-10 proper (three regimes, corrected
+  costs, `scripts/sweep_a10.py`) is running in the loop.
+- **Decision.** `live/intraday_config.json` `equity_frac` 1.0 -> 0.5 for the 2026-09-10 session
+  (trade count unchanged, dollars halved, daily loss limit unchanged at 2.5% of NAV). Restore
+  to 1.0 only if A-10 shows the mix positive in at least two of three regimes on the corrected
+  cost model; otherwise keep 0.5 or lower and redirect the loop to regime gating (O-1 IV
+  features, A-9 range gate) rather than size.
+- **Next.** A-10 result; then the regime gate work.
+
 ## 2026-09-10 - A-5 (part 1): the sleeve breaks even at 2.6 bps of slippage, and it is charged 1.5
 
 - **What.** A-5's live-fill measurement needs a paper session that actually placed orders and
