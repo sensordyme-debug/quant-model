@@ -2,6 +2,51 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## Paper session 2026-09-10
+
+Operations only, no research. Account DUT091359, NAV 989,100.58 at the 09:25 ET intraday start,
+**977,119.53** at 15:50 ET (**-11,981, -1.21%** on the day across both sleeves).
+
+| Sleeve | Trades | P&L (net) | Costs | Worst event |
+|---|---|---|---|---|
+| Intraday `active` (ORB, equity_frac 0.5) | 32 | **-6,778.79** | 91.97 commission | SOXL -2,782 and SOXS -2,409: a whipsaw in semis cost -5,191, 77% of the day's loss |
+| Daily `s1_momo` (15:45 rebalance) | 3 | mark-to-market only; book unrealised **-14,727.12** | included in fills | TQQQ -6,999 unrealised, filled 2.20 below the 71.55 plan reference price |
+
+**Intraday.** Started 09:25 ET, flat by 13:30 ET (ORB exits) and confirmed flat at the 15:42
+`end` event: `positions: {}`, matching `live/state/intraday_book.json` (`pos: {}`). No
+`loss_limit`, `halt` or `error` events. Equity curve by snapshot: -252 at 10:00, -3,925 at 10:30,
+-6,336 at 13:00, -6,779 final — a one-way drift, not a single blow-up. Peak gross 818,518 at
+11:30. **Step 4 not run: the book was already flat, so no `--flatten` was needed.**
+
+**Daily rebalance, 15:45 ET.** Plan `s1_momo` as-of 2026-09-09, regime risk-on (vol 0.084 vs
+median 0.127), targets XLE 0.5873 / XLK 0.4402 / TQQQ 0.2363 on net_liq 977,489.04, gross weight
+1.2637, effective exposure 1.7363. Three market orders sent, all filled:
+
+| Symbol | Action | Qty | Ref price | Fill |
+|---|---|---|---|---|
+| TQQQ | SELL | 473 | 71.55 | 69.35 |
+| XLE | BUY | 1,456 | 65.31 | 65.09 |
+| XLK | SELL | 326 | 187.87 | 185.45 |
+
+Closing book: XLE 8,789 / XLK 2,290 / TQQQ 3,227, gross 1,220,496.93, cash -243,807.80.
+
+**Two non-fatal defects.** (1) `notify_failed: no live/alerts.json` fired 15 times in the
+intraday log and once in the daily log — alerting is silently dead and every alert today was
+dropped. (2) `feed_probe: ib_delay_minutes 1045` again: IBKR is serving delayed quotes to the
+paper account, so all intraday marks come from the minute-history path, not the live feed.
+Also six `connect_failed` events against port 4002 between 06:19 and 06:45 ET before the gateway
+came up; the 15:45 run connected fine.
+
+**The semis whipsaw, in fills.** The sleeve trades SOXL and SOXS as one directional pair and was
+stopped out twice in the same direction of error. Short semis at 09:52 ET (SOXL -520 @ 114.12,
+SOXS +1,254 @ 47.29), out at 10:25 into a rally (SOXL @ 117.50, SOXS @ 46.11). It then flipped
+long at 10:36 (SOXL +482 @ 118.15, SOXS -1,244 @ 45.89) and exited at 12:35 into the fade
+(SOXL @ 116.02, SOXS @ 46.64). Two ORB entries, both on the wrong side of the same reversal —
+this is a signal cost, not an execution defect.
+
+**Next.** Fix `live/alerts.json` so the notifier stops swallowing alerts, and check whether the
+ORB re-entry rule should be blocked after a same-symbol stop-out reverses direction inside an hour.
+
 ## 2026-09-10 - X-1: fifty megacaps, eleven years, and an intraday cross-sectional edge worth a fourteenth of its own cost
 
 - **What.** The last item on the owner's midday list that needs no options permission: rank the 50
