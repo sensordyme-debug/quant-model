@@ -134,7 +134,13 @@ tr.strike td{text-decoration:line-through;opacity:.7}tr.hl td{background:var(--a
 .lv-ERROR{color:var(--red)}.lv-WARN{color:var(--amber)}.lv-INFO{color:var(--muted)}.lv-DEBUG{color:var(--muted);opacity:.7}
 .crown{color:var(--amber)}
 
+/* help (collapsed by default, bottom of page) ------------------------------- */
+.help{margin:12px 8px 24px;border:1px solid var(--border);background:var(--panel);font:12px var(--mono);line-height:1.7}
+.help summary{cursor:pointer;padding:6px 12px;color:var(--amber);background:var(--panel-head);user-select:none}
+.help .help-body{padding:8px 16px 12px}
+.help kbd{border:1px solid var(--border);padding:0 5px;border-radius:3px;background:var(--panel-head);color:var(--amber)}
 /* overlays ------------------------------------------------------------------ */
+.overlay[hidden]{display:none}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;display:flex;align-items:center;justify-content:center}
 .overlay .box{background:var(--panel);border:1px solid var(--border);padding:16px 20px;max-width:560px;font:12px var(--mono);line-height:1.7}
 .overlay kbd{border:1px solid var(--border);padding:0 5px;border-radius:3px;background:var(--panel-head);color:var(--amber)}

@@ -542,11 +542,11 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   const inInput = /INPUT|SELECT|TEXTAREA/.test(e.target.tagName), help = $('#help');
-  if (e.key === 'Escape') { help.hidden = true; if (inInput) e.target.blur(); return; }
+  if (e.key === 'Escape') { help.open = false; if (inInput) e.target.blur(); return; }
   if (inInput) { if (e.key === 'Enter' && e.target.id === 'cmd') { runCommand(e.target.value); e.target.value = ''; e.target.blur(); } return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const panelKeys = { 1: 'portfolio', 2: 'nav', 3: 'intraday', 4: 'daily', 5: 'chart', 6: 'strategies', 7: 'research', 8: 'ledger', 9: 'data', 0: 'system' };
-  if (e.key === '/') { e.preventDefault(); $('#cmd').focus(); } else if (e.key === 'r') refreshAll(); else if (e.key === '?') help.hidden = !help.hidden; else if (e.key === 'l') openLogs();
+  if (e.key === '/') { e.preventDefault(); $('#cmd').focus(); } else if (e.key === 'r') refreshAll(); else if (e.key === '?') { help.open = !help.open; if (help.open) help.scrollIntoView({ block: 'end' }); } else if (e.key === 'l') openLogs();
   else if (e.key === 'p') { store.paused = !store.paused; store.pausedAt = Date.now(); if (!store.paused) refreshAll(); }
   else if (e.key === 'd') { const ds = ((store.intraday || {}).events_summary || {}).available_dates || [], prev = ds.filter(x => x < todayET()).sort().pop(); setDate(store.date === todayET() && prev ? prev : todayET()); }
   else if (panelKeys[e.key]) { const p = $('#p-' + panelKeys[e.key]); if (p.classList.contains('collapsed')) toggleCollapse(p); p.scrollIntoView({ block: 'start' }); p.focus(); }
@@ -574,7 +574,7 @@ function init() {
   ['nav-gross', 'nav-cash'].forEach(id => $('#' + id).addEventListener('change', () => panels.nav.lastGood && renderNav(panels.nav.lastGood)));
   ['lg-alg', 'lg-q', 'lg-from', 'lg-to', 'lg-smoke', 'lg-prom'].forEach(id => $('#' + id).addEventListener('input', () => renderLedger({})));
   $('#lv-fetch').addEventListener('click', () => openLogs()); $('#lv-q').addEventListener('input', drawLogLines); ['lv-name', 'lv-date', 'lv-n'].forEach(id => $('#' + id).addEventListener('change', () => store.logsOpened && panels.logs.refresh()));
-  $('#gw-filter').addEventListener('click', e => { e.target.classList.toggle('on'); renderGwTail(); }); $('#help-btn').addEventListener('click', () => { $('#help').hidden = false; }); $('#help').addEventListener('click', () => { $('#help').hidden = true; });
+  $('#gw-filter').addEventListener('click', e => { e.target.classList.toggle('on'); renderGwTail(); }); $('#help-btn').addEventListener('click', () => { const h = $('#help'); h.open = !h.open; if (h.open) h.scrollIntoView({ block: 'end' }); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshAll(); });
   setInterval(tickStamps, 1000); tickStamps();
   if (window.__chartFailed || !window.Chart) ['nav', 'intraday', 'chart'].forEach(id => offlineTag(id, true));
