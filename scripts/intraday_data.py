@@ -72,14 +72,22 @@ def truncated_sessions(symbol: str) -> list[dt.date]:
     """Sessions on disk that hold fewer bars than a full or half session.
 
     A half day (210 bars) is legitimate; anything else short is a window-boundary
-    truncation. Today's session is excluded - it may simply not have closed yet."""
+    truncation. Today's session is excluded only while it is *still trading* - before
+    2026-09-10 it was excluded unconditionally, which hid the one truncation that matters
+    most: `scripts/intraday_launch.py` preflights by replaying the **last stored session**,
+    so a short final day is exactly what the check is there to catch. On 2026-09-10 the
+    post-close refresh left META at 115 bars and SMCI at 119; `--repair` reported "no
+    truncated sessions" and the replay of that day carried an SMCI position past the flatten
+    and marked the sleeve at -66,559 instead of -7,713."""
     df = load_bars(symbol)
     if df.empty:
         return []
     counts = df.groupby(df.index.date).size()
-    today = dt.datetime.now(ET).date()
+    now = dt.datetime.now(ET)
+    # 16:00 ET plus a margin for IBKR to publish the closing minute
+    still_trading = now.date() if now.time() < dt.time(16, 15) else None
     return [d for d, n in counts.items()
-            if d != today and n < FULL_SESSION_BARS and n != HALF_SESSION_BARS]
+            if d != still_trading and n < FULL_SESSION_BARS and n != HALF_SESSION_BARS]
 
 
 def repair_symbol(ib, symbol: str, pacer: Pacer) -> int:
