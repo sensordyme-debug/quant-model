@@ -33,21 +33,33 @@ from apikeys import require  # noqa: E402
 BASE = "https://data.alpaca.markets/v2/stocks/bars"
 
 
-def fetch_symbol(symbol: str, start: dt.date, end: dt.date, headers: dict, feed: str = "sip") -> int:
+def fetch_symbol(symbol: str, start: dt.date, end: dt.date, headers: dict, feed: str = "sip",
+                 adjustment: str = "split") -> int:
+    """Fill whatever part of [start, end] the store lacks: the head (before the first stored
+    day), the tail (after the last stored day), or everything. Interior gaps are not detected."""
     have = load_bars(symbol, rth_only=False)
     if not have.empty:
-        last = have.index.max().date()
-        if last >= end:
-            print(f"  {symbol}: up to date ({last})", flush=True)
-            return 0
-        if last > start:
-            start = last                       # resume from the last stored day (inclusive; dedup on save)
+        first, last = have.index.min().date(), have.index.max().date()
+        total = 0
+        if start < first:
+            total += _fetch_range(symbol, start, first, headers, feed, adjustment)
+        if last < end:
+            total += _fetch_range(symbol, last, end, headers, feed, adjustment)
+        if total == 0:
+            print(f"  {symbol}: up to date ({first} .. {last})", flush=True)
+        return total
+    return _fetch_range(symbol, start, end, headers, feed, adjustment)
+
+
+def _fetch_range(symbol: str, start: dt.date, end: dt.date, headers: dict, feed: str, adjustment: str) -> int:
     # The free plan refuses SIP requests that touch the most recent 15 minutes, so the window
     # end is clamped to 16 minutes before now (UTC).
     end_ts = min(dt.datetime.combine(end, dt.time(20, 0), tzinfo=dt.timezone.utc),
                  dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=16))
+    # adjustment="split" keeps intraday features continuous across split days (NVDA 2024,
+    # AMZN/GOOGL 2022, AVGO 2024, SMCI 2024, SOXL/SOXS reverse splits); dividends are left raw.
     params = {"symbols": symbol, "timeframe": "1Min", "start": f"{start}T13:30:00Z",
-              "end": end_ts.strftime("%Y-%m-%dT%H:%M:%SZ"), "feed": feed, "limit": 10000, "adjustment": "raw"}
+              "end": end_ts.strftime("%Y-%m-%dT%H:%M:%SZ"), "feed": feed, "limit": 10000, "adjustment": adjustment}
     total, token = 0, None
     frames = []
     while True:
@@ -112,6 +124,7 @@ def main() -> int:
     ap.add_argument("--start", default="2024-01-01")
     ap.add_argument("--end", default=str(dt.date.today()))
     ap.add_argument("--feed", default="sip", choices=["sip", "iex"])
+    ap.add_argument("--adjustment", default="split", choices=["split", "raw", "all"])
     ap.add_argument("--status", action="store_true")
     args = ap.parse_args()
     symbols = args.symbols or UNIVERSE
@@ -124,7 +137,7 @@ def main() -> int:
     t0 = time.time()
     for s in symbols:
         try:
-            fetch_symbol(s, start, end, headers, args.feed)
+            fetch_symbol(s, start, end, headers, args.feed, args.adjustment)
         except Exception as exc:  # noqa: BLE001
             print(f"  {s} FAILED: {exc}", flush=True)
     print(f"done in {(time.time() - t0) / 60:.1f} min")
