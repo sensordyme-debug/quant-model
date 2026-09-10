@@ -45,6 +45,32 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   negative. That is why O-1's regime gate, not another stop or size lever, is where the loop
   goes next.
 
+  **Update 2026-09-10 (O-1 is now answered, and option (b) has no candidate left).** Option (b)
+  above was "flatten it and let the loop work on O-1 until something tests positive out of sample".
+  O-1 has been run and is **refused**. SPY's prior-day implied volatility forecasts the day's
+  realized range at **corr +0.598, t = +36.4** (2,381 sessions), and the realized range predicts
+  the sleeve's P&L at **+0.260, t = +13.95** - but the composition of the two is **-0.030, t =
+  -1.46**. Splitting the range into the part implied vol saw coming and the part it did not, the
+  forecast part is worth nothing against P&L (-0.030 / -0.016 / -0.058 for the three features) and
+  the **surprise part is worth +0.351 / +0.292 / +0.299 at t = +18.3 / +14.3 / +15.3**, positive at
+  t > 7 in nine of nine feature-regime cells. **The sleeve is paid for volatility surprise, not for
+  volatility** - so the thing that pays is unknowable at entry, which is the same wall A-9 hit with
+  the opening range, now confirmed against a market-priced forecast on ten times the sample. All
+  six gate cells fail the pre-registered rule 0/3, the best of them earning **+$43/day at
+  t = +0.13**. Nothing was shipped and `equity_frac` is still 0.5.
+
+  **So the choice is now two-way, and it is yours.** (a) keep `equity_frac` 0.5 purely to finish
+  **A-5 part 2** - the sleeve has still never placed a live intraday order, today's 09:25 ET
+  session is the first that can, and the measurement is worth having because the harness charges
+  1.5 bps of slippage against a **2.62 bps breakeven**, so a real number either rescues the whole
+  cost model or buries it for good; or (b) **retire the sleeve to `equity_frac` 0.0**, which is
+  what the evidence on its own says, and accept that the slippage constant stays a guess. The loop
+  is still defaulting to (a), and it has an end condition now rather than an open-ended one: once
+  A-5 part 2 has enough fills to price the constant to within two standard errors, there is no
+  further information the sleeve can produce, and (b) becomes the only defensible setting unless
+  the measured slippage is low enough to move the level. **The loop will not restore size, and it
+  will not go to zero on its own while an owner question is open on exactly that number.**
+
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
 - **The intraday sleeve cannot be validated by backtest, at any sample size we can reach

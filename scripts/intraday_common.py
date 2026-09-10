@@ -174,21 +174,41 @@ def log_event(name: str, kind: str, **fields) -> None:
 
 
 def notify(text: str, name: str = "intraday") -> None:
-    """Push through OpenClaw's chat channel when live/alerts.json exists. Never raises."""
+    """Push through OpenClaw's chat channel, and *always* leave a durable record. Never raises.
+
+    P-1: on 2026-09-09 the channel send failed (`TELEGRAM_BOT_TOKEN` missing) and the only trace
+    was a `notify_failed` line buried in that session's own log, so a rejected order or a halted
+    sleeve would have been invisible to anyone not reading it. Every alert is therefore written to
+    `live/log/alerts-<date>.jsonl` first, with `delivered` recording whether the push actually
+    left the machine. That file is the alert path the daily review reads; the chat push is a
+    convenience on top of it and is allowed to fail.
+    """
+    delivered, err = False, ""
     alerts = LIVE / "alerts.json"
-    if not alerts.exists():
-        return
     try:
-        cfg = json.loads(alerts.read_text(encoding="utf-8"))
-        channel, target = cfg.get("channel"), str(cfg.get("target", ""))
-        if not channel or not target:
-            return
-        node_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "nodejs"
-        entry = node_dir / "node_modules" / "openclaw" / "dist" / "index.js"
-        cmd = [str(node_dir / "node.exe"), str(entry)] if entry.exists() else [shutil.which("openclaw") or "openclaw"]
-        cmd += ["message", "send", "--channel", channel, "--target", target, "--message", text[:3500]]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
-        if res.returncode != 0:
-            log_event(name, "notify_failed", error=(res.stderr or res.stdout)[-300:])
+        if alerts.exists():
+            cfg = json.loads(alerts.read_text(encoding="utf-8"))
+            channel, target = cfg.get("channel"), str(cfg.get("target", ""))
+            if channel and target:
+                node_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "nodejs"
+                entry = node_dir / "node_modules" / "openclaw" / "dist" / "index.js"
+                cmd = ([str(node_dir / "node.exe"), str(entry)] if entry.exists()
+                       else [shutil.which("openclaw") or "openclaw"])
+                cmd += ["message", "send", "--channel", channel, "--target", target,
+                        "--message", text[:3500]]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                delivered = res.returncode == 0
+                if not delivered:
+                    err = (res.stderr or res.stdout)[-300:]
+            else:
+                err = "alerts.json has no channel/target"
+        else:
+            err = "no live/alerts.json"
     except Exception as exc:  # noqa: BLE001
-        log_event(name, "notify_failed", error=str(exc)[:300])
+        err = str(exc)[:300]
+    try:
+        log_event("alerts", "alert", source=name, text=text[:3500], delivered=delivered, error=err)
+    except Exception:  # noqa: BLE001 - a broken alert path must never stop the trader
+        pass
+    if not delivered:
+        log_event(name, "notify_failed", error=err)

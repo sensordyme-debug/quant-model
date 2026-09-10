@@ -68,35 +68,62 @@ def log_event(kind: str, **fields) -> None:
         f.write(json.dumps(rec, default=str) + "\n")
 
 
+def record_alert(text: str, delivered: bool, error: str = "") -> None:
+    """P-1: the durable half of the alert path - `live/log/alerts-<date>.jsonl`.
+
+    The chat push failed silently on 2026-09-09 (missing Telegram token) and the only trace was a
+    `notify_failed` line inside that day's own trading log. Every alert now also lands in one file
+    the daily review reads, with `delivered` saying whether it actually left the machine.
+    """
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        rec = {"ts": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+               "event": "alert", "source": "paper", "text": text[:3500],
+               "delivered": delivered, "error": error}
+        with (LOG_DIR / f"alerts-{dt.date.today():%Y-%m-%d}.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, default=str) + "\n")
+    except Exception:  # noqa: BLE001 - a broken alert path must never stop trading
+        pass
+
+
 def notify(text: str) -> None:
     """Push a short message through OpenClaw's chat channel (Telegram etc.) if live/alerts.json
-    exists. Never raises: a broken alert path must not stop or alter trading."""
-    if not ALERTS.exists():
-        return
+    exists, and always leave a durable record either way. Never raises: a broken alert path must
+    not stop or alter trading."""
+    delivered, err = False, ""
     try:
         import os
         import shutil
         import subprocess
-        cfg = json.loads(ALERTS.read_text(encoding="utf-8"))
-        channel, target = cfg.get("channel"), str(cfg.get("target", ""))
-        if not channel or not target:
-            return
-        node_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "nodejs"
-        entry = node_dir / "node_modules" / "openclaw" / "dist" / "index.js"
-        if (node_dir / "node.exe").exists() and entry.exists():
-            cmd = [str(node_dir / "node.exe"), str(entry)]
+        if not ALERTS.exists():
+            err = "no live/alerts.json"
         else:
-            exe = shutil.which("openclaw")
-            if not exe:
-                log_event("notify_failed", error="openclaw CLI not found")
-                return
-            cmd = [exe]
-        cmd += ["message", "send", "--channel", channel, "--target", target, "--message", text[:3500]]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
-        if res.returncode != 0:
-            log_event("notify_failed", error=(res.stderr or res.stdout)[-400:])
+            cfg = json.loads(ALERTS.read_text(encoding="utf-8"))
+            channel, target = cfg.get("channel"), str(cfg.get("target", ""))
+            if not channel or not target:
+                err = "alerts.json has no channel/target"
+            else:
+                node_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "nodejs"
+                entry = node_dir / "node_modules" / "openclaw" / "dist" / "index.js"
+                if (node_dir / "node.exe").exists() and entry.exists():
+                    cmd = [str(node_dir / "node.exe"), str(entry)]
+                elif shutil.which("openclaw"):
+                    cmd = [shutil.which("openclaw")]
+                else:
+                    cmd = None
+                    err = "openclaw CLI not found"
+                if cmd:
+                    cmd += ["message", "send", "--channel", channel, "--target", target,
+                            "--message", text[:3500]]
+                    res = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                    delivered = res.returncode == 0
+                    if not delivered:
+                        err = (res.stderr or res.stdout)[-400:]
     except Exception as exc:  # noqa: BLE001
-        log_event("notify_failed", error=str(exc)[:400])
+        err = str(exc)[:400]
+    record_alert(text, delivered, err)
+    if not delivered:
+        log_event("notify_failed", error=err)
 
 
 class DemoSignal:

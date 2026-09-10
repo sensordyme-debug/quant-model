@@ -3,6 +3,25 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## Forecast vs surprise: why the regime gate failed (learned 2026-09-10, O-1)
+
+- **Decompose a regressor into forecast and surprise before building a gate on it.** The intraday
+  sleeve's P&L rides the day's realized range (t = +14). SPY's prior-day implied vol forecasts that
+  range about as well as anything can (**corr +0.598, t = +36.4** on 2,381 sessions) - and
+  correlates **-0.030 (t = -1.46)** with the P&L. Split the range into the part the forecast saw
+  coming and the residual: the forecast part is worth nothing (-0.03 / -0.02 / -0.06 for three
+  different IV features) and the **surprise part is worth +0.35 / +0.29 / +0.30 at t = +14 to +18**,
+  in nine of nine feature-regime cells. **A book can be paid for volatility *surprise* rather than
+  volatility, and surprise is unknowable at entry by construction** - so no forecast of any quality
+  reaches it, and no better feature, threshold or horizon will change that. Run this two-line
+  decomposition before spending an iteration on a regime gate.
+- **"Forecasts |P&L|" is a size scaler, not a gate.** Implied vol correlates **+0.252 (t = +12.67)**
+  with the *magnitude* of the sleeve's daily P&L, positive in every regime and for every feature,
+  while correlating with nothing about its sign. That is worth zero on a book whose level is
+  negative (scaling a loser by its own vol is not an edge) and is only worth testing where the
+  level is already positive. Always test the |P&L| link alongside the signed one - it tells you
+  which of the two kinds of thing you have found.
+
 ## Intraday sleeve: what 2,686 sessions taught (learned 2026-09-09/10, A-4 through A-10)
 
 - **Compute the power before the experiment, not after.** At Sharpe 0.69 a sleeve needs

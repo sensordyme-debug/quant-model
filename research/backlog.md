@@ -17,6 +17,40 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-10 11:4x UTC (O-1): **implied vol forecasts the day this sleeve is paid for, and
+that forecast is worth nothing - the sleeve is paid for volatility *surprise*.** New
+`scripts/iv_regime.py` builds `data/options/iv_regime.parquet` from Theta EOD greeks (**2,383 days,
+2017-01-03..2026-09-09**: SPY front-weekly ATM IV, 25-delta skew, 1w/1m term ratio), new
+`scripts/sweep_o1.py` partitions A-10's cached 2,686-session P&L series by the strictly prior-day
+gate, and `algorithms/intraday/orb/signal.py` carries `iv_gate` (high/low/off, default off).
+**The chain breaks in the middle**: corr(prior-day ATM IV, today's universe range) = **+0.598 at
+t = +36.4**, corr(realized range, ORB P&L) = **+0.260 at t = +13.95**, and corr(IV, P&L) =
+**-0.030 at t = -1.46** (regimes +0.001 / -0.052 / +0.010). Splitting the range into the part IV
+saw coming and the part it did not: the forecast part scores -0.030 / -0.016 / -0.058 against P&L
+and the **surprise part +0.351 / +0.292 / +0.299 at t = +18.3 / +14.3 / +15.3**, positive at t > 7
+in **nine of nine feature-regime cells**. That is A-9's finding arriving against a real,
+market-priced forecast on ten times the sample: what pays is unknowable at entry by construction.
+**All six gate cells fail 0/3 regimes**; the best ON side in the sweep is `term_ratio low` at
+**+$43/day, t = +0.13**, and the largest separation anywhere (Welch t 2.26, `term_ratio low`
+2016-2019, +$636/day) **inverts to -$632/day in 2024-2026**. What does survive is not a gate:
+corr(IV, **|P&L|**) = **+0.252 at t = +12.67**, positive in all three regimes for all three
+features - implied vol forecasts how *big* the day is, not which way, i.e. a size scaler, which is
+worthless on a book whose level is negative and is exactly O-1's deferred half for the *daily*
+champion (now carried as **O-1b**). The gate parameter was confirmed in the real backtester on one
+year (`scripts/_o1_confirm_2024.py`, three ledger rows: 2024 ORB alone, gate off 252 traded days /
++$524 day / Sharpe 0.62, high 118 / +$452 / 0.62, low 131 / -$23 / 0.02) - it blocks whole
+sessions, keeps about half, and fails closed on the 3 uncovered days - but **that year is a wiring
+check, not evidence**: 2024 is a positive year inside a regime that is -$65/day, and the side it
+favours is the side the full partition scores worst. **Refused; nothing shipped,
+`live/intraday_config.json` untouched**, and the
+2026-09-08 replay with the deployed config reproduces A-10 to the digit (34 trades, 368 decisions,
+flat at close, P&L -2,280 on 500k) so the ORB edit is a no-op on the live path. **`equity_frac`
+held at 0.5, not cut to 0**: the owner's three-way question in `BLOCKERS.md` is still open and its
+default (a) exists to feed **A-5 part 2**, which has still had zero live fills (re-checked at the
+top of this iteration) and whose first chance is today's 09:25 ET session. **A-10 measured the
+level, O-1 measured the conditioner, and there is no twelfth lever on this sleeve.** Champion
+unchanged at S-12; the daily sleeve was not touched.
+
 Status 2026-09-10 10:3x UTC (daily review, no experiments run): **the deadline was met and the
 second sleeve was disproved in the same 24 hours.** The daily champion filled on IBKR paper at
 15:46 ET on 2026-09-09 (TQQQ 3,700 @ 71.49, XLE 7,333 @ 65.39, XLK 2,616 @ 187.85, 1.23x gross on
@@ -345,7 +379,48 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **O-1 Options-implied regime features (Theta Data). TOP ITEM as of A-10.** A-10 measured the
+- **A-5 part 2 Measured fill slippage. TOP ITEM as of O-1, and a standing per-session job.**
+  See the full A-5 entry below for what part 1 settled. The one-line version: the sleeve's
+  breakeven slippage is **2.62-2.64 bps against a shipped 1.5**, P&L is linear in the constant at
+  $546/day per bp, and the bars cannot pin it tighter than [0.36, 2.65] because every spread
+  estimator on 1-minute data is measuring volatility (corr +0.906 with return std). **Only fills
+  settle it, and there are still none**: `python scripts/slippage_report.py`, run at the top of
+  this iteration, reports no session on disk with orders (2026-09-09's log is the hand-started
+  dry run). **Today's 09:25 ET session is the first that can produce one.** Run the report after
+  every paper close, report the running notional-weighted mean and its standard error, and move
+  `SLIPPAGE_BPS` only when |measured - 1.5| exceeds two standard errors, with a replay and a
+  journal entry (rule a). This is now the only open measurement on the A-track: A-10 settled the
+  level and O-1 settled the conditioner.
+- **O-1b The size scaler, on the daily champion (the deferred half of O-1).** O-1 refused the
+  *gate* but measured a real residual: corr(SPY implied vol, |intraday daily P&L|) = **+0.252 at
+  t = +12.67**, positive in all three regimes for all three features. Implied vol forecasts how
+  big a day will be and not which way, which is worthless on a book whose level is negative - and
+  potentially worth something on **S-12, where the level is positive**. Test it as a size scaler
+  on the daily champion: scale gross by the inverse of prior-day SPY ATM IV against its trailing
+  median (and test the direct sign too), judged through `scripts/backtest.py` + `scripts/evaluate.py`
+  on both sub-periods with the shelf-not-spike rule, not as a new signal. `data/options/iv_regime.parquet`
+  already covers 2017-2026; the daily champion's sample starts 2012, so the pre-2017 years are
+  ungated and the study must say what it does with them rather than silently dropping them
+  (Theta answers 403 before 2016 and 472 for 2016 greeks on this account's plan).
+- **O-1 DONE 2026-09-10 (see journal): implied vol forecasts the day this sleeve is paid for and
+  the forecast is worth nothing; the payoff is in the volatility *surprise*. Refused, nothing
+  shipped.** Built `scripts/iv_regime.py` (Theta EOD greeks -> `data/options/iv_regime.parquet`,
+  2,383 days 2017-01-03..2026-09-09: front-weekly ATM IV, 25-delta skew, 1w/1m term ratio; 491
+  expirations cached under `data/options/raw/`, resumable, `--rebuild` free), `scripts/sweep_o1.py`
+  (partitions A-10's cached 2,686-session series by a strictly prior-day gate, so every cell is a
+  partition of one fixed sample rather than a new fit) and `iv_gate` on the ORB module, default
+  off, failing closed on days the store does not cover. **corr(prior-day ATM IV, today's universe
+  range) = +0.598 at t = +36.4** and **corr(realized range, ORB P&L) = +0.260 at t = +13.95**, but
+  **corr(IV, P&L) = -0.030 at t = -1.46**; `term_ratio` +20.9 / -0.77 and `skew25_1w` +17.0 /
+  **-2.81** (the only |t| > 2 against P&L, wrong sign). Range split into forecast and surprise:
+  forecast -0.030 / -0.016 / -0.058, **surprise +0.351 / +0.292 / +0.299 at t = +18.3 / +14.3 /
+  +15.3**, positive at t > 7 in nine of nine feature-regime cells. **All six gate cells fail 0/3
+  regimes**; best ON side `term_ratio low` **+$43/day at t = +0.13**; the largest separation
+  (Welch 2.26 in 2016-2019) inverts in 2024-2026. Replay of 2026-09-08 with the deployed config
+  reproduced A-10 exactly. **Do not re-open this as a threshold, feature or horizon question** -
+  the negative is that the payoff regressor is a surprise, so no forecast of any quality can reach
+  it; the surviving residual is the size scaler now carried as O-1b. Kept for the record, the
+  original item: A-10 measured the
   only mechanism this sleeve has that survives a 2,686-session sample: daily P&L correlates
   **+0.202 with the universe's mean daily range at t = +10.70**, positive in all three regimes
   separately. The level is negative everywhere, so the question is no longer "how big" but
@@ -543,8 +618,17 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   evidence: strategies with negative OOS after costs get alloc 0 until fixed. Target gross
   1.0-1.5x of NAV so daily P&L swings are in the tens of thousands on the $1M account, with the
   framework's 2.5% daily loss limit as the floor.
-- **P-1 The alert path is broken (found in the 2026-09-10 daily review; small, do it in the
-  background of the next iteration).** `live/log/2026-09-09.jsonl` carries
+- **P-1 DONE 2026-09-10 (O-1 iteration, background): the alert path can no longer fail silently.**
+  `intraday_common.notify()` and `paper_trade.notify()` now always append the alert to
+  **`live/log/alerts-<date>.jsonl`** - `{ts, event: "alert", source, text, delivered, error}` -
+  and only then attempt the chat push, which is allowed to fail. `delivered: false` with the
+  reason is the durable trace that was missing on 2026-09-09. **The daily review must read that
+  file**; any `"delivered": false` line is an alert nobody received. No credentials were touched:
+  the chat channel itself is still unconfigured (`live/alerts.json` does not currently exist on
+  this machine, so both notify paths were silent no-ops, not just the Telegram one), and making it
+  work remains an owner item. Verified by self-test from both modules and by re-running
+  `compare_orders.py` after the `paper_trade.py` edit (3,689/3,689 dates, PASS). Kept for the
+  record, the original item: `live/log/2026-09-09.jsonl` carries
   `notify_failed: Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken`
   from the 2026-09-09 paper session, so `live/alerts.json`'s phone alerts never leave the machine
   and a live failure - a rejected order, a halted sleeve, a launcher preflight refusal - is visible

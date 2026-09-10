@@ -13,6 +13,16 @@ A-2 adds tail control on top of that, all defaulted to the A-6 deployed behaviou
   * `scale_out`: fraction of the position released once price reaches `scale_r` x the entry
     risk, optionally moving the stop to breakeven for the remainder.
 
+O-1 adds the options-implied day gate (`iv_gate`, default off). A-9 refused the opening range as
+a within-session handle on the same mechanism; the untried one is a *forecast*, SPY's implied
+volatility at yesterday's close, from `data/options/iv_regime.parquet`
+(`scripts/iv_regime.py`). `iv_gate="high"` trades only sessions whose previous close read above
+the trailing `iv_lookback`-day median of `iv_feature`, `"low"` only the ones below. The lookup is
+by session date and both the value and its threshold are strictly prior-day, so nothing here is
+contemporaneous; a session the store does not cover is **not traded** (fail closed), which is also
+what a live run with a stale store must do. Live note: the store is EOD, so the deployed launcher
+would have to refresh it before the open - the gate stays off until a study justifies it.
+
 A-9 adds the width gate. A-4 measured that this sleeve's daily P&L correlates +0.538 (t=+10.25,
 n=260) with the universe's same-day range: the payoff scales with the day's range, the cost
 floor does not. A day-ahead gate is not available, but the opening range is closed before the
@@ -50,7 +60,36 @@ PARAMS = {
     "range_atr_min": 0.0,    # A-9: only take breakouts whose opening range is at least this many
                              # ATR14 wide, measured when the range closes (0 = off)
     "range_atr_max": 0.0,    # A-9: ...and at most this many (0 = off)
+    "iv_gate": "",           # O-1: "high" / "low" / "" (off) - trade only sessions whose prior
+                             # close read above / below the trailing median of `iv_feature`
+    "iv_feature": "iv_atm_1w",
+    "iv_lookback": 60,
 }
+
+_IV_CACHE: dict = {}
+
+
+def _iv_pass(day, sign: str, feature: str, lookback: int) -> bool:
+    """True if session `day` passes the prior-day implied-vol gate. Fails closed."""
+    key = (feature, int(lookback))
+    gate = _IV_CACHE.get(key)
+    if gate is None:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+            import pandas as pd
+
+            import iv_regime
+            g = iv_regime.load_gate(feature, int(lookback))
+            days = pd.to_datetime(pd.Series(list(g.index))).dt.date.values
+            gate = {d: (float(v), float(m)) for d, v, m in
+                    zip(days, g["value"].values, g["median"].values) if v == v and m == m}
+        except Exception:  # noqa: BLE001 - no store, no gate, no trades
+            gate = {}
+        _IV_CACHE[key] = gate
+    hit = gate.get(day)
+    if hit is None:
+        return False
+    return hit[0] > hit[1] if sign == "high" else hit[0] < hit[1]
 
 
 def _range(f, sym, state, rng_minutes):
@@ -87,6 +126,15 @@ def decide(now, feats, book, equity, state, params):
     entries = state.setdefault("entries", {})  # symbol -> {"long": n, "short": n}
     rng_minutes = int(p["range_minutes"])
     scale_out = float(p["scale_out"])
+    # O-1: one prior-day lookup per session, cached in `state` so it costs nothing per bar.
+    # A blocked session still manages positions already open (there are none, since the gate is
+    # decided before the first entry of the day) but takes no new entry.
+    iv_sign = str(p.get("iv_gate") or "")
+    if iv_sign:
+        if "iv_ok" not in state:
+            state["iv_ok"] = _iv_pass(now.date(), iv_sign, str(p["iv_feature"]), int(p["iv_lookback"]))
+        if not state["iv_ok"]:
+            return {}
     targets = {}
     for sym, f in feats.items():
         if len(f) < rng_minutes + 1:

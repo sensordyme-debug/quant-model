@@ -2,6 +2,149 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-10 - O-1: implied vol forecasts the day this sleeve pays for, and pays nothing
+
+- **What.** The last idea on the A-track with a measured mechanism behind it. `scripts/iv_regime.py`
+  builds `data/options/iv_regime.parquet` from Theta Data's EOD greeks - **2,383 trading days,
+  2017-01-03 .. 2026-09-09**, one row per day: SPY front-weekly ATM implied vol (strike-interpolated
+  at the underlying, calls and puts averaged), the 25-delta put/call skew (delta-interpolated), and
+  the 1w/1m term ratio. `scripts/sweep_o1.py` then asks whether that forecast separates the days
+  the intraday sleeve earns on from the days it pays on, and `algorithms/intraday/orb/signal.py`
+  carries the gate itself (`iv_gate` = `high` / `low` / off, default off).
+- **Why.** A-10 left exactly one thing standing on a 2,686-session sample: the sleeve's daily P&L
+  rides the universe's realized daily range at **corr +0.202, t = +10.70**, positive in all three
+  regimes, while the *level* is negative in all three. So the question stopped being "how big" and
+  became "when". A-9 had already refused the *opening* range as the handle, for a mechanical
+  reason - ORB's stop is the range midpoint, so a wide opening scales the win and the loss
+  together. Implied vol is the one candidate that is a **forecast** rather than a realization, and
+  it is knowable before the open.
+- **Method.** A day gate is all-or-nothing, so it needs no backtest per cell: the instrument is
+  A-10's cached per-session P&L series (`results/a10/daily_orb.csv`, fresh $1M book each calendar
+  year), partitioned by the gate state. Every cell is therefore a partition of one fixed sample,
+  not a new fit. The gate value for session `d` is the **previous** trading day's EOD reading and
+  its threshold is the trailing 60-day median of readings strictly before it
+  (`iv_regime.load_gate`), so nothing is contemporaneous. Rule fixed before the runs (backlog O-1):
+  the gated book must be positive at **t > 2 in at least two of three regimes**, or the feature is
+  refused - and a feature that separates but leaves the ON side negative is still a refusal,
+  because it would only shrink a losing book.
+
+### The forecast works. The link to P&L does not exist.
+
+| step | measure | ALL (n) | 2016-2019 | 2020-2023 | 2024-2026 |
+| --- | --- | --- | --- | --- | --- |
+| 1. forecast | corr(prior-day ATM IV, today's universe range) | **+0.598, t +36.4** (2,381) | +0.452 | +0.654 | +0.535 |
+| 2. payoff | corr(prior-day ATM IV, today's ORB P&L) | **-0.030, t -1.46** (2,381) | +0.001 | -0.052 | +0.010 |
+| 2. control | corr(*realized* range, today's ORB P&L) | **+0.260, t +13.95** (2,686) | +0.316 | +0.228 | +0.357 |
+
+Implied vol predicts the realized range about as well as a daily forecast can - **t = +36** on
+2,381 sessions, and it holds separately in every regime. The realized range predicts the P&L at
+**t = +14**. And the composition of the two is **zero**. The other two features behave the same
+way: `term_ratio` forecasts the range at t = +20.9 and the P&L at t = -0.77, `skew25_1w` at t =
++17.0 and t = **-2.81** - the only feature to reach |t| > 2 against P&L, with the wrong sign.
+
+**The decomposition says why, and it is A-9's finding arriving with a real forecast.** Regressing
+today's range on yesterday's IV and correlating the two parts with P&L separately:
+
+| feature | corr(IV-forecast part of range, P&L) | corr(surprise part, P&L) |
+| --- | --- | --- |
+| iv_atm_1w | -0.030, t -1.46 | **+0.351, t +18.31** |
+| term_ratio | -0.016, t -0.77 | **+0.292, t +14.29** |
+| skew25_1w | -0.058, t -2.81 | **+0.299, t +15.31** |
+
+and the surprise column is positive at t > 7 in **every feature x every regime**, nine of nine.
+So the sleeve is not paid for volatility, it is paid for **volatility surprise** - the range the
+day adds beyond what was priced in at yesterday's close. A-9 measured that shape with the opening
+range and it could be dismissed as a within-session artefact of the midpoint stop. It is not:
+the same shape holds against a genuinely forward-looking, market-priced forecast on ten times the
+sample. What pays is, by construction, unknowable at entry.
+
+### The gate, and the verdict
+
+Six cells (three features x two signs), 2,190-2,381 covered sessions each:
+
+| feature | gate | on days | on $/day | t on | off $/day | welch t(on-off) |
+| --- | --- | --- | --- | --- | --- | --- |
+| term_ratio | low | 1,091 | **+43** | **+0.13** | -491 | +0.97 |
+| iv_atm_1w | low | 1,258 | -60 | -0.19 | -373 | +0.56 |
+| skew25_1w | low | 1,212 | -142 | -0.40 | -279 | +0.25 |
+| skew25_1w | high | 1,149 | -279 | -0.67 | -142 | -0.25 |
+| iv_atm_1w | high | 1,104 | -373 | -0.81 | -60 | -0.56 |
+| term_ratio | high | 1,080 | -491 | -1.15 | +43 | -0.97 |
+
+**0 of 3 regimes at t > 2, for all six cells. The rule fires.** The best ON side in the whole
+sweep is +$43/day at t = +0.13 - zero. The largest separation anywhere is Welch t = 2.26
+(`term_ratio low`, 2016-2019, +$636/day against -$702), and it **inverts in 2024-2026** (-$632
+against +$551, t = -0.88); `iv_atm_1w low` does the same, +$330/day in 2016-2019 and -$358/day in
+2024-2026. That is the A-9 signature again: a lever that selects which part of the sample you are
+looking at, not which trades you take.
+
+**One thing survives, and it is not a gate.** corr(IV, |P&L|) is **+0.252 at t = +12.67** and
+positive in all three regimes for all three features. Implied vol forecasts **how big the day
+will be, not which way** - so it is a size scaler, not a filter. On a book whose level is negative
+that is worth nothing on its own (scaling a loser by its own volatility is not an edge), but it is
+the honest form of the residual signal, and it is what the deferred half of O-1 asked about for
+the *daily* champion, where the level is positive.
+
+### The gate itself works; it is the verdict that is negative
+
+A partition of a cached series is not a backtest, so the `iv_gate` parameter was run through the
+real backtester on one calendar year (`scripts/_o1_confirm_2024.py`, three ledger rows, ORB alone,
+2024 = the most recent complete year and the least negative regime):
+
+| gate | sessions | traded days | trades | $/day | Sharpe | CAR |
+| --- | --- | --- | --- | --- | --- | --- |
+| off | 252 | 252 | 10,131 | +524 | 0.62 | +13.20% |
+| high | 252 | **118** | 4,850 | +452 | 0.62 | +11.39% |
+| low | 252 | **131** | 5,164 | -23 | 0.02 | -0.57% |
+
+The wiring does what the partition assumed: it blocks whole sessions, keeps about half of them,
+118 + 131 = 249 rather than 252 because the three sessions the store does not cover **fail closed**,
+and off is a no-op. **Read this table as a wiring check, not as evidence.** 2024 is a positive year
+for ORB inside a regime that is -$65/day overall, and the side it favours (`high`) is the side the
+full 2,381-session partition scores **worst** (-$373/day against -$60 for `low`). One year cannot
+adjudicate that, which is the entire reason the verdict is taken on 2,686 sessions and three
+regimes instead.
+
+- **Decision. O-1 is refused; nothing shipped to `live/intraday_config.json`.** The gate stays in
+  the tree defaulted off, together with the store builder and the sweep, so the negative is
+  reproducible. Replay of 2026-09-08 with the deployed config after the ORB edit reproduces the
+  A-10 replay exactly - **34 trades, 368 decisions, flat at close, P&L -2,280 on 500k of sleeve
+  equity** - so the module change is a no-op for the live path (rule a).
+- **`equity_frac` held at 0.5, not cut to 0.** The backlog's objective pre-committed to taking the
+  sleeve to zero if O-1 failed, and the numbers alone support it. It is not being done unilaterally
+  because the owner already has this exact question open in `BLOCKERS.md` as a three-way choice,
+  and the loop's stated default there is (a) *keep it at 0.5 as a live execution experiment*, whose
+  entire purpose - **A-5 part 2**, measuring real fill slippage against the 1.5 bps the harness
+  assumes - has still never had a single live fill (checked again at the top of this iteration:
+  `slippage_report.py` reports no session on disk with orders). Today at 09:25 ET is the first
+  session that can produce one, and the breakeven slippage is 2.62 bps against a shipped 1.5, so
+  that measurement can still move every number on this track. Cutting to zero this morning ends it
+  before it starts. The `BLOCKERS.md` item is updated to say option (b) now has no candidate left.
+- **What this closes.** A-10 measured the level: negative at t = -3.01 on 2,686 sessions. O-1
+  measured the conditioner: there is none that is knowable at entry, because the regressor that
+  pays is a surprise. Between them the A-track's mechanism is fully accounted for, and there is no
+  twelfth lever worth pulling on this sleeve. Champion unchanged at S-12; the daily sleeve was not
+  touched.
+- **Also shipped, in the background (P-1, the broken alert path).** `intraday_common.notify()` and
+  `paper_trade.notify()` now write every alert to **`live/log/alerts-<date>.jsonl`**
+  (`{ts, event, source, text, delivered, error}`) *before* attempting the chat push, and the push
+  is allowed to fail. The 2026-09-09 failure left only a `notify_failed` line inside that day's own
+  trading log; a rejected order or a halted sleeve was effectively invisible. It is worse than the
+  review found, in fact: `live/alerts.json` does not currently exist on this machine at all, so
+  **both** notify paths were silent no-ops, not just the Telegram push. No credentials were
+  touched - configuring the channel stays an owner item - but the failure is now recorded instead
+  of swallowed, and the daily review reads one file for it. Self-tested from both modules, and
+  `compare_orders.py` re-run after the `paper_trade.py` edit still passes 3,689/3,689.
+- **Toolchain note that cost time here.** `py -3.11` has no `pyarrow`, so everything that touches
+  the parquet stores - the intraday harness, `sweep_o1.py`, and the trader's `--replay` - must run
+  on the system `python` (3.14.7). And `--replay` does **not** read `live/intraday_config.json`:
+  it takes strategy defaults unless `--params` is passed and `--equity-frac` defaults to 1.0, so a
+  naive replay reports 217 trades / -9,914 against the deployed 34 / -2,280 and looks like a
+  regression that is not one. Both are now in `MEMORY.md`/`memory/2026-09-10.md`.
+- **Next.** A-5 part 2 after today's close - the only open measurement on this track. Then O-1's
+  deferred half, the *size scaler*, applied where the level is positive: the daily champion
+  (carried as O-1b in the backlog).
+
 ## 2026-09-10 - A-10: with 2,686 sessions the sleeve is not unproven, it is negative
 
 - **What.** The power test A-4 said could not be run on any reachable sample. `scripts/sweep_a10.py`
