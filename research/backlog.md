@@ -4,14 +4,35 @@ Ranked list of hypotheses and infrastructure work. The improvement loop takes th
 item. Move finished items to the bottom under "Done" with a one-line result and the
 experiment timestamp.
 
-## Current objective (set 2026-09-08)
+## Current objective (set 2026-09-08; **met 2026-09-09**, restated at the 2026-09-10 review)
 
-A backtest-validated strategy running on IBKR **paper** trading by **2026-09-10**. That means:
-S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/evaluate.py`,
-then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
-intraday data. Live money stays off the table until the human signs off in `live/`.
+Original: a backtest-validated strategy running on IBKR **paper** trading by **2026-09-10**.
+**Done** - S-12 `s1_momo` is the champion via `scripts/evaluate.py`, `compare_orders.py` gates the
+deploy, and the runner filled its first real paper orders at 15:46 ET on 2026-09-09.
 
-Status 2026-09-10 08:5x UTC (latest, A-10): **with 2,686 sessions the sleeve is not
+Objective from here: **make the second (intraday) sleeve honest, or retire it.** It is deployed at
+half size and measured negative on 2,686 sessions, so the work is (1) replace the estimated
+slippage constant with measured fills (A-5 part 2, every session), (2) find a causal regime gate
+for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on the Alpaca
+regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
+Live money stays off the table until the human signs off in `live/`.
+
+Status 2026-09-10 10:3x UTC (daily review, no experiments run): **the deadline was met and the
+second sleeve was disproved in the same 24 hours.** The daily champion filled on IBKR paper at
+15:46 ET on 2026-09-09 (TQQQ 3,700 @ 71.49, XLE 7,333 @ 65.39, XLK 2,616 @ 187.85, 1.23x gross on
+DUT091359), so S-1 -> S-12 is now a live paper strategy and the 2026-09-10 objective is closed.
+Twelve A-track iterations and 217 ledger rows later the intraday sleeve is measured at **-$697/day,
+t = -3.01 on 2,686 sessions**; the late-day fade is dropped and `equity_frac` held at 0.5.
+**Order of work for the next 24 hours: (1) A-5 part 2 after today's close** - today is the first
+session that places real intraday orders and `scripts/slippage_report.py` is the only instrument
+that can move the 1.5 bps constant that owns the sleeve's sign; **(2) O-1**, judged on the Alpaca
+regimes; (3) per-session ops. Two ops items found in the review: IB Gateway's port 4002 is down
+nightly ~02:15-02:45 ET and was open again at 06:30, so an off-hours connect failure is expected,
+not the old blocker returning; and phone alerts are **broken** - `notify_failed`
+(`TELEGRAM_BOT_TOKEN` missing) on 2026-09-09, so a live failure is invisible outside the logs.
+Full review in `research/reports/2026-09-10.md`. Champion unchanged at S-12.
+
+Status 2026-09-10 08:5x UTC (A-10): **with 2,686 sessions the sleeve is not
 unproven, it is negative - and the late-day fade is refused at 7 sigma.** A-4 said ~2,120 sessions
 were needed and unreachable; the Alpaca SIP store has 2,686 (2016-01-04..2026-09-09, same 16
 names). New `scripts/sweep_a10.py` runs the deployed mix and each sub-strategy alone as one
@@ -337,7 +358,14 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   when IV is above/below its 60-day median, and test both signs) and judge it on the **Alpaca
   store with `scripts/sweep_a10.py`'s three regimes**, not on the 260-session IBKR window - that
   window is what produced every A-track false positive. Causal only: the bucket before the
-  decision bar. A gate that does not reach t > 2 in at least two regimes is refused.
+  decision bar. A gate that does not reach t > 2 in at least two regimes is refused. Secondary
+  use, carried over from the original O-1 statement and not to be done before the gate: the same
+  features as a **size scaler for the daily champion**. Live note: the IV store is EOD, so a
+  deployed gate needs the launcher to refresh it before the open - keep `iv_gate` defaulted off
+  until a study justifies it. **Ordering (daily review 2026-09-10): A-5 part 2 runs first each
+  day** - it is a ~1 minute job after the close and it is the only measurement that can move the
+  cost constant every other A-track number depends on - **then O-1 takes the rest of the
+  iteration.**
 - **A-10 DONE 2026-09-10 (see journal): the sleeve is significantly negative on 2,686 sessions;
   the late-day fade is dropped.** Mix -$697/day at t = -3.01; regimes -$579/-2.42, -$1,127/-2.92,
   -$231/-0.37; ORB alone -$289/-1.17; late fade alone **-$468/-7.38**, negative in every regime
@@ -357,13 +385,6 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
   the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
   test: the 50 megacaps from D-1 are now fetchable at minute resolution.
-- **O-1 Options-implied regime features (Theta Data).** `scripts/theta_data.py` serves SPY
-  and single-name implied vol and first-order greeks history at 5-minute resolution since
-  2012. Build `data/options/iv_regime.parquet`: SPY ATM IV (nearest weekly), 25-delta
-  put/call skew and the IV term ratio (1w/1m) per day and per 30-minute bucket. Test them
-  as (a) a gate on the late-day fade and ORB (trade only when IV is above/below its 60-day
-  median), (b) a size scaler for the daily champion. Causal only: use the bucket before the
-  decision bar.
 - **O-2 0DTE/1DTE defined-risk options sleeve (needs owner: IBKR options permission + OPRA
   data).** With Theta quotes at 1-minute resolution, backtest SPY same-day credit spreads
   sold against the intraday regime signal with realistic fills at the quoted bid/ask (never
@@ -522,6 +543,15 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   evidence: strategies with negative OOS after costs get alloc 0 until fixed. Target gross
   1.0-1.5x of NAV so daily P&L swings are in the tens of thousands on the $1M account, with the
   framework's 2.5% daily loss limit as the floor.
+- **P-1 The alert path is broken (found in the 2026-09-10 daily review; small, do it in the
+  background of the next iteration).** `live/log/2026-09-09.jsonl` carries
+  `notify_failed: Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken`
+  from the 2026-09-09 paper session, so `live/alerts.json`'s phone alerts never leave the machine
+  and a live failure - a rejected order, a halted sleeve, a launcher preflight refusal - is visible
+  only if someone reads the logs. Either configure the channel the loop is allowed to use or
+  degrade the alert to something that cannot silently fail (append to a file the daily review
+  reads, and surface it in the report). **Do not touch credentials**: if the fix needs a token,
+  it is an owner item for `BLOCKERS.md`, not a loop item.
 - **D-2b Extend the LEAN minute store past SPY.** SPY is done (see Done). QQQ, IWM, TQQQ and
   SQQQ are one command each - `py -3.11 scripts/fetch_minute.py --symbols QQQ --start 2020-01-01` -
   and the script is resumable by month, so an interrupted run is restarted by re-running it.

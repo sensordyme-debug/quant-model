@@ -3,7 +3,47 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## Intraday sleeve: what 2,686 sessions taught (learned 2026-09-09/10, A-4 through A-10)
+
+- **Compute the power before the experiment, not after.** At Sharpe 0.69 a sleeve needs
+  `(2/S)^2` years - ~8.4 years, ~2,120 sessions - to reject "earns zero" at two sigma. A-1, A-2
+  and A-7 all hunted differences *smaller* than that base rate on 183-260 sessions and were
+  never capable of answering. Ask "how many sessions would make this visible?" first; if the
+  answer exceeds the store, the iteration is a lever hunt on noise.
+- **A big enough sample can flip a shipped decision by 7 sigma.** A-4 kept the late-day fade at
+  t = +0.27 on 260 IBKR sessions; on 2,686 Alpaca sessions it is **-$468/day at t = -7.38**,
+  negative in every regime and on its own fitted window. A small-sample "no evidence to drop it"
+  is not evidence to keep it.
+- **The tuning window is a liar and the holdout is the instrument.** A-9's `min 3.6` cell scored
+  TUNE Sharpe 2.17 - the best number the sleeve ever produced - and HOLD -1.19; its mirror did
+  the exact reverse. When every cell of a grid wins one half and loses the other, the lever is
+  selecting which half of the sample you are looking at, not which trades you take.
+- **A high-turnover sleeve's sign is owned by the cost constant.** The sleeve turns over $5.46M/day
+  on a $1M book, so **one basis point is $546/day** and the whole modelled edge was 1.1 bps wide;
+  breakeven slippage 2.62 bps against a charged 1.5. Bar-based spread estimators cannot settle it
+  - Roll and Corwin-Schultz give 2.65 bps but correlate +0.906 with 1-minute return std, i.e. they
+  measure volatility. Only measured fills settle it (`scripts/slippage_report.py`).
+- **Split-adjusted bars break per-share commission and whole-share sizing.** A dollar position on
+  adjusted 2016 prices buys up to 40x the real shares, pinning IBKR's per-share charge to its 1%
+  cap ($1,523/day vs $222 after the fix), and a reverse-split name (SOXS, factor 8.3e-08) prices in
+  the tens of millions so the whole-share floor sizes every early position to **zero**. Derive the
+  factor from the data vendor itself (raw vs adjusted daily bars) rather than maintaining a split
+  table; charge per-share on real shares and keep the cap on notional.
+- **A correlation is not a level.** The sleeve's daily P&L correlates +0.202 with the universe's
+  daily range at t = +10.70 over 2,686 sessions - the long-volatility mechanism is real and
+  survives every sample - while the level is -$697/day at t = -3.01. A confirmed mechanism buys
+  you a *gating* question ("when?"), never a sizing answer ("more").
+- **A stop that is a fraction of the signal's own width cannot be gated on that width.** ORB's stop
+  is the opening-range midpoint, so a wide range scales the win and the loss together: P&L
+  correlates +0.665 with the range added *after* entry and only +0.080 with the opening range
+  itself. Check whether a candidate filter is also the risk unit before testing it.
+
 ## IBKR connection states (learned 2026-09-09, daily review)
+
+- **Port 4002 goes down nightly.** IB Gateway refused connections 02:19-02:45 ET on 2026-09-10
+  (its restart window) and was open again by 06:30. A connect failure outside market hours is
+  expected; re-probe rather than treating it as the blocker returning.
+
 
 - **An open port 4002 does not mean the API is usable.** Gateway accepts the TCP connection,
   then refuses the handshake with `Error 10141: Paper trading disclaimer must first be
