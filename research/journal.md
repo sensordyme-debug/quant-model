@@ -2,6 +2,109 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-10 - A-5 (part 1): the sleeve breaks even at 2.6 bps of slippage, and it is charged 1.5
+
+- **What.** A-5's live-fill measurement needs a paper session that actually placed orders and
+  there is none yet, so this iteration did the half that does not: it priced the cost model from
+  the same 260-session store the harness runs on. New `scripts/sweep_a5.py` with three phases
+  (`spread`, `impact`, `breakeven`), a backtest-only `--slippage-bps` override in
+  `scripts/intraday_backtest.py`, and `scripts/slippage_report.py` - the live-fill comparison
+  itself, finished and self-tested, waiting on tonight's log. The control reproduces A-4 exactly:
+  260 sessions, CAR 15.3%, Sharpe 0.689, $610/day, $1,025/day of costs, 12,743 fills.
+- **Why.** Top open backlog item. `SLIPPAGE_BPS = 1.5` in `scripts/intraday_common.py` is the one
+  number in the harness that was never measured, and it is charged on 49 trades/day - **$820/day
+  of slippage plus $208 of commission against a $610/day modelled edge.** The cost model is
+  bigger than the result it is judging, so its error bar is the sleeve's error bar.
+
+### The decision number: breakeven slippage
+
+Slippage is `|qty| * px * bps / 1e4` on every fill, so at fixed turnover P&L is linear in the
+constant. Two confirming full-store runs bracket the shipped value and the line is straight to
+$73/day:
+
+| slippage | $/day | CAR % | Sharpe | costs/day |
+| --- | --- | --- | --- | --- |
+| 0.0 bps | **1,671** | 41.9 | 1.51 | 230 |
+| **1.5 bps (shipped)** | **610** | 15.3 | 0.69 | 1,025 |
+| 3.0 bps | **-231** | -5.8 | -0.11 | 1,660 |
+
+**Breakeven is 2.64 bps from the runs, 2.62 bps analytically.** The sleeve turns over
+**$5.46M/day on a $1M book - 5.5x equity a day** - so one basis point of slippage is $546/day and
+the entire modelled edge is **1.1 bps wide**. Per window:
+
+| window | sessions | notional/day | $/bp/day | $/day at 1.5 | $/day at 0 | breakeven | se in bps |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| full store | 260 | $5.46M | 546 | +610 | +1,430 | **2.62 bps** | 1.84 |
+| A-4 holdout | 77 | $5.34M | 534 | -813 | **-11** | **-0.02 bps** | 3.28 |
+| tuning window | 183 | $5.52M | 552 | +1,209 | +2,036 | 3.69 bps | 2.22 |
+
+**The holdout line reframes A-4.** Its breakeven is zero: on the 77 sessions no A-track parameter
+ever saw, the sleeve's *gross* P&L before any slippage at all is **-$11/day**. The -$813/day A-4
+reported is not a calmer regime earning less - it is a book with **no gross edge whatsoever**
+paying $802/day of modelled costs. A-4's long-volatility explanation still holds for the
+variation, but the level on unseen data is zero before costs.
+
+### Bounding the constant from the bars: an upper bound, and why it is only that
+
+Roll (1984) and Corwin-Schultz (2012) on 1-minute bars, per name, notional-weighted by what the
+sleeve actually trades: **half-spread 2.65 bps**, unweighted mean 2.40, median 1.67. Taken at
+face value that sits exactly on the 2.62 bps breakeven. It should **not** be taken at face value:
+`corr(CS estimate, 1-minute return std) = +0.906` across the 16 names and the CS/vol ratio is
+0.32-0.65 with a median of 0.34, i.e. the estimator is a rescaled volatility, not a spread - the
+extreme is SOXS at 21.7 bps "spread" on 33 bps of per-minute vol. The hard lower bound, half of
+one tick notional-weighted, is **0.36 bps**. So the honest statement is
+**half-spread ∈ [0.36, 2.65] bps, breakeven 2.62 bps**: the constant cannot be shown wrong from
+bars alone, and no estimator on this data will settle it. Only fills will.
+
+### What the bars *can* prove is wrong: participation
+
+Every fill's size against the volume of the minute it fills in, over 12,743 fills:
+
+| | median | p75 | p90 | p99 | max |
+| --- | --- | --- | --- | --- | --- |
+| share of the fill minute's volume | 1.03% | 2.43% | 5.55% | **26.1%** | **199%** |
+
+Notional-weighted mean 2.69%; mean fill $111.5k. The tail is concentrated and it is not random:
+**SMCI (median 5.5%, p90 17.3%), SOXS (2.8% / 18.7%), COIN (3.1% / 10.6%) and MSTR (2.2% / 6.1%)
+carry 30% of the sleeve's traded notional** while the megacaps sit at 0.2-0.9%. A fill of 199% of
+a minute's volume at that minute's open, with zero impact, does not exist. This is a modelling
+defect rather than a lever, so removing it is not a lever hunt and A-4's power argument does not
+apply to it - it is the successor item **A-10**.
+
+One thing the harness is *not* missing: the delay from deciding on bar t's close to filling at
+bar t+1's open is **-0.12 bps notional-weighted (se 0.04)** - a hair in the sleeve's favour, not
+a hidden cost. So the whole modelled cost of a fill is 1.50 slippage + 0.38 commission = **1.76
+bps all-in**, and there is no cushion in the fill convention.
+
+### The live half, ready and idle
+
+`scripts/slippage_report.py` prices every live fill against the same next-bar open the backtester
+uses, signed so positive means the fill cost more than the backtest assumed, and reports the
+notional-weighted mean, its standard error, per-symbol and per-side breakdowns, fill rate and
+latency, pooled across sessions. It **self-tests**: injected +2.75 bps on synthetic two-sided
+fills is recovered as +2.75, and a buy filled below the reference reads negative. It refuses to
+write the constant. Its input needs three small additions to the trader's logging, all made and
+verified: `order` now carries the decision bar `t`, `fill` carries the IB order id and the
+exchange's own `filled_at`, and `decision` carries the price the strategy saw (`ref`). Because
+that touches `Trader.step` and `LiveExecutor`, a replay was run per AGENTS.md rule (a):
+**2026-09-08 with the deployed params, 46 trades, flat at close, identical to the A-9 replay**,
+and the log now carries `ref` on every decision that ordered.
+
+Why there is no measurement yet: the only live log on disk, 2026-09-09, is a `--dry-run` started
+by hand at 11:08 ET that stopped at 11:15, so it has 10 live decisions and zero orders. The
+scheduled task is Ready with next run today 09:25 ET and no `--dry-run` in its arguments, and
+`live/APPROVED_PAPER.md` exists, so tonight is the first session with fills.
+
+- **Decision. Nothing shipped.** `SLIPPAGE_BPS` stays 1.5, `live/intraday_config.json` is
+  untouched, no framework constant moved. The measurement that A-5 asks for does not exist yet
+  and the bars cannot substitute for it; moving a constant that sets the sleeve's sign on an
+  estimator that is provably measuring volatility would be worse than leaving it.
+- **Next.** Run `python scripts/slippage_report.py` after tonight's close, every session, and
+  accumulate - the pooled mean and its standard error are the deliverable, not one day. Then
+  **A-10**: cap order size at a share of the fill minute's median volume and re-run the mix on
+  both halves, because ~30% of the sleeve's notional is traded at a participation rate its cost
+  model cannot support.
+
 ## 2026-09-10 - A-9: the day's range pays, but only the half of it that is unknowable at entry
 
 - **What.** Added `range_atr_min` / `range_atr_max` to `algorithms/intraday/orb/signal.py` (both

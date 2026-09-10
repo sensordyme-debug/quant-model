@@ -11,7 +11,36 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-10 05:2x UTC (latest, A-9 iteration): **the day's range pays, and the half of it
+Status 2026-09-10 06:3x UTC (latest, A-5 part 1): **the sleeve breaks even at 2.6 bps of
+slippage and is charged 1.5, so the cost constant owns its sign.** A-5's live-fill measurement
+needs a session that placed orders and there is none yet, so this iteration priced the cost model
+from the store instead. New `scripts/sweep_a5.py` (`spread` / `impact` / `breakeven`), a
+backtest-only `--slippage-bps` override, and `scripts/slippage_report.py` - the live-fill
+comparison, finished and self-tested, idle until tonight. Control reproduces A-4 exactly (260
+sessions, CAR 15.3%, Sharpe 0.689, $610/day, 12,743 fills). **P&L is linear in the constant to
+$73/day**: 0 bps -> **$1,671/day, CAR 41.9%, Sharpe 1.51**; 1.5 bps (shipped) -> $610, 15.3%,
+0.69; 3.0 bps -> **-$231, -5.8%, -0.11**. The sleeve turns over **$5.46M/day on a $1M book, 5.5x
+equity a day**, so one bp is $546/day and the whole modelled edge is **1.1 bps wide**; breakeven
+is **2.64 bps from the runs, 2.62 analytically**. **The holdout's breakeven is -0.02 bps**: on the
+77 sessions no A-track parameter ever saw, gross P&L *before any slippage* is **-$11/day**, so
+A-4's -$813/day is not a weaker regime, it is **no gross edge at all** paying $802/day of costs.
+Bounding the constant from bars fails on purpose: Roll and Corwin-Schultz give a
+notional-weighted half-spread of **2.65 bps** - sitting exactly on the breakeven - but
+`corr(estimate, 1-minute return std) = +0.906` with a CS/vol ratio of 0.32-0.65, so **the
+estimator is measuring volatility, not spread**; the hard floor (half a tick) is 0.36 bps, so all
+that is honest is **half-spread ∈ [0.36, 2.65] against a 2.62 breakeven** - only fills settle it.
+What the bars *do* refute is participation: over 12,743 fills the order is **median 1.03%, p90
+5.55%, p99 26.1% and at worst 199% of the volume of the minute it fills in**, concentrated in
+**SMCI / SOXS / COIN / MSTR, which carry 30% of traded notional** at p90 6-19% against the
+megacaps' 0.2-0.9%. That is a modelling defect, not a lever, so A-4's power argument does not
+excuse it - it is the new top item **A-10**. The harness's fill convention is *not* hiding a cost:
+the decision-close-to-next-open gap is **-0.12 bps (se 0.04)**, so the all-in modelled cost of a
+fill is 1.50 + 0.38 commission = **1.76 bps**. **Nothing shipped**: `SLIPPAGE_BPS` stays 1.5,
+`live/intraday_config.json` untouched, and a 2026-09-08 replay passed (46 trades, flat at close)
+because three logging fields were added to the trader for the live report. Champion unchanged at
+S-12; the daily sleeve was not touched.
+
+Status 2026-09-10 05:2x UTC (A-9 iteration): **the day's range pays, and the half of it
 that is knowable at entry pays nothing.** A-4 said ORB's P&L rides the same-day range; A-9 asked
 whether the opening range, which closes before the first entry, can be used as the causal handle.
 Decomposing each session's universe mean range into the opening 15 minutes and the residual:
@@ -287,18 +316,47 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   sold against the intraday regime signal with realistic fills at the quoted bid/ask (never
   the mid). Judge after costs, both halves, worst day. Do not deploy anything until the
   owner enables options permissions; record the evidence in the journal.
-- **A-5 Execution quality from the live log (top item).** The one number in the intraday
-  harness that is a guess rather than a measurement: `SLIPPAGE_BPS = 1.5` in
-  `scripts/intraday_common.py`, charged on 49 trades/day, i.e. **$1,025/day of modelled cost
-  against a $610/day modelled edge** - the cost model is larger than the result it is judging,
-  so it is the highest-leverage thing left to measure. After each paper session compare
-  `live/log/intraday-<date>.jsonl` fills against the replay of the same day
-  (`scripts/intraday_trader.py --replay <date>`, which writes to `intraday-replay-<date>.jsonl`
-  and never the live log): realized fill price against the next-bar open the harness assumes,
-  per order and aggregated in bps of notional, plus fill rate and decision-to-fill latency. Feed
-  the measured number back into `SLIPPAGE_BPS` only with a replay and a journal entry, per
-  AGENTS.md rule (a). Two sessions is not a sample - accumulate, and report the running mean
-  and its standard error each iteration rather than reacting to one day.
+- **A-10 Cap order size at a share of the fill minute's volume (top item).** The one thing A-5
+  found that the bars *prove* is wrong rather than merely leave uncertain. Over the deployed mix's
+  12,743 fills on the 260-session store, the order is **median 1.03%, p75 2.43%, p90 5.55%, p99
+  26.1% and at worst 199%** of the volume of the minute it fills in, and the tail is not random:
+  **SMCI (median 5.5% / p90 17.3%), SOXS (2.8% / 18.7%), COIN (3.1% / 10.6%) and MSTR (2.2% /
+  6.1%) carry 30% of the sleeve's traded notional**, against 0.2-0.9% for the megacaps. A fill of
+  a fifth of a minute's volume at that minute's open with zero impact is not a fill, and 199% is
+  not a trade at all - so an unknown part of the sleeve's $1,430/day gross is booked at prices that
+  never existed. **This is a cost-model defect, not a lever**, so A-4's power argument (a real
+  effect must be visible on 260 sessions) does not excuse leaving it: the question is not whether
+  a cap earns more, it is what the sleeve earns when the impossible fills are removed.
+  Implementation: a participation cap in `targets_to_orders` - clip `|delta|` to
+  `part_cap * <trailing median volume of that minute-of-day for that symbol> ` (trailing, so it
+  stays causal; the backtester and `scripts/intraday_trader.py` must use the same helper in
+  `scripts/intraday_common.py` or they will drift). Sweep `part_cap` at 0.02 / 0.05 / 0.10 / off
+  on both halves with `scripts/sweep_a5.py`'s cached control as the baseline. Expect the sleeve to
+  get *smaller*, not better - the honest outcome is a lower gross with the same Sharpe, which
+  would mean the shipped numbers were inflated by fills that cannot happen. Because it changes
+  sizing in shared code it needs a replay before any config write (rule a) and OOS evidence
+  before `live/intraday_config.json` moves (rule c). A full-store run is ~17 minutes; use the
+  `results/a5/control*` cache and `--workers`.
+- **A-5 Execution quality from the live log. Part 1 DONE 2026-09-10 (see journal); the live half
+  is still open and is a standing per-session job.** What part 1 settled: the sleeve's **breakeven
+  slippage is 2.62-2.64 bps against a shipped 1.5**, P&L is linear in the constant to $73/day
+  (0 bps -> $1,671/day / CAR 41.9% / Sharpe 1.51; 1.5 -> $610 / 15.3% / 0.69; 3.0 -> -$231 /
+  -5.8% / -0.11), turnover is **$5.46M/day on a $1M book** so one bp is $546/day, and **the
+  holdout breaks even at -0.02 bps** - gross P&L before any slippage on the 77 unseen sessions is
+  -$11/day, which reframes A-4's -$813/day as no gross edge rather than a weaker regime. Bars
+  cannot pin the constant: Roll and Corwin-Schultz give a notional-weighted half-spread of 2.65
+  bps but `corr(estimate, 1-min return std) = +0.906` and CS/vol is 0.32-0.65, so the estimator is
+  volatility; the tick floor is 0.36, leaving **[0.36, 2.65] against a 2.62 breakeven**. The
+  fill convention hides nothing: decision close -> next bar open is **-0.12 bps (se 0.04)**.
+  **What remains is the measurement itself**, and the tool is built and self-tested:
+  `python scripts/slippage_report.py` prices every live fill against the same next-bar open the
+  backtester assumes (positive = worse than the backtest), pooling notional-weighted mean, its
+  standard error, per-symbol and per-side breakdowns, fill rate and latency, across every
+  `live/log/intraday-<date>.jsonl` on disk. Run it after **every** paper close and report the
+  running mean and standard error; the first session with fills is 2026-09-10 (the only earlier
+  log is a hand-started `--dry-run` with zero orders). Move `SLIPPAGE_BPS` only when
+  |measured - 1.5| exceeds two standard errors, with a replay and a journal entry (rule a) - the
+  script prints that test and refuses to write the constant itself.
 - **A-9 DONE 2026-09-10 (see journal): the day's range pays, but only the part that is not
   knowable at entry; nothing shipped.** ORB's daily P&L correlates +0.568 (t = +11.09) with the
   realized full-day range and +0.665 (t = +14.29) with the part of it left after regressing out

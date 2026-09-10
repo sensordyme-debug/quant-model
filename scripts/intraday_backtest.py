@@ -31,8 +31,10 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import intraday_common  # noqa: E402
 from intraday_common import (DAILY_LOSS_LIMIT, FLATTEN_MINUTE, GROSS_HARD_CAP, MIN_CHANGE,  # noqa: E402
-                             PER_SYMBOL_HARD_CAP, REPO, UNIVERSE, commission, load_universe, sessions, slippage)
+                             PER_SYMBOL_HARD_CAP, REPO, SLIPPAGE_BPS, UNIVERSE, commission,
+                             load_universe, sessions, slippage)
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
 from base import features  # noqa: E402
@@ -44,6 +46,19 @@ EXPERIMENTS = REPO / "research" / "experiments.jsonl"
 #: change means editing scripts/intraday_common.py and replaying a session (AGENTS.md rule a).
 RISK = {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
         "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE, "flatten_minute": FLATTEN_MINUTE}
+
+
+def set_slippage(bps: float | None) -> float | None:
+    """Charge a different slippage in the BACKTEST ONLY (A-5 prices the cost model this way).
+
+    `intraday_common.slippage()` reads the module global at call time, so rebinding it here also
+    changes what `Book.fill` charges. Shipping a change means editing scripts/intraday_common.py,
+    which the live trader imports, and replaying a session (AGENTS.md rule a).
+    """
+    if bps is None or float(bps) == SLIPPAGE_BPS:
+        return None
+    intraday_common.SLIPPAGE_BPS = float(bps)
+    return float(bps)
 
 
 def set_risk(overrides: dict | None) -> dict:
@@ -254,6 +269,8 @@ def record(name: str, tag: str, s: dict, params, start, end):
     if RISK != {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
                 "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE, "flatten_minute": FLATTEN_MINUTE}:
         rec["risk"] = dict(RISK)
+    if intraday_common.SLIPPAGE_BPS != SLIPPAGE_BPS:
+        rec["slippage_bps"] = intraday_common.SLIPPAGE_BPS
     with EXPERIMENTS.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, default=str) + "\n")
 
@@ -268,6 +285,7 @@ def main() -> int:
     ap.add_argument("--params", help="JSON overrides for the strategy PARAMS")
     ap.add_argument("--risk", help='JSON overrides for the framework risk limits, research only, e.g. '
                                    '\'{"daily_loss_limit":0.02,"per_symbol_hard_cap":0.25}\'')
+    ap.add_argument("--slippage-bps", type=float, help="override intraday_common.SLIPPAGE_BPS, research only")
     ap.add_argument("--tag", default="")
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--verbose", action="store_true")
@@ -277,6 +295,8 @@ def main() -> int:
     changed = set_risk(json.loads(args.risk) if args.risk else None)
     if changed:
         print(f"risk overrides (backtest only): {changed}")
+    if set_slippage(args.slippage_bps) is not None:
+        print(f"slippage override (backtest only): {intraday_common.SLIPPAGE_BPS} bps (shipped {SLIPPAGE_BPS})")
     start = dt.date.fromisoformat(args.start) if args.start else None
     end = dt.date.fromisoformat(args.end) if args.end else None
     bars = load_universe(args.symbols or UNIVERSE, start, end)

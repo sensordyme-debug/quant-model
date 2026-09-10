@@ -23,6 +23,22 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   in the absence of an answer is (a): the config is untouched and the sleeve trades as scheduled,
   because changing a deployed book on a coin flip is worse than either alternative.
 
+  **Addendum 2026-09-10 (A-5 part 1), three numbers that sharpen the same question.** (1) The
+  sleeve's **breakeven slippage is 2.62 bps and the harness charges 1.5** - it turns over $5.46M
+  a day on a $1M book, so one basis point of execution cost is $546/day and the whole modelled
+  edge of $610/day is **1.1 bps wide**. At 0 bps it earns $1,671/day (CAR 41.9%, Sharpe 1.51); at
+  3.0 bps it loses $231/day. Nothing about the sleeve's sign is settled until real fills are
+  measured, and the first paper session with fills is today. (2) **On the holdout the breakeven is
+  -0.02 bps**: gross P&L before any slippage over the 77 sessions no parameter ever saw is
+  **-$11/day**, so A-4's -$813/day is not a calmer regime earning less, it is a book with no gross
+  edge paying its costs. If you were leaning to (b) shrink it, this is the argument for it.
+  (3) A cost-model defect found on the way, being fixed next as A-10 and **not** an owner
+  decision: 30% of the sleeve's traded notional is in SMCI / SOXS / COIN / MSTR, where the order
+  is regularly 6-19% of the volume of the minute it fills in (worst case 199%), so part of the
+  backtested gross is booked at prices that could not have been had. Expect the honest version of
+  this sleeve to be **smaller** than the numbers above once that is capped. No answer is needed
+  for A-10; the deployed config stays as it is until it has OOS evidence.
+
 - **The intraday daily loss limit is a pure risk-posture dial - pick a point (A-7).** Swept
   1.5-3.5% and off on the deployed mix over 183 sessions. It has **no measurable effect on
   return** (every cell |t| <= 1.06 paired against the shipped 2.5%; total P&L 200.5k at 2.0%,

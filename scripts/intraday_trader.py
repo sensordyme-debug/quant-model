@@ -169,7 +169,9 @@ class LiveExecutor:
             o.outsideRth = False
             tr = self.ib.placeOrder(self.contracts[s], o)
             self.open.append(tr)
-            log("order", symbol=s, qty=q, id=tr.order.orderId)
+            # `t` is the decision bar; scripts/slippage_report.py joins on `id` and prices the
+            # fill against the next bar's open, which is what the backtester assumes.
+            log("order", symbol=s, qty=q, id=tr.order.orderId, t=str(when))
 
     def settle(self, t) -> list[tuple[str, int, float, float]]:
         """Collect fills from orders sent earlier; returns (sym, signed_qty, avg_px, commission)."""
@@ -182,7 +184,11 @@ class LiveExecutor:
                 q = int(st.filled) * (1 if tr.order.action == "BUY" else -1)
                 comm = sum((f.commissionReport.commission or 0.0) for f in tr.fills if f.commissionReport) or commission(q, st.avgFillPrice)
                 fills.append((tr.contract.symbol, q, float(st.avgFillPrice), float(comm)))
-                log("fill", symbol=tr.contract.symbol, qty=q, avg_price=st.avgFillPrice, commission=comm, status=st.status)
+                # filled_at is the exchange's own fill time; the record's `ts` is only when this
+                # loop noticed, so A-5 needs both to separate latency from polling cadence.
+                at = max((f.time for f in tr.fills if getattr(f, "time", None)), default=None)
+                log("fill", symbol=tr.contract.symbol, qty=q, avg_price=st.avgFillPrice, commission=comm,
+                    status=st.status, id=tr.order.orderId, filled_at=str(at) if at else None)
             elif not done:
                 still.append(tr)
             else:
@@ -331,7 +337,8 @@ class Trader:
         if flatten and self.book.pos:
             orders = {s: -q for s, q in self.book.pos.items()}
         if orders:
-            log("decision", t=str(t), minute=m, targets=targets, orders=orders, pnl=pnl, equity=equity, mode=self.mode)
+            log("decision", t=str(t), minute=m, targets=targets, orders=orders, pnl=pnl, equity=equity, mode=self.mode,
+                ref={s: round(float(prices[s]), 4) for s in orders if prices.get(s)})
             if not self.dry_run:
                 self.ex.submit(orders, t)
         # 4) periodic report
