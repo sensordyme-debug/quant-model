@@ -117,7 +117,7 @@ def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, f
 
 def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | None,
         start: dt.date | None = None, end: dt.date | None = None, verbose: bool = False,
-        feats_all: dict | None = None):
+        feats_all: dict | None = None, collect_trades: bool = False):
     feats_all = feats_all if feats_all is not None else {s: features(df) for s, df in bars.items()}
     days = [d for d in sessions(bars) if (start is None or d >= start) and (end is None or d <= end)]
     book = Book(equity0)
@@ -190,7 +190,11 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
                       "trades": sum(1 for tr in book.trades if tr["t"].date() == day), "stopped": stopped,
                       "stop_minute": stop_minute})
     elapsed = time.time() - t0
-    return summarize(daily, book, equity0, elapsed)
+    s = summarize(daily, book, equity0, elapsed)
+    if collect_trades:
+        # opt-in because the list is large; A-9 uses it to attribute P&L to (symbol, session)
+        s["trades_log"] = book.trades
+    return s
 
 
 def summarize(daily, book: Book, equity0: float, elapsed: float):

@@ -2,6 +2,96 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-10 - A-9: the day's range pays, but only the half of it that is unknowable at entry
+
+- **What.** Added `range_atr_min` / `range_atr_max` to `algorithms/intraday/orb/signal.py` (both
+  default 0 = off) gating the breakout on the opening range's width divided by ATR14 at the
+  moment the range closes, and `scripts/sweep_a9.py`: an attribution phase (one ORB run, P&L
+  attributed to each traded symbol-session, bucketed by width) and two grids (11 cells on the
+  ORB module, 4 in the deployed mix), all on the 260-session store split at A-4's 2025-12-15
+  holdout boundary.
+- **Why.** Top open backlog item, and the only lever left with a measured mechanism behind it:
+  A-4 found daily P&L correlating **+0.538 (t = +10.25, n = 260)** with the universe's same-day
+  range, and ORB gates on volume alone. The opening range closes before the first entry, so its
+  width is causal - the one piece of "today is a wide day" available in time to act on.
+
+### The mechanism is real, and it is entirely in the part you cannot see
+
+Decomposing each session's mean range across the universe into the opening 15 minutes and the
+residual after regressing that out:
+
+| predictor of ORB's daily P&L | all 260 | holdout 77 | tuning 183 |
+| --- | --- | --- | --- |
+| realized full-day range | **+0.568 (t +11.09)** | +0.622 (t +6.87) | +0.560 (t +9.10) |
+| opening range (known at entry) | **+0.080 (t +1.28)** | **-0.009 (t -0.07)** | +0.101 (t +1.37) |
+| residual (not known at entry) | **+0.665 (t +14.29)** | +0.725 (t +9.12) | +0.645 (t +11.37) |
+
+A-4's correlation reproduces on the ORB module alone and is stable in both halves, so it is not
+a fitting artifact. But the opening range - which is itself a decent proxy for the day's range,
+**corr +0.626** - carries essentially none of the payoff, and none at all in the holdout. The
+reason is mechanical: ORB's stop is the range midpoint, so the width *is* the risk unit. A wide
+opening scales the win and the loss together and nets out; what pays is the range the day adds
+**after** entry, which is unknowable by construction. **A-9's premise is refused at the root.**
+
+Attribution agrees, on 3,731 traded symbol-sessions: corr(P&L, width/ATR14) = +0.029 (t +1.80),
+and after demeaning within symbol it is +0.036 (t +2.19) - which splits into **TUNE +0.052
+(t +2.65) and HOLDOUT -0.022 (t -0.73)**.
+
+### The grid, which is the sharpest overfitting demonstration in the A-track so far
+
+ORB module, deployed sub-params, both halves (control reproduces A-4's `orb` rows to the digit):
+
+| cell | HOLD CAR / Sharpe / $day | TUNE CAR / Sharpe / $day | tr/day | paired t vs control |
+| --- | --- | --- | --- | --- |
+| control (no gate) | -2.0 / 0.05 / -80 | 25.8 / 1.02 / +990 | 36 | - |
+| min 3.2 | -8.2 / -0.31 / -335 | 26.7 / 1.17 / +1,025 | 31 | -0.14 |
+| **min 3.6** | **-20.5 / -1.19 / -878** | **49.7 / 2.17 / +1,861** | 26 | +0.75 |
+| min 4.0 | -20.2 / -1.45 / -863 | 41.9 / 2.19 / +1,581 | 20 | +0.29 |
+| min 4.4 | -3.3 / -0.21 / -131 | 40.8 / **2.43** / +1,542 | 15 | +0.52 |
+| min 5.0 | +0.9 / 0.14 / +35 | 22.6 / 1.83 / +873 | 9 | -0.06 |
+| max 4.4 | +0.6 / 0.12 / +24 | -9.4 / -0.49 / -377 | 22 | -1.52 |
+| **max 3.6** | **+21.6 / 1.46 / +801** | **-13.9 / -1.27 / -561** | 11 | -1.02 |
+
+**Every "keep the wide openings" cell beats the control in the tuning window and loses in the
+holdout; every "keep the narrow openings" cell does the exact opposite.** The lever does not
+select trades, it selects *which half of the sample you are looking at*. `min 3.6` nearly
+doubles the tuning window's Sharpe to 2.17 - the best number this sleeve has ever produced -
+while turning the holdout into -20.5% CAR at Sharpe -1.19. Its mirror, `max 3.6`, earns Sharpe
+1.46 on the holdout and -1.27 on the tuning window. Paired against the control over all 260
+sessions, **not one of the eleven cells reaches |t| = 1.6.**
+
+In the deployed mix the pattern is identical and larger: `min 3.6` gives HOLD -31.8 / -1.96 /
+-$1,432 against TUNE 58.6 / **2.32** / +$2,174 (paired t +0.92); `min 4.4` gives -16.3 / -1.27
+against 49.5 / **2.53** (t +0.62); `max 3.6` gives +5.4 / 0.48 against -7.2 / -0.60 (t -1.02).
+The mix control reproduces A-4 exactly (-19.1 / -0.73 / -$813 and 33.8 / 1.27 / +$1,289).
+
+The wide-range names the backlog asked about separately (SOXL/SOXS/SMCI/MSTR) carry most of the
+in-sample effect - split at the median width their mean symbol-session P&L is -158 vs +733
+(SOXL), -23 vs +580 (SOXS), -176 vs +491 (MSTR), +74 vs +296 (SMCI) - and their width quintiles
+are non-monotone (-12, -233, +30, +725, +256), i.e. the effect is one bucket in four names.
+
+### Decision
+
+**Refused. Nothing shipped.** `live/intraday_config.json` is untouched, `range_atr_min` and
+`range_atr_max` stay at 0, and no framework constant moved. The gate has no OOS improvement, so
+rule (c) forbids it; and had it been judged on the 183-session window every prior A-track
+iteration used, `min 3.6` would have looked like the best result in the sleeve's history and
+would have shipped. **That is the holdout earning its keep, and it is the reusable lesson.**
+
+The signal edit is behaviour-preserving with the gates off - the control rows match A-4 to the
+digit in both the module and the mix - and the ORB module is loaded by the live trader, so a
+**replay of 2026-09-08 was run anyway: 46 trades, flat at close, P&L -4,881 on 368 decisions**,
+identical to the replay recorded in the config when A-2 shipped.
+
+- **Next.** A-9 was the last A-track item with a stated mechanism. A-8 (the entry window) is now
+  the only open lever and A-4 already said to park it: it would produce the same table of
+  statistically identical cells this one did. The binding constraint has not moved - the sleeve
+  needs ~2,120 sessions to prove itself and has 260 - so the honest next step is **not another
+  gate**. It is A-5: replace estimated slippage with slippage measured from the live log, which
+  is the one number in the harness that is currently a guess rather than a measurement, and the
+  paper account starts generating it today. Champion unchanged at S-12; the daily sleeve was not
+  touched.
+
 ## 2026-09-09 - A-4: twelve months of sessions, and the sleeve's return is not distinguishable from zero
 
 - **What.** `scripts/intraday_data.py --months 12` extended the minute store from 183 sessions

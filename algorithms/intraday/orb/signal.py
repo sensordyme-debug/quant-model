@@ -12,6 +12,16 @@ A-2 adds tail control on top of that, all defaulted to the A-6 deployed behaviou
     already computes, anything else is measured from the session view;
   * `scale_out`: fraction of the position released once price reaches `scale_r` x the entry
     risk, optionally moving the stop to breakeven for the remainder.
+
+A-9 adds the width gate. A-4 measured that this sleeve's daily P&L correlates +0.538 (t=+10.25,
+n=260) with the universe's same-day range: the payoff scales with the day's range, the cost
+floor does not. A day-ahead gate is not available, but the opening range is closed before the
+first entry, so its width divided by ATR14 at that moment is known at entry and causal.
+`range_atr_min` / `range_atr_max` bound that ratio; both default to 0 (off), which reproduces
+the deployed behaviour exactly. The ratio is snapshotted when the range closes, not re-read at
+each bar, so a session's gate is one number per symbol. Only within-session quantities are used
+- the live feed carries 3 days of bars, so anything needing a trailing multi-session baseline
+would be NaN live and is deliberately not used here.
 """
 from __future__ import annotations
 
@@ -37,11 +47,18 @@ PARAMS = {
     "scale_breakeven": True, # after scaling out, move the stop to the entry price
     "disaster_atr": 0.0,     # extra backstop with stop == "mid": exit at this many ATR14 against
                              # the entry, whichever of the two triggers first (0 = off)
+    "range_atr_min": 0.0,    # A-9: only take breakouts whose opening range is at least this many
+                             # ATR14 wide, measured when the range closes (0 = off)
+    "range_atr_max": 0.0,    # A-9: ...and at most this many (0 = off)
 }
 
 
 def _range(f, sym, state, rng_minutes):
-    """Opening range [high, low] for this session, computed once and cached in `state`."""
+    """Opening range [high, low, atr_at_close] for this session, computed once and cached in `state`.
+
+    `atr_at_close` is ATR14 on the bar at which the range first closes, so the width/ATR ratio
+    A-9 gates on is a single per-session number known before any entry is allowed.
+    """
     cache = state.setdefault("rng", {})
     hit = cache.get(sym)
     if hit is not None:
@@ -58,7 +75,8 @@ def _range(f, sym, state, rng_minutes):
         hi, lo = float(f["h"].values[mask].max()), float(f["l"].values[mask].min())
     if hi != hi or lo != lo or hi <= lo:
         return None
-    cache[sym] = [hi, lo]
+    atr_or = float(row["atr14"]) if row["atr14"] == row["atr14"] else 0.0
+    cache[sym] = [hi, lo, atr_or]
     return cache[sym]
 
 
@@ -103,6 +121,16 @@ def decide(now, feats, book, equity, state, params):
         strong_vol = float(row["vol_ratio"]) >= p["vol_ratio_min"] if row["vol_ratio"] == row["vol_ratio"] else False
         if not strong_vol:
             continue
+        lo_gate, hi_gate = float(p["range_atr_min"]), float(p["range_atr_max"])
+        if lo_gate > 0 or hi_gate > 0:
+            atr_or = float(rng[2]) if len(rng) > 2 else 0.0
+            width_atr = (hi - lo) / atr_or if atr_or > 0 else float("nan")
+            if width_atr != width_atr:                       # no ATR at the range close: fail closed
+                continue
+            if lo_gate > 0 and width_atr < lo_gate:
+                continue
+            if hi_gate > 0 and width_atr > hi_gate:
+                continue
         if c > hi and e["long"] < p["max_entries"]:
             side, key = 1, "long"
         elif c < lo and e["short"] < p["max_entries"]:

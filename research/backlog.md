@@ -11,7 +11,34 @@ S-1 (with the S-4 risk overlay built in) promoted to champion through `scripts/e
 then I-1 running it against the paper account. Daily-frequency only until D-2 delivers
 intraday data. Live money stays off the table until the human signs off in `live/`.
 
-Status 2026-09-10 02:2x UTC (latest, A-4 iteration): **the minute store is now 260 sessions,
+Status 2026-09-10 05:2x UTC (latest, A-9 iteration): **the day's range pays, and the half of it
+that is knowable at entry pays nothing.** A-4 said ORB's P&L rides the same-day range; A-9 asked
+whether the opening range, which closes before the first entry, can be used as the causal handle.
+Decomposing each session's universe mean range into the opening 15 minutes and the residual:
+ORB's daily P&L correlates **+0.568 (t = +11.09)** with the realized full-day range and
+**+0.665 (t = +14.29)** with the residual - stable in both halves - but only **+0.080 (t = +1.28)**
+with the opening range, and **-0.009** on the holdout, even though the opening range predicts the
+day's range at corr +0.626. The reason is mechanical: **ORB's stop is the range midpoint, so the
+width is the risk unit** - a wide opening scales the win and the loss together, and what pays is
+the range added *after* entry. **A-9's premise is refused at the root.** The grid proves it in the
+sharpest way the A-track has produced: with `range_atr_min` / `range_atr_max` added to the ORB
+module (defaults 0 = off, control reproducing A-4 to the digit), **every "keep the wide openings"
+cell beats the control on the tuning window and loses on the holdout, and every "keep the narrow
+openings" cell does the exact opposite.** `min 3.6` reaches **TUNE Sharpe 2.17 / CAR 49.7%** - the
+best number this sleeve has ever produced - against **HOLD -1.19 / -20.5%**; its mirror `max 3.6`
+earns **HOLD 1.46** against **TUNE -1.27**. Paired against the control over all 260 sessions **no
+cell in the eleven reaches |t| = 1.6**, and in the deployed mix the same cells give 2.32 and 2.53
+tuning-window Sharpe against -1.96 and -1.27 on the holdout (paired t +0.92, +0.62). The lever
+does not select trades, it selects which half of the sample you are looking at. **Refused; nothing
+shipped, `live/intraday_config.json` untouched, both gates stay 0**, and a 2026-09-08 replay was
+run anyway because the live trader loads this module (46 trades, flat at close, identical to the
+A-2 replay). New `scripts/sweep_a9.py` and an opt-in `collect_trades` in the backtester. **The
+durable lesson is that the holdout is now doing real work**: on the 183-session window every prior
+A-track iteration used, `min 3.6` would have shipped. **A-5 is the new top item** - A-9 was the
+last lever with a stated mechanism, A-8 stays parked, and measured slippage is the one number in
+the harness that is still a guess. Champion unchanged at S-12; the daily sleeve was not touched.
+
+Status 2026-09-10 02:2x UTC (A-4 iteration): **the minute store is now 260 sessions,
 and on them the intraday sleeve's return is not distinguishable from zero.** The store was
 extended to 12 months (2025-08-26..2026-09-08) and repaired - `intraday_data.py` was ending each
 request at the wall-clock time of the run, so IBKR truncated the newest session of every window
@@ -237,20 +264,36 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
-- **A-9 Gate the breakout on the opening range's width, not on volume (top item).**
-  The one lever with a measured mechanism. A-4 found the sleeve's daily P&L correlates
-  **+0.538 (t = +10.25, n = 260)** with the universe's same-day mean range: ORB's payoff scales
-  with the day's range while its cost floor does not, so it wins on wide days and bleeds on calm
-  ones, and the negative A-4 holdout is that regime rather than signal decay. A day-ahead gate is
-  not available (prior-day range predicts at t = +0.47), **but ORB enters after the 15-minute
-  opening range, so that range's width relative to `atr14` is known at entry and is causal**.
-  `algorithms/intraday/orb/signal.py` gates only on `vol_ratio_min = 1.2` and never on width.
-  Add a `range_atr_min` parameter (opening range / ATR14 floor), sweep it on the full 260-session
-  store split 2025-12-15, and judge on **both** halves - a gate that only lifts the tuning window
-  is the same fitting A-4 just diagnosed. Check it separately on SOXL/SOXS/SMCI/MSTR, where the
-  range is 5-10% and the cost floor is proportionally smallest. Read A-4's power result first:
-  a cell whose edge is a fraction of the sleeve's own Sharpe cannot be resolved here, so only a
-  large, monotone, both-halves effect is shippable.
+- **A-5 Execution quality from the live log (top item).** The one number in the intraday
+  harness that is a guess rather than a measurement: `SLIPPAGE_BPS = 1.5` in
+  `scripts/intraday_common.py`, charged on 49 trades/day, i.e. **$1,025/day of modelled cost
+  against a $610/day modelled edge** - the cost model is larger than the result it is judging,
+  so it is the highest-leverage thing left to measure. After each paper session compare
+  `live/log/intraday-<date>.jsonl` fills against the replay of the same day
+  (`scripts/intraday_trader.py --replay <date>`, which writes to `intraday-replay-<date>.jsonl`
+  and never the live log): realized fill price against the next-bar open the harness assumes,
+  per order and aggregated in bps of notional, plus fill rate and decision-to-fill latency. Feed
+  the measured number back into `SLIPPAGE_BPS` only with a replay and a journal entry, per
+  AGENTS.md rule (a). Two sessions is not a sample - accumulate, and report the running mean
+  and its standard error each iteration rather than reacting to one day.
+- **A-9 DONE 2026-09-10 (see journal): the day's range pays, but only the part that is not
+  knowable at entry; nothing shipped.** ORB's daily P&L correlates +0.568 (t = +11.09) with the
+  realized full-day range and +0.665 (t = +14.29) with the part of it left after regressing out
+  the opening range - both stable across halves - but only **+0.080 (t = +1.28)** with the
+  opening range itself, and -0.009 on the holdout, despite the opening range predicting the
+  day's range at corr +0.626. **Mechanical reason: ORB's stop is the range midpoint, so the
+  width is the risk unit** - a wide opening scales win and loss together, and the payoff is in
+  the range the day adds after entry. Attribution over 3,731 traded symbol-sessions agrees
+  (corr +0.029 raw, +0.036 within-symbol, splitting TUNE +0.052 / HOLD -0.022). Shipped to the
+  tree defaulted off: `range_atr_min` / `range_atr_max` on the ORB module (snapshotting ATR14
+  when the range closes, so a session's gate is one number per symbol), `scripts/sweep_a9.py`
+  (attribution + two grids), and an opt-in `collect_trades` in `scripts/intraday_backtest.py`.
+  **The grid is the A-track's sharpest overfitting demonstration**: every wide-opening cell wins
+  the tuning window and loses the holdout, every narrow-opening cell does the reverse, `min 3.6`
+  scores TUNE Sharpe 2.17 against HOLD -1.19 and `max 3.6` scores HOLD 1.46 against TUNE -1.27,
+  and no cell reaches |t| = 1.6 paired against the control on 260 sessions. Replay of 2026-09-08
+  passed (46 trades, flat at close). **Do not re-open this as a "better threshold" question** -
+  the negative is about what is available at entry, not about where the cut goes.
 - **A-4 DONE 2026-09-09 (see journal): the store is 260 sessions and the sleeve's return is not
   distinguishable from zero; nothing shipped.** Store extended to 2025-08-26..2026-09-08 and a
   truncation bug fixed - requests ended at the wall-clock time of the run, so IBKR truncated the
@@ -340,9 +383,6 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   evidence: strategies with negative OOS after costs get alloc 0 until fixed. Target gross
   1.0-1.5x of NAV so daily P&L swings are in the tens of thousands on the $1M account, with the
   framework's 2.5% daily loss limit as the floor.
-- **A-5 Execution quality from the live log.** After each session compare
-  `live/log/intraday-<date>.jsonl` fills against the replay of the same day: slippage per
-  order, fill rate, latency. Feed the measured slippage back into `SLIPPAGE_BPS` if it differs.
 - **D-2b Extend the LEAN minute store past SPY.** SPY is done (see Done). QQQ, IWM, TQQQ and
   SQQQ are one command each - `py -3.11 scripts/fetch_minute.py --symbols QQQ --start 2020-01-01` -
   and the script is resumable by month, so an interrupted run is restarted by re-running it.
