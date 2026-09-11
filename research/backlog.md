@@ -17,6 +17,54 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 21:5x UTC (S-23): **the pre-open MOO path is written, clock-guarded and gated, and
+the move it buys survives up to 3.1 bps of extra opening-auction cost - which the only evidence
+available says is roughly what the opening auction might charge.** With the instrument audit closed
+by S-22 and no open research item that is not blocked on the owner or on data the human must buy,
+this iteration took the top item on the corrected priority list: the **pre-open task move**, the
+cheapest and best-priced of the owner decisions at +1.85 CAR points. Two things were missing from
+it and neither was a strategy question. **(1) The loop's half had never been written** - the page
+has been promising `--order-type` OPG/MOO support since S-17, so the owner was being asked to
+schedule a run the runner could not execute. **(2) Every version of the +1.85 assumed the opening
+auction fills as cheaply as the closing one**, which is the assumption a reasonable person pushes
+on. New `scripts/sweep_s23.py`, one new order type on `scripts/paper_trade.py` and a reference-price
+fix on `scripts/daily_fills.py`; **4 ledger rows** under `daily/s23_preopen`.
+**(1) Written and proved**: IBKR has no "MOO" order type - an opening-auction order is a `MKT`
+carrying `tif="OPG"` - and it rejects `OPG` outside **04:00-09:28 ET** one order at a time, which
+would leave the book half rebalanced, so the flag **checks the clock before it connects and
+refuses** (verified live at 17:51 ET, exit 3, no socket opened). MOO/MOC fills are no longer waited
+on, because they settle at an auction that has not happened yet. **(2) The payoff, reproduced on an
+independent path**: both books fully charged (2 bp + IBKR Pro financing) through S-19's share-level
+harness, the deployed row lands on S-22's **19.640%** to the digit, and pre-open earns **21.515%**
+(**+1.875**); at today's cost of money 19.102 -> 20.946 (**+1.844**). Paired **+0.609 bps/day at
+t +1.44**, so **nothing here reaches |t| = 2**, exactly as S-19 said; the gain is out-of-sample
+weighted **more than three to one** (IS +0.963, OOS +3.222) and it costs a little risk this time
+(DD 24.33 against 24.04, and $14.5k more financing, because an earlier fill carries the position a
+session longer). **(3) The number this iteration exists for**: solving for indifference, **the
+opening auction may cost up to 3.10 bps MORE than the closing auction (2 -> 5.10 bp all-in) before
+the move stops paying**, 3.07 at today's rates - against a **measured +3.2 bps** of live 15:45
+execution cost, so the opening auction would have to be about twice as expensive as the closing one
+for the move to be a wash. **(4) And it might be.** The one read the data supports is a proxy -
+Alpaca minute bars carry no quotes - but on 2,687 sessions the **opening minute is 1.0x to 2.0x as
+wide as the closing minute** (SPY 1.04, QQQ 1.54, **IWM 2.00**, TQQQ 1.61) and thinner in every
+name. At the 2.0x end the move is a wash rather than a gain. The proxy overstates the risk (a
+minute's range is continuous trading; an MOO order fills in the opening *cross*), but **the margin
+is thinner than +1.85 alone suggests and this is the first time anything has been put on the other
+side of the trade**. The recommendation is unchanged - the defect is certain while its price tag is
+not - and `daily_fills.py` now scores MOO fills against the **open** they aim at, so the first
+post-move session measures whether the 1.85 was collected. **Nothing shipped, nothing promoted, no
+default changed**: `--order-type` still defaults to `MKT`, the `--mock --dry-run` plan is identical
+to before the change, the **I-1 gate passes 3,689/3,689 at 5,021 orders**, champion unchanged at
+S-18, `champion.json`, `live/APPROVED_PAPER.md`, `live/HALT*`, `live/intraday_config.json` and all
+three scheduled tasks untouched, and `signals.py`/`main.py` were not modified so rule (a) owes no
+replay. **Standing jobs both ran first with no new input** (17:3x ET, after the S-22 iteration had
+already pooled today's session): A-5 part 2 at 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90,
+`daily_fills.py` at 10 fills / $2.37M / +3.2 bps (se 4.5), `ref_price` the previous close 10 of 10.
+**What it changes for the loop**: the owner's cheapest decision is now a one-line task change with
+the loop's half already merged and gated, and the reusable rule is that **an execution change on
+this sleeve should be quoted as a breakeven in the units `daily_fills.py` measures**, not as a CAR
+delta against a costless counterfactual.
+
 Status 2026-09-11 21:0x UTC (S-22): **the three instrument corrections are independent, they
 compose, and the deployed daily book should be expected to earn about 20% CAR rather than the
 champion's headline 24.4%.** S-17 (spread), S-19 (clock) and S-21 (financing) each priced one
@@ -1136,6 +1184,27 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
+- **S-23 DONE 2026-09-11 (see journal): the loop's half of the pre-open request is written and
+  gated, and the move now has a breakeven instead of an assumption.**
+  `scripts/paper_trade.py --order-type MOO` sends the order IBKR accepts (`MKT` + `tif="OPG"`) and
+  **refuses before connecting** outside 04:00-09:28 ET, because IBKR rejects `OPG` one order at a
+  time and a half-rebalanced book is worse than no rebalance (proved live, exit 3). `MKT` remains
+  the default: the `--mock --dry-run` plan is unchanged and the **I-1 gate passes 3,689/3,689 at
+  5,021 orders**. `scripts/sweep_s23.py` prices both conventions through S-19's book with S-22's
+  financing hook: deployed **19.640%** (S-22's figure to the digit) against pre-open **21.515%**,
+  **+1.875 CAR** (+1.844 at today's rates), paired **+0.609 bps/day at t +1.44** - *not* significant
+  - and out-of-sample weighted more than three to one (IS +0.963, OOS +3.222). **The new number**:
+  the opening auction may cost up to **3.10 bps more than the closing auction** before the move
+  stops paying, against **+3.2 bps** of measured live execution cost and a minute-store proxy that
+  puts the opening minute at **1.0x-2.0x** the closing minute's width (IWM 2.00). So the margin is
+  real but thin, and the recommendation is unchanged. 4 ledger rows, nothing shipped, no default
+  changed, no task touched. **Do not re-open as a "what is the real opening spread" question from
+  this data** - the store has no quotes, so it cannot answer; `daily_fills.py` now scores MOO fills
+  against the **open** they aim at, and the first post-move session settles it with live fills.
+  Two durable pieces survive it: the `build_order()` helper (any future order type is one branch)
+  and the rule that an execution change here is quoted as a **breakeven in `daily_fills.py`'s own
+  units**, not as a CAR delta against a costless counterfactual.
+
 - **S-22 DONE 2026-09-11 (see journal): measured, not judged. The three instrument corrections are
   independent, and the deployed daily book's honest expectation is ~20% CAR, not 24.4%.**
   LEAN full-period factorial: control 24.403 / spread 2 bp 23.068 / financing 23.087 / clock bound
@@ -1208,7 +1277,9 @@ sleeve that does not exist (S-5). **The binding constraint is the four owner dec
   calendar days** and so sit ~17% below the same curve's trading-day figures - safe to compare
   within the ledger, never against a statistic computed elsewhere.
 
-**Priority after S-22 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and `daily_fills.py` now gets input every rebalance (10 fills, +3.2 bps, se 4.5); (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work, now in a corrected order of value: the **pre-open task move** is the cheapest and best-priced of them at **+1.85 CAR points on an honestly-costed book at today's rates**, then the Reg-T buffer (+1.209 / +1.655 financed at budget 0.80 / 0.82) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-22 closed the instrument audit rather than opening anything: spread (S-17), clock (S-19) and financing (S-21) are now measured, composed and **proved independent to 0.026 CAR points**, so there is no fourth defect of that class to look for and no reason to re-run the three against each other. **One number replaces another everywhere on this sleeve**: the deployed daily book's honest expectation is **~20% CAR (19.95% at historical rates, 19.42% at today's)**, not the champion's 24.403%, and any future candidate quoted against the headline is being flattered by about 18%. The two compulsory columns from S-20 (vol-matched) and S-21 (financed) are unchanged, and S-22 adds the rule that makes them cheap: **corrections on this sleeve multiply**, so a cell may be priced against one defect at a time and composed afterwards.
+**Priority after S-23 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling, and `daily_fills.py` now carries the instrument that settles the S-23 breakeven the moment the task moves; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, unchanged in order but with the top one now reduced to a single task change: the **pre-open move** (+1.844 CAR at today's rates, breakeven +3.10 bps of extra opening-auction cost, the loop's half merged and gated), then the Reg-T buffer (+1.209 / +1.655 financed at budget 0.80 / 0.82) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-23 opened nothing: it finished a request rather than starting a line of research, and the one general thing it leaves behind is a framing rule - **an execution change on this sleeve is quoted as a breakeven in the units `daily_fills.py` measures on live fills**, because a CAR delta against a counterfactual that charges the other side nothing is not a decision, it is an assumption. The three compulsory columns are now vol-matched (S-20), financed (S-21) and, for anything that moves *where* an order fills, the breakeven surcharge (S-23).
+
+Superseded, kept for the reasoning: **Priority after S-22 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and `daily_fills.py` now gets input every rebalance (10 fills, +3.2 bps, se 4.5); (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work, now in a corrected order of value: the **pre-open task move** is the cheapest and best-priced of them at **+1.85 CAR points on an honestly-costed book at today's rates**, then the Reg-T buffer (+1.209 / +1.655 financed at budget 0.80 / 0.82) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-22 closed the instrument audit rather than opening anything: spread (S-17), clock (S-19) and financing (S-21) are now measured, composed and **proved independent to 0.026 CAR points**, so there is no fourth defect of that class to look for and no reason to re-run the three against each other. **One number replaces another everywhere on this sleeve**: the deployed daily book's honest expectation is **~20% CAR (19.95% at historical rates, 19.42% at today's)**, not the champion's 24.403%, and any future candidate quoted against the headline is being flattered by about 18%. The two compulsory columns from S-20 (vol-matched) and S-21 (financed) are unchanged, and S-22 adds the rule that makes them cheap: **corrections on this sleeve multiply**, so a cell may be priced against one defect at a time and composed afterwards.
 
 Superseded, kept for the reasoning: **Priority after S-21 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and `daily_fills.py` now gets input every rebalance (9 fills, +3.9 bps); (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work and whose headline item has just been re-priced: the Reg-T buffer now reads +1.209 / +1.655 CAR at budget 0.80 / 0.82 rather than +1.500 / +2.071, with the Sharpe argument six times weaker; then the runner's clock (-1.9 CAR, S-19) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-21 opened nothing and closed nothing that was open - it moved a number, and it is the third and last of the instrument audits that were available (spread S-17, clock S-19, financing S-21). **Two columns are now compulsory on any future daily-sleeve comparison**: the vol-matched one (S-20) whenever a cell changes realized volatility, and the financed one (S-21) whenever two cells carry *different amounts of leverage* - the second exists because the owner's own frontier was being judged on numbers that gave the borrowing away.
 

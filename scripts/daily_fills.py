@@ -57,7 +57,8 @@ def load_sessions() -> dict[str, list[dict]]:
             if not f or not f.get("avg_price"):
                 continue
             rows.append({"sym": sym, "action": o["action"], "qty": float(f["filled"]),
-                         "ref_price": float(o["ref_price"]), "fill": float(f["avg_price"])})
+                         "ref_price": float(o["ref_price"]), "fill": float(f["avg_price"]),
+                         "type": str(o.get("type", "MKT"))})
         if rows:
             out[path.stem] = rows
     return out
@@ -105,13 +106,21 @@ def main() -> int:
             open_d = float(opens[sym].iloc[i])            # what the backtest fills at
             prev_close = float(closes[sym].iloc[i - 1])   # the close the signal read
             notional = abs(r["qty"]) * r["fill"]
+            # S-23: the price the order aimed at depends on the order type. A 15:45 MKT or a
+            # MOC order aims at this session's close; a pre-open MOO order aims at this
+            # session's OPEN, which is also what the backtest fills at - so for MOO the
+            # execution and convention columns collapse onto each other, and that collapse
+            # is exactly what moving the task is supposed to buy.
+            otype = r.get("type", "MKT")
+            aim = open_d if otype == "MOO" else close_d
             records.append({
                 "date": day, "sym": sym, "action": r["action"], "qty": r["qty"],
+                "type": otype,
                 "notional": notional, "fill": r["fill"],
                 "signal_close": prev_close, "ref_price": r["ref_price"],
-                "bt_fill": open_d, "session_close": close_d,
+                "bt_fill": open_d, "session_close": close_d, "aim": aim,
                 # Positive = the fill was worse for the book than the reference.
-                "exec_bps": sgn * (r["fill"] / close_d - 1) * 1e4,
+                "exec_bps": sgn * (r["fill"] / aim - 1) * 1e4,
                 "conv_bps": sgn * (r["fill"] / open_d - 1) * 1e4,
             })
 
@@ -142,8 +151,16 @@ def main() -> int:
     cv = (df["conv_bps"] * w).sum() / w.sum()
     print(f"\n=== POOLED over {df['date'].nunique()} session(s), {n} fills, "
           f"${w.sum():,.0f} traded ===")
-    print(f"  execution vs the 15:45 close the runner aimed at   {ex:+.1f} bps "
+    print(f"  execution vs the auction the runner aimed at       {ex:+.1f} bps "
           f"(per-fill sd {df['exec_bps'].std():.1f}, se {df['exec_bps'].std() / n ** 0.5:.1f})")
+    if df["type"].nunique() > 1:
+        print("  by order type (S-23: the breakeven in BLOCKERS.md is an OPEN-minus-CLOSE "
+              "difference,\n  so the two rows below are what settles it):")
+        for ot, g in df.groupby("type"):
+            wg, ng = g["notional"], len(g)
+            print(f"    {ot:<5}{ng:>4} fills  ${wg.sum():>12,.0f}  "
+                  f"{(g['exec_bps'] * wg).sum() / wg.sum():+7.2f} bps  "
+                  f"se {g['exec_bps'].std() / ng ** 0.5:.2f}")
     print(f"  LEAN charges                                        0.0 bps of spread "
           f"(NullSlippageModel) -> price it with S1_SLIPPAGE_BPS")
     print(f"  convention: fill vs the backtest's D+1 open        {cv:+.1f} bps "

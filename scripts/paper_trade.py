@@ -14,6 +14,17 @@ Usage:
   python scripts/paper_trade.py                           # rebalance the paper account
   python scripts/paper_trade.py --flatten                 # close every position now
   python scripts/paper_trade.py --signal s1_momo          # override the champion
+  python scripts/paper_trade.py --order-type MOO          # PRE-OPEN: market-on-open orders
+
+Order types (S-23). The default MKT is what the 15:45 ET scheduled task sends and nothing
+about it changed. MOO exists so the runner can be moved to a pre-open slot and finally trade
+the backtest's own convention: LEAN decides on the last complete close and fills at the NEXT
+session's open, which is exactly what a pre-open run with market-on-open orders does, while
+the 15:45 path fills a whole session later (research/BLOCKERS.md, S-19/S-22: ~1.9 CAR points,
++1.85 on an honestly-costed book). IBKR expresses market-on-open as orderType MKT with
+tif OPG and rejects it outside 04:00-09:28 ET, so --order-type MOO refuses to run outside
+that window rather than having the exchange refuse the orders one at a time. Moving the
+scheduled task is the human's (AGENTS.md); this flag is the half the loop can supply.
 
 The signal module contract is algorithms/SIGNAL_CONTRACT.md. Fills and decisions are logged to
 live/log/YYYY-MM-DD.jsonl; the last run's targets go to live/state/last_run.json.
@@ -59,6 +70,11 @@ MIN_ORDER_VALUE = 0.01
 #: matches LEAN exactly; this only binds below ~$20k of net liquidation.
 MIN_NOTIONAL = 200.0
 FILL_WAIT_SECONDS = 90
+
+#: IBKR accepts an opening-auction order (tif OPG) only between 04:00 and 09:28 ET. Outside
+#: that window every order would be rejected individually, which would leave the book half
+#: rebalanced, so --order-type MOO checks the clock once, up front, and refuses.
+MOO_WINDOW_ET = (dt.time(4, 0), dt.time(9, 28))
 
 
 def log_event(kind: str, **fields) -> None:
@@ -274,6 +290,35 @@ def plan_orders(targets, positions, prices, net_liq, min_order_value=None):
     return plan
 
 
+def now_et() -> dt.datetime:
+    from zoneinfo import ZoneInfo
+    return dt.datetime.now(ZoneInfo("America/New_York"))
+
+
+def moo_window_ok(when: dt.datetime | None = None) -> bool:
+    """True when IBKR would accept a tif=OPG order (04:00-09:28 ET on a weekday)."""
+    when = when or now_et()
+    lo, hi = MOO_WINDOW_ET
+    return when.weekday() < 5 and lo <= when.time() <= hi
+
+
+def build_order(order_type: str, action: str, qty: int):
+    """One IBKR order object per supported --order-type.
+
+    MKT fills now, MOC at the closing auction, MOO at the opening auction. IBKR has no
+    "MOO" orderType: an opening-auction order is a plain MKT carrying tif="OPG", which is
+    also why it can only be submitted before 09:28 ET.
+    """
+    from ib_async import MarketOrder, Order
+    if order_type == "MKT":
+        return MarketOrder(action, qty)
+    if order_type == "MOC":
+        return Order(action=action, totalQuantity=qty, orderType="MOC", tif="DAY")
+    if order_type == "MOO":
+        return Order(action=action, totalQuantity=qty, orderType="MKT", tif="OPG")
+    raise ValueError(f"unsupported order type {order_type!r}")
+
+
 #: Hard ceiling on initial margin the runner will ever ask a paper account to post, as a
 #: fraction of net liquidation. The signal's own budget is 0.75 (backlog S-6); this is an
 #: independent backstop, so a signal bug that asked for size could not silently place it.
@@ -319,12 +364,28 @@ def main() -> int:
     ap.add_argument("--client-id", type=int, default=17)
     ap.add_argument("--history", choices=["yfinance", "ib"], default="yfinance",
                     help="history source for the signal (yfinance matches the backtest data)")
-    ap.add_argument("--order-type", choices=["MKT", "MOC"], default="MKT")
+    ap.add_argument("--order-type", choices=["MKT", "MOC", "MOO"], default="MKT",
+                    help="MKT fills now (the deployed 15:45 path), MOC at the closing auction, "
+                         "MOO at the next opening auction (pre-open runs only, 04:00-09:28 ET)")
+    ap.add_argument("--ignore-clock", action="store_true",
+                    help="skip the MOO submission-window check (testing only; IBKR still enforces it)")
     ap.add_argument("--dry-run", action="store_true", help="compute and print orders, send nothing")
     ap.add_argument("--mock", action="store_true", help="no IB connection; fake paper account for pipeline tests")
     ap.add_argument("--check", action="store_true", help="connect, print account summary and positions, exit")
     ap.add_argument("--flatten", action="store_true", help="close every position and exit")
     args = ap.parse_args()
+
+    # ---- clock gate (before the connection, so a mis-scheduled run costs nothing) -------
+    if args.order_type == "MOO" and not (args.ignore_clock or args.dry_run or args.mock):
+        et = now_et()
+        if not moo_window_ok(et):
+            lo, hi = MOO_WINDOW_ET
+            msg = (f"REFUSED: --order-type MOO needs a weekday between {lo:%H:%M} and {hi:%H:%M} ET "
+                   f"(IBKR rejects tif=OPG outside it); it is {et:%a %H:%M} ET. No orders sent.")
+            print(msg)
+            log_event("refused", reason="moo_window", now_et=et.isoformat(timespec="seconds"))
+            notify("paper_trade " + msg)
+            return 3
 
     # ---- connection -------------------------------------------------------------------
     ib = None
@@ -486,19 +547,24 @@ def main() -> int:
         contract = Stock(IB_SYMBOL_MAP.get(sym, sym), "SMART", "USD")
         ib.qualifyContracts(contract)
         action = "BUY" if delta > 0 else "SELL"
-        order = MarketOrder(action, abs(delta)) if args.order_type == "MKT" else Order(action=action, totalQuantity=abs(delta), orderType="MOC", tif="DAY")
+        order = build_order(args.order_type, action, abs(delta))
         trade = ib.placeOrder(contract, order)
         trades.append(trade)
         log_event("order", symbol=sym, action=action, qty=abs(delta), type=args.order_type, ref_price=px)
         print(f"sent {action} {abs(delta)} {sym} ({args.order_type})")
+    # MKT is expected to fill inside the wait; MOC and MOO fill at an auction that has not
+    # happened yet, so the run only confirms that the exchange accepted them.
     ib.sleep(FILL_WAIT_SECONDS if args.order_type == "MKT" else 5)
+    queued = args.order_type == "MOO"
     fill_lines = []
     for t in trades:
         st = t.orderStatus
-        log_event("fill", symbol=t.contract.symbol, status=st.status, filled=st.filled, remaining=st.remaining, avg_price=st.avgFillPrice)
+        log_event("fill", symbol=t.contract.symbol, status=st.status, filled=st.filled, remaining=st.remaining,
+                  avg_price=st.avgFillPrice, type=args.order_type)
         print(f"{t.contract.symbol}: {st.status} filled {st.filled} @ {st.avgFillPrice}")
         fill_lines.append(f"{t.contract.symbol} {st.status} {st.filled:g}@{st.avgFillPrice:.2f}" + (f" (rem {st.remaining:g})" if st.remaining else ""))
-    notify(plan_text + " | fills: " + ("; ".join(fill_lines) if fill_lines else "none"))
+    label = "queued for the open" if queued else "fills"
+    notify(plan_text + f" | {label}: " + ("; ".join(fill_lines) if fill_lines else "none"))
     ib.disconnect()
     return 0
 

@@ -93,6 +93,33 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   harness reports with all three costs switched off. The deployed book's honest expectation is
   **~20%** (19.95% at historical rates, 19.42% at today's), and `champion.json` now records that
   beside the headline. `ref_price` has now matched the previous close in **10 of 10** paper fills.
+- **Update 2026-09-11 (S-23): the loop's half is written, and the move now has a breakeven instead
+  of an assumption. The ask is down to one line.**
+  - **Written and verified**: `scripts/paper_trade.py --order-type MOO` sends the opening-auction
+    order IBKR actually accepts (a `MKT` carrying `tif="OPG"`), and because IBKR rejects `OPG`
+    outside **04:00-09:28 ET** - one order at a time, which would leave the book half rebalanced -
+    it **checks the clock before it connects and refuses** with exit 3. Proved live at 17:51 ET.
+    `MKT` is still the default, so the 15:45 task is byte-for-byte unchanged in behaviour; the
+    `--mock --dry-run` plan is identical and `compare_orders.py` passes **3,689/3,689 at 5,021
+    orders**. **Nothing has been scheduled and no task was touched.** When you are ready:
+    move "Quant Paper Rebalance" to any weekday time before 09:28 ET and append `--order-type MOO`
+    to its command line. That is the whole change.
+  - **The payoff is unchanged and now has an error bar and a breakeven.** Both books fully charged
+    (2 bp spread + IBKR Pro financing), today's cost of money, LEAN units: deployed **19.416%** ->
+    pre-open **21.260%**, i.e. **+1.844 CAR points** (+1.875 at historical rates), paired **+0.601
+    bps/day at t +1.42** on 3,689 sessions - so, as with S-19, **nothing here reaches |t| = 2**. The
+    gain is out-of-sample weighted more than three to one (IS +0.93, OOS +3.16).
+  - **The assumption nobody had charged**: every version of the +1.85 assumed the opening auction
+    fills as cheaply as the closing one. Solved for indifference, **the opening auction may cost up
+    to 3.10 bps MORE than the closing auction before the move stops paying**. For scale your live
+    15:45 market orders measure **+3.2 bps** against the close they aim at. The only evidence
+    available on the other side is a proxy - Alpaca minute bars have no quotes - and it says the
+    **opening minute is 1.0x to 2.0x as wide as the closing minute** (SPY 1.04, QQQ 1.54, IWM 2.00,
+    TQQQ 1.61) on 2,687 sessions. At the 2.0x end the move is a wash rather than a gain. **The
+    recommendation is still to make the move** - the defect is certain while its price tag is not -
+    but it is now an informed call rather than a free one, and `daily_fills.py` has been extended to
+    score MOO fills against the **open** they aim at, so the first post-move session measures
+    whether the 1.85 was collected.
 
 ## Open ops item for the human (2026-09-11, live alerting is dead)
 

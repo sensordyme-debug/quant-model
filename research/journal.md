@@ -1,5 +1,126 @@
 # Research journal
 
+## 2026-09-11 - S-23: the pre-open MOO path is written and verified, and the move it buys survives up to 3.1 bps of extra opening-auction cost
+
+**Hypothesis.** `BLOCKERS.md` has asked the owner since S-17 to move the daily task to a
+pre-open slot, and S-22 priced the move at **+1.85 CAR points** on an honestly-costed book.
+Two things were missing and neither is a strategy question. **(1) The loop's half of the
+request was never written**: the page promises "say the word and the loop will write the
+`--order-type` OPG/MOO support", so the owner has been asked to schedule a run that the
+runner could not have executed. **(2) Every version of the +1.85 assumes the opening
+auction fills at the same price as the closing one**, which is the one assumption a
+reasonable person pushes on - the closing cross is the deepest print of the US day and the
+opening cross is not. So the decision-shaped question is not "what is the move worth", it
+is **"how much more than the closing auction would the opening auction have to cost before
+the move stops paying"**. That has the same units as `daily_fills.py` measures on live
+fills, which turns an unfalsifiable worry into something the next fifty fills settle.
+
+**Pre-registered before the sweep ran.** (1) Not a candidate and not promotable: both cells
+are the *same* strategy at a different fill, so the winner is known in advance and only its
+margin is in question; `evaluate.py` is not the judge. (2) The deployed default must not
+move - MKT stays the default, the 15:45 task keeps behaving exactly as it does today, and
+the I-1 gate must still pass at 3,689/3,689 and 5,021 orders or the code change is reverted.
+(3) The breakeven is reported against the *measured* live execution cost, not against zero.
+
+**What was built.**
+- `scripts/paper_trade.py`: `--order-type MOO`. IBKR has no "MOO" order type - an
+  opening-auction order is a plain `MKT` carrying `tif="OPG"` - so the three supported types
+  now go through one `build_order()` helper. Because IBKR rejects `OPG` outside 04:00-09:28
+  ET, and rejecting them one at a time would leave the book half rebalanced, `--order-type
+  MOO` checks the clock **once, before connecting**, and refuses with exit 3. Verified live:
+  at 17:51 ET it printed `REFUSED: --order-type MOO needs a weekday between 04:00 and 09:28
+  ET ... it is Fri 17:51 ET. No orders sent.` without opening a socket. `--ignore-clock` is
+  there for testing only. MOO and MOC fills are also no longer waited on - they settle at an
+  auction that has not happened yet, so the run confirms acceptance and says "queued for the
+  open" rather than reporting a fill of zero.
+- `scripts/daily_fills.py`: a fill's reference price now depends on the order type it came
+  from. A 15:45 MKT aims at that session's close; **a pre-open MOO aims at that session's
+  open, which is also what the backtest fills at**, so for MOO the execution column and the
+  convention column collapse onto each other - and that collapse is precisely what the task
+  move is meant to buy. Once both types are present the pooled block prints them separately,
+  because the breakeven below is an open-minus-close difference.
+- `scripts/sweep_s23.py`: both conventions through S-19's share-level book with S-22's
+  financing hook, halves, the paired statistic, the breakeven solve, and a minute-store
+  liquidity read. **4 ledger rows** under `daily/s23_preopen`.
+
+**(1) What the move is worth, both books fully charged** (2 bp spread + IBKR Pro financing,
+3,689 sessions, book units; add **+0.314** for LEAN units, the S-22 offset):
+
+| financing | convention | CAR% | Sharpe | MaxDD% | orders | fees | interest |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| historical (`usd_benchmark`) | deployed 15:45 MKT | 19.640 | 1.047 | 24.04 | 5,054 | $19,121 | -$86,303 |
+| historical | **pre-open MOO** | **21.515** | 1.136 | 24.33 | 5,048 | $20,902 | -$100,823 |
+| today's 3.63% (`usd_flat_2026`) | deployed 15:45 MKT | 19.102 | 1.023 | 24.06 | 5,056 | $18,141 | -$85,514 |
+| today's 3.63% | **pre-open MOO** | **20.946** | 1.111 | 24.67 | 5,045 | $19,754 | -$96,895 |
+
+**+1.875 CAR points at historical rates and +1.844 at today's**, which reproduces S-22's
++1.85 on an independent path, and the deployed row lands on S-22's own 19.640 to the digit.
+**Say the error bar out loud**: paired **+0.609 bps/day at t +1.44** (and +0.601 at t +1.42),
+so this still does not reach |t| = 2 on 3,689 sessions - the same thing S-19 said. The
+reason to make the change is that the *defect* is certain (`ref_price` has been the previous
+close in 10 of 10 paper fills) and not that 1.9 points are measured with confidence. The
+gain is **out-of-sample weighted more than three to one**: IS 2012-2019 **+0.963** (15.280
+against 14.317), OOS 2020-2026 **+3.222** (29.189 against 25.967). It also costs a little
+risk, unlike the clock alone: drawdown 24.33 against 24.04, and the book finances more
+(-$100.8k against -$86.3k) because an earlier fill carries the position one session longer.
+
+**(2) The number this iteration exists for.** Charging the opening auction a surcharge over
+the closing one and solving for indifference: **the opening auction may cost up to 3.10 bps
+MORE than the closing auction (2 -> 5.10 bp all-in) before the move stops paying**, and 3.07
+bps at today's cost of money. For scale, the deployed 15:45 market orders measure **+3.2 bps
+against the close they aim at** (`daily_fills.py`, 10 fills, se 4.5) and a half-cent tick on
+this sleeve is 0.27-0.77 bps (S-17). **So the opening auction would have to be roughly twice
+as expensive as the closing one for the move to be a wash.**
+
+**(3) Is it? The one read the data supports, labelled as a proxy.** Alpaca SIP minute bars
+carry no quotes, so the auction spread is not observable here; what is observable is how
+much of the day trades in the first minute against the last, and how wide those minutes are:
+
+| symbol | sessions | open minute, % of day's volume | close minute | open range bps | close range bps | ratio |
+| --- | --- | --- | --- | --- | --- | --- |
+| SPY | 2,687 | 1.22 | 3.46 | 10.67 | 10.29 | 1.04 |
+| QQQ | 2,687 | 1.78 | 2.49 | 16.43 | 10.66 | 1.54 |
+| IWM | 2,687 | 1.36 | 2.75 | 21.75 | 10.86 | **2.00** |
+| TQQQ | 2,687 | 1.98 | 1.11 | 48.55 | 30.23 | 1.61 |
+
+The open is thinner and wider in every name, by **1.0x to 2.0x**, and IWM - which the book
+holds today - is the worst of the three sleeve names in the store. Read against a 3.2 bps
+measured execution cost, a 2.0x opening auction would cost **+3.2 bps extra against a 3.10
+bps breakeven**: the move would be a wash rather than a loss. **That is the honest
+conclusion and it is not the comfortable one.** The proxy overstates the risk - a minute's
+high-low range is continuous trading, while an MOO order fills in the opening *cross*, a
+single crossing whose price is not the first minute's range - but the margin is thinner than
+the +1.85 alone suggests, and this is the first time anyone has put a number on the other
+side of the trade.
+
+**(4) Nothing shipped, nothing promoted, no default changed.** `--order-type` still defaults
+to `MKT`; the `--mock --dry-run` plan is identical to before the change (XLE/XLK/IWM at
+1.50x gross, margin 0.75, as of 2026-09-10); the **I-1 gate passes 3,689/3,689 at 5,021
+orders on both sides**; `champion.json`, `live/APPROVED_PAPER.md`, `live/HALT*`,
+`live/intraday_config.json` and all three scheduled tasks are untouched; `signals.py` and
+`main.py` were not modified, so the intraday sleeve's replay rule owes nothing here. The only
+write into `live/` was the runner's own refusal log line from the clock-gate test.
+
+**Standing jobs both ran first and both had no new input** (17:3x ET, after today's close but
+after the S-22 iteration had already pooled today's session): A-5 part 2 unchanged at 66
+fills / +2.22 bps / se 0.80 / |diff|/se 0.90 (~4.4 sessions to settle), `daily_fills.py`
+unchanged at 10 fills / $2.37M / **+3.2 bps (se 4.5)** with `ref_price` the previous close in
+10 of 10.
+
+**Decision.** The request to the owner stands and is now a *one-line* request: move "Quant
+Paper Rebalance" to before 09:28 ET and add `--order-type MOO`. The loop's half is written,
+clock-guarded and gated. **What changed in the case for it**: the payoff is unchanged at
++1.85, but it is no longer quoted against an assumption - it survives up to 3.1 bps of extra
+opening-auction cost, and the only evidence available says the opening minute is 1.0-2.0x as
+wide as the closing one, so the margin is real but thin. **What settles it is live fills,
+not another backtest**: `daily_fills.py` now measures MOO fills against the open they aim at,
+so the first session after the move produces the number that decides whether the +1.85 was
+collected.
+
+**Next.** Nothing on the daily sleeve is unblocked that is not an owner decision. The two
+standing measurements continue (A-5 part 2 ~4.4 sessions out), and F-2 still needs data the
+human must buy.
+
 ## 2026-09-11 - S-22: the three instrument corrections charged together, and the first honest expectation for the deployed daily book
 
 **Hypothesis.** S-17 (no spread), S-19 (the runner's clock) and S-21 (no financing) each
