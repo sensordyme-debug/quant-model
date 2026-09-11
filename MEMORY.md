@@ -3,6 +3,28 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## Split the universe by executability, not only the sample by time (learned 2026-09-11, A-11)
+
+- **Run the holdout across names, not just across dates.** A-11 split the intraday universe into
+  the 8 names whose orders are a believable share of their fill minute (8.8% of notional above 5%
+  of the minute) and the 8 whose are not (45.8%). Over 2,684 sessions they score -$195/day at
+  **t = -1.89** and -$164 at -0.83 - but on the 261-session window every A-track parameter was
+  fitted to, the liquid half earns **-$102/day and the illiquid half +$361/day**. **The sleeve's
+  only profitable window in eleven years was entirely in the fills that cannot happen.** Whenever a
+  book's edge is concentrated in its least liquid names, split the universe by participation and
+  re-read the result before anything else.
+- **An execution-realism cap is a diagnostic, not a lever, and it can only answer one question.**
+  Clipping every order to 10% of the trailing median volume of its fill minute refused $4.78M/day
+  of intended notional over 213,338 orders and moved the book **-$5/day (t = -0.25)**, of which
+  +$10/day was the added commission of slicing - i.e. **implied Δgross +$5: the impossible fills
+  carried no gross at all.** Ask "what does the book earn when the impossible fills are gone", size
+  the answer against the added slicing cost, and then leave the cap off; tightening it to 0.02
+  only buys 207 trades/day and $62/day of commission.
+- **Check that a store adjusts volume as well as price before believing any participation ratio.**
+  The Alpaca store does: SMCI 2016-01-04 is 4.34M adjusted shares at $2.39, i.e. 434k real shares
+  at $23.88, so adjusted-shares / adjusted-volume is the real ratio. If it adjusted only price,
+  every participation number would be inflated by the split factor (40x on NVDA, 15x on SOXL).
+
 ## Forecast vs surprise: why the regime gate failed (learned 2026-09-10, O-1)
 
 - **Decompose a regressor into forecast and surprise before building a gate on it.** The intraday
