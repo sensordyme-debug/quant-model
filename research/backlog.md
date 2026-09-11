@@ -17,6 +17,40 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 09:3x UTC (S-2): **the index-ETF opening-range breakout is refused before the
+LEAN build, and the thing that made it look profitable is the stop, not the signal.** S-2 has been
+open since 2026-09-08 and was the last research item on the backlog with a stated mechanism that
+is not parked, an owner question or infrastructure. Fetched SPY/QQQ/IWM from Alpaca SIP
+(2016-01-04..2026-09-10, ~1.046M bars each; the store is now 63 symbols), built the event study
+(`scripts/sweep_s2.py`) and confirmed it through the shipped harness; 3 ledger rows under
+`intraday/orb`. **Stage 1, 2,687 sessions with nothing fitted, 16 breakout cells and their 16 fade
+controls: 0 of 16 pass** the pre-registered rule and every cell loses - the best on net is
+`orb15 mid e120` at **gross +2.11 bps/trip against a 3.65 bps round trip, net -1.54, -$113/day,
+t -1.64**. **The finding is the symmetry**: the fade earns positive gross too, in **14 of 16
+cells**, so gross splits into the part a signal owns, `(brk - fade)/2`, and the part both signs
+share, `(brk + fade)/2`. The shared part is **positive in all sixteen cells (+0.33 to +1.43 bps)**
+and is pure stop convexity - a stop plus a hold-to-close exit is convex in either direction, so a
+coin flip collects it - while **the largest directional edge anywhere is +1.09 bps against 3.65
+bps of cost (0.30x), and in 6 of 16 cells it is negative.** TQQQ, the leveraged read, is worse:
+cost **4.85 bps**, 0 of 8, and in its best cell the breakout earns **+$33.78/day against its own
+fade's +$33.79** - no direction left at all. **Stage 2 through the deployed framework** (shipped
+ORB module, `--symbols SPY QQQ IWM`, 0.36x gross on $1M): **-$186 / -$211 / -$39 per day by
+regime, 0 of 3**, and backing out costs, **+$11/day of gross over eleven years against $171/day
+paid to collect it**. Stage 1's one optimism - closing an untouched trip at the last minute bar
+rather than the auction - only helps the strategy, so the LEAN build S-2 asks for could only make
+this worse. **Refused and closed; nothing shipped**; the only behaviour change is a research-store
+fix (`alpaca_data.py --splits` **merged** instead of replacing - a bare run used to silently
+rewrite the 60-symbol split table as 16 symbols over a 2024+ window, re-introducing the exact
+cost-model defect A-10 fixed; all 60 pre-existing factors verified byte-identical). `live/` and
+the scheduled tasks untouched; the rule-(a) replay of 2026-09-08 with the exact deployed config
+reproduces the sleeve to the digit (34 trades, 368 decisions, flat, P&L -2,302 on 500k). Champion
+unchanged at S-12. A-5 part 2 ran first as the standing job and **had no new input** (still one
+session: 2026-09-10, 32 fills, +2.89 bps, se 1.33 vs the shipped 1.50, |diff|/se 1.05, ~6.8
+sessions to settle it) because this ran at 04:3x ET, before the open. **The backlog now holds no
+open research item with a stated mechanism**: A-8 is parked by A-4's power calculation, A-3 is
+settled by A-10, D-2b and E-2b are infrastructure, and S-5 needs two sleeves with positive
+expected return where there is one. Everything that remains is an owner decision in `BLOCKERS.md`.
+
 Status 2026-09-11 08:3x UTC (A-11): **the impossible fills are real, four times larger than the
 IBKR window showed, and they are not load-bearing - and the half of the universe whose fills *are*
 real is the half that never made money.** A-5 flagged the sleeve's participation as a cost-model
@@ -569,6 +603,13 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
+**2026-09-11 (S-2): the backlog now holds no open research item with a stated mechanism.** A-12,
+A-11 and S-2 closed the last three. What remains under "Open" is parked (A-8, by A-4's power
+calculation), settled elsewhere (A-3, by A-10), infrastructure (D-2b, E-2b), a standing
+per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on a second positive
+sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
+`BLOCKERS.md`**, not a missing idea.
+
 **Owner instruction 2026-09-10 (midday) - the list is now exhausted, 2026-09-10 20:4x UTC.**
 O-1, O-1b, L-1, X-1 and O-2 have each been measured on the full history and each refused. Nothing
 in this repository reaches 3-10%/day: the closest candidate, O-2, needs 3.9x equity at risk per
@@ -1009,15 +1050,37 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   Budget ~40 minutes of wall clock per symbol-decade; IBKR serves ~260-790 bars/s and that is
   the binding constraint, not pacing. Run it in the background of another iteration rather
   than spending a whole iteration on it.
-- **S-2 Opening-range breakout (LEAN sleeve; unblocked for SPY 2026-09-09).** Intraday on
-  SPY first, then QQQ/IWM as D-2b delivers them. Enter on a break of the first 15-30 minute
-  range with ATR stops, scale out into strength, flat at close. Hypothesis: high-frequency
-  small edges compound into volatile but positive equity. Judge with the same IS/OOS split
-  and the promotion rules; it is a *second sleeve*, so record its correlation with the
-  champion's daily returns as a first-class metric. **Model the 16:00 closing auction**: D-2
-  measured the daily close diverging from the last 1-minute bar by up to ~1% on violent days,
-  so a close-flat rule that assumes a 15:59 fill books P&L that does not exist. Cross-check
-  against the A-track harness before promoting either.
+- **S-2 DONE 2026-09-11 (see journal): the index-ETF opening-range breakout carries +1.09 bps of
+  directional edge at most against a 3.65 bps round trip, and most of its apparent gross belongs
+  to the stop, not the signal. Refused, nothing shipped, and the LEAN build was not owed.**
+  Fetched SPY/QQQ/IWM from Alpaca SIP (2016-01-04..2026-09-10, ~1.046M bars each; the store is
+  now 63 symbols) and built `scripts/sweep_s2.py`. **Stage 1, 2,687 sessions, 16 breakout cells
+  and their 16 fade controls, nothing fitted: 0 of 16 pass** - best on net `orb15 mid e120`,
+  gross +2.11 bps/trip, cost 3.65, net **-1.54**, -$113/day at t -1.64. **The keeper is the
+  decomposition**: the fade earns positive gross in **14 of 16 cells**, so
+  `(brk + fade)/2` - positive in **all sixteen**, +0.33 to +1.43 bps - is stop convexity that a
+  coin flip collects, and only `(brk - fade)/2` belongs to the signal: **max +1.09 bps (0.30x
+  cost), negative in 6 of 16 cells.** Any ORB study that reports gross without its own fade
+  control is reporting this artifact. TQQQ (the leveraged read, 8 cells): cost **4.85 bps**, 0 of
+  8, and in its best cell breakout **+$33.78/day** against fade **+$33.79** - identical, i.e. no
+  direction at all - while its widest cell runs +$225 / +$95 / -$396 across the three regimes.
+  **Stage 2**, the shipped ORB module through the deployed framework (`--symbols SPY QQQ IWM`,
+  0.36x gross on $1M, 3 ledger rows): **-$186 / -$211 / -$39 per day, 0 of 3 regimes**, i.e.
+  **+$11/day of gross over eleven years against $171/day of costs**, with gross negative in two
+  regimes separately. **Do not re-open as a range-length, stop, entry-window, symbol or
+  resolution question** - the grid spans the first four and the negative is on gross, in both
+  signs, through two independent instruments. The one thing not tested and not on this backlog is
+  a breakout held **longer than a session**; everything here pays a round trip every day. Stage
+  1's only optimism (closing an untouched trip at the last minute bar instead of the auction)
+  favours the strategy, so modelling the 16:00 auction in LEAN - what this item asked for - could
+  only make it worse, which is why no LEAN run was owed. On the mandate: daily P&L sd is
+  0.13-0.20% of equity at 0.36x gross, ~0.5% at 1x, alongside L-1's 0.49% and X-1's 0.27%. Kept
+  for the record, the original item: intraday on SPY first, then QQQ/IWM as D-2b delivers them;
+  enter on a break of the first 15-30 minute range with ATR stops, scale out into strength, flat
+  at close; judge with the same IS/OOS split and the promotion rules, recording correlation with
+  the champion's daily returns as a first-class metric; **model the 16:00 closing auction**,
+  because D-2 measured the daily close diverging from the last 1-minute bar by up to ~1% on
+  violent days.
 - **S-5 Allocator.** Route capital across S-1, S-2 and any future sleeve by trailing 60-day
   Sharpe with a floor per sleeve. Scaffold now against the S-1 and S-3 return series.
 - **I-1 IBKR paper runner: DONE 2026-09-09, paper trading approved and scheduled.**

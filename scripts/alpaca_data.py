@@ -150,7 +150,17 @@ def write_splits(symbols, start: dt.date, headers: dict, feed: str) -> dict:
     once raw, once split-adjusted - gives that factor exactly, with no split table to maintain.
     Dividends are left raw in both series, so the ratio is pure split.
     """
-    out = {}
+    # Merge, never replace. This file is the cost model's split table for the WHOLE store, but
+    # `symbols` defaults to the 16-name UNIVERSE and `--start` to 2024-01-01, so a bare
+    # `--splits` used to silently rewrite a 60-symbol table as 16 symbols measured over two
+    # years - every dropped name then costs at scale 1.0 and a per-share commission reads up to
+    # 40x wrong with nothing to show for it. Only the symbols actually re-derived here move.
+    p = DATA_DIR / SPLITS_FILE
+    try:
+        out = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    except Exception:  # noqa: BLE001 - a corrupt table must not be silently half-kept
+        out = {}
+    kept = len(out)
     for s in symbols:
         raw = _daily_closes(s, start, headers, feed, "raw")
         adj = _daily_closes(s, start, headers, feed, "split")
@@ -177,9 +187,9 @@ def write_splits(symbols, start: dt.date, headers: dict, feed: str) -> dict:
         changes = [f"{d}:{f:g}" for d, f in segs[1:]]
         print(f"  {s:<6} factor {segs[0][1]:g} at {segs[0][0]} -> {segs[-1][1]:g} today; "
               f"{len(segs) - 1} split(s){': ' + ', '.join(changes) if changes else ''}", flush=True)
-    p = DATA_DIR / SPLITS_FILE
-    p.write_text(json.dumps(out, indent=1), encoding="utf-8")
-    print(f"wrote {p} ({len(out)} symbols)")
+    p.write_text(json.dumps(dict(sorted(out.items())), indent=1), encoding="utf-8")
+    print(f"wrote {p} ({len(out)} symbols; {kept} were already there, "
+          f"{len(symbols)} re-derived from {start})")
     return out
 
 

@@ -2,6 +2,143 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - S-2: the index-ETF opening-range breakout, and the stop that makes both signs look profitable
+
+- **What.** S-2 has been on the backlog since 2026-09-08 and was unblocked for SPY on 2026-09-09:
+  an opening-range breakout as a **second sleeve** on SPY/QQQ/IWM, with TQQQ as the leveraged
+  read. It is the last open research item in the repository that is not parked, an owner
+  question, or infrastructure. The A-track already measured an ORB on sixteen single names at
+  -$331/day, so the question here is narrow: the index ETFs are a **different universe** - an
+  order of magnitude more liquid, a high enough share price that IBKR's per-share commission is
+  near-invisible (the measured round trip here is **3.65 bps**, of which 3.0 is slippage, against
+  the A-track universe's 4.70), no single-name event risk - and they are the only intraday
+  instruments the daily champion could plausibly share.
+- **Two stages, the cheap one first**, which is the standing lesson from L-1, X-1 and O-2:
+  measure the mechanism on the whole history with nothing fitted, and build the expensive
+  harness only if gross clears the cost floor. New `scripts/sweep_s2.py` is the event study;
+  stage 2 is the **shipped ORB module through the deployed framework** (`intraday_backtest.py
+  --strategy orb --symbols SPY QQQ IWM`), one run per regime, three ledger rows under
+  `intraday/orb`. Data: SPY/QQQ/IWM fetched here from Alpaca SIP (2016-01-04..2026-09-10,
+  ~1.046M bars each; the store is now 63 symbols).
+- **The decision rule was fixed before the runs**: a cell passes only if the per-session net $
+  series is positive at **t > 2 in at least two of the three a-priori regimes** (2016-2019 /
+  2020-2023 / 2024-2026), and only if its own fade control does not also pass.
+
+### 1. A landmine found on the way in, and fixed
+
+`alpaca_data.py --splits` **replaced** the store's split table with only the symbols passed, and
+`--symbols` defaults to the 16-name UNIVERSE while `--start` defaults to 2024-01-01. A bare
+`python scripts/alpaca_data.py --splits` therefore rewrites a 60-symbol table as 16 symbols
+measured over two years, and every dropped name then costs at `share_scale` 1.0 - which is the
+exact defect A-10 spent an iteration fixing, worth up to 40x on the per-share commission, and it
+would have been silent. `write_splits()` now **merges** into the existing file and prints how many
+entries it kept against how many it re-derived. Verified: the table is 63 symbols, SPY/QQQ/IWM all
+factor 1.0 (no splits in the sample, as expected for these three), and **all 60 pre-existing
+factors are byte-identical** to the pre-run backup.
+
+### 2. Stage 1: the mechanism, 2,687 sessions, nothing fitted
+
+Opening range = the first `orb_min` minutes; a breakout is a bar whose **close** is beyond the
+range and the fill is the **next bar's open** (the harness's causal convention); stop is one
+range ('opp') or half a range ('mid') from the fill; otherwise the trip is closed on the last bar
+of the session. One trip per session per symbol. $250,000 a trip, shipped costs.
+
+**0 of 16 breakout cells pass, and every one of them loses money:**
+
+| best four cells, net | trips/day | gross bps/trip | cost | net bps/trip | $/day all | t |
+| --- | --- | --- | --- | --- | --- | --- |
+| orb15 mid e120 | 2.94 | +2.11 | 3.65 | **-1.54** | -113 | -1.64 |
+| orb60 mid e120 | 2.15 | +1.76 | 3.65 | -1.89 | -101 | -1.57 |
+| orb15 opp e120 | 2.94 | +1.43 | 3.65 | -2.22 | -163 | -1.89 |
+| orb30 mid e120 | 2.78 | +1.16 | 3.65 | -2.49 | -173 | -2.51 |
+
+**The finding is why the gross looked positive.** Run the same machinery on the *fade* - the
+falsification control - and it earns positive gross too, in **14 of 16 cells**. Both signs cannot
+own a directional edge, so the gross splits into a part the signal owns, `(breakout - fade)/2`,
+and a part both signs share, `(breakout + fade)/2`:
+
+| | gross brk | gross fade | **directional edge** | stop convexity | cost/trip |
+| --- | --- | --- | --- | --- | --- |
+| orb15 mid e120 | +2.11 | +0.76 | **+0.67** | +1.43 | 3.65 |
+| orb60 mid e120 | +1.76 | -0.42 | **+1.09** | +0.67 | 3.65 |
+| orb5 opp e120 | +0.53 | +1.05 | **-0.26** | +0.79 | 3.65 |
+| orb30 opp e390 | +0.43 | +0.97 | **-0.27** | +0.70 | 3.65 |
+
+The shared part is **positive in all sixteen cells** (+0.33 to +1.43 bps) and it is not edge: a
+stop plus a hold-to-close exit is convex in either direction, so a coin flip collects it, and it
+is the reason a naive ORB study reports a "+2 bps" gross that no signal produced. **The largest
+directional edge anywhere in the grid is +1.09 bps against a 3.65 bps round trip - 0.30x - and in
+6 of 16 cells it is negative**, i.e. the fade beats the breakout. That is X-1's verdict on a
+different instrument: the effect is real, tiny, and an order of magnitude under the cost floor.
+
+**TQQQ, the leveraged read (8 cells): 0 of 8 pass, and the direction disappears entirely.** Cost
+is **4.85 bps** a round trip, not 3.65, because the same per-share commission is charged on a much
+lower share price. In the best cell the breakout earns **+$33.78/day and its own fade
++$33.79/day** - identical to the cent, so there is nothing directional left at all - and the
+cell with the largest separation, `orb30 opp`, runs **+$225 / +$95 / -$396** across the three
+regimes. Leverage supplies volatility here, not edge, which is exactly what L-1 measured.
+
+### 3. Stage 2: the same thing through the shipped harness
+
+The deployed ORB module (volume filter, midpoint stop, two entries a side, time stop, the daily
+loss limit and the 15:38 flatten), `--symbols SPY QQQ IWM`, `weight` 0.12 x 3 names = **0.36x
+gross on a $1M book**:
+
+| regime | sessions | $/day | Sharpe | trades/day | costs/day | turnover/day | **implied gross/day** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2016-2019 | 1,006 | **-186** | -2.14 | 8.8 | 179 | 0.94x | -7 |
+| 2020-2023 | 1,006 | **-211** | -1.67 | 8.5 | 157 | 0.88x | -54 |
+| 2024-2026 | 675 | **-39** | -0.35 | 8.6 | 175 | 1.01x | +136 |
+| **all** | **2,687** | **-158** | | 8.6 | 171 | | **+11** |
+
+**0 of 3 regimes.** Backing the costs out is the cleanest statement this iteration produces:
+over eleven years the index-ETF ORB generates **+$11/day of gross on a $1M book and pays $171/day
+to collect it**, and the gross is negative in two of the three regimes separately. The two
+instruments agree in sign and in magnitude once the different book sizes are lined up (the event
+study's -$113/day at 0.75x gross scales to -$54/day at 0.36x against the harness's -$158; the
+harness is the more negative because it takes 8.6 trips a day where the event study takes 3.0),
+so no harness reconciliation is owed beyond this.
+
+**Stage 1's known optimism only helps the strategy.** It closes an untouched trip at the last
+minute bar, and D-2 measured the daily close diverging from that bar by up to ~1% on violent days
+because the close is the auction print. Modelling the auction with a market-on-close order - the
+thing backlog S-2 specifically asks for in LEAN - can only make these numbers worse, which is why
+the refusal does not need the LEAN build.
+
+### 4. Decision
+
+**Refused and closed; nothing shipped.** No file the live trader or the daily runner loads was
+touched. The only behaviour change anywhere is `alpaca_data.py --splits` merging instead of
+replacing, which is a research-store fix that makes a silent cost-model regression impossible;
+`live/intraday_config.json`, `live/APPROVED_PAPER.md`, `live/HALT*` and the scheduled tasks are
+untouched, and the rule-(a) replay of 2026-09-08 with the exact deployed config reproduces the
+sleeve to the digit: **34 trades, 368 decisions, flat at close, P&L -2,302 on 500k**. Champion
+unchanged at S-12.
+
+**Do not re-open S-2 as a range-length, stop, entry-window, symbol or resolution question** - the
+grid spans the first four and the negative is on *gross*, in both signs, on 2,687 sessions and
+through two independent instruments. What would be a different question, and is not on the
+backlog, is a breakout with a **holding period longer than a session**; everything measured here
+is about a book that must pay a round trip every day.
+
+**On the mandate.** Daily P&L standard deviation is **$1,339-$1,954 on a $1M book at 0.36x
+gross**, i.e. 0.13-0.20% of equity, or roughly 0.5% at 1x. Like L-1 (0.49%) and X-1 (0.27%) this
+is two orders of magnitude short of the owner's 3-10%/day, before the sign is even considered.
+
+**A-5 part 2 ran first, as the standing job, and had no new input**: `slippage_report.py` still
+finds exactly one session with live intraday fills (2026-09-10, 32 fills, $1.87M, **+2.89 bps
+notional-weighted, se 1.33** against the shipped 1.50; |diff|/se = 1.05, so `SLIPPAGE_BPS` was not
+touched), because this ran at 04:3x ET, before today's open. ~6.8 more sessions settle it. Note
+for whoever runs it next: it needs plain `python`, not `py -3.11` - the LEAN-side 3.11 has no
+pyarrow and the script reads the parquet store.
+
+**What is left.** With S-2 refused, the backlog holds no open research item with a stated
+mechanism: A-8 is parked by A-4's power calculation, A-3 is settled by A-10, D-2b and E-2b are
+infrastructure, and S-5 (the allocator) needs two sleeves with positive expected return and there
+is one. Every remaining lever in this repository is an **owner decision** in `BLOCKERS.md` - the
+`equity_frac` question on the intraday sleeve, `margin_budget` on the daily champion, the 35%
+drawdown cap, and the dead alert channel.
+
 ## 2026-09-11 - A-11: the impossible fills are real, and they are not load-bearing
 
 - **What.** A-5 measured that the sleeve's orders are **median 1.03%, p90 5.55%, p99 26.1% and at
