@@ -143,6 +143,16 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             iv_scale_window=_env("IV_SCALE_WINDOW", 60, int),
             iv_scale_min=_env("IV_SCALE_MIN", 0.5),
             iv_scale_max=_env("IV_SCALE_MAX", 1.5),
+            # S-20: what the book holds while the regime gate is pulled. Empty is the
+            # champion (the off-state is cash) and reproduces OrderListHash
+            # a6d6224ce9c70091e5bfa8e96f046bf3. S1_RISK_OFF_SLEEVE is a comma list of
+            # tickers that must exist in the daily store; they are added to the subscribed
+            # universe automatically by signals.traded_universe.
+            risk_off_sleeve=tuple(x.strip().upper() for x in
+                                  os.environ.get("S1_RISK_OFF_SLEEVE", "").split(",")
+                                  if x.strip()),
+            risk_off_top_n=_env("RISK_OFF_TOP_N", 1, int),
+            risk_off_exposure=_env("RISK_OFF_EXPOSURE", 1.0),
         )
 
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)

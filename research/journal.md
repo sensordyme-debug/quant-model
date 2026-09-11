@@ -1,5 +1,143 @@
 # Research journal
 
+## 2026-09-11 - S-20: the regime gate's off-state does not want to be a defensive holding, and the reason is the one every other lever on this sleeve gave
+
+- **What.** The backlog holds no open research item that is not blocked on the owner or on
+  data the human must buy, so this iteration took the one thing on the daily sleeve that is
+  neither a ranker lever nor a risk-posture parameter: `risk_on` has switched the whole book
+  off in a volatility crisis since S-1, and it has only ever had **one** off-state, cash.
+  S-15 priced the switch itself and it stays (turning it off earns +2.02 CAR and costs 6.3
+  points of drawdown - it is a drawdown instrument). S-20 asks a different question: same
+  gate, same trigger, something else held while it is pulled. New `scripts/sweep_s20.py`
+  (`--probe`, `--report`) and `scripts/_s20_runs.sh`; three parameters on the shipped
+  algorithm, all defaulting to the champion (`risk_off_sleeve` empty, `risk_off_top_n`,
+  `risk_off_exposure`) with matching `S1_RISK_OFF_*` overrides; **9 ledger rows**.
+  Nothing shipped, nothing promoted.
+- **Pre-registered before any LEAN cell ran**, and written into `_s20_runs.sh` at the top:
+  the primary cell is the shipped momentum ranking run over a three-name defensive sleeve
+  (same score, same absolute entry floor, cash when nothing is trending), it must pass
+  `evaluate.py` at **0 bp and at 2 bp** (S-18's same-cost-model rule) and must not lose the
+  2020-2026 out-of-sample half, and **TLT alone** is carried as the a-priori control - what
+  a researcher writes down before looking at anything.
+
+### 1. The state, measured before the strategy (`--probe`)
+
+Over 2012-01-03..2026-09-04 the gate is off on **590 of 3,690 sessions (16.0%)** in **29
+episodes**, median length 15 sessions, longest 72 (2018-10-10..2019-01-24). Held one
+session forward, against cash = 0:
+
+| name | bps/day | t | annualized | worst day | same, risk-on |
+| --- | --- | --- | --- | --- | --- |
+| TLT | +1.68 | 0.35 | +4.3% | -6.67% | +0.29 |
+| IEF | +1.86 | 0.96 | +4.8% | -2.51% | +0.36 |
+| **GLD** | **+9.92** | **2.20** | **+28.4%** | -3.99% | +1.85 |
+| SLV | +7.36 | 0.97 | +20.4% | -12.34% | +3.17 |
+| HYG | +0.92 | 0.26 | +2.3% | -5.50% | +2.14 |
+| SPY | +6.57 | 0.88 | +18.0% | **-10.94%** | +6.02 |
+
+Two readings the LEAN cells then have to survive. **(a) The gate is not avoiding down
+markets.** SPY earns +6.57 bps/day on exactly the sessions the book sits out; what it is
+avoiding is the -10.94% day. **(b) Nothing here is conditional on the crisis.** Risk-off
+minus risk-on is +1.39 / +1.50 / +8.07 bps for TLT / IEF / GLD at **t 0.28 / 0.73 / 1.66** -
+so "hold gold" and "hold gold in a crisis" are not distinguishable in this sample, and only
+the first of those is a mechanism the gate is needed for. The shipped momentum blend picking
+among the three earns **+5.35 bps/day at t 1.13** (GLD 267 sessions, TLT 198, IEF 38, cash 87).
+
+### 2. LEAN, nine cells, control reproducing `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`
+
+| cell | orders | CAR | Sharpe | MaxDD | ann.std | PSR | fees |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| control (the promoted champion, off-state = cash) | 5,128 | **24.403%** | **0.994** | **23.7%** | 0.155 | 33.2% | $27,200 |
+| **primary: TLT/IEF/GLD, top 1** | 5,304 | **26.550%** | 0.972 | 25.4% | 0.177 | 28.8% | $33,990 |
+| primary at 2 bp | 5,305 | 24.982% | 0.914 | 25.7% | 0.177 | 21.7% | $30,493 |
+| a-priori control: TLT alone | 5,239 | 24.819% | 0.935 | **23.3%** | 0.171 | 24.5% | $34,092 |
+| post-hoc: GLD alone | 5,246 | 27.735% | **1.040** | 25.4% | 0.172 | 38.5% | $33,737 |
+| primary, top 2 of 3 | 5,603 | 25.968% | 1.004 | 25.4% | 0.165 | 33.8% | $34,657 |
+| primary at half exposure | 5,304 | 26.550% | 0.972 | 25.4% | 0.177 | 28.8% | $33,990 |
+
+Halves for the primary, against S-18's champion rows (IS 17.698 / 0.911 / 23.7, OOS 32.801 /
+1.108 / 23.3): **IS 2012-2019 19.135% / 0.915 / 21.3%** (+1.44 CAR, better Sharpe, 2.4 fewer
+points of drawdown) and **OOS 2020-2026 35.905% / 1.074 / 25.4%** (+3.10 CAR, 0.034 less
+Sharpe, 2.1 more points of drawdown). So the return gain is in **both** halves, which is more
+than most things this loop has measured can say.
+
+### 3. And it is still refused, on the column that has refused everything else here
+
+The gain is bought with volatility: realized std goes **0.155 -> 0.177**. Scaling the
+control's own CAR to each cell's realized vol - the comparison S-15 made compulsory on this
+sleeve, because 71% of this book's return is its sizing machinery:
+
+| cell | ann.std | CAR | control at the same vol | excess |
+| --- | --- | --- | --- | --- |
+| primary | 0.177 | 26.550% | 27.867% | **-1.317** |
+| primary at 2 bp | 0.177 | 24.982% | 27.867% | -2.885 |
+| a-priori TLT alone | 0.171 | 24.819% | 26.922% | -2.103 |
+| primary, top 2 of 3 | 0.165 | 25.968% | 25.977% | -0.009 |
+| post-hoc GLD alone | 0.172 | 27.735% | 27.079% | +0.656 |
+
+**Every pre-registered cell is worse than running the existing book bigger.** The paired
+daily difference says the same thing more quietly - primary **+0.90 bps/day at t 0.83**, and
+on the 590 risk-off sessions alone **+4.85 at t 0.73** - and the risk-on column is
+**+0.15 bps at t 0.56**, which is the check that the change does only what it claims: it
+touches the off-state and leaves the rest of the book alone (what is left is path
+dependence, since a different crisis book means different equity to size the next rotation
+with).
+
+`evaluate.py`, run on all four full-period candidates: the primary is **refused at 0 bp**
+(drawdown 25.400% against 23.700% plus the 1.0-point tolerance) and **"BEATS champion" at
+2 bp** (24.982% against 23.068%, Sharpe 0.914 against 0.938, drawdown 25.7 against 25.0).
+The pre-registered rule required both, so **the verdict is REFUSED** - and unlike S-18,
+where the same split appeared and the 0 bp refusal was by 0.001 CAR points, this one is a
+0.7-point drawdown miss with a Sharpe that falls. `top 2 of 3` and `GLD alone` are refused
+on the same drawdown line.
+
+**The post-hoc cell is the one to be most careful about.** GLD alone earns 27.735% at Sharpe
+**1.040**, PSR 38.5% against the champion's 33.2%, and is the only cell with a positive
+vol-matched excess. It is also the cell chosen *after* reading the probe table, its own
+conditionality statistic is t = 1.66, its paired difference is t = 1.28, and the a-priori
+version of the same idea (TLT) is worth -2.10 vol-matched. One asset picked out of six on a
+590-session sample is exactly the shape of result this loop has refused eleven times.
+
+### 4. One instrument fact that fell out, worth more than the cell that produced it
+
+`risk_off_exposure` is **inert over [0.5, 1.0]**, and LEAN proved it by reproducing the 1.0
+cell to every digit at 0.5 (5,304 orders, 26.550%, $33,990.30). The vol target scales the
+book by `target_vol / sigma` and `sigma` is proportional to the exposure request, so halving
+`target_exposure` exactly doubles `vol_scale`: on 2020-03-20 the TLT book is gross 1.1183 at
+both settings (vol_scale 0.639 / 1.278) and only falls to 0.875 at 0.25, where `scale_cap`
+stops the compensation. This is S-8's finding about the vol target restated for the
+off-state - **under a flat margin budget an exposure *request* is not a size dial** - and it
+is now written into the `Params` docstring so no future iteration spends a cell rediscovering it.
+
+### 5. No-ops and standing jobs
+
+- Shipped defaults reproduce **5,128 orders / 24.403% / 0.994 / 23.700% / $27,199.76 /
+  `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`**.
+- **I-1 deploy gate re-run** because `signals.py` is a file the paper runner loads:
+  `compare_orders.py` passes **3,689/3,689 dates, 5,021 orders on both sides**, unchanged
+  from the S-18 baseline.
+- `live/APPROVED_PAPER.md`, `live/HALT*`, `live/intraday_config.json` and the three
+  scheduled tasks were not touched. Champion unchanged at S-18.
+- **A-5 part 2: no new input.** Ran at 14:5x ET, and `slippage_report.py --refresh` refuses
+  to pull a session that has not closed, so the pooled figure is S-19's - **66 fills over 2
+  sessions, +2.22 bps notional-weighted (se 0.80) against the shipped 1.50, |diff|/se 0.90**,
+  ~4.4 sessions to settle against the 2.52 bps breakeven. `SLIPPAGE_BPS` untouched.
+- **`daily_fills.py`: no new input**, 6 fills / **+2.9 bps (sd 16.7, se 6.8)** - this ran
+  before the 15:45 ET rebalance.
+
+### 6. Decision and next step
+
+**Refused and closed.** The off-state is not where this book's missing return is: putting
+capital back to work during the 16% of sessions the gate is pulled adds 2.15 CAR points and
+2.2 points of realized vol, and the same risk spent through the machinery that already
+exists would have paid more. That is the third form of the same finding - S-15 (the ranker),
+S-16 (the proxies and the breaker), S-20 (the off-state): **on this sleeve, anything that
+looks like new return is a size decision until it beats the vol-matched control.** The
+durable pieces are the refusal itself, the `risk_off_exposure` inertness, and
+`sweep_s20.py`'s vol-matched column, which every future daily-sleeve cell should be read
+through. Priority is unchanged: the two standing per-session measurements, per-session ops,
+then the owner decisions in `BLOCKERS.md`.
+
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
 ## 2026-09-11 - S-19: the deployed runner's clock costs 1.9 CAR points, not 4.75, and two thirds of the correction is the promotion that already happened

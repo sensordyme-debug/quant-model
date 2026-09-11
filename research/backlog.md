@@ -17,6 +17,52 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 19:0x UTC (S-20): **the regime gate has had one off-state since S-1 - cash -
+and giving it a second one adds 2.15 CAR points that the champion's own sizing machinery would
+have paid more for. Refused.** With no open research item that is not blocked on the owner or on
+data the human must buy, this iteration took the last thing on the daily sleeve that is neither a
+ranker lever nor a risk-posture parameter. New `scripts/sweep_s20.py` (`--probe` measures the
+*state*, `--report` reads the LEAN cells and adds a vol-matched column) and `scripts/_s20_runs.sh`;
+three parameters on the shipped algorithm defaulting to the champion (`risk_off_sleeve` empty,
+`risk_off_top_n`, `risk_off_exposure`) with `S1_RISK_OFF_*` overrides; **9 ledger rows**, control
+reproducing **`OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`**. **The rule was pre-registered in
+`_s20_runs.sh` before any cell ran**: pass `evaluate.py` at 0 bp *and* 2 bp, do not lose the OOS
+half, and carry **TLT alone** as the a-priori control. **(1) The state**: the gate is off on
+**590 of 3,690 sessions (16.0%)** in 29 episodes, median 15 sessions, longest 72
+(2018-10-10..2019-01-24). Held a session forward, TLT earns **+1.68 bps/day (t 0.35)**, IEF +1.86
+(0.96), **GLD +9.92 (2.20)**, SLV +7.36 (0.97), HYG +0.92 (0.26) - and **SPY itself +6.57 (0.88)**,
+so the gate is not avoiding down markets, it is avoiding the -10.94% day. **Nothing is conditional
+on the crisis**: risk-off minus risk-on is +1.39 / +1.50 / +8.07 bps at **t 0.28 / 0.73 / 1.66**.
+**(2) LEAN**: the primary (shipped momentum ranking over TLT/IEF/GLD, top 1) earns **26.550% /
+0.972 / DD 25.4% / std 0.177** against the champion's 24.403% / 0.994 / 23.7% / 0.155, i.e.
+**+2.15 CAR at lower Sharpe and 2.2 more points of realized vol**; TLT alone 24.819% / 0.935 /
+23.3%, top 2 of 3 25.968% / 1.004 / 25.4%, and the **post-hoc** GLD-alone cell 27.735% / **1.040** /
+25.4%. The halves both gain (**IS 19.135% / 0.915 / 21.3** against 17.698 / 0.911 / 23.7, **OOS
+35.905% / 1.074 / 25.4** against 32.801 / 1.108 / 23.3). **(3) The refusal is on the vol-matched
+column, which S-15 made compulsory here**: scaling the control to each cell's own realized vol,
+the excess is **primary -1.317, primary at 2 bp -2.885, a-priori TLT -2.103, top 2 -0.009** and
+only the post-hoc GLD cell is positive (+0.656) - **every pre-registered cell is worse than simply
+running the existing book bigger**. Paired daily: primary **+0.90 bps/day at t 0.83** (risk-off
+sessions alone +4.85 at t 0.73), and the risk-on column **+0.15 at t 0.56**, which is the proof the
+change touches only the state it claims to. `evaluate.py` **refuses the primary at 0 bp** (drawdown
+25.400 against 23.700 + 1.0) and returns **"BEATS champion" at 2 bp** (24.982 vs 23.068) - the rule
+required both, and unlike S-18's identical-looking split this refusal is a 0.7-point drawdown miss
+with a falling Sharpe, not 0.001 CAR points. **(4) One instrument fact, worth more than the cell**:
+`risk_off_exposure` is **inert over [0.5, 1.0]** - LEAN reproduced the 1.0 cell to every digit at
+0.5 - because the vol target's `target_vol / sigma` exactly cancels an exposure request under a
+flat margin budget; it only bites once `scale_cap` binds (0.25). That is S-8's finding restated for
+the off-state and is now in the `Params` docstring. **Nothing shipped, nothing promoted, no default
+changed**: champion unchanged at S-18, `live/*` and the three scheduled tasks untouched, and the
+**I-1 gate was re-run because `signals.py` is a file the paper runner loads** - `compare_orders.py`
+passes **3,689/3,689 at 5,021 orders**, unchanged from the S-18 baseline. **Standing jobs ran with
+no new input** (14:5x ET, before the intraday close and before the 15:45 rebalance): A-5 part 2
+unchanged at 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90 (~4.4 sessions to settle),
+`daily_fills.py` unchanged at 6 fills / +2.9 bps. **What it changes for the loop**: S-15 (the
+ranker), S-16 (the proxies and the breaker) and S-20 (the off-state) are three forms of one
+finding - **on this sleeve anything that looks like new return is a size decision until it beats
+the vol-matched control** - so that column belongs in every future daily-sleeve comparison, and the
+binding constraint remains the owner's size question in `BLOCKERS.md`.
+
 Status 2026-09-11 18:1x UTC (S-19): **the largest unblocked number on the daily sleeve was measured
 on a strategy that no longer exists and with an instrument that could only bound it; re-measured, the
 deployed runner's clock costs about 1.9 CAR points rather than 4.75, and nothing in the comparison
@@ -990,6 +1036,25 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
+- **S-20 DONE 2026-09-11 (see journal): refused. The regime gate's off-state stays cash, and the
+  refusal is the vol-matched column.** The gate is off on **590 of 3,690 sessions (16.0%)** and has
+  held nothing there since S-1. Giving it a defensive sleeve (shipped momentum ranking over
+  TLT/IEF/GLD, top 1) earns **26.550% / 0.972 / DD 25.4% / std 0.177** against the champion's
+  24.403% / 0.994 / 23.7% / 0.155 - +2.15 CAR at *lower* Sharpe - and **scaled to its own realized
+  vol the champion would have earned 27.867%, so the mechanism is -1.32 CAR points worse than
+  running the existing book bigger**. Paired +0.90 bps/day at t 0.83; `evaluate.py` refuses it at
+  0 bp on the drawdown tolerance and passes it at 2 bp, and the pre-registered rule required both.
+  The a-priori control (TLT alone) is -2.10 vol-matched; the only positive cell is the **post-hoc**
+  GLD-alone pick (+0.656), chosen after reading the probe table, on a conditionality statistic of
+  t = 1.66. `scripts/sweep_s20.py`, `scripts/_s20_runs.sh`, 9 ledger rows, nothing shipped, control
+  reproduces `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`, I-1 gate 3,689/3,689 at 5,021 orders.
+  **Do not re-open as a sleeve, `top_n` or threshold question** - what would change the answer is a
+  defensive asset with a *conditional* crisis payoff, and there is none in this store. Two durable
+  pieces survive it: `risk_off_sleeve`/`risk_off_top_n` (a future conditional asset can be tested
+  without editing the algorithm) and the measurement that **`risk_off_exposure` is inert over
+  [0.5, 1.0]** because the vol target cancels an exposure request under a flat margin budget -
+  S-8's finding restated for the off-state.
+
 - **S-19 DONE 2026-09-11 (see journal): the deployed daily runner's clock is worth ~1.9 CAR points,
   not 4.75, and the correction is two parts instrument and one part the S-18 promotion.** Six LEAN
   cells (`scripts/_s19_runs.sh`) and a validated pandas book (`scripts/sweep_s19.py`), 10 ledger
@@ -1006,7 +1071,9 @@ sleeve that does not exist (S-5). **The binding constraint is the four owner dec
   calendar days** and so sit ~17% below the same curve's trading-day figures - safe to compare
   within the ledger, never against a statistic computed elsewhere.
 
-**Priority after S-19 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work, now in a corrected order of value: the Reg-T buffer (S-16/S-18: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the unlevered book), the runner's clock (**-1.9 CAR**, re-priced by S-19 and no longer the largest number on this sleeve), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-19 did not open an item; it closed one and moved a number.
+**Priority after S-20 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work: the Reg-T buffer (budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the unlevered book), the runner's clock (-1.9 CAR, S-19), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-20 closed the last daily-sleeve item that was neither a ranker lever nor a risk-posture parameter, and it closed it by measuring that it *is* a risk-posture parameter in disguise. **Read every future daily-sleeve cell through the vol-matched column** (`sweep_s20.py --report`): S-15, S-16 and S-20 are three forms of one finding - on this sleeve anything that looks like new return is a size decision until it beats the control scaled to its own realized volatility.
+
+Superseded, kept for the reasoning: **Priority after S-19 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work, now in a corrected order of value: the Reg-T buffer (S-16/S-18: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the unlevered book), the runner's clock (**-1.9 CAR**, re-priced by S-19 and no longer the largest number on this sleeve), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-19 did not open an item; it closed one and moved a number.
 
 Superseded, kept for the reasoning: **Priority after F-3 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~5.5 sessions from settling and now gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which are now the whole of the unblocked work, in order of the number attached to them: the runner's clock (-4.75 CAR, the largest unblocked number on the daily sleeve), the Reg-T buffer (S-16: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the now-unlevered book), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** The supervised track is closed by F-1 and F-3 together: the model finds an IC of about +0.011 wherever it is pointed, and on both sleeves it rides a weaker mechanism than the one already shipped - intraday it could not clear its commission, daily it could not out-rank a four-horizon momentum blend that is itself a t = +5.4 signal worth 61 bps per dollar turned.
 

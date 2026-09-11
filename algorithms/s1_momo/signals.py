@@ -117,8 +117,10 @@ REGIME_TICKER = "SPY"
 
 def traded_universe(params: "Params | None" = None) -> list[str]:
     """Every ticker the algorithm must subscribe to for a given ranking sleeve."""
-    ranked = list((params or DEFAULTS).rank_universe)
-    return sorted(set(ranked) | {t for t, _ in LEVERED_PROXY.values()} | {REGIME_TICKER})
+    p = params or DEFAULTS
+    ranked = list(p.rank_universe)
+    return sorted(set(ranked) | set(p.risk_off_sleeve)
+                  | {t for t, _ in LEVERED_PROXY.values()} | {REGIME_TICKER})
 
 #: Overnight initial margin charged per dollar of notional. Reg-T is 50% for an ordinary
 #: marginable ETF; IBKR multiplies the requirement by a leveraged ETF's leverage factor,
@@ -314,6 +316,47 @@ class Params:
     #: concentrating it into the survivors.
     trail_stop: float = 0.0
     trail_window: int = 60
+    # --- S-20: what the book holds while the regime gate is pulled ---
+    #: **Shipped: empty, which is the champion - the off-state is cash.** `risk_on` switches
+    #: the whole book off in a volatility crisis, and that switch stays (S-15 priced it at
+    #: -2.02 CAR for 6.3 points of drawdown: it is a drawdown instrument). What it has never
+    #: had is a second off-state. A non-empty sleeve here is ranked by the *same* momentum
+    #: score as the main sleeve and its top `risk_off_top_n` names are funded while the gate
+    #: is off, subject to the same `min_momentum` floor - so a defensive name is held only if
+    #: it is actually trending, and the book falls back to cash when none is.
+    #:
+    #: The sleeve is deliberately a parameter rather than a constant: the point of the item
+    #: is that the off-state is a *choice*, and naming a fixed basket in code would hide it.
+    #:
+    #: **S-20 measured it and REFUSED it, and the reason is the one S-15 and S-16 gave for
+    #: every other lever on this sleeve: it buys size, not edge.** `TLT,IEF,GLD` at top 1
+    #: earns 26.550% / 0.972 / DD 25.4% against the champion's 24.403% / 0.994 / 23.7%, so
+    #: +2.15 CAR at *lower* Sharpe, and realized vol rises 0.155 -> 0.177. Scaled to that
+    #: same vol the champion itself would have earned 27.867%, i.e. the defensive off-state
+    #: is **-1.32 CAR points worse than simply running the existing book bigger**. The
+    #: paired daily difference is +0.90 bps/day at t 0.83 (risk-off sessions alone +4.85 at
+    #: t 0.73), `evaluate.py` refuses it at 0 bp on the drawdown tolerance, and the
+    #: pre-registered rule required both cost models. TLT alone - the a-priori choice - is
+    #: worth +0.28 bps/day at t 0.31 and -2.10 vol-matched. Do not re-open as a sleeve,
+    #: `top_n` or threshold question; what would change the answer is a defensive asset with
+    #: a *conditional* crisis payoff, and the probe found none (risk-off minus risk-on for
+    #: TLT/IEF/GLD is +1.39 / +1.50 / +8.07 bps at t 0.28 / 0.73 / 1.66).
+    risk_off_sleeve: tuple = ()
+    risk_off_top_n: int = 1
+    #: Multiplier on `target_exposure` for the defensive book only. 1.0 gives the defensive
+    #: holding the same exposure request a risk-on holding would get, which the vol target
+    #: and the margin budget then size exactly as they size everything else.
+    #:
+    #: **Measured inert over [0.5, 1.0] and kept only as documentation of that** (S-20).
+    #: The vol target scales the book by `target_vol / sigma` and `sigma` is proportional to
+    #: the exposure request, so halving `target_exposure` exactly doubles `vol_scale` and
+    #: the funded weights do not move - LEAN reproduced the 1.0 cell to every digit at 0.5
+    #: (5,304 orders, 26.550%, $33,990.30). It only bites once `scale_cap` binds: on
+    #: 2020-03-20 the TLT book is gross 1.1183 at both 1.0 and 0.5 (vol_scale 0.639 / 1.278)
+    #: and only falls to 0.875 at 0.25, where the cap stops the compensation. This is S-8's
+    #: finding about the vol target restated for the off-state: under a flat margin budget
+    #: an exposure *request* is not a size dial.
+    risk_off_exposure: float = 1.0
     #: Shape of the drawdown overlay between `dd_halve` and `dd_flat`. "step" is the
     #: champion's 1.0 / 0.5 / 0.0; "taper" declines linearly from 1.0 at `dd_halve` to 0.0
     #: at `dd_flat`, so the book is already small when it reaches the breaker instead of
@@ -813,12 +856,20 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
 
     on, regime_diag = risk_on(prices, p)
     diag.update(regime_diag)
-    if not on or dd_mult == 0.0:
-        diag["reason"] = "risk-off" if not on else "drawdown flat"
+    if dd_mult == 0.0:
+        diag["reason"] = "drawdown flat"
+        return {}, diag
+    # S-20. The gate's off-state is cash unless a defensive sleeve is configured, in which
+    # case the same momentum machinery runs over that sleeve instead. The drawdown breaker
+    # above is *not* given this second state: it fires on the book's own losses, so a book
+    # that has already lost should stop, not rotate.
+    defensive = bool(p.risk_off_sleeve) and not on
+    if not on and not defensive:
+        diag["reason"] = "risk-off"
         return {}, diag
 
-    pool = p.rank_universe
-    if p.universe_size > 0:
+    pool = tuple(p.risk_off_sleeve) if defensive else p.rank_universe
+    if p.universe_size > 0 and not defensive:
         if volumes is None:
             diag["universe_reason"] = "no volume frame; using the candidate pool whole"
         else:
@@ -834,12 +885,25 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     scores = scores.sort_values(ascending=False)
     # S-9: the entry gate is either an absolute floor on the score (the champion) or a
     # cross-sectional one measured against the sleeve median on the same rebalance.
-    floor = entry_floor(scores, p)
-    if p.entry_mode == "median" and len(scores) >= 2:
+    # S-20: the defensive sleeve is two or three names, so a cross-sectional median gate
+    # would always admit its leader whatever it is doing. The off-state keeps the absolute
+    # floor, which is what makes "hold cash when nothing is trending" reachable.
+    floor = p.min_momentum if defensive else entry_floor(scores, p)
+    if p.entry_mode == "median" and len(scores) >= 2 and not defensive:
         diag["entry_floor"] = round(floor, 4)
 
     def passes(ticker) -> bool:
         return float(scores.get(ticker, -np.inf)) > floor and bool(eligible.get(ticker, True))
+
+    if defensive:
+        winners = [t for t in scores.index[:p.risk_off_top_n] if passes(t)]
+        diag["defensive"] = True
+        diag["scores"] = {t: round(float(v), 4) for t, v in scores.items()}
+        if not winners:
+            diag["reason"] = "risk-off, nothing defensive trending"
+            return {}, diag
+        return _size(prices, winners, scores, p, dd_mult, diag, state, prev_ages,
+                     exposure=p.target_exposure * p.risk_off_exposure, defensive=True)
 
     # S-11(a) hysteresis. Incumbents are *ranked* with a bonus but still *gated* on their
     # raw score, so the bonus can defend a holding against a marginal challenger and can
@@ -880,6 +944,22 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
         diag["reason"] = "no positive momentum"
         return {}, diag
 
+    return _size(prices, winners, scores, p, dd_mult, diag, state, prev_ages,
+                 exposure=p.target_exposure, defensive=False)
+
+
+def _size(prices, winners, scores, p: Params, dd_mult, diag, state, prev_ages,
+          exposure: float, defensive: bool):
+    """Turn a chosen set of names into funded weights. The only sizing path in the file.
+
+    Split out of `target_weights` by S-20 so the defensive off-state book is sized by
+    *exactly* the machinery the risk-on book is sized by - the vol target, the margin
+    budget, the gross cap and the O-1b dial in the same order - rather than by a second
+    implementation that could drift. `exposure` is the only thing the two callers pass
+    differently, and `defensive` decides whether the funded set is handed forward as
+    momentum incumbents (it is not: a defensive holding must not defend a slot in the
+    risk-on ranking when the gate flips back on).
+    """
     # Notional per winner set by `weight_mode`, expressed through the levered proxy
     # where one exists.
     # Dividing by the multiple is what makes target_exposure mean what it says: a 3x ETF
@@ -915,7 +995,7 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
         instrument, mult = LEVERED_PROXY.get(ticker, (ticker, 1.0))
         if instrument not in prices.columns or prices[instrument].iloc[-p.vol_est_window - 1:].isna().any():
             instrument, mult = ticker, 1.0     # fall back to the unlevered name
-        raw[instrument] = raw.get(instrument, 0.0) + (p.target_exposure * shares[ticker]) / mult
+        raw[instrument] = raw.get(instrument, 0.0) + (exposure * shares[ticker]) / mult
         leverage[instrument] = mult
 
     # Vol target on the instruments actually held, not on their unlevered cousins.
@@ -972,8 +1052,10 @@ def target_weights(prices: pd.DataFrame, equity_curve=(), params: Params | None 
     diag["gross_weight"] = round(sum(weights.values()), 4)
     diag["effective_exposure"] = round(sum(w * leverage[t] for t, w in weights.items()), 4)
     diag["winners"] = winners
-    diag["reason"] = "risk-on"
+    diag["reason"] = "risk-off, defensive" if defensive else "risk-on"
     # S-11: hand the funded set forward. Empty weights (everything rounded away) count as
-    # cash, so the next call sees no incumbents to defend.
-    remember_holdings(state, winners if weights else [], prev_ages)
+    # cash, so the next call sees no incumbents to defend. S-20: a defensive holding is
+    # never handed forward - it was not chosen by the risk-on ranking and must not be
+    # credited with hysteresis or a holding lock inside it.
+    remember_holdings(state, [] if defensive else (winners if weights else []), prev_ages)
     return weights, diag
