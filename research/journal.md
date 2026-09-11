@@ -28,6 +28,136 @@ Operations only, no research. Account DUT091359, net liquidation 988,089.19 at 1
 - **Also.** `live/alerts.json` is missing, so every notify attempt fails in both logs.
   Cosmetic today, but it means a real halt would go unannounced.
 
+## 2026-09-11 - S-21: the book has been borrowing half its equity for free for twenty-one iterations, and 82% of what that costs was incurred in the last four years
+
+- **What.** The backlog's unblocked work is two standing measurements and four owner
+  decisions, so this iteration took the next instrument audit in the S-17 / S-19 line rather
+  than a twelfth mechanism. The defect is read off the engine source, not inferred:
+  `Common/Brokerages/DefaultBrokerageModel.cs:368` returns `MarginInterestRateModel.Null`,
+  `Common/Securities/IMarginInterestRateModel.cs:41` defines that as a class whose
+  `ApplyMarginInterestRate` has an **empty method body**, and
+  `InteractiveBrokersBrokerageModel` does not override it. **LEAN charges no interest on a
+  debit balance and pays none on a credit balance.** The shipped champion carries 1.50x
+  gross against 1.00x of equity - a margin loan of about half its equity on every invested
+  day - and it has never paid a cent for it. New `scripts/rates.py` (FRED `DFF`, IBKR's USD
+  "BM", plus the Pro tier schedule), `scripts/sweep_s21.py` (`--probe`, `--schedule`,
+  `--report`) and `scripts/_s21_runs.sh`; one knob on the shipped algorithm
+  (`S1_FINANCING`, default **off**) with `S1_FIN_SPREAD` / `S1_FIN_RATES`; **8 ledger rows**
+  plus a tagged 2023Q1 smoke row, control reproducing **`OrderListHash
+  a6d6224ce9c70091e5bfa8e96f046bf3`**.
+- **Say first what this is not.** S-17 (the missing spread) and S-19 (the runner's stale
+  clock) were both defects that could in principle be *fixed*. This one cannot: there is
+  nothing wrong with the runner, the paper account is already paying this every day, and the
+  only thing the measurement changes is the expectation. The rule was pre-registered in
+  `_s21_runs.sh` before any full cell ran, and its first clause is that **charging a cost can
+  only lower CAR, so nothing here is promotable and `evaluate.py` is not the judge**; the
+  deliverables are the corrected champion figure, the split by half, and the corrected
+  owner frontier. The a-priori estimate was written down first too (~1.45 CAR points, from
+  0.50x debit at a ~2.9% mean loan rate) so the accrual could be wrong rather than merely
+  reported; it came in at 1.32, and a 2023Q1 smoke run reproduced a hand-computed $975
+  against LEAN's $1,010.88 before any full-sample cell was believed.
+- **(1) The state, which is a fact about the strategy rather than the broker.** The probe
+  walks the shipped signal through the share-level book S-19 validated against LEAN's own
+  equity curve (corr 0.99650) and records the cash balance every session: **a debit balance
+  on 3,073 of 3,689 sessions (83.3%)**, mean gross exposure 1.250x, mean debit **0.410x of
+  equity over all days and 0.493x over debit days**, and **616 sessions in credit (16.7%)** -
+  which is S-20's risk-off count (16.0%) arriving by a completely different route, and is the
+  cross-check that the cash path is the strategy's and not an artifact. LEAN's own accrual
+  reports the identical state (**mean debit 0.493x**, 3,047 debit days, credit earned within
+  1.4% of the probe's) and 11% less interest paid, which is exactly the direction compounding
+  predicts: the financed book is smaller, so it borrows less.
+- **(2) The calendar is the finding.** The benchmark is not stationary, so a single
+  full-period number hides where the money went. Probe, by year, simple drag at constant
+  equity:
+
+  | year | mean BM | debit/equity | blended loan rate | $ interest | CAR points |
+  | --- | --- | --- | --- | --- | --- |
+  | 2012-2016 | 0.09-0.39% | 0.40-0.50 | 1.59-1.90% | $0.9-1.5k | 0.66-0.84 |
+  | 2017 | 1.00% | 0.498 | 2.45% | $2,804 | 1.238 |
+  | 2018-2022 | 0.08-2.16% | 0.19-0.47 | 1.26-3.65% | $0.5-4.2k | 0.16-1.18 |
+  | **2023** | **5.03%** | 0.499 | **6.14%** | **$28,450** | **3.115** |
+  | **2024** | **5.14%** | 0.460 | **6.21%** | **$31,273** | **2.535** |
+  | 2025 | 4.21% | 0.404 | 5.25% | $22,652 | 1.477 |
+  | 2026 (170 sessions) | 3.63% | 0.440 | 4.66% | $24,246 | 1.689 |
+
+  Total $129,406 simple (paid $151,712, earned $22,306), mean drag **0.439 bps/day = 1.106
+  simple CAR points**. **$106,621 of that $129,406 - 82% - was incurred in 2023-2026**, partly
+  because the book is larger by then and mostly because the loan rate quadrupled. So the
+  forward-looking number at today's benchmark is not 1.3 points; the 2026 row prices it at
+  **1.69 simple, about 2.0 once it compounds**.
+- **(3) LEAN, charged to the cash book so it compounds against the equity the next day is
+  sized from.** Cells against their own unfinanced baselines:
+
+  | cell | financed | unfinanced | delta |
+  | --- | --- | --- | --- |
+  | full period, 0 bp | **23.087% / 0.939 / DD 24.1** | 24.403% / 0.994 / 23.7 | **-1.316 CAR** |
+  | full period, 2 bp | 21.745% / 0.882 / 25.4 | 23.068% / 0.938 / 25.0 | -1.323 |
+  | IS 2012-2019 | 16.791% / 0.864 / 24.1 | 17.698% / 0.911 / 23.7 | -0.907 |
+  | **OOS 2020-2026** | **30.774% / 1.037 / 23.4** | 32.801% / 1.108 / 23.3 | **-2.027** |
+
+  **The correction is out-of-sample weighted at more than two to one**, which matters because
+  the OOS half is the one the S-18 promotion leaned on. It costs return and a little risk
+  (Sharpe -0.055, drawdown +0.4 points): a debit balance is paid whether the book is up or
+  down. No t-statistic is quoted and none should be - unlike S-19's clock this is a
+  deterministic charge, certain in a way none of the S-track's mechanisms are.
+- **(4) Half of it is the cost of money and half is the price list.** `S1_FIN_SPREAD` shifts
+  every tier together, so the answer does not rest on one broker. Same cash path, only the
+  rate on it moving (probe, simple CAR points): **benchmark only 0.559**, tiers -1.00pp
+  0.557, -0.50pp 0.845, **IBKR Pro published 1.106**, +0.50pp 1.356. The benchmark-only row is
+  the part that is arithmetic - no lender charges below its own funding cost - so roughly
+  **0.56 of the 1.11 is irreducible and the rest is IBKR's markup**, which a larger account
+  pays less of (+0.75% above $1M against +1.50% on the first $100k). One honest correction to
+  the run set: the LEAN `floor` cell (-1.50pp, 24.136%, -0.267 CAR) is labelled as the
+  benchmark and **is not** - shifting every tier down by 1.50 puts the tranches above $100k
+  *below* the benchmark, so that cell is a lower bound on the lower bound, and the
+  benchmark-only figure is the probe's 0.559 rather than 0.267.
+- **(5) The one thing that changes a decision, and it was pre-registered as such.** The
+  owner's open Reg-T question in `BLOCKERS.md` is *exactly* a decision about how large a debit
+  balance to carry, and it has been asked on numbers that charge nothing for it:
+
+  | margin_budget | unfinanced | gain | financed | gain | Sharpe (fin.) | MaxDD (fin.) |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | 0.75 (shipped) | 24.403% | - | **23.087%** | - | 0.939 | 24.1% |
+  | 0.80 | 25.903% | +1.500 | **24.296%** | **+1.209** | 0.944 | 25.6% |
+  | 0.82 | 26.474% | +2.071 | **24.742%** | **+1.655** | 0.945 | 26.2% |
+
+  **The reward for spending the buffer is overstated by about a fifth**, and the Sharpe
+  argument is the part that really thins: unfinanced, Sharpe rises 0.994 -> 1.012 across the
+  frontier; financed it rises 0.939 -> 0.945, a sixth as much, while drawdown still climbs
+  2.1 points. **The frontier flattens, it does not invert** - the ordering and the sign are
+  unchanged - so this is a correction to the owner's brief, not a new recommendation, and
+  `BLOCKERS.md` now carries both columns.
+- **Decision: nothing promoted, nothing shipped, no default changed.** `S1_FINANCING` stays
+  **off** and the ledger stays on one scale, exactly as S-17 left `S1_SLIPPAGE_BPS` at 0.0
+  rather than silently re-basing every past row; the correction lives in `champion.json` as a
+  recorded note and in `BLOCKERS.md` as a second column. One instrument fix went with it:
+  `evaluate.py` now **refuses** any run recorded with `S1_FINANCING=on` as not comparable,
+  which is S-18's same-cost-model rule on a third axis - and note the direction, because this
+  one *understates* a candidate rather than flattering it, which is the failure mode that
+  quietly buries a good strategy. Verified: the financed cell returns "does NOT beat
+  champion" with the new reason first, the control ties itself.
+- **No-ops.** `signals.py` was not touched, so the daily runner loads identical code and
+  AGENTS.md rule (a) owes no replay; the intraday trader's execution, risk and flatten code
+  was not touched either. The control reproduces `OrderListHash
+  a6d6224ce9c70091e5bfa8e96f046bf3` and the I-1 gate re-ran anyway: `compare_orders.py`
+  passes **3,689/3,689 at 5,021 orders** on both sides. `live/APPROVED_PAPER.md`,
+  `live/HALT*`, `live/intraday_config.json` and the three scheduled tasks untouched; champion
+  unchanged at S-18.
+- **Standing jobs, both run after the close.** A-5 part 2 has **no new input beyond S-19** -
+  today's intraday session was already in it - pooled **66 fills / +2.22 bps / se 0.80**
+  against the shipped 1.50, `|diff|/se 0.90`, ~4.4 sessions to settle, so `SLIPPAGE_BPS` is
+  untouched. `daily_fills.py` **does** have new input: today's 15:45 rebalance filled IWM /
+  XLE / XLK for $720,338, taking the pool to **9 fills / $2.14M / +3.9 bps against the close
+  the runner aims at (per-fill sd 14.9, se 5.0)**, up from 6 fills / +2.9 bps - and
+  `ref_price` was the previous session's close in **9 of 9**, the S-19 clock defect confirmed
+  for a third session.
+- **Next.** S-21 opens nothing and closes nothing that was open; it moves a number. The
+  daily sleeve's three instrument audits now read: the missing spread (S-17, 0.68 CAR per bp),
+  the runner's clock (S-19, -1.9 CAR, `|t| < 2`, fixable) and financing (S-21, **-1.32 CAR
+  full period, -2.03 out of sample, ~2.0 forward, certain, not fixable**). The unblocked work
+  is still the two standing measurements and the four owner decisions, and the Reg-T question
+  is now posed on honest numbers.
+
 ## 2026-09-11 - S-20: the regime gate's off-state does not want to be a defensive holding, and the reason is the one every other lever on this sleeve gave
 
 - **What.** The backlog holds no open research item that is not blocked on the owner or on

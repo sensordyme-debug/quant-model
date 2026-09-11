@@ -111,6 +111,16 @@ def window_note(run):
     if moved:
         return (f"run used {', '.join(f'{k}={v}' for k, v in sorted(moved.items()))}, so its "
                 f"window is not the champion's - not comparable")
+    # S-21, the third axis of the same rule. LEAN charges no financing at all
+    # (DefaultBrokerageModel returns MarginInterestRateModel.Null), so `S1_FINANCING=on`
+    # produces a run that has paid for its own leverage against a champion column that has
+    # not. That candidate is *understated* rather than flattered, which is the direction
+    # that quietly buries a good strategy rather than promoting a bad one - and it is still
+    # a comparison across different axes. `champion.json` carries the financed figure as a
+    # recorded note, not as a promotable column, so this is a refusal and not a lookup.
+    if env.get("S1_FINANCING", "off").lower() == "on":
+        return ("run charged margin financing (S1_FINANCING=on) and the champion's columns "
+                "do not - not comparable; see S-21 in the journal")
     return None
 
 

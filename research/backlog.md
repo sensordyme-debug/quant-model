@@ -17,6 +17,64 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 20:0x UTC (S-21): **the champion has been borrowing half its equity for free
+for twenty-one iterations, that is worth 1.32 CAR points full period and 2.03 out of sample, and
+82% of the money was spent in the last four years.** With the unblocked work down to two standing
+measurements and four owner decisions, this iteration took the next instrument audit in the
+S-17 / S-19 line. The defect is read off the engine source: `DefaultBrokerageModel.cs:368` returns
+`MarginInterestRateModel.Null`, whose `ApplyMarginInterestRate` has an **empty method body**, and
+`InteractiveBrokersBrokerageModel` does not override it - **LEAN charges no interest on a debit
+balance and pays none on a credit balance**. New `scripts/rates.py` (FRED `DFF` = IBKR's USD "BM",
+plus the Pro tier schedule), `scripts/sweep_s21.py` (`--probe`, `--schedule`, `--report`) and
+`scripts/_s21_runs.sh`; one knob on the shipped algorithm (`S1_FINANCING`, **default off**) with
+`S1_FIN_SPREAD` / `S1_FIN_RATES`; **8 ledger rows**, control reproducing **`OrderListHash
+a6d6224ce9c70091e5bfa8e96f046bf3`**. **Say first what it is not**: S-17 and S-19 found defects that
+could be *fixed*; this one cannot. The paper account has been paying it since its first fill, the
+runner is fine, and the only thing wrong was the expectation. **The rule was pre-registered in
+`_s21_runs.sh` before any full cell ran** and its first clause is that charging a cost can only
+lower CAR, so **nothing here is promotable and `evaluate.py` is not the judge**; the a-priori
+estimate (~1.45 points) was written down first so the accrual could be wrong rather than merely
+reported, and a 2023Q1 smoke run matched a hand computation ($1,010.88 against $975) before any
+full cell was believed. **(1) The state**: a debit balance on **3,073 of 3,689 sessions (83.3%)**,
+mean gross 1.250x, mean debit **0.410x of equity overall and 0.493x on debit days**, and **616
+sessions in credit (16.7%)** - S-20's risk-off count arriving by a different route. LEAN's own
+accrual reports the identical state (mean debit 0.493x, credit within 1.4% of the probe) and 11%
+less interest paid, which is the direction compounding predicts. **(2) The calendar is the
+finding**: simple drag by year runs 0.16-1.24 CAR points through 2022 and then **3.115 (2023) /
+2.535 (2024) / 1.477 (2025) / 1.689 (2026)**; **$106,621 of the sample's $129,406 - 82% - was
+incurred in 2023-2026**, so the forward number at today's 3.63% benchmark is about **2.0 points a
+year, not 1.3**. **(3) LEAN**, charged to the cash book so it compounds into the next day's sizing:
+full period **23.087% / 0.939 / DD 24.1%** against 24.403% / 0.994 / 23.7% (**-1.316**), at 2 bp
+21.745% against 23.068% (-1.323), **IS -0.907 (16.791 vs 17.698) and OOS -2.027 (30.774 vs
+32.801)** - **out-of-sample weighted more than two to one**, which matters because the OOS half is
+the one the S-18 promotion leaned on. **No t-statistic is quoted and none should be**: unlike
+S-19's clock this is a deterministic charge. **(4) Half of it is the cost of money and half is the
+price list**: same cash path, only the rate moving, gives benchmark-only **0.559** simple points
+against IBKR Pro's **1.106** (+0.50pp 1.356), and the markup is the half a larger account pays less
+of. One honest correction to the run set: the LEAN `floor` cell (-1.50pp, 24.136%) is **not** the
+benchmark - that shift puts the tranches above $100k *below* it - so 0.559 is the floor, not 0.267.
+**(5) The one decision it moves, pre-registered as such**: the owner's Reg-T question *is* a
+decision about the size of a margin loan and has been asked with the loan free. Budget 0.75 / 0.80
+/ 0.82 reads **23.087 / 24.296 / 24.742 financed** against 24.403 / 25.903 / 26.474 unfinanced, so
+**the reward for spending the buffer is overstated by about a fifth** and the Sharpe argument thins
+six-fold (financed 0.939 -> 0.945 against unfinanced 0.994 -> 1.012) while drawdown still climbs
+2.1 points. **It flattens, it does not invert** - `BLOCKERS.md` carries both columns and the
+recommendation is unchanged. **Nothing shipped, nothing promoted, no default changed**:
+`S1_FINANCING` stays off so the ledger stays on one scale (S-17's precedent), `signals.py` was not
+touched so rule (a) owes no replay, `live/*` and the three scheduled tasks are untouched, champion
+unchanged at S-18, and the I-1 gate re-ran anyway at **3,689/3,689, 5,021 orders**. **One
+instrument fix**: `evaluate.py` now refuses any run recorded with `S1_FINANCING=on` as not
+comparable - S-18's same-cost-model rule on a third axis, and note the direction, because this one
+*understates* a candidate rather than flattering it. **Standing jobs both ran after the close**:
+A-5 part 2 unchanged at 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90 (~4.4 sessions);
+`daily_fills.py` **has new input** - today's 15:45 rebalance adds IWM/XLE/XLK for $720,338, pooling
+to **9 fills / $2.14M / +3.9 bps (se 5.0)** against 6 fills / +2.9 bps, with `ref_price` the
+previous close in **9 of 9**, confirming the S-19 clock for a third session. **What it changes for
+the loop**: the daily sleeve's three instrument audits now read spread (S-17, 0.68 CAR per bp),
+clock (S-19, -1.9, |t| < 2, fixable) and financing (**S-21, -1.32 full / -2.03 OOS / ~2.0 forward,
+certain, not fixable**), and every future comparison between two *differently levered* cells on
+this sleeve owes the financed column the way S-20 made the vol-matched column compulsory.
+
 Status 2026-09-11 19:0x UTC (S-20): **the regime gate has had one off-state since S-1 - cash -
 and giving it a second one adds 2.15 CAR points that the champion's own sizing machinery would
 have paid more for. Refused.** With no open research item that is not blocked on the owner or on
@@ -1036,6 +1094,25 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
+- **S-21 DONE 2026-09-11 (see journal): measured, not judged. LEAN charges no financing, and the
+  champion's leverage costs 1.32 CAR points full period, 2.03 out of sample and about 2.0 a year
+  forward.** `DefaultBrokerageModel.cs:368` -> `MarginInterestRateModel.Null` (empty
+  `ApplyMarginInterestRate`), not overridden by the IB model. The book runs a debit balance on
+  **83.3% of sessions averaging 0.493x of equity** and has never paid for it. Full period
+  **23.087% / 0.939 / DD 24.1%** against 24.403% / 0.994 / 23.7%; IS -0.907, **OOS -2.027**;
+  **82% of the sample's $129k of interest was incurred in 2023-2026** as the benchmark went from
+  ~0.1% to 5%. Benchmark-only is 0.559 of the 1.106 simple points, so about half is irreducible
+  and half is a markup a larger account pays less of. `scripts/rates.py`, `scripts/sweep_s21.py`,
+  `scripts/_s21_runs.sh`, 8 ledger rows, `S1_FINANCING` **defaulted off**, control reproduces
+  `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`, I-1 gate 3,689/3,689 at 5,021 orders.
+  **Do not re-open as a rate-source, tier or day-count question** - the schedule sensitivity is
+  already tabulated (`--schedule`) and the two implementations agree on the state. **It is not a
+  defect to fix**: the paper account is already paying it and the runner is correct. Two durable
+  pieces survive it: the corrected owner frontier in `BLOCKERS.md` (0.75 / 0.80 / 0.82 =
+  23.087 / 24.296 / 24.742 financed, so the reward for spending the Reg-T buffer is a fifth
+  smaller and its Sharpe argument six times weaker) and `evaluate.py`'s refusal of
+  `S1_FINANCING=on` runs as not comparable.
+
 - **S-20 DONE 2026-09-11 (see journal): refused. The regime gate's off-state stays cash, and the
   refusal is the vol-matched column.** The gate is off on **590 of 3,690 sessions (16.0%)** and has
   held nothing there since S-1. Giving it a defensive sleeve (shipped momentum ranking over
@@ -1071,7 +1148,9 @@ sleeve that does not exist (S-5). **The binding constraint is the four owner dec
   calendar days** and so sit ~17% below the same curve's trading-day figures - safe to compare
   within the ledger, never against a statistic computed elsewhere.
 
-**Priority after S-20 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work: the Reg-T buffer (budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the unlevered book), the runner's clock (-1.9 CAR, S-19), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-20 closed the last daily-sleeve item that was neither a ranker lever nor a risk-posture parameter, and it closed it by measuring that it *is* a risk-posture parameter in disguise. **Read every future daily-sleeve cell through the vol-matched column** (`sweep_s20.py --report`): S-15, S-16 and S-20 are three forms of one finding - on this sleeve anything that looks like new return is a size decision until it beats the control scaled to its own realized volatility.
+**Priority after S-21 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and `daily_fills.py` now gets input every rebalance (9 fills, +3.9 bps); (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work and whose headline item has just been re-priced: the Reg-T buffer now reads +1.209 / +1.655 CAR at budget 0.80 / 0.82 rather than +1.500 / +2.071, with the Sharpe argument six times weaker; then the runner's clock (-1.9 CAR, S-19) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-21 opened nothing and closed nothing that was open - it moved a number, and it is the third and last of the instrument audits that were available (spread S-17, clock S-19, financing S-21). **Two columns are now compulsory on any future daily-sleeve comparison**: the vol-matched one (S-20) whenever a cell changes realized volatility, and the financed one (S-21) whenever two cells carry *different amounts of leverage* - the second exists because the owner's own frontier was being judged on numbers that gave the borrowing away.
+
+Superseded, kept for the reasoning: **Priority after S-20 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work: the Reg-T buffer (budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the unlevered book), the runner's clock (-1.9 CAR, S-19), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-20 closed the last daily-sleeve item that was neither a ranker lever nor a risk-posture parameter, and it closed it by measuring that it *is* a risk-posture parameter in disguise. **Read every future daily-sleeve cell through the vol-matched column** (`sweep_s20.py --report`): S-15, S-16 and S-20 are three forms of one finding - on this sleeve anything that looks like new return is a size decision until it beats the control scaled to its own realized volatility.
 
 Superseded, kept for the reasoning: **Priority after S-19 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work, now in a corrected order of value: the Reg-T buffer (S-16/S-18: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the unlevered book), the runner's clock (**-1.9 CAR**, re-priced by S-19 and no longer the largest number on this sleeve), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-19 did not open an item; it closed one and moved a number.
 

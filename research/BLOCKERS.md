@@ -183,6 +183,44 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   champion's own realized vol (0.168 vs 0.170) while earning **+2.07 CAR** over it. The buffer
   argument is unchanged and still yours: at 0.82 a live account holds 0.18 of excess liquidity
   instead of 0.25. The loop stops at 0.75 until you answer.
+- **Update 2026-09-11 (S-21): every number you have been shown on this question was computed
+  with the cost of the borrowing left out, and here is the same table with it charged.** This
+  question is *exactly* a decision about how large a margin loan to carry, and LEAN charges no
+  interest on one: `DefaultBrokerageModel.GetMarginInterestRateModel` returns
+  `MarginInterestRateModel.Null`, whose `ApplyMarginInterestRate` is an empty method, and the
+  IB model does not override it. The shipped book runs a debit balance on **83.3% of sessions,
+  averaging 0.49x of equity**, and has never paid for it. Charged at IBKR Pro's published
+  tiers on the historical effective fed funds rate (FRED `DFF`, IBKR's USD "BM"):
+
+  | `margin_budget` | CAR as previously shown | CAR with financing charged | gain over 0.75 | Sharpe | MaxDD |
+  | --- | --- | --- | --- | --- | --- |
+  | **0.75 (shipped)** | 24.403% | **23.087%** | - | 0.939 | 24.1% |
+  | 0.80 | 25.903% | **24.296%** | **+1.209** (was +1.500) | 0.944 | 25.6% |
+  | 0.82 | 26.474% | **24.742%** | **+1.655** (was +2.071) | 0.945 | 26.2% |
+
+  **Read it as a flattening, not a reversal.** The ordering and the sign are unchanged, so
+  nothing above is withdrawn - spending the buffer still buys return. What shrinks is how
+  much: **the reward is overstated by about a fifth**, and the Sharpe argument thins much
+  more than that. Unfinanced, Sharpe *rises* across the frontier 0.994 -> 1.008 -> 1.012,
+  which is the strongest single sentence in the case for (d+); financed it rises 0.939 ->
+  0.944 -> 0.945, a sixth as much, while drawdown climbs 24.1% -> 25.6% -> 26.2%. So the
+  honest restatement of (d+) is **"+1.2 to +1.7 points of CAR for ~2 points of drawdown and
+  essentially no improvement in risk-adjusted return"**, where it used to read "+1.5 to +2.1
+  points at a *better* Sharpe". Whether that is worth 0.05-0.07 of your excess liquidity is
+  still yours, and the loop still stops at 0.75.
+- **Two things this does not mean.** (a) It is not a new cost and not a defect: the paper
+  account has been paying it since the first fill, the runner is fine, and the only thing that
+  was wrong was the expectation. (b) It is not a reason to shrink the book either - the
+  financed champion at 0.75 still earns 23.087% and the drag is proportional to the borrowing,
+  so the comparison between budgets is what moves, not the case for the strategy.
+- **What it is worth on its own, for the record**: **-1.316 CAR full period, -0.907 in
+  2012-2019 and -2.027 in 2020-2026**, because the benchmark went from ~0.1% to 5% - **82% of
+  the interest over the whole sample was incurred in 2023-2026** - so the forward-looking
+  number at today's 3.63% benchmark is about **2.0 points a year, not 1.3**. About half of it
+  is the cost of money and cannot be avoided by anyone; the other half is the broker's markup,
+  and a larger account pays less of that (+0.75% above $1M against +1.50% on the first $100k).
+  Nothing was changed: `S1_FINANCING` defaults off so the ledger stays on one scale, and
+  `scripts/sweep_s21.py --report` reproduces every figure here.
 
 ## Open request to the owner (2026-09-10, intraday sleeve - supersedes the size half of the 2026-09-09 item)
 
