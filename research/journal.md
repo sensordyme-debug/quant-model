@@ -2,6 +2,103 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - A-12: the ORB whipsaw lockout - the mechanism is real, measured, and points the other way
+
+- **What.** The question the 2026-09-10 paper session left behind: the sleeve lost -6,779 and
+  **-5,191 of it (77%) came from one pattern** - short SOXL/SOXS at 09:52 ET, stopped out into a
+  rally at 10:25, long the same pair at 10:36, out into the fade at 12:35. The shipped ORB module
+  permits that by construction, because `max_entries` is counted **per side**, so being stopped out
+  of a short never consumes any of the long budget, and nothing in A-1..A-11 ever tested it. New
+  `reentry_block` / `reentry_mode` on the ORB module (default **0 = off**, the shipped behaviour)
+  and new `scripts/sweep_a12.py`; 18 ledger rows under `intraday/active`.
+- **Why in two stages.** L-1's discipline: measure the mechanism where there is nothing to fit
+  before pricing a parameter. Stage 1 labels the control's own round trips and fits nothing;
+  stage 2 is the paired grid, one backtest per (variant, calendar year) from a fresh $1M book on
+  2,686 sessions of the Alpaca SIP store, pooled into the three a-priori regimes.
+
+### Stage 1: the premise is refuted at the root, and the sign is inverted
+
+Every fill of the deployed control reconstructed into round trips per (symbol, session) - P&L is
+the book's own cash change over the trip's fills, costs included, nothing re-priced - and each trip
+labelled by what preceded it that day in that symbol:
+
+| kind | trips | $/trip | t | win % | total $ |
+| --- | --- | --- | --- | --- | --- |
+| first entry of the session | 35,025 | **-25** | -2.66 | 40.2 | **-872,347** |
+| `flip` (the 2026-09-10 pattern) | 4,841 | **+15** | +0.65 | 38.9 | **+70,708** |
+| `same` (continuation re-entry) | 4,353 | -20 | -1.03 | 39.5 | -88,087 |
+| ALL | 44,219 | -20 | -2.50 | 40.0 | -889,726 |
+
+**The reversal re-entry is the only profitable category in the sleeve.** The loss is in first
+entries - 98% of it - and a filter on re-entries cannot reach it. By regime the flip trip earns
++3 / -27 / +89 $/trip and is never the worst of the three. How long the effect lasts is the
+sharpest part:
+
+| gap since the last exit | flip n | flip $/trip | t | same n | same $/trip | t |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0-15 min | 1,670 | **+78** | +1.72 | 1,036 | **-81** | **-1.96** |
+| 15-30 | 1,368 | -26 | -0.66 | 1,456 | -14 | -0.38 |
+| 30-60 | 1,333 | -12 | -0.34 | 1,412 | +13 | +0.41 |
+| 60-120 | 470 | -14 | -0.25 | 449 | -7 | -0.12 |
+
+Everything the data has to say is inside the **first fifteen minutes**, and it says the opposite of
+the anecdote: a fast reversal is the sleeve's best trade and a fast continuation is its worst. So
+the grid dropped the dead pre-registered lengths (30/120/999), added 15, and kept 60 as the
+"inside an hour" reading of the live session.
+
+### Stage 2: the paired grid, 2,686 sessions, and 0 of 5 cells pass
+
+Paired daily difference against the deployed control (same sessions, same bars, only the entry
+filter moves):
+
+| cell | dtr/day | 2016-2019 d$ / t | 2020-2023 d$ / t | 2024-2026 d$ / t | ALL d$/day | t | regimes t>2 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| flip 15 | -0.4 | -7 / -0.44 | -49 / -1.29 | -37 / -0.45 | **-31** | -1.17 | 0 |
+| flip 60 | -2.0 | -15 / -0.42 | -43 / -0.47 | -100 / -0.73 | **-47** | -0.93 | 0 |
+| any 15 | -0.5 | +10 / +0.63 | +40 / +0.63 | -65 / -0.76 | +3 | +0.08 | 0 |
+| same 15 | -0.1 | +16 / +0.97 | +75 / +1.44 | +16 / +0.43 | **+38** | +1.69 | 0 |
+| same 60 | -1.7 | +20 / +0.62 | -5 / -0.08 | +68 / +0.83 | +23 | +0.68 | 0 |
+
+**Gate 1 (mechanism) fails for every cell, and the two cells with the hypothesised sign are the
+two that lose.** Blocking the whipsaw reversal costs -$31 to -$47/day. The only cell with a
+positive sign is `same`, which was written as the *falsification control* - and it is exactly what
+stage 1 predicted, so the two instruments agree. It is not a candidate either: it was chosen after
+seeing the gap table, i.e. in sample, it removes 0.1 trades/day, and it does not reach t = 2 in any
+regime. **Gate 2 (deployability) fails for all five**: the book stays negative everywhere -
+control **-$331/day, t -1.35**, best variant `same15` -$293/day, t -1.19, and no variant reaches
+t > 2 in a single regime, let alone two.
+
+### A free measurement: the corrected cost model, on the full sample
+
+This control is the first full-sample re-run of the deployed sleeve since A-5 part 2 charged the US
+sell-side regulatory pass-throughs. Trades/day are identical to A-10's rows to the decimal
+(27.3 / 39.4 / 39.1), so the whole difference is the fee fix: **ORB alone moves from -$289/day to
+-$331/day** (regimes -251 -> -287, -476 -> -522, -65 -> -112). Every A-track number quoted before
+2026-09-10 noon is light by about $42/day on this configuration.
+
+### Decision
+
+**Refused; nothing shipped.** `live/intraday_config.json`, `live/APPROVED_PAPER.md`, `live/HALT*`
+and the scheduled tasks were not touched; the parameter stays in the module defaulted off. Rule (a)
+replay of 2026-09-08 against the current trader with the deployed config: **34 trades, 368
+decisions, flat at close, P&L -2,302 on 500k** - identical to the post-fee-fix figure recorded on
+2026-09-10, so the new code is inert on the live path. On the 261 sessions any A-track parameter
+has ever seen - the window that produced every A-track false positive - the control earns +$278/day
+and nothing here would have shipped from it either (`same60` +320, `flip60` +138, all t < 0.4).
+
+**Do not re-open as a block-length, mode or symbol question.** The mechanism was measured on 44,219
+round trips with nothing to fit and its sign is the reverse of the story; the grid then priced both
+signs at two lengths and neither reaches the pre-registered bar. The durable lesson is the one A-9
+taught in a different shape: **a single session's worst pattern is not evidence about the
+population.** The day that motivated this item was a 4,841-trip category that earns +$15 a trip.
+
+**Next.** The sleeve's loss is 98% first entries, so no re-entry rule can reach it - that is the
+last signal-layer idea the 2026-09-10 session suggested, and it is closed. A-5 part 2 stays the
+standing per-session job (~6-7 more sessions of fills to resolve `SLIPPAGE_BPS` against its 2.52
+bps breakeven at two standard errors), and the binding constraint is unchanged: the three open
+owner questions in `BLOCKERS.md`, to which this iteration adds a fourth, small one - live alerting
+is dead for want of a channel the loop may not configure itself.
+
 ## Paper session 2026-09-10
 
 Operations only, no research. Account DUT091359, NAV 989,100.58 at the 09:25 ET intraday start,

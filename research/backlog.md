@@ -17,6 +17,32 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 04:5x UTC (A-12): **the ORB whipsaw lockout is refused, and the event study that
+refused it found the sign inverted - the reversal re-entry is the sleeve's only profitable trade
+category.** The 2026-09-10 paper session lost 77% of its -6,779 in one stopped-out-then-flipped
+pattern in semis, which the shipped module permits because `max_entries` is counted per *side*. New
+`reentry_block`/`reentry_mode` on the ORB module (default **0 = off**) and `scripts/sweep_a12.py`;
+18 ledger rows. **Stage 1, 44,219 round trips over 2,686 sessions with nothing fitted**: the
+session's first entry earns **-$25/trip (t -2.66, total -$872,347)**, the `flip` re-entry **+$15
+(+0.65, +$70,708)** and the `same` continuation -$20 (-1.03); **98% of the sleeve's loss is in first
+entries**, which no re-entry filter can reach. The whole effect lives in the **first fifteen
+minutes** and points the other way: gap 0-15 is **flip +$78/trip (t +1.72)** against **same -$81
+(t -1.96)**, and every longer bucket is flat (|$| <= 26, |t| <= 0.66). **Stage 2, the paired grid
+(5 cells, one backtest per variant-year, 2,686 sessions): 0 of 5 pass.** The two cells with the
+hypothesised sign lose - flip15 **-$31/day (t -1.17)**, flip60 **-$47 (-0.93)** - and the only
+positive cell is the falsification control, `same15` **+$38/day at t +1.69, 0 of 3 regimes**, chosen
+after seeing the gap table and worth 0.1 trades/day. Deployability fails for all: control
+**-$331/day (t -1.35)**, best variant -$293 (-1.19). **A free measurement fell out**: this control
+is the first full-sample run since A-5 part 2 charged the sell-side regulatory fees, and with
+trades/day identical to A-10's rows the whole delta is cost - **ORB alone -$289/day -> -$331/day**.
+**Refused and closed; nothing shipped**, `live/intraday_config.json`, `live/APPROVED_PAPER.md`,
+`live/HALT*` and the scheduled tasks untouched, and the rule-(a) replay of 2026-09-08 reproduces the
+deployed sleeve exactly (34 trades, 368 decisions, flat at close, P&L -2,302). Champion unchanged at
+S-12. **The durable lesson is A-9's in another shape: one session's worst pattern is not evidence
+about the population** - the day that motivated this item belongs to a 4,841-trip category that
+earns +$15 a trip. One ops blocker added: live alerting is dead (`no live/alerts.json`), which needs
+a channel and credentials the loop may not configure.
+
 Status 2026-09-10 20:4x UTC (O-2): **SPY 0DTE credit spreads are the first candidate in this
 repository with a real, calibrated gross edge - and they are refused, because the only version that
 pays depends on a settlement convention the data cannot price.** Built the 0DTE chain store
@@ -519,6 +545,28 @@ regime gate, data ready), **L-1**, **X-1**, **O-2** (needs owner's options permi
 A-track refinements. Every candidate is judged on ten years of Alpaca bars with a three-regime
 split and real costs; nothing is deployed without being positive in at least two regimes.
 
+- **A-12 DONE 2026-09-11 (see journal): the ORB whipsaw lockout is refused - the reversal re-entry
+  is the only profitable trip category in the sleeve, and 98% of the loss is in first entries.
+  Nothing shipped.** Motivated by the 2026-09-10 paper session, where one stopped-out-then-flipped
+  pattern in semis carried 77% of a -6,779 day; the shipped ORB module permits it because
+  `max_entries` is counted per *side*. Built `reentry_block` / `reentry_mode` on the module
+  (default **0 = off**, three modes so the mechanism can be separated from the mere loss of
+  turnover) and `scripts/sweep_a12.py`; 18 ledger rows under `intraday/active`. **Stage 1 is an
+  event study with nothing to fit**: 44,219 round trips over 2,686 sessions, each labelled by what
+  preceded it that day - first entry **-$25/trip (t -2.66, -$872,347 total)**, `flip` **+$15
+  (+0.65, +$70,708)**, `same` -$20 (-1.03, -$88,087) - and the effect is entirely inside the first
+  fifteen minutes, with the sign reversed from the anecdote (**flip +$78/trip at t +1.72, same
+  -$81 at t -1.96**, every longer gap flat). **Stage 2, the paired grid**: flip15 **-$31/day
+  (t -1.17)**, flip60 -$47 (-0.93), any15 +$3 (+0.08), same15 **+$38 (+1.69)**, same60 +$23
+  (+0.68); **0 of 5 cells reach t > 2 in any regime**, and the book stays negative in all of them
+  (control **-$331/day, t -1.35**; best variant -$293, -1.19). The one positive cell is the
+  falsification control and was chosen after seeing the gap table, so it is in sample by
+  construction. **Do not re-open as a block-length, mode or symbol question** - the mechanism was
+  measured on 44,219 trips and its sign is the reverse of the premise. Rule (a) replay passed
+  (2026-09-08, deployed config: 34 trades, 368 decisions, flat, P&L -2,302, identical to the
+  post-fee-fix figure), so the new parameter is inert on the live path. **A free measurement**: the
+  control is the first full-sample run under A-5 part 2's corrected commission, with trades/day
+  identical to A-10's rows, so **ORB alone is -$331/day, not the -$289 on record**.
 - **L-1 DONE 2026-09-10 (see journal): leveraged ETFs do not revert intraday - gross is negative
   before costs, in both directions, on all six names. Refused, nothing shipped.** Two stages, the
   event study first so the mechanism was measured with nothing to fit: over 2016-2026 Alpaca bars

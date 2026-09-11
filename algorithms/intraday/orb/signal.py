@@ -32,6 +32,15 @@ the deployed behaviour exactly. The ratio is snapshotted when the range closes, 
 each bar, so a session's gate is one number per symbol. Only within-session quantities are used
 - the live feed carries 3 days of bars, so anything needing a trailing multi-session baseline
 would be NaN live and is deliberately not used here.
+
+A-12 adds the re-entry lockout (`reentry_block` minutes, `reentry_mode`, default 0 = off). The
+2026-09-10 paper session lost -5,191 of its -6,779 in one pattern: short semis at 09:52, stopped
+out at 10:25, long the same names at 10:36, out at a loss at 12:35. The shipped rule permits it
+because `max_entries` is counted per *side*, so a stop-out never consumes the opposite side's
+budget. `reentry_mode="flip"` blocks only the reversal, `"any"` blocks any re-entry and `"same"`
+blocks only the continuation - the last one exists so that a win can be attributed to the whipsaw
+mechanism rather than to trading less. Purely within-session and known at entry, so it is causal
+and identical live and in backtest.
 """
 from __future__ import annotations
 
@@ -64,6 +73,13 @@ PARAMS = {
                              # close read above / below the trailing median of `iv_feature`
     "iv_feature": "iv_atm_1w",
     "iv_lookback": 60,
+    "reentry_block": 0,      # A-12: minutes after an exit during which a new entry on the same
+                             # symbol is blocked (0 = off, which is the shipped behaviour). 999
+                             # blocks for the rest of the session.
+    "reentry_mode": "flip",  # which re-entries the block applies to: "flip" = only the opposite
+                             # direction to the position that just exited (the whipsaw), "any" =
+                             # both directions, "same" = only the same direction (the
+                             # falsification control: it removes turnover without the mechanism).
 }
 
 _IV_CACHE: dict = {}
@@ -124,6 +140,9 @@ def decide(now, feats, book, equity, state, params):
     is_new_session(state, now)
     pos = state.setdefault("pos", {})          # symbol -> {"side", "entry", "stop", "risk", "w", "scaled"}
     entries = state.setdefault("entries", {})  # symbol -> {"long": n, "short": n}
+    exits = state.setdefault("exits", {})      # A-12: symbol -> {"minute": m, "side": s} of the last exit
+    block_min = int(p.get("reentry_block") or 0)
+    block_mode = str(p.get("reentry_mode") or "flip")
     rng_minutes = int(p["range_minutes"])
     scale_out = float(p["scale_out"])
     # O-1: one prior-day lookup per session, cached in `state` so it costs nothing per bar.
@@ -153,6 +172,7 @@ def decide(now, feats, book, equity, state, params):
             stop = float(held["stop"])
             if (side > 0 and c < stop) or (side < 0 and c > stop) or m >= p["time_stop"]:
                 pos.pop(sym, None)
+                exits[sym] = {"minute": m, "side": side}
                 continue
             if scale_out > 0 and not held.get("scaled") and held["risk"] > 0:
                 target_px = held["entry"] + side * float(p["scale_r"]) * held["risk"]
@@ -185,6 +205,18 @@ def decide(now, feats, book, equity, state, params):
             side, key = -1, "short"
         else:
             continue
+        # A-12: the whipsaw lockout. The live session of 2026-09-10 lost 77% of the sleeve's day
+        # to one pattern - stopped out short in semis at 10:25, long again at 10:36, out at a loss
+        # - which the shipped rule permits because `max_entries` is counted per side. `flip` blocks
+        # only the reversal, `any` blocks every re-entry and `same` blocks only the continuation,
+        # so the mechanism can be separated from the mere reduction in turnover.
+        if block_min > 0:
+            last = exits.get(sym)
+            if last is not None and (m - int(last["minute"])) < block_min:
+                if (block_mode == "any"
+                        or (block_mode == "flip" and side != int(last["side"]))
+                        or (block_mode == "same" and side == int(last["side"]))):
+                    continue
         atr = float(row["atr14"]) if row["atr14"] == row["atr14"] else 0.0
         if p["stop"] == "atr" and atr > 0:
             stop_px = c - side * float(p["stop_atr"]) * atr

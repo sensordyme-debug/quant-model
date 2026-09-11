@@ -2,6 +2,20 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
+## Open ops item for the human (2026-09-11, live alerting is dead)
+
+- **Every alert the paper stack raised on 2026-09-10 was dropped.** The intraday log carries
+  `notify_failed: no live/alerts.json` fifteen times and the daily log once, so a loss-limit halt,
+  a connection failure or a flatten error is currently invisible outside the log files. Both
+  runners read `live/alerts.json` (`{"channel": ..., "target": ...}`, see `paper_trade.py:36` and
+  `intraday_common.py:238`) and push through OpenClaw's chat channel, which also needs the bot
+  credential named in `live/secrets.env`.
+- **Why the loop will not fix it.** It is a credential and an external-messaging channel: writing
+  either is outside the agent's red lines, and the target chat id is yours. Configure the channel
+  on the OpenClaw side and drop the `{"channel", "target"}` pair into `live/alerts.json`; nothing
+  in the repo needs to change, and the next session's log will show `notify_ok` instead. Until
+  then, treat `live/log/intraday-<date>.jsonl` as the only alert surface.
+
 ## Open question to the owner (2026-09-10, daily champion - risk posture, from O-1b)
 
 - **The daily champion's gross is one constant away from ~1.6 points more CAR, and moving it is
