@@ -715,6 +715,30 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
+Owner-side status 2026-09-11 09:40 ET: the daily review says the backlog is out of cheap
+mechanisms - ten refusals in 24 hours, every intraday candidate negative on 2,686 sessions,
+0DTE refused at the quote, breadth refused, and the champion's return traced to its sizing
+machinery. That is a finding, not a failure. The next program has to bring NEW information,
+not new rules on the same bars. Two tracks are opened below; the second needs the owner.
+
+- **F-1 Supervised intraday forecaster on the ten-year minute store (top item).** Stop hand-
+  designing rules. Build a walk-forward machine-learning model on `data/minute_alpaca` for the
+  50 megacaps + the 16-name universe: features per 5-minute bar (returns at 5/15/30/60 min,
+  VWAP deviation, range/ATR ratios, volume vs 20-day same-time-of-day average, opening gap,
+  time-of-day, day-of-week, cross-sectional rank of each feature across names, the market's
+  own features), target = next-30-minute return net of the cost model. Gradient boosting
+  (`lightgbm` or sklearn `HistGradientBoostingRegressor`), trained on 2016-2021, validated on
+  2022-2023, tested on 2024-2026, retrained yearly (expanding window). Judge on out-of-sample
+  P&L after costs of a long-top-decile / short-bottom-decile book rebalanced every 30 minutes,
+  and on feature importance stability. Report honestly if it is zero; this is the one
+  mechanism class the loop has not tried, and it is the one that scales with the data we now
+  have. Pip installs allowed. Nothing deploys without positive in two of three regimes.
+- **F-2 Index futures track (needs owner: IBKR futures permission + CME data, or a Databento
+  key for ES/NQ minute history).** ES/NQ trade 23 hours with 20x built-in leverage and no
+  daily-reset decay; overnight session momentum into the cash open and the 15:30-16:00 futures
+  flow are documented effects that the equity-only data cannot express. Prepare the harness
+  (contract roll, tick value, CME fees) so the day the data arrives the tests run.
+
 **2026-09-11 (S-2): the backlog now holds no open research item with a stated mechanism.** A-12,
 A-11 and S-2 closed the last three. What remains under "Open" is parked (A-8, by A-4's power
 calculation), settled elsewhere (A-3, by A-10), infrastructure (D-2b, E-2b), a standing
