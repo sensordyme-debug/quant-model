@@ -2,7 +2,7 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
-## Open ops item for the human (2026-09-11, S-17: the daily runner's clock costs 4.75 CAR points)
+## Open ops item for the human (2026-09-11, the daily runner's clock - **re-priced at ~1.9 CAR points by S-19**)
 
 - **The deployed daily champion is trading a signal one session staler than the strategy that was
   backtested, and closing the gap needs a scheduled task moved, which the loop may not touch.**
@@ -10,7 +10,7 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
 
   | path | signal reads closes through | fills at | elapsed from signal to fill |
   | --- | --- | --- | --- |
-  | LEAN backtest (the 24.404% number) | day D | the **open of D+1** | one overnight gap |
+  | LEAN backtest (24.404% then; **24.403% on the promoted champion**) | day D | the **open of D+1** | one overnight gap |
   | `scripts/paper_trade.py` as scheduled | day **D-1** | the **close of D** | one overnight gap **plus a full session** |
 
   The evidence is the runner's own log: `ref_price` equals the previous session's close in **6 of 6
@@ -43,6 +43,36 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
 - **What is not affected.** The champion, `champion.json`, `compare_orders.py` and the
   `OrderListHash` are all unchanged; this is about *when* the runner acts, not what it decides, and
   `compare_orders.py` compares order lists on historical dates so it still passes 3,689/3,689.
+- **Update 2026-09-11 (S-19): the defect is unchanged, the price tag is a third smaller, and it is
+  now a measurement rather than a bound.** Two things were wrong with the -4.75 above, neither of
+  them the diagnosis. **(1) It was measured on a strategy that was retired the same day.** S-18
+  replaced the 3x proxies and the drawdown breaker with the unlevered book, and a staleness cost is
+  a *return* cost, so it shrinks with exposure. Re-run on the promoted champion, `S1_SIGNAL_LAG=1`
+  earns **21.384% / 0.860 / DD 22.7%** against 24.403% / 0.994 / 23.7%, i.e. **-3.02 CAR at 0 bp**
+  and **-2.99 at 2 bp** (20.074% against the champion's 23.068%). **(2) `S1_SIGNAL_LAG=1` is an
+  upper bound by construction** - it hides the last close *and* still fills at the next open, so it
+  is one whole overnight gap staler than the deployed path, which fills at the close of the session
+  it decided in. LEAN cannot express the real convention on daily bars, so `scripts/sweep_s19.py`
+  runs the shared `signals.py` through a book that fills wherever it is told, after checking itself
+  against the champion's own LEAN equity curve (**corr 0.99650**, annualized std 0.1863 / 0.1872,
+  tracking sd 9.86 bps/day). In that harness:
+
+  | convention | CAR | paired vs the backtest |
+  | --- | --- | --- |
+  | backtest, and what the pre-open fix would restore | 24.077% | - |
+  | **the deployed 15:45 runner** | **22.192%** | **-0.599 bps/day, t -1.41** |
+  | `S1_SIGNAL_LAG=1` (the LEAN bound) | 20.965% | -0.994 bps/day, t -1.86 |
+
+  The deployed clock costs **61% of the bound**, and the harness agrees with LEAN to 0.09 CAR points
+  on the cell both can run - so **the number to use is about -1.9 CAR points** (0.61 x 3.02), and
+  the -4.75 above is superseded. The cost is out-of-sample weighted (IS -0.32 bps/day at t -0.58,
+  OOS -0.99 at t -1.49) and it still costs return rather than risk (drawdown improves, 22.7% against
+  23.7%). **Say the number out loud with its error bar**: nothing in this comparison reaches
+  |t| = 2 on 3,689 sessions. The reason to fix it is that the defect is certain - the runner's own
+  log records `as_of = D-1` every session and `ref_price` matched the previous close in 6 of 6 fills
+  - not that 1.9 points of return are being measured with confidence. **Nothing changed**: the
+  request is still the one task move plus the `--order-type` work, and the loop has not touched
+  either.
 
 ## Open ops item for the human (2026-09-11, live alerting is dead)
 

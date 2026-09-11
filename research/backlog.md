@@ -17,6 +17,41 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 18:1x UTC (S-19): **the largest unblocked number on the daily sleeve was measured
+on a strategy that no longer exists and with an instrument that could only bound it; re-measured, the
+deployed runner's clock costs about 1.9 CAR points rather than 4.75, and nothing in the comparison
+reaches |t| = 2.** With no open research item left that is not blocked on the owner or on data the
+human must buy, this iteration took the top unblocked ops number instead of a twelfth mechanism. New
+`scripts/_s19_runs.sh` (six LEAN cells) and `scripts/sweep_s19.py` (a share-level book that runs the
+shared `signals.py`, fills wherever it is told, and scores itself against LEAN's own equity curve);
+**10 ledger rows**, control reproducing **`OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`**.
+**(1) The bound, re-run on the promoted champion**: `S1_SIGNAL_LAG=1` earns **21.384% / 0.860 /
+DD 22.7%** against 24.403% / 0.994 / 23.7%, i.e. **-3.02 CAR at 0 bp** and **-2.99 at 2 bp**, against
+S-17's -4.75 on the retired 3x book - **the S-18 promotion cut the cost of the clock by 36%**, which
+is what a return cost does when economic exposure falls from 2.25x to 1.50x. The ladder is concave
+(lag 1 costs 3.02, lag 2 a further 0.97) and the halves both lose, out-of-sample weighted (IS 16.443
+vs 17.698, OOS 27.431 vs 32.801). **(2) The exact convention, which LEAN cannot express**: a daily
+bar for D arrives stamped `D 16:00`, so nothing submitted then can fill at D's close, and
+`S1_SIGNAL_LAG=1` is therefore one whole overnight gap staler than the deployed path rather than
+equal to it. The pandas book prices all three - **backtest 24.077 / deployed 22.192 / lag1 20.965**,
+paired **-0.599 bps/day (t -1.41)** and -0.994 (t -1.86) - after validating at **corr 0.99650**
+against the control's own LEAN equity curve (annualized std 0.1863 / 0.1872, tracking sd 9.86
+bps/day). **The deployed clock is 61% of the bound**, and the two harnesses agree to **0.09 CAR
+points** on the one cell both can run, so **-1.9 CAR** is the number and it replaces -4.75 in
+`BLOCKERS.md`. **(3) One instrument finding, in S-17's line**: LEAN reports Annual Standard Deviation
+**0.155** and Sharpe **0.994** for a curve carrying **0.186** of trading-day volatility - resampling
+onto *calendar* days reproduces 0.157 - so **every Sharpe in the ledger is on a calendar-day basis
+and biased down by ~17%**. Cross-cell comparisons inside the ledger are unaffected; comparing a LEAN
+Sharpe against one computed anywhere else is not safe, and `sweep_s19.py --validate` prints the
+warning with both tables. **Nothing shipped, nothing promoted, no default changed**: champion
+unchanged at S-18, `live/*` and the three scheduled tasks untouched, only two new scripts added so
+rule (a) owes no replay and the I-1 gate is unaffected. **Standing jobs both ran**: A-5 part 2 has
+new input - today's session adds **34 fills at +0.94 bps**, pooled **66 fills / +2.22 bps / se 0.80**
+against the shipped 1.50, `|diff|/se 0.90`, ~4.4 sessions to settle; `daily_fills.py` unchanged at
+6 fills / +2.9 bps (this ran before the 15:45 rebalance). **What it changes for the loop**: the ops
+decision the owner holds is worth less than it looked and is still worth taking, and the honest
+framing is that the defect is certain while its value is not.
+
 Status 2026-09-11 17:1x UTC (F-3): **the supervised track is closed, and it closes on a comparison
 rather than a tally: at a daily horizon the model's ranking is six times weaker than the momentum
 blend it was built to replace, and the champion's own signal is worth 61.5 bps per dollar it turns
@@ -955,7 +990,25 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
-**Priority after F-3 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~5.5 sessions from settling and now gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which are now the whole of the unblocked work, in order of the number attached to them: the runner's clock (-4.75 CAR, the largest unblocked number on the daily sleeve), the Reg-T buffer (S-16: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the now-unlevered book), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** The supervised track is closed by F-1 and F-3 together: the model finds an IC of about +0.011 wherever it is pointed, and on both sleeves it rides a weaker mechanism than the one already shipped - intraday it could not clear its commission, daily it could not out-rank a four-horizon momentum blend that is itself a t = +5.4 signal worth 61 bps per dollar turned.
+- **S-19 DONE 2026-09-11 (see journal): the deployed daily runner's clock is worth ~1.9 CAR points,
+  not 4.75, and the correction is two parts instrument and one part the S-18 promotion.** Six LEAN
+  cells (`scripts/_s19_runs.sh`) and a validated pandas book (`scripts/sweep_s19.py`), 10 ledger
+  rows, control reproducing `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`. On the promoted
+  champion `S1_SIGNAL_LAG=1` is **-3.02 CAR at 0 bp / -2.99 at 2 bp** (S-17 measured -4.75 on the
+  retired 3x book), and that cell is an *upper bound* because LEAN cannot fill at the close of the
+  session it decided in; the book that can prices the deployed convention at **-1.885 CAR, paired
+  -0.599 bps/day at t -1.41**, i.e. **61% of the bound**, after validating against the control's own
+  LEAN equity curve at **corr 0.99650**. `BLOCKERS.md` is corrected in place. **Do not re-open as a
+  "what is the real lag" question** - the convention is proved from the runner's own log and the
+  arithmetic is now done at both ends. Two durable pieces survive it: `sweep_s19.py` can execute the
+  shipped signal at any fill convention (the harness any future execution question needs), and the
+  measurement that **LEAN's reported Sharpe and Annual Standard Deviation are resampled onto
+  calendar days** and so sit ~17% below the same curve's trading-day figures - safe to compare
+  within the ledger, never against a statistic computed elsewhere.
+
+**Priority after S-19 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work, now in a corrected order of value: the Reg-T buffer (S-16/S-18: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the unlevered book), the runner's clock (**-1.9 CAR**, re-priced by S-19 and no longer the largest number on this sleeve), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-19 did not open an item; it closed one and moved a number.
+
+Superseded, kept for the reasoning: **Priority after F-3 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~5.5 sessions from settling and now gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which are now the whole of the unblocked work, in order of the number attached to them: the runner's clock (-4.75 CAR, the largest unblocked number on the daily sleeve), the Reg-T buffer (S-16: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the now-unlevered book), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** The supervised track is closed by F-1 and F-3 together: the model finds an IC of about +0.011 wherever it is pointed, and on both sleeves it rides a weaker mechanism than the one already shipped - intraday it could not clear its commission, daily it could not out-rank a four-horizon momentum blend that is itself a t = +5.4 signal worth 61 bps per dollar turned.
 
 Superseded, kept for the reasoning: **Priority after F-1 (2026-09-11), in order: (1) F-3, the
 supervised method at a daily horizon -

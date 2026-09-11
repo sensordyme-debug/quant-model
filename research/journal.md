@@ -2,6 +2,131 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - S-19: the deployed runner's clock costs 1.9 CAR points, not 4.75, and two thirds of the correction is the promotion that already happened
+
+- **What.** The largest unblocked number on the daily sleeve is the one in `BLOCKERS.md` asking the
+  owner to move a scheduled task, and it was measured on a strategy that no longer exists. S-17
+  priced the runner's staleness at **-4.75 CAR** with `S1_SIGNAL_LAG=1` on the S-12 champion - 3x
+  proxies, drawdown breaker, 2.25x economic exposure - and S-18 retired both of those mechanisms
+  the same day. S-19 re-prices it on the book that is actually deployed and, separately, replaces
+  the *bound* with the *number*. New `scripts/_s19_runs.sh` (six LEAN cells) and
+  `scripts/sweep_s19.py` (a share-level book that runs the shared `signals.py` and fills wherever it
+  is told, plus a `--validate` mode that scores itself against LEAN's own equity curve).
+  **10 ledger rows**: 6 LEAN runs tagged `S-19` and 4 under `daily/s19_clock`. Nothing shipped.
+- **Why `S1_SIGNAL_LAG=1` was never the answer.** Written with `i` as the session the orders fill
+  in, the three conventions are:
+
+  | convention | last close the signal reads | fills at | elapsed signal -> fill |
+  | --- | --- | --- | --- |
+  | LEAN backtest, and the pre-open fix | `close[i-1]` | `open[i]` | one overnight gap |
+  | `paper_trade.py` as scheduled at 15:45 ET | `close[i-1]` | `close[i]` | one overnight gap **+ a session** |
+  | `S1_SIGNAL_LAG=1` | `close[i-2]` | `open[i]` | two overnight gaps **+ a session** |
+
+  Rows one and two **decide identically** - same bars, same targets, same order list from the same
+  state - and differ in one thing, where the order fills. Row three is a whole overnight gap staler
+  than the deployed path, which is why S-17 called it an upper bound. LEAN cannot express row two on
+  daily bars: a bar for D arrives stamped `D 16:00`, so nothing submitted then can fill at D's close.
+
+### 1. The bound, re-run on the promoted champion
+
+All six cells are `S1_*` overrides on the shipped algorithm; the control reproduces **`OrderListHash
+a6d6224ce9c70091e5bfa8e96f046bf3`** (5,128 orders, 24.403%, 0.994, 23.700%, $27,199.76).
+
+| cell | orders | CAR | Sharpe | MaxDD | fees |
+| --- | --- | --- | --- | --- | --- |
+| control (the promoted champion) | 5,128 | **24.403%** | 0.994 | 23.700% | $27,200 |
+| `S1_SIGNAL_LAG=1` | 5,170 | **21.384%** | 0.860 | 22.700% | $23,808 |
+| `S1_SIGNAL_LAG=2` | 5,184 | 20.417% | 0.816 | 21.800% | $23,477 |
+| `S1_SIGNAL_LAG=1` at 2 bp | 5,170 | 20.074% | 0.805 | 22.900% | $21,929 |
+
+So the bound is **-3.02 CAR at 0 bp** and **-2.99 at 2 bp** (the champion's own 2 bp column is
+23.068%), against S-17's **-4.75** on the retired book: **the promotion to the unlevered sleeve cut
+the cost of the runner's clock by 36%**, which is what a return cost does when economic exposure
+falls from 2.25x to 1.50x. It is still a return cost and not a risk one - drawdown *improves* again,
+22.7% against 23.7%. The ladder is strongly concave: the first session of staleness costs 3.02
+points and the second 0.97, so this is not a linear decay to be extrapolated.
+
+Halves, against S-18's champion rows (IS 17.698 / 0.911 / 23.7, OOS 32.801 / 1.108 / 23.3):
+**IS 2012-2019 16.443% / 0.831 / 17.7** (-1.26 CAR) and **OOS 2020-2026 27.431% / 0.916 / 22.7**
+(-5.37 CAR). Both halves lose, and the cost is out-of-sample weighted - the same shape S-18 found
+for the promotion itself, and for the same reason: a bigger cost in a faster regime.
+
+### 2. The exact convention, in a book that was checked against LEAN first
+
+`sweep_s19.py` steps the shipped signal day by day, sizes with `main.py:submit_targets`' own rule
+against `close[i-1]` (the price *both* implementations hold when they decide - LEAN's
+`securities[symbol].price` at the rebalance bar, and the runner's `prices` dict built from the last
+complete yfinance close), and then fills at whichever price the convention names. Holding the
+sizing reference fixed is what makes the comparison paired: the two books cannot differ in what they
+decide, only in what they pay.
+
+**The validation, which comes first because nothing below it is readable otherwise.** Against the
+control run's own equity curve, over the same 3,688 sessions: **corr(daily returns) 0.99650**,
+annualized std **0.1863 LEAN / 0.1872 book**, mean annual return **0.2365 / 0.2335**, end equity
+**$2,463,129 / $2,348,450**, tracking sd of the daily difference **9.86 bps**. The book is the
+champion.
+
+| convention | CAR | Sharpe | MaxDD | orders | fees |
+| --- | --- | --- | --- | --- | --- |
+| backtest / the pre-open fix | **24.077%** | 1.247 | 23.258% | 5,039 | $24,292 |
+| **the deployed 15:45 runner** | **22.192%** | 1.159 | 23.860% | 5,052 | $22,045 |
+| `lag1`, the LEAN bound | 20.965% | 1.102 | 22.697% | 5,090 | $21,214 |
+| `lag1` + a 15:45 fill | 19.793% | 1.052 | 22.958% | 5,108 | $19,947 |
+
+Paired daily return differences against the backtest convention: **deployed -0.599 bps/day
+(t -1.41)**, lag1 -0.994 (t -1.86), lag1+close -1.383 (t -2.42). Halves of the deployed gap:
+**IS -0.317 bps/day (t -0.58), OOS -0.995 (t -1.49)**.
+
+**The conversion, which is the deliverable.** In this harness the deployed clock costs **1.885 CAR
+points against the bound's 3.111 - 61% of it** - and the harness agrees with LEAN to **0.09 CAR
+points** on the one cell both can run (3.111 against 3.02). So the number that belongs in
+`BLOCKERS.md` is **about -1.9 CAR points**, not -4.75: 0.61 x 3.02.
+
+**And the honest qualifier, stated as loudly as the number.** Nothing here reaches `|t| = 2`. The
+direction is unanimous - every cell, both halves, both harnesses, both spreads, and the ladder is
+monotone in staleness - but on 3,689 sessions a 0.6 bps/day difference is not distinguishable from
+zero. This is evidence about a defect that is *known by construction* (the runner's own log has
+recorded `as_of = D-1` on every session and `ref_price` matched the previous close in 6 of 6 fills),
+so the case for fixing it does not rest on the t-statistic; what the t-statistic says is that the
+fix should not be *sold* as +1.9 points of return.
+
+### 3. One instrument finding, in S-17's line of work
+
+LEAN reports **Annual Standard Deviation 0.155** and **Sharpe 0.994** for the control, while the
+control's own equity curve carries **0.186** of annualized volatility on trading days. The gap is a
+reporting convention: resampling that curve onto *calendar* days - weekends and holidays entering as
+zero-return sessions, then annualizing by 252 - reproduces **0.157**. So every Sharpe and every
+standard deviation in `research/experiments.jsonl` is on a calendar-day basis and is biased *down*
+by about 17%. Cross-cell comparisons inside the ledger are unaffected, because every row shares the
+convention; what is not safe is comparing a LEAN Sharpe against one computed anywhere else, which is
+exactly what a script like this one would otherwise invite. `sweep_s19.py --validate` prints both
+tables with that warning attached, and it also carries the two traps found getting there: LEAN's
+`Strategy Equity` series has several samples per session, and taking the last of each date mixes a
+close with a mid-session mark (correlation falls 0.997 -> 0.804 for no reason); and a midnight point
+stamped D is the value *after* the close of D-1.
+
+### 4. Decision
+
+**Nothing shipped, nothing promoted, no default changed.** The champion is unchanged at S-18, the
+control reproduces its `OrderListHash` bit-for-bit, `live/APPROVED_PAPER.md`, `live/HALT*`,
+`live/intraday_config.json` and the three scheduled tasks were not touched, and the only files added
+are two new scripts that neither runner loads - so AGENTS.md rule (a) owes no replay and the I-1
+order-list gate is untouched. `BLOCKERS.md` is corrected in place: the ops item now reads -1.9 CAR
+with the -4.75 kept as the superseded figure and the reason it moved.
+
+**Standing jobs, both run.** `slippage_report.py` had new input: today's session adds **34 fills at
++0.94 bps**, so the pooled figure over 2 sessions is **66 fills / $2.88M / +2.22 bps (se 0.80)**
+against the shipped 1.50 - `|diff|/se = 0.90`, inside 2 se, so `intraday_common.SLIPPAGE_BPS` was
+**not** touched; ~4.4 more sessions settle it against A-5 part 1's 2.52 bps breakeven.
+`daily_fills.py` is unchanged at **6 fills / $1.42M / +2.9 bps (se 6.8)** because this ran at 13:3x
+ET, before the 15:45 rebalance.
+
+**Next.** The backlog's own reading still holds - there is no open research item with a mechanism
+that is not blocked on the owner or on data the human must buy - and S-19 narrows rather than opens.
+What it changes is the price tag on the one ops decision the owner has been handed: moving "Quant
+Paper Rebalance" before the open is worth about 1.9 CAR points at t -1.41, on a defect that is
+certain even though its value is not.
+
 ## 2026-09-11 - F-3: the same machine at a daily horizon, and this time the hand-built signal wins
 
 - **What.** The top backlog item, opened by F-1's refusal. F-1's arithmetic was that a forecast
