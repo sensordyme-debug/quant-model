@@ -17,6 +17,38 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 10:2x UTC (S-14): **breadth is refused - more candidates make the daily champion
+monotonically worse - and the measurement behind the refusal found that the champion's entire
+cross-sectional edge is +2.02 bps/day at t = 2.07.** With the backlog out of open mechanisms
+(S-2 closed the last one), this iteration took the direction S-12 and the 2026-09-09 owner
+decision both name and nobody had measured: the sleeve ranks **nine** ETFs and holds three, so
+completing the GICS sector map should make the top three a real selection. Fetched 13 ETFs
+through the D-1 pipeline (XLV XLY XLP XLI XLU XLB XLRE XLC EFA HYG IEF SLV VNQ, 1998-2026, all
+validated; XLRE/XLC list mid-sample and enter only when they have a full lookback), added two
+nested sleeve presets and `scripts/sweep_s14.py`; 7 ledger rows. **LEAN, full period: CAR
+24.404% / Sharpe 0.921 (etf9, control) -> 17.253% / 0.663 (17 names) -> 11.622% / 0.430 (22
+names)**, at unchanged realized vol (0.170 / 0.163 / 0.165), and `evaluate.py` refuses all four
+candidates. The nearest candidate loses **both** halves (IS 12.626% vs 19.18%, OOS 22.929% vs
+30.86%). **The decomposition is the keeper**: with leverage, the vol target and the overlay
+switched off, the unlevered top-3 basket's return splits into the menu and the ranking spread -
+etf9 **7.21 = 5.20 + 2.02 bps/day (t 2.07)**, sector17 5.73 = 4.90 + 0.82, broad22 5.27 = 4.32 +
+0.94; paired, **-1.37 bps/day (t -1.95)** and **-1.89 (t -2.23)** against the champion, of which
+only -0.30 is the worse menu and **-1.20 is the signal picking worse**. At `top_n=5` every spread
+collapses to insignificance (etf9 **+0.84, t 1.16**), so **the edge exists only at top-3-of-9 and
+every dilution costs it**. The steelman does not rescue breadth: `top_n=5` on the wide sleeve
+recovers 2.4 points of CAR, and **vol-matched to the champion's own 0.17 std it still earns
+22.879% / 0.872 against 24.404% / 0.921 on 8,279 orders against 4,735**. What breadth does buy is
+a smoother path (unlevered drawdown 22.4% -> 14.3%). **Refused and closed; nothing shipped** -
+champion unchanged at S-12, the control reproduces `OrderListHash
+5246804e17a67af90028ffceead7d3b3`, `compare_orders.py` passes 3,689/3,689, `live/` and the
+scheduled tasks untouched. Two defects fixed in `fetch_data.py`: the manifest was **rewritten**
+rather than merged (69 entries erased by a 13-symbol fetch; restored and the merge verified) and
+`--symbols <ONE>` crashed on yfinance's single-symbol column layout. **The successor is S-15**,
+the uncomfortable question this raises: if 2 bps/day is the whole selection edge, most of the
+champion's 24.4% CAR is levered beta plus the regime filter, and that attribution should be
+measured before more work is spent on the ranker. A-5 part 2 had no new input (ran 05:3x ET,
+before the open; still 2026-09-10 alone: 32 fills, +2.89 bps, se 1.33, ~6.8 sessions to settle).
+
 Status 2026-09-11 09:3x UTC (S-2): **the index-ETF opening-range breakout is refused before the
 LEAN build, and the thing that made it look profitable is the stop, not the signal.** S-2 has been
 open since 2026-09-08 and was the last research item on the backlog with a stated mechanism that
@@ -610,6 +642,28 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
+**Update 2026-09-11 (S-14): one new open item, and it is about the champion rather than a
+candidate.** S-14 measured the champion's cross-sectional selection edge at **+2.02 bps/day,
+t = 2.07** on 3,099 invested days - the whole contribution of the ranker, and it survives only at
+top-3-of-9. That makes **S-15 (return attribution)** the top open item: the loop has spent S-9
+through S-14 tuning a component that may be a small minority of the book's return, and nobody has
+measured the split.
+
+- **S-15 Attribute the champion's 24.4% CAR to its four parts, before tuning any of them again.**
+  The pieces are separable by construction (`main.py` docstring: momentum picks *what*, the regime
+  filter decides *whether*, the vol target and overlay decide *how much*) and S-14 built the
+  leverage-free walk that isolates the first one. Measure, each as a LEAN run against the shipped
+  control: (a) **no-skill levered beta** - hold the nine-name pool equal-weighted through the same
+  regime filter, vol target, margin budget and overlay, with the levered proxies in place, i.e.
+  everything except ranking; (b) **the regime filter alone** - the champion with
+  `regime_threshold` effectively off, so the crisis switch's timing value is priced; (c) **the
+  ranker** - the difference between (a) and the champion, which S-14's replica already estimates
+  at ~2 bps/day unlevered; (d) **the allocation tilt** - `S1_WEIGHT_MODE=equal`, already measured
+  by S-12 at -0.79 CAR. Judge nothing; the output is a table and a sentence about where the return
+  comes from. It changes what the loop works on next, and it is the only remaining question whose
+  answer cannot be guessed from the ledger. It touches no deployed file (all four cells are env
+  overrides) and owes no replay.
+
 **Owner instruction 2026-09-10 (midday) - the list is now exhausted, 2026-09-10 20:4x UTC.**
 O-1, O-1b, L-1, X-1 and O-2 have each been measured on the full history and each refused. Nothing
 in this repository reaches 3-10%/day: the closest candidate, O-2, needs 3.9x equity at risk per
@@ -623,6 +677,25 @@ regime gate, data ready), **L-1**, **X-1**, **O-2** (needs owner's options permi
 A-track refinements. Every candidate is judged on ten years of Alpaca bars with a three-regime
 split and real costs; nothing is deployed without being positive in at least two regimes.
 
+- **S-14 DONE 2026-09-11 (see journal): breadth makes the daily champion monotonically worse, and
+  its whole cross-sectional edge is +2.02 bps/day at t = 2.07. Refused, nothing shipped.** Three
+  nested ranking sleeves - etf9 (shipped), sector (17), broad (22) - after fetching 13 ETFs
+  through the D-1 pipeline; presets in `main.py`, decomposition in `scripts/sweep_s14.py`, 7
+  ledger rows. LEAN full period: **24.404% / 0.921 / 25.1% -> 17.253% / 0.663 / 30.3% -> 11.622%
+  / 0.430 / 29.7%** at unchanged realized vol; `sector` loses both halves (IS 12.626%, OOS
+  22.929%); `evaluate.py` refuses all four candidates. Leverage-free decomposition
+  (`selected = pool_mean + spread`): **etf9 7.21 = 5.20 + 2.02 (t 2.07)**, sector17 5.73 = 4.90 +
+  0.82, broad22 5.27 = 4.32 + 0.94, paired **-1.37 (t -1.95)** and **-1.89 (t -2.23)** bps/day,
+  four fifths of it the spread rather than the menu. At `top_n=5` no sleeve's spread is
+  significant (etf9 +0.84, t 1.16). Vol-matched steelman (`sector`, top_n 5, budget 0.867, std
+  0.168): **22.879% / 0.872** on 8,279 orders. **Do not re-open as a "which names" question** -
+  three pools, two holding counts and a vol-matched control agree. What breadth does buy is
+  drawdown (unlevered 22.4% -> 14.3%), which is a risk-posture trade, not a return one. Control
+  reproduces `OrderListHash 5246804e17a67af90028ffceead7d3b3` and `compare_orders.py` passes
+  3,689/3,689, so the daily deploy path is untouched. Also fixed in `fetch_data.py`: the manifest
+  is now **merged** rather than rewritten (a 13-symbol fetch had erased the other 69 entries;
+  restored from git, merge verified at 1 re-derived / 81 kept) and a one-symbol `--symbols` run no
+  longer crashes on yfinance's single-ticker column layout. Successor: **S-15**, above.
 - **A-12 DONE 2026-09-11 (see journal): the ORB whipsaw lockout is refused - the reversal re-entry
   is the only profitable trip category in the sleeve, and 98% of the loss is in first entries.
   Nothing shipped.** Motivated by the 2026-09-10 paper session, where one stopped-out-then-flipped

@@ -2,6 +2,117 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - S-14: breadth, and the discovery that the champion's whole cross-sectional edge is one thin number
+
+- **What.** The backlog closed its last open mechanism yesterday (S-2), so this iteration took
+  the one direction the repository has repeatedly named and never measured: **breadth**. S-12's
+  note says "what remains inside a three-name ETF book needs breadth (correlation-aware weights
+  want more than nine names)" and the 2026-09-09 owner decision says volatility is to be earned
+  by widening, not by leverage. The champion ranks **nine** unlevered ETFs and holds the top
+  three, i.e. a third of its own universe - which is barely a selection at all.
+- **Why it should have worked.** Cross-sectional momentum earns the spread between the names it
+  picks and the names it passes over. With 9 candidates the top 3 is 33% of the menu; completing
+  the GICS sector map (the sleeve carries only XLK/XLF/XLE) takes it to 18%, and the sectors it
+  is missing are genuinely dispersed - utilities against energy can differ by forty points in a
+  year. More candidates should mean a better top three.
+- **Data.** Fetched the eight missing sector SPDRs and five asset-class ETFs from Yahoo through
+  the shipped D-1 pipeline (XLV XLY XLP XLI XLU XLB XLRE XLC EFA HYG IEF SLV VNQ, 1998-2026, all
+  validated, factor deviation 0.00000). Two of them list mid-sample (XLRE 2015-10-08, XLC
+  2018-06-19) and the ranking gate in `target_weights` admits a name only once it has a full
+  lookback of priced bars, so they enter on their own schedule and nothing is back-dated.
+- **Three nested sleeves**, so the only thing that changes between runs is how many names the
+  signal ranks: `etf9` (shipped, 9), `sector` (17), `broad` (22), added as presets in `main.py`.
+  The pre-registered rule, fixed before the runs: promote only through `evaluate.py`, and only
+  if the wider sleeve also wins **both** sub-periods and the two nested sleeves agree in sign.
+
+### 1. LEAN, full period 2012-01-03..2026-09-04
+
+| sleeve | ranked | orders | CAR | Sharpe | MaxDD | ann.std | fees | PSR |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **etf9 (champion, control)** | 9 | 4,735 | **24.404%** | **0.921** | 25.1% | 0.170 | $45,695 | 23.0% |
+| sector | 17 | 5,534 | 17.253% | 0.663 | 30.3% | 0.163 | $40,726 | 4.0% |
+| broad | 22 | 5,629 | **11.622%** | **0.430** | 29.7% | 0.165 | $32,236 | 0.3% |
+| sector, `top_n=5` | 17 | 7,696 | 19.625% | 0.826 | 21.7% | 0.147 | $41,693 | 13.9% |
+| sector, `top_n=5`, budget 0.867 (vol-matched) | 17 | 8,279 | 22.879% | 0.872 | 23.6% | 0.168 | $57,670 | 17.6% |
+
+**Monotone in the number of candidates, and monotone the wrong way**, at essentially unchanged
+realized volatility (0.170 / 0.163 / 0.165). `evaluate.py` refuses all four candidates. The
+control reproduces **`OrderListHash 5246804e17a67af90028ffceead7d3b3`** exactly, so the two new
+constants are inert on the deployed path, and `compare_orders.py` still passes 3,689/3,689.
+
+Sub-periods for the nearest candidate (`sector`, top_n 3) against the champion's recorded halves:
+**IS 2012-2019 12.626% / 0.603 / 30.3%** against 19.18% / 0.884 / 25.1%, **OOS 2020-2026 22.929%
+/ 0.739 / 20.1%** against 30.86% / 0.985 / 22.6%. It loses in both halves, so this is not a
+regime artifact.
+
+### 2. Why - the decomposition, with leverage and the vol target switched off
+
+`scripts/sweep_s14.py` walks the same signal day by day with no drawdown overlay, no vol target,
+no margin budget and no levered proxies, and splits the unlevered top-3 basket's daily return
+into `selected = pool_mean + spread`: the quality of the **menu**, which the signal is not
+responsible for, and the **spread**, which is the only part ranking earns.
+
+| sleeve | selected | pool mean | spread | t | unlevered CAR | Sharpe | MaxDD | churn |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| etf9 | 7.21 bps/day | 5.20 | **+2.02** | **2.07** | 15.5% | 1.18 | 22.4% | 0.15 |
+| sector17 | 5.73 | 4.90 | +0.82 | 0.81 | 12.0% | 0.96 | 15.7% | 0.20 |
+| broad22 | 5.27 | 4.32 | +0.94 | 0.82 | 10.8% | 0.83 | 14.3% | 0.21 |
+
+Paired on the 3,099 days both books are invested: **sector17 - etf9 = -1.37 bps/day (t -1.95)**,
+**broad22 - etf9 = -1.89 (t -2.23)**. Of the -1.48 bps that separates etf9 from sector17, only
+**-0.30 is the menu** and **-1.20 is the spread**: four fifths of the damage is the signal
+picking worse, not the added names being worse assets. The spread falls in both halves
+(etf9 1.69 / 2.43 against sector17 0.32 / 1.45).
+
+**The finding that matters more than the verdict**: the champion's entire cross-sectional
+contribution is **+2.02 bps/day at t = 2.07** over fourteen years, and it exists only at
+top-3-of-9. Re-run at `top_n=5` the spreads collapse into each other and none is significant -
+etf9 **+0.84 (t 1.16)**, sector17 +0.99 (1.32), broad22 +1.34 (1.59). So the champion is not a
+broad momentum engine that happens to run on nine names; it is a concentrated bet whose edge is
+thin, and every dilution of that concentration - more candidates, more holdings - costs it.
+
+### 3. Two things breadth *does* buy, and what they cost
+
+Composition (`--mode compose`): widening moves **38.4%** (sector) and **45.0%** (broad) of funded
+slots into names the shipped sleeve does not have, and cuts the share of funded slots in names
+that carry a 3x proxy from **32.7% to 17.6% / 15.8%** - the sleeve starts winning momentum races
+with defensives (XLV 20%, XLU 17%, XLP 9%) and silver (SLV 22% in broad). **This is not why it
+loses**: realized vol is unchanged across all three books, because the vol target and margin
+budget lever the unlevered winners back up. The steelman confirms it - `top_n=5` on the wide
+sleeve recovers 2.4 points of CAR and 8.6 points of drawdown, and **sized to the champion's own
+0.17 std it still earns 22.879% at Sharpe 0.872 against 24.404% / 0.921, on 8,279 orders against
+4,735 and $12k more commission.** What breadth genuinely delivers is diversification: the
+unlevered basket's drawdown falls 22.4% -> 15.7% -> 14.3% and the vol-matched book's is 23.6%
+against 25.1%. It buys a smoother path and pays 1.5 points of CAR and 75% more turnover for it.
+
+### 4. Two defects fixed in the data tool on the way
+
+- `fetch_data.py` **rewrote the whole manifest** from each run, so today's 13-symbol fetch erased
+  the provenance record of the other 69. Same shape as the `alpaca_data.py --splits` landmine S-2
+  fixed yesterday, and cheaper only because nothing reads this file. It now **merges** per symbol
+  and prints `(n re-derived, m kept)`; the 69 lost entries were restored from git and a no-op
+  re-fetch of SLV verifies the path (1 re-derived, 81 kept, 82 on disk).
+- `--symbols <ONE>` **crashed**: yfinance ignores `group_by="ticker"` for a single-symbol batch
+  and returns (field, ticker) MultiIndex columns, so the frame handed to `dropna` had no `Open`
+  column. The ticker is now selected from whichever column level carries it. Verified: a
+  one-symbol run reproduces the batch run's 5,124 SLV bars.
+
+### 5. Decision
+
+**Refused and closed; nothing shipped.** `research/champion.json` is unchanged at S-12, the daily
+runner's order list is bit-identical (hash reproduced, deploy gate passes), and `live/` and the
+scheduled tasks were not touched. The two new sleeve presets stay in the tree defaulted off
+(`S1_SLEEVE=etf`), because the decomposition behind the refusal is worth being able to re-run.
+**Do not re-open breadth as a "which names" question** - three nested pools, two holding counts
+and a vol-matched control all point the same way, and the mechanism is measured: the ranking
+spread does not survive dilution. The honest successor question is the opposite one, and it is
+uncomfortable: if +2.02 bps/day at t = 2.07 is the whole cross-sectional edge, then most of the
+champion's 24.4% CAR is the levered beta of a 3x proxy basket plus the regime filter, not
+selection - which is worth measuring before any further work is spent on the ranker.
+- **A-5 part 2 (standing job) had no new input**: this ran at 05:3x ET, before the open, so the
+  ledger is still the single 2026-09-10 session - 32 fills, $1.87M, **+2.89 bps (se 1.33)**
+  against the shipped 1.50, |diff|/se 1.05, ~6.8 sessions to settle it. `SLIPPAGE_BPS` untouched.
+
 ## 2026-09-11 - S-2: the index-ETF opening-range breakout, and the stop that makes both signs look profitable
 
 - **What.** S-2 has been on the backlog since 2026-09-08 and was unblocked for SPY on 2026-09-09:

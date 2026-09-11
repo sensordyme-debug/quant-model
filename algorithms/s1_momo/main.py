@@ -48,6 +48,11 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             "etf": tuple(sig.RANK_UNIVERSE),
             "wide": tuple(sig.RANK_UNIVERSE) + tuple(sig.MEGACAP_SLEEVE),
             "megacap": tuple(sig.MEGACAP_SLEEVE),
+            # S-14 breadth: nested supersets of the shipped sleeve, so the only thing that
+            # changes between them is how many candidates momentum gets to choose from.
+            "sector": tuple(sig.RANK_UNIVERSE) + tuple(sig.SECTOR_SLEEVE),
+            "broad": (tuple(sig.RANK_UNIVERSE) + tuple(sig.SECTOR_SLEEVE)
+                      + tuple(sig.MACRO_SLEEVE)),
         }
         self.params = sig.Params(
             rank_universe=sleeves[os.environ.get("S1_SLEEVE", "etf")],

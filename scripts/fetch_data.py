@@ -88,10 +88,18 @@ def fetch(symbols: list[str], start: str, end: str):
         raw = yf.download(batch, start=start, end=end, auto_adjust=False, actions=True,
                           progress=False, group_by="ticker", threads=True)
         for sym in batch:
-            try:
-                df = raw[sym] if len(batch) > 1 else raw
-            except KeyError:
-                continue
+            # yfinance ignores `group_by="ticker"` when the batch is one symbol and still
+            # returns MultiIndex columns, but as (field, ticker) rather than (ticker,
+            # field) - so `raw` itself is not the plain OHLC frame the rest of this
+            # function expects, and a one-symbol run died on the dropna below. Select the
+            # ticker from whichever level carries it instead of trusting the batch size.
+            df = raw
+            if hasattr(raw.columns, "levels"):
+                level = next((lv for lv in range(raw.columns.nlevels)
+                              if sym in raw.columns.get_level_values(lv)), None)
+                if level is None:
+                    continue
+                df = raw.xs(sym, axis=1, level=level)
             df = df.dropna(subset=["Open", "High", "Low", "Close", "Adj Close"])
             df = df[df["Close"] > 0]
             if "Dividends" in df:
@@ -302,20 +310,37 @@ def main() -> int:
         print(f"[fetch] VALIDATION FAILED {sym}: {problem}")
 
     if not args.dry_run:
+        # The manifest is the provenance record of the whole on-disk store, so a run that
+        # fetches five symbols must not delete the other sixty-four's entries. S-14 fetched
+        # 13 ETFs and a whole-file rewrite erased the D-1 record of the other 69; the same
+        # defect in `alpaca_data.py --splits` (S-2) was silently expensive because a
+        # strategy read the table. Merge per symbol, and say what was kept.
+        prior = {}
+        if MANIFEST.exists():
+            try:
+                prior = json.loads(MANIFEST.read_text(encoding="utf-8")).get("data", {}) or {}
+            except (json.JSONDecodeError, OSError):
+                prior = {}
+        fresh = {i["symbol"]: {k: i[k] for k in
+                               ("bars", "first", "last", "clamped_bars",
+                                "factor_rows", "adj_close_dev")}
+                 for i in written}
+        for symbol, entry in fresh.items():
+            entry["fetched_at"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+        merged = {**prior, **fresh}
         MANIFEST.write_text(json.dumps({
             "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "source": "yfinance (split-adjusted OHLC, dividends via price factors)",
             "start": args.start, "end": end,
             "symbols_written": len(written), "symbols_missing": missing,
             "symbols_failed": {s: p for s, p in failed},
+            "symbols_on_disk": len(merged),
             "clamped_bars_total": sum(i.get("clamped_bars", 0) for i in written),
             "symbols_factor_check": suspect,
-            "data": {i["symbol"]: {k: i[k] for k in
-                                   ("bars", "first", "last", "clamped_bars",
-                                    "factor_rows", "adj_close_dev")}
-                     for i in written},
+            "data": dict(sorted(merged.items())),
         }, indent=2) + "\n", encoding="utf-8")
-        print(f"[fetch] manifest -> {MANIFEST.relative_to(REPO)}")
+        print(f"[fetch] manifest -> {MANIFEST.relative_to(REPO)} "
+              f"({len(fresh)} re-derived, {len(merged) - len(fresh)} kept)")
 
     print(f"[fetch] {len(written)} written, {len(missing)} missing, {len(failed)} failed validation")
     return 1 if failed else 0

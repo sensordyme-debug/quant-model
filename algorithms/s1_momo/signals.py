@@ -67,6 +67,17 @@ TRADING_DAYS = 252
 # Unlevered ranking sleeve: index, sector, rates, commodity.
 RANK_UNIVERSE = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "TLT", "GLD"]
 
+#: S-14 breadth. The eight sector SPDRs that complete the GICS map RANK_UNIVERSE starts
+#: (it carries only XLK/XLF/XLE), fetched 2026-09-11. No survivorship issue - every one of
+#: these still trades - but two list mid-sample (XLRE 2015-10-08, XLC 2018-06-19) and the
+#: ranking gate in `target_weights` only admits a name once it has a full lookback of
+#: priced bars, so they enter the sleeve on their own schedule rather than retroactively.
+SECTOR_SLEEVE = ["XLV", "XLY", "XLP", "XLI", "XLU", "XLB", "XLRE", "XLC"]
+
+#: S-14 breadth, second ring: asset classes the sector map does not span at all
+#: (developed ex-US, high yield credit, intermediate Treasuries, silver, REITs).
+MACRO_SLEEVE = ["EFA", "HYG", "IEF", "SLV", "VNQ"]
+
 #: Single-name sleeve, available on disk from D-1. **Selection-biased**: it is the list of
 #: megacaps as of 2026, so back-ranking it before ~2020 knows which companies were going to
 #: win. Any result that depends on it is an upper bound, not a forecast - see S-7 in the
@@ -333,7 +344,7 @@ TRADED_UNIVERSE = traded_universe(DEFAULTS)
 
 #: margin per dollar of notional; anything unlisted falls back to Reg-T 50%
 MARGIN_REQ = {t: margin_requirement(t) for t in sorted(
-    set(TRADED_UNIVERSE) | set(MEGACAP_SLEEVE))}
+    set(TRADED_UNIVERSE) | set(MEGACAP_SLEEVE) | set(SECTOR_SLEEVE) | set(MACRO_SLEEVE))}
 
 
 #: O-1b store location. `scripts/iv_regime.py` writes the parquet and mirrors it here as
