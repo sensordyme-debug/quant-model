@@ -27,13 +27,19 @@ def _env_date(name, default):
 
 class S1MomentumRotationAlgorithm(QCAlgorithm):
     """Hypothesis: ranking a liquid unlevered ETF sleeve by blended 20/60/120-day
-    momentum, holding the top 3 through 3x proxies only while realized volatility is
-    below its 1-year median, and sizing to a 50% vol target under a drawdown overlay,
-    produces a high-return series whose drawdown stays under 35%.
+    momentum, holding the top 3 only while realized volatility is below its 1-year
+    median, and sizing them to a vol target inside a fixed margin budget, produces a
+    high-return series whose drawdown stays under 35%.
 
-    The three switches are deliberately separable so a failure is diagnosable:
-    momentum picks *what*, the regime filter decides *whether*, the vol target and
-    drawdown overlay decide *how much*.
+    The switches are deliberately separable so a failure is diagnosable: momentum picks
+    *what*, the regime filter decides *whether*, the vol target and the margin budget
+    decide *how much*.
+
+    S-18 retired two of the original mechanisms, each on a measurement rather than a
+    preference: the 3x proxies (which supplied exposure, not edge - S-15/S-16) and the
+    drawdown breaker (which cost return in every window it was measured in and bought no
+    drawdown once the book was unlevered - S-15/S-16). Both are one environment variable
+    away (`S1_PROXY=on`, `S1_DD_HALVE=0.15 S1_DD_FLAT=0.25`).
     """
 
     def initialize(self):
@@ -41,12 +47,14 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.set_end_date(*_env_date("END", (2026, 9, 4)))
         self.set_cash(100_000)
 
-        # S-15 attribution: S1_PROXY=off drops the levered proxy map for the whole run, so
-        # every winner is held in its own unlevered name. That is what prices the 3x sleeve's
-        # contribution to the champion's return. Default "on" is the champion and leaves the
-        # signal module untouched (the subscription list follows sig.traded_universe below).
-        if os.environ.get("S1_PROXY", "on").lower() == "off":
-            sig.LEVERED_PROXY = {}
+        # S-18 shipped the unlevered book, so the default is now "off" and needs no code:
+        # signals.LEVERED_PROXY is empty and every winner is held in its own parent ETF.
+        # S1_PROXY=on restores the 3x map, which reproduces the S-12 champion (with
+        # S1_DD_HALVE=0.15 S1_DD_FLAT=0.25, the other half of the promotion) including its
+        # OrderListHash 5246804e17a67af90028ffceead7d3b3. MARGIN_REQ is computed from
+        # LEVERED_PROXY_3X and so is unaffected by this switch - see signals.py.
+        if os.environ.get("S1_PROXY", "off").lower() == "on":
+            sig.LEVERED_PROXY = dict(sig.LEVERED_PROXY_3X)
 
         # S-7 knobs: the ranking sleeve is a named preset ("etf", "wide", "megacap") rather
         # than a ticker list, so a sweep cannot silently subscribe to something the data
@@ -88,8 +96,10 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             scale_cap=_env("SCALE_CAP", 2.0),
             margin_budget=_env("MARGIN_BUDGET", 0.75),
             max_gross_weight=_env("MAX_GROSS_WEIGHT", 2.0),
-            dd_halve=_env("DD_HALVE", 0.15),
-            dd_flat=_env("DD_FLAT", 0.25),
+            # S-18: the drawdown overlay ships off (9.0 is an unreachable 900% drawdown).
+            # S1_DD_HALVE=0.15 S1_DD_FLAT=0.25 restores the S-12 champion's breaker.
+            dd_halve=_env("DD_HALVE", 9.0),
+            dd_flat=_env("DD_FLAT", 9.0),
             dd_cooldown=_env("DD_COOLDOWN", 21, int),
             # S-8: all three default to the champion's behaviour. MARGIN_BUDGET_CAP=0
             # keeps the flat budget, TRAIL_STOP=0 disables the per-holding stop and

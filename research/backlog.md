@@ -17,6 +17,47 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 15:1x UTC (S-18): **the champion is now the unlevered book - the first promotion
+since S-12, and the first one whose case is risk rather than return.** S-17 left (e+g) at the
+unchanged 0.75 budget as the top item with three missing pieces, each a run rather than a judgement;
+all three are supplied. Eight new LEAN cells (`scripts/_s18_runs.sh`, read by `scripts/sweep_s18.py`)
+plus three verification runs, 11 ledger rows. **The halves, which S-16 never ran** (candidate vs
+champion, the windows S-12 itself was promoted on): IS 2012-2019 **17.698 / 0.911 / DD 23.7 against
+19.180 / 0.884 / 25.1** (-1.48 CAR, paired -0.50 bps/day, t -1.25), OOS 2020-2026 **32.801 / 1.108 /
+23.3 against 30.863 / 0.985 / 22.6** (+1.94 CAR, +0.58 bps/day, t +0.87); at 2 bp IS 16.349 vs
+17.509 at **DD 25.0 vs 29.2** and OOS 31.477 vs 29.621. **So the return difference is out-of-sample
+weighted and the risk difference holds in both halves** - the mirror image of S-15's reading of
+S-12's tilt - while **nothing in the comparison reaches |t| = 2** and the full-period return
+statistic is +0.05 bps/day at t +0.12. **What `evaluate.py` compares against is answered in code**:
+`backtest.py` now records the `S1_*` environment with every run, `champion.json` carries
+`stats_by_spread` (one column per cost model, each with its own `run_dir`), and `evaluate.py` picks
+the column matching the candidate's own `S1_SLIPPAGE_BPS` and **refuses a run at a spread it has no
+column for**. The gate then produced both verdicts: **2 bp BEATS champion** (23.068 / 0.938 / 25.0
+against 22.926 / 0.865 / 29.2), **0 bp refused by 0.001 CAR points**, and the promotion was made on
+the 2 bp row. **The two no-ops held**: the shipped defaults reproduce the tested cell exactly
+(**5,128 orders, 24.403%, 0.994, 23.700%, $27,199.76, new `OrderListHash
+a6d6224ce9c70091e5bfa8e96f046bf3`**) and `S1_PROXY=on S1_DD_HALVE=0.15 S1_DD_FLAT=0.25` reproduces
+the retired champion bit-for-bit (**5246804e17a67af90028ffceead7d3b3**), which needed one structural
+fix - `margin_requirement` reads `LEVERED_PROXY_3X`, because IBKR's 100% on TQQQ is a fact about
+TQQQ and not about whether this strategy holds it. **I-1 gate re-run**: `compare_orders.py` passes
+3,689/3,689 at 5,021 orders both sides, and `--mock --dry-run` plans XLE/XLK/IWM at 1.50x gross with
+margin 0.75 - expect the next 15:45 ET paper session to rotate out of TQQQ. **The band was measured
+on the new book and NOT changed**: 0.03 is worth +0.064 CAR at 0 bp and +0.103 at 2 bp (t +0.58 /
++0.94), a fifth of S-17's +0.57 on the 3x champion, because most of what it used to save was the
+proxy sleeve's vol-drift re-weighting. **The case, stated as it should be read: not more return -
+the same return with 0.073 more Sharpe, 1.5 points less realized vol, 4.2 fewer points of drawdown
+at 2 bp, 40% less commission and 1.50x economic exposure against 2.25x.** `margin_budget` stays
+0.75, `S1_SLIPPAGE_BPS` stays 0.0, the signal and regime filter are untouched, and `live/APPROVED_PAPER.md`,
+`live/HALT*`, `live/intraday_config.json` and the scheduled tasks were not touched. **Standing jobs
+both ran**: `daily_fills.py` unchanged at 6 fills / **+2.9 bps (se 6.8)**; `slippage_report.py` had
+**new input for the first time since A-5 part 2** - today's partial session adds 23 fills at +1.11
+bps, pooled **+2.42 vs the shipped 1.50, |diff|/se 0.99**, still inside 2 se so the constant is
+untouched (~6.1 sessions to settle). **What it changes for the loop**: the daily sleeve's remaining
+levers are all risk-posture ones, and the owner's Reg-T buffer question is now worth *more* (the
+unlevered book at budget 0.78 / 0.80 / 0.82 earns 25.307 / 25.903 / 26.474 at rising Sharpe), while
+the largest unblocked number on this sleeve is still the runner's clock (-4.75 CAR, S-17). The top
+open item is now **F-1**.
+
 Status 2026-09-11 13:3x UTC (S-17): **sixteen iterations have judged the daily sleeve on a harness
 that charges no spread, and the deployed runner trades a signal one session stale - which is worth
 4.75 CAR points and is the largest number on this sleeve since S-9.** With no open research item
@@ -786,10 +827,20 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
-**Priority after S-17 (2026-09-11), in order: (1) S-18 - promote the unlevered cell properly,
-which is the first daily-sleeve candidate since O-1b that no owner answer blocks; (2) A-5 part 2 and
-`daily_fills.py`, the two standing per-session measurements; (3) per-session ops; (4) the owner
-decisions in `BLOCKERS.md`, which now include the runner's clock.** S-17 replaced the post-S-16
+**Priority after S-18 (2026-09-11), in order: (1) F-1, the supervised intraday forecaster - the only
+open item left with a mechanism, and the one class of model this loop has never tried; (2) A-5
+part 2 and `daily_fills.py`, the two standing per-session measurements (A-5 part 2 is ~6 sessions
+from settling and now has live input every session); (3) per-session ops; (4) the owner decisions in
+`BLOCKERS.md` - the Reg-T buffer, which S-18 made more valuable, and the runner's clock, which is
+the largest unblocked number on the daily sleeve at -4.75 CAR.** S-18 closed the daily sleeve's last
+unblocked research item by promoting it; every remaining daily-sleeve lever is a risk-posture
+parameter and therefore the owner's.
+
+Superseded, kept for the reasoning: **Priority after S-17 (2026-09-11), in order: (1) S-18 - promote
+the unlevered cell properly, which is the first daily-sleeve candidate since O-1b that no owner
+answer blocks; (2) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements;
+(3) per-session ops; (4) the owner decisions in `BLOCKERS.md`, which now include the runner's
+clock.** S-17 replaced the post-S-16
 conclusion that only owner decisions remained: that was true about strategies and wrong about the
 instrument. The harness charges no spread (0.68 CAR per bp, and the cells it has been ranking differ
 by 2.7x in order count), and the deployed runner acts on a signal a session stale (-4.75 CAR). Both
@@ -802,7 +853,20 @@ the book - the vol target / margin budget (71% of the return) and the regime fil
 profile) - are risk-posture parameters, so the next move on this sleeve is an owner decision, not
 a backtest.
 
-- **S-18 OPEN, top item (opened by S-17 2026-09-11): promote S-16's (e+g) cell at the unchanged
+- **S-18 DONE 2026-09-11 (see journal): promoted. The champion is the unlevered book - same return,
+  0.073 more Sharpe, 4.2 fewer points of drawdown at 2 bp, 40% less commission, 1.50x exposure
+  against 2.25x.** Eight cells (`scripts/_s18_runs.sh`, `scripts/sweep_s18.py`) plus three
+  verification runs; new `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`, and `S1_PROXY=on
+  S1_DD_HALVE=0.15 S1_DD_FLAT=0.25` reproduces the retired champion bit-for-bit. Halves: IS
+  **-1.48 CAR (t -1.25)**, OOS **+1.94 (t +0.87)**, Sharpe better in both. `evaluate.py` now
+  compares at the same cost model (`champion.json.stats_by_spread`, `backtest.py` records the
+  `S1_*` environment) and produced both verdicts: 2 bp BEATS, 0 bp refused by 0.001. Band measured
+  on the new book and **not** changed (+0.103 CAR at 2 bp, t +0.94). **Do not re-open as a proxy or
+  breaker question** - both are retired on three iterations of evidence and one environment variable
+  away. **The successor is not another S-track cell**: what is left on this sleeve is the owner's
+  margin-budget question (now worth more: 0.78 / 0.80 / 0.82 give 25.307 / 25.903 / 26.474 at rising
+  Sharpe on the unlevered book) and the runner's clock (-4.75 CAR, S-17), both in `BLOCKERS.md`.
+- **S-18 was opened by S-17 2026-09-11 as: promote S-16's (e+g) cell at the unchanged
   0.75 margin budget - the first daily-sleeve candidate since O-1b that no owner answer blocks.**
   The cell is `S1_PROXY=off S1_DD_HALVE=9.0 S1_DD_FLAT=9.0` (unlevered parents, no drawdown
   breaker, budget untouched at 0.75, economic exposure 1.50x against the champion's 2.25x). At zero

@@ -140,6 +140,19 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   sleeve is not buying edge, it is buying volatility (the same thing L-1 found intraday), and
   whether to keep paying for it is the same kind of decision as the budget above. The loop has
   changed nothing; `S1_PROXY=off` exists only as a research override and defaults to the champion.
+- **Update 2026-09-11 (S-18): the second dial is no longer a question - it was taken, and it makes
+  the first one worth more.** The loop promoted the unlevered book at the **unchanged 0.75 budget**,
+  because that change needs no Reg-T decision from you: same return (24.403% vs 24.404% at zero
+  spread, +0.14 CAR once a 2 bp spread is charged), Sharpe 0.994 vs 0.921, realized vol 0.155 vs
+  0.170, drawdown 23.7 vs 25.1, fees $27.2k vs $45.7k, and **economic exposure 1.50x against 2.25x**.
+  The halves are in the journal; the paired return difference is t = +0.12, so this was promoted on
+  risk and cost, not on return. **What that leaves for you is the same size question on a better
+  book**: spending the freed risk through the budget now reads **0.75 -> 0.78 -> 0.80 -> 0.82 giving
+  CAR 24.403 / 25.307 / 25.903 / 26.474 at Sharpe 0.994 / 1.003 / 1.008 / 1.012** - Sharpe *rising*
+  with size, which it did not do on the 3x book - and at 0.82 the unlevered book matches the retired
+  champion's own realized vol (0.168 vs 0.170) while earning **+2.07 CAR** over it. The buffer
+  argument is unchanged and still yours: at 0.82 a live account holds 0.18 of excess liquidity
+  instead of 0.25. The loop stops at 0.75 until you answer.
 
 ## Open request to the owner (2026-09-10, intraday sleeve - supersedes the size half of the 2026-09-09 item)
 

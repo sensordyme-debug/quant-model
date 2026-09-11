@@ -123,9 +123,14 @@ def main() -> int:
 
     stats = json.loads(summary.read_text(encoding="utf-8")).get("statistics", {})
     picked = {k: stats[k] for k in KEY_STATS if k in stats}
+    # S-18: record the S1_* overrides the cell was run with. Until now the only description
+    # of a cell was its free-text tag, which `evaluate.py` cannot read - and S-17 showed that
+    # one of those overrides (`S1_SLIPPAGE_BPS`) decides whether two rows are comparable at
+    # all, because a book charged a spread is not measurable against one that is not.
+    overrides = {k: v for k, v in sorted(os.environ.items()) if k.startswith("S1_")}
     record = {
         "ts": ts, "algorithm": name, "class": cls, "tag": args.tag, "commit": git_commit(),
-        "run_dir": str(run_dir.relative_to(REPO)), "stats": picked,
+        "run_dir": str(run_dir.relative_to(REPO)), "env": overrides, "stats": picked,
     }
     EXPERIMENTS.parent.mkdir(parents=True, exist_ok=True)
     with EXPERIMENTS.open("a", encoding="utf-8") as f:

@@ -95,7 +95,22 @@ MEGACAP_SLEEVE = [
 ]
 
 # ranked ticker -> (instrument actually traded, exposure multiple)
-LEVERED_PROXY = {"SPY": ("UPRO", 3.0), "QQQ": ("TQQQ", 3.0), "TLT": ("TMF", 3.0)}
+#
+#: The 3x map the sleeve shipped with from S-1 to S-17, kept as a named constant because
+#: `S1_PROXY=on` puts it back and because MARGIN_REQ below must state IBKR's requirement on
+#: these instruments whether or not this strategy currently holds them.
+LEVERED_PROXY_3X = {"SPY": ("UPRO", 3.0), "QQQ": ("TQQQ", 3.0), "TLT": ("TMF", 3.0)}
+
+#: **Shipped: empty.** S-18 retired the 3x sleeve. The structural fact is that IBKR charges
+#: 0.333 of margin per unit of economic exposure on a 3x ETF against 0.5 on an ordinary one,
+#: so the proxies' entire contribution was that 2.25x of exposure fitted inside the 0.75
+#: margin budget - not edge, only room. Measured: S-15 (e) priced them at **-1.28 CAR for
+#: worse Sharpe, worse drawdown and $20k more commission**, S-16 measured the combination
+#: with the overlay off at **24.403% against the champion's 24.404%, paired -0.00 bps/day
+#: (t -0.00, 3,689 sessions)** at std 0.155 vs 0.170, and S-18 split it: the unlevered book
+#: gives up 1.48 CAR in 2012-2019 and takes back 1.94 in 2020-2026, with better Sharpe in
+#: both halves. `S1_PROXY=on` restores the map (main.py) and reproduces the S-12 champion.
+LEVERED_PROXY = {}
 
 REGIME_TICKER = "SPY"
 
@@ -112,8 +127,14 @@ BASE_MARGIN_REQ = 0.5
 
 
 def margin_requirement(instrument: str) -> float:
-    """Initial margin per dollar of notional for one traded instrument."""
-    multiple = next((m for _, (proxy, m) in LEVERED_PROXY.items() if proxy == instrument), 1.0)
+    """Initial margin per dollar of notional for one traded instrument.
+
+    Read off `LEVERED_PROXY_3X` rather than `LEVERED_PROXY`: what IBKR charges for TQQQ is a
+    fact about TQQQ, not about whether this strategy happens to hold it today. Keeping the
+    two apart is what lets S-18's empty proxy map and an `S1_PROXY=on` control produce the
+    same margin table, so the control reproduces the S-12 champion to the digit.
+    """
+    multiple = next((m for _, (proxy, m) in LEVERED_PROXY_3X.items() if proxy == instrument), 1.0)
     return min(1.0, BASE_MARGIN_REQ * multiple)
 
 
@@ -174,8 +195,18 @@ class Params:
     scale_cap: float = 2.0                 # max vol-target multiplier
     margin_budget: float = 0.75            # fraction of equity usable as initial margin
     max_gross_weight: float = 2.0          # hard ceiling on summed weights; see note above
-    dd_halve: float = 0.15                 # halve exposure below this drawdown
-    dd_flat: float = 0.25                  # go flat below this drawdown
+    #: S-18 shipped the overlay **off**. 9.0 is a 900% drawdown, which is unreachable, so
+    #: the breaker code runs and never fires; `S1_DD_HALVE=0.15 S1_DD_FLAT=0.25` restores the
+    #: S-12 champion's breaker exactly. Why it was retired, in order of evidence: S-15 priced
+    #: it at **-1.59 CAR** (paired -0.51 bps/day, t -1.93, OOS t -2.35) for 2.1 points of
+    #: drawdown - the only near-significant statistic in that whole attribution, and its sign
+    #: is against the switch; S-16 then showed that in an *unlevered* book it is strictly
+    #: harmful, monotone in return and flat-to-better in drawdown (0.80 budget: shipped
+    #: 24.551 / DD 25.5, widened 25.333 / DD 25.0, off 25.903 / DD 25.1), which is S-8's
+    #: re-arming problem - a step breaker that flattens at -25% sells the bottom and the
+    #: 21-day cooldown then holds the book out of the recovery.
+    dd_halve: float = 9.0                  # halve exposure below this drawdown (off: see above)
+    dd_flat: float = 9.0                   # go flat below this drawdown (off: see above)
     dd_cooldown: int = 21                  # rebalances to stay flat after a dd_flat breach
     min_momentum: float = 0.0              # a holding must beat this blended return
 
@@ -342,9 +373,12 @@ DEFAULTS = Params()
 #: every ticker the shipped default subscribes to (main.py and the I-1 paper runner)
 TRADED_UNIVERSE = traded_universe(DEFAULTS)
 
-#: margin per dollar of notional; anything unlisted falls back to Reg-T 50%
+#: margin per dollar of notional; anything unlisted falls back to Reg-T 50%. The 3x
+#: instruments are listed whether or not the shipped map trades them (S-18), so an
+#: `S1_PROXY=on` control charges them the 100% IBKR really requires.
 MARGIN_REQ = {t: margin_requirement(t) for t in sorted(
-    set(TRADED_UNIVERSE) | set(MEGACAP_SLEEVE) | set(SECTOR_SLEEVE) | set(MACRO_SLEEVE))}
+    set(TRADED_UNIVERSE) | {p for p, _ in LEVERED_PROXY_3X.values()}
+    | set(MEGACAP_SLEEVE) | set(SECTOR_SLEEVE) | set(MACRO_SLEEVE))}
 
 
 #: O-1b store location. `scripts/iv_regime.py` writes the parquet and mirrors it here as

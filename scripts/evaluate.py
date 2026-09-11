@@ -62,6 +62,40 @@ def load_champion():
 NOT_PROMOTABLE = "not promotable"
 
 
+def spread_bps(run) -> str:
+    """The slippage the run was charged, as the key `stats_by_spread` uses.
+
+    S-17 found that LEAN's default brokerage model charges no spread at all, so every row
+    written before it is a zero-spread row. `S1_SLIPPAGE_BPS` prices the omission, and this
+    reads it back off the environment `backtest.py` records with the run.
+    """
+    raw = (run.get("env") or {}).get("S1_SLIPPAGE_BPS", "0")
+    try:
+        return f"{float(raw or 0):.1f}"
+    except (TypeError, ValueError):
+        return "0.0"
+
+
+def champion_stats(run, champion):
+    """The champion's own numbers at the cost model this run was charged.
+
+    S-18: a candidate charged 2 bp of spread cannot be judged against a champion row that
+    paid none - the comparison is biased by the difference in turnover, which between these
+    two books is 400 orders. `champion.json` therefore records a column per spread and this
+    picks the matching one. With no matching column the comparison falls back to the headline
+    stats and says so, because an unlabelled comparison is the defect, not the fallback.
+    """
+    columns = champion.get("stats_by_spread") or {}
+    key = spread_bps(run)
+    if key in columns:
+        return columns[key], None
+    if columns:
+        return champion.get("stats") or {}, (
+            f"champion has no column at {key} bp of spread (have {sorted(columns)}), so this "
+            f"run is not comparable - re-run the champion at {key} bp before judging it")
+    return champion.get("stats") or {}, None
+
+
 def verdict(run, champion):
     crit = champion.get("criteria", {})
     stats = run.get("stats", {})
@@ -74,7 +108,9 @@ def verdict(run, champion):
     limit = num(crit.get("max_drawdown_limit", "35%"))
     if num(stats.get("Drawdown")) > limit:
         reasons.append(f"drawdown {stats.get('Drawdown')} above {crit.get('max_drawdown_limit')}")
-    champ_stats = champion.get("stats") or {}
+    champ_stats, note = champion_stats(run, champion)
+    if note:
+        reasons.append(note)
     if champ_stats:
         for metric in crit.get("must_beat", ["Sharpe Ratio", "Compounding Annual Return"]):
             if not num(stats.get(metric)) > num(champ_stats.get(metric)):

@@ -2,6 +2,138 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - S-18: the champion is now the unlevered book - same return, less risk, less leverage, 40% less commission
+
+- **What.** The top backlog item, and the first promotion since S-12. The candidate is S-16's
+  (e+g) cell at the **unchanged** 0.75 margin budget: the shipped signal held in unlevered parent
+  ETFs (`LEVERED_PROXY = {}`) with the step drawdown breaker off (`dd_halve = dd_flat = 9.0`). S-16
+  refused it by **0.001 CAR points** and S-17 showed that margin exists only at exactly zero
+  spread, which is LEAN's default rather than anyone's choice. S-17 named three missing pieces and
+  each was a run, not a judgement: the two sub-periods at both cost models, a decision about what
+  `evaluate.py` compares against, and a re-baselined `OrderListHash`. All three are supplied here.
+  Eight new LEAN cells (`scripts/_s18_runs.sh`, read by `scripts/sweep_s18.py`) plus three
+  verification runs; 11 ledger rows.
+- **Why now and not in S-16.** The refusal was an artifact of a cost model, and the cost model is
+  not a matter of opinion: `DefaultBrokerageModel.GetSlippageModel` returns
+  `NullSlippageModel.Instance`, so the two books were compared with the more turnover-hungry one
+  paying nothing for its extra orders. The crossover between them is at **~0.03 bp**. A half-cent
+  tick is **0.27 bp on XLK, 0.71 on TQQQ and 0.77 on XLE**, so the *hard floor* of what any real
+  fill can cost is an order of magnitude past the point where the ranking flips. That is a
+  structural argument about tick size, not a fitted constant, and it is what carries this
+  promotion - not the six paper fills (see the standing job below).
+
+### 1. The halves, which is what S-16 never ran
+
+Candidate minus champion, on the two windows S-12 itself was promoted on:
+
+| window | spread | candidate | champion | dCAR | Sharpe | MaxDD | paired bps/day (t) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| full 2012-2026 | 0 bp | 24.403 | 24.404 | **-0.001** | 0.994 vs 0.921 | 23.7 vs 25.1 | -0.00 (**-0.00**) |
+| full 2012-2026 | 2 bp | 23.068 | 22.926 | **+0.142** | 0.938 vs 0.865 | 25.0 vs 29.2 | +0.05 (+0.12) |
+| IS 2012-2019 | 0 bp | 17.698 | 19.180 | **-1.482** | 0.911 vs 0.884 | 23.7 vs 25.1 | -0.50 (-1.25) |
+| IS 2012-2019 | 2 bp | 16.349 | 17.509 | -1.160 | 0.840 vs 0.808 | **25.0 vs 29.2** | -0.39 (-0.99) |
+| OOS 2020-2026 | 0 bp | 32.801 | 30.863 | **+1.938** | 1.108 vs 0.985 | 23.3 vs 22.6 | +0.58 (+0.87) |
+| OOS 2020-2026 | 2 bp | 31.477 | 29.621 | +1.856 | 1.062 vs 0.943 | 23.4 vs 22.8 | +0.57 (+0.84) |
+
+- **The return difference is out-of-sample weighted and the risk difference is in both halves.**
+  The unlevered book gives up ~1.5 CAR in 2012-2019 and takes back ~1.9 in 2020-2026, which is why
+  fourteen years look like a dead heat; Sharpe is better in **both** windows and at both spreads,
+  realized vol is 0.155 against 0.170 throughout, and the drawdown gap at 2 bp is 4.2 points in
+  sample. This is the mirror image of S-15's finding about S-12's allocation tilt (in-sample only),
+  and it is the direction one would rather have - but it is stated, not sold: **nothing in this
+  comparison reaches |t| = 2**, and on return alone the full-period paired statistic is t = +0.12.
+- **Fees**: $27.2k against $45.7k at 0 bp, $24.9k against $41.9k at 2 bp, on *more* orders (5,128
+  vs 4,735). The champion's commission was concentrated in the 3x sleeve's re-weighting.
+- **Economic exposure falls from 2.25x to 1.50x** at the same 0.75 margin budget. IBKR charges
+  0.333 of margin per unit of exposure on a 3x ETF against 0.5 on an ordinary one, which is the
+  whole reason the proxies were ever there: room, not edge.
+
+### 2. What `evaluate.py` compares against, which was the real open question
+
+A candidate charged 2 bp cannot be judged against a champion row that paid nothing - the bias runs
+toward whichever book trades most, and between these two that is 400 orders. Three small changes
+make the comparison explicit instead of implicit:
+
+- `scripts/backtest.py` now records the `S1_*` environment with every run. Until now the only
+  description of a cell was its free-text tag, which no script can read.
+- `research/champion.json` carries `stats_by_spread`, one column per cost model, each with its own
+  `run_dir`. The headline `stats` stay the 0 bp column so the whole ledger remains one scale.
+- `scripts/evaluate.py` picks the column matching the candidate's own `S1_SLIPPAGE_BPS`, and
+  **refuses a run at a spread it has no column for** rather than judging it against the wrong one.
+
+Both verdicts were then produced by the gate rather than by hand: at 2 bp **BEATS champion** (CAR
+23.068 vs 22.926, Sharpe 0.938 vs 0.865, DD 25.0 vs 29.2), at 0 bp **refused by 0.001 CAR points**,
+exactly as S-16 recorded. The promotion was made on the 2 bp row through
+`scripts/evaluate.py --promote`, and `champion.json` records both columns and says which one
+decided it.
+
+### 3. The two no-ops that had to hold before anything shipped
+
+- **The promoted defaults reproduce the tested cell exactly.** With no environment at all:
+  **5,128 orders, 24.403%, 0.994, 23.700%, $27,199.76, `OrderListHash
+  a6d6224ce9c70091e5bfa8e96f046bf3`** - identical to S-16's env-override run, so the shipped code
+  is the cell that was measured and not a near relative of it.
+- **The retired champion is one environment away and bit-identical.** `S1_PROXY=on
+  S1_DD_HALVE=0.15 S1_DD_FLAT=0.25` gives **4,735 orders, 24.404%, 0.921, 25.100%, $45,695.46,
+  `OrderListHash 5246804e17a67af90028ffceead7d3b3`**. This needed one structural fix:
+  `margin_requirement` now reads `LEVERED_PROXY_3X` rather than `LEVERED_PROXY`, because what IBKR
+  charges for TQQQ is a fact about TQQQ and not about whether this strategy holds it - otherwise
+  the restore would have charged the 3x names Reg-T 50% and quietly failed to reproduce.
+- **The I-1 deploy gate was re-run, since promotion moves the live order list**:
+  `scripts/compare_orders.py` passes **3,689/3,689 dates, 5,021 orders on both sides**, and
+  `paper_trade.py --mock --dry-run` plans **XLE 793 / XLK 202 / IWM 211 at 1.50x gross, margin
+  0.75 of 1.00**, with no 3x name in the universe. Expect the next 15:45 ET paper session to
+  rotate the book out of TQQQ into unlevered names; that is what a promotion means and it is paper.
+
+### 4. The band was measured on the new book and deliberately not changed
+
+S-17 found `min_order_value` 0.03 worth **+0.57 CAR (t +1.22)** on the champion once orders cost
+something. On the candidate's own book it is worth **+0.064 CAR at 0 bp (t +0.58)** and **+0.103 at
+2 bp (t +0.94)**, with 0.4 points *more* drawdown - about a fifth of the effect. The reason is the
+same one that explains the fee difference: most of what a wider band used to save was the 3x
+sleeve's vol-drift re-weighting, and that sleeve is gone. So the shipped band stays **0.01**, one
+change ships rather than two, and S-13's warning that this parameter's fine structure is path luck
+still stands.
+
+### 5. Decision
+
+**Promoted.** `research/champion.json` now records the unlevered book, and
+`algorithms/s1_momo/signals.py` ships `LEVERED_PROXY = {}` with the overlay off. The case, stated
+the way it should be read: **not more return - the same return, carried with 0.073 more Sharpe,
+1.5 points less realized vol, 1.4 fewer points of drawdown at 0 bp and 4.2 at 2 bp, 40% less
+commission and two thirds of the economic exposure.** What did not change: `margin_budget` stays
+0.75, the band stays 0.01, `S1_SLIPPAGE_BPS` stays 0.0, the momentum signal and the regime filter
+are untouched, and `live/APPROVED_PAPER.md`, `live/HALT*`, `live/intraday_config.json` and the
+scheduled tasks were not touched. The intraday sleeve was not touched at all, so its rule (a) owes
+no replay.
+
+**Standing jobs, both run, neither moved a constant.** `daily_fills.py`: still 2 sessions / 6
+fills / $1.42M, execution **+2.9 bps against the 15:45 close (sd 16.7, se 6.8)** - note that the
+2 bp column this promotion was decided on sits comfortably inside that interval, but the argument
+that carries it is the tick-size floor, not these six fills. `slippage_report.py` on the intraday
+sleeve **had new input for the first time since A-5 part 2**: today's partial session adds 23 fills
+at +1.11 bps, so pooled it is **+2.42 bps against the shipped 1.50, |diff|/se = 0.99** - still
+inside 2 se, so `intraday_common.SLIPPAGE_BPS` is untouched; ~6.1 more sessions settle it.
+
+### 6. What it changes for the loop
+
+- **The daily sleeve's remaining levers are now all risk-posture ones.** S-15 measured that 71% of
+  the return is the sizing machinery; this promotion removed the two components that were worth
+  zero return between them, which leaves the vol target, the margin budget and the regime filter -
+  and the first two are the owner's Reg-T buffer question in `BLOCKERS.md`. That question is now
+  worth **more**: the unlevered book at budget 0.78 / 0.80 / 0.82 earns 25.307 / 25.903 / 26.474 at
+  **rising** Sharpe (S-16), so the freed risk has a measured, monotone price and the owner is one
+  decision away from it. This iteration deliberately did not take it.
+- **On the mandate.** The promotion lowers realized vol from 0.170 to 0.155, which looks like the
+  wrong direction for a book that is supposed to be aggressive. It is not: S-15 and S-16 both
+  measured that the 3x instruments supplied volatility and no edge, and USER.md's directive is that
+  volatility must be earned by edge rather than by sizing. The honest way to buy the vol back is
+  the budget dial above, at a known price, with the owner's consent.
+- **The next daily-sleeve work is the runner's clock**, not a signal: S-17 priced the deployed
+  path's one-session staleness at **-4.75 CAR**, which is larger than anything the S-track has
+  moved since S-9, and the fix needs a scheduled task moved (in `BLOCKERS.md`). Under "Open" the
+  top item is now **F-1**, the supervised intraday forecaster.
+
 ## 2026-09-11 - S-17: the daily sleeve has been judged on a harness that charges no spread, and the deployed runner trades a signal one session stale
 
 - **What.** The backlog held no open research item with a mechanism, so this iteration audited the

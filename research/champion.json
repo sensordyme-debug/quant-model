@@ -1,25 +1,48 @@
 {
   "algorithm": "s1_momo",
   "class": "S1MomentumRotationAlgorithm",
-  "promoted_at": "2026-09-09T04:29:06+00:00",
-  "run_dir": "results\\s1_momo\\20260909T042431Z",
+  "promoted_at": "2026-09-11T15:09:32+00:00",
+  "run_dir": "results\\s1_momo\\20260911T145705Z",
   "stats": {
-    "Total Orders": "4735",
-    "Net Profit": "2367.639%",
-    "Compounding Annual Return": "24.404%",
-    "Sharpe Ratio": "0.921",
-    "Sortino Ratio": "0.899",
-    "Drawdown": "25.100%",
-    "Win Rate": "69%",
-    "Profit-Loss Ratio": "0.93",
+    "Total Orders": "5128",
+    "Net Profit": "2367.327%",
+    "Compounding Annual Return": "24.403%",
+    "Sharpe Ratio": "0.994",
+    "Sortino Ratio": "0.987",
+    "Drawdown": "23.700%",
+    "Win Rate": "70%",
+    "Profit-Loss Ratio": "0.97",
     "Alpha": "0.128",
-    "Beta": "0.609",
-    "Annual Standard Deviation": "0.17",
-    "Information Ratio": "0.675",
-    "Total Fees": "$45695.46",
+    "Beta": "0.542",
+    "Annual Standard Deviation": "0.155",
+    "Information Ratio": "0.704",
+    "Total Fees": "$27199.76",
     "Start Equity": "100000",
-    "End Equity": "2467638.72",
-    "Probabilistic Sharpe Ratio": "23.044%"
+    "End Equity": "2467326.63",
+    "Probabilistic Sharpe Ratio": "33.210%"
+  },
+  "stats_by_spread": {
+    "0.0": {
+      "Total Orders": "5128",
+      "Compounding Annual Return": "24.403%",
+      "Sharpe Ratio": "0.994",
+      "Drawdown": "23.700%",
+      "Annual Standard Deviation": "0.155",
+      "Probabilistic Sharpe Ratio": "33.210%",
+      "Total Fees": "$27199.76",
+      "run_dir": "results\\s1_momo\\20260911T145705Z"
+    },
+    "2.0": {
+      "Total Orders": "5140",
+      "Compounding Annual Return": "23.068%",
+      "Sharpe Ratio": "0.938",
+      "Drawdown": "25.000%",
+      "Annual Standard Deviation": "0.155",
+      "Probabilistic Sharpe Ratio": "25.700%",
+      "Total Fees": "$24920.67",
+      "run_dir": "results\\s1_momo\\20260911T150558Z"
+    },
+    "note": "S-18: a candidate charged a spread is not measurable against a champion row that paid none - LEAN charges no spread by default (S-17: DefaultBrokerageModel returns NullSlippageModel) and the bias runs toward whichever book trades most. scripts/evaluate.py picks the column matching the candidate's own S1_SLIPPAGE_BPS, which scripts/backtest.py now records with every run; a run at a spread with no matching column is refused as not comparable rather than judged against the wrong one. The headline 'stats' above stay the 0 bp column so the whole ledger remains one scale, but the promotion below was decided on the 2.0 column. The retired S-12 champion's two columns, for reference: 0 bp 4,735 orders / 24.404% / 0.921 / 25.100% / 0.170 std / 23.044% PSR / $45,695.46 (run 20260909T042431Z), 2 bp 4,723 / 22.926% / 0.865 / 29.200% / $41,885.99 (run 20260911T125421Z)."
   },
   "criteria": {
     "min_trades": 30,
@@ -29,9 +52,9 @@
     "sharpe_tolerance": 0.03,
     "drawdown_tolerance_points": 1.0,
     "max_drawdown_limit": "35%",
-    "note": "Owner decision 2026-09-09: return-first. A candidate must beat the champion on CAR, may be at most 0.03 Sharpe below it, may not have a drawdown more than 1 point worse than the champion's, and never above 35% absolute. Promote only through scripts/evaluate.py; shelf-not-spike and the 'not promotable' tag still apply."
+    "note": "Owner decision 2026-09-09: return-first. A candidate must beat the champion on CAR, may be at most 0.03 Sharpe below it, may not have a drawdown more than 1 point worse than the champion's, and never above 35% absolute. Promote only through scripts/evaluate.py; shelf-not-spike and the 'not promotable' tag still apply. S-18 adds one rule that is about measurement rather than risk: compare at the same cost model (stats_by_spread above)."
   },
-  "commit": "35ce0a9",
-  "tag": "S-12 shipped default: weight_mode=invvol, alloc_vol_window=21, alloc_vol_power=1.0 (risk parity inside the top_n); must reproduce OrderListHash 5246804e17a67af90028ffceead7d3b3",
-  "note": "S-12 changed how the exposure budget is split between the names momentum has already picked, so the order list moved again: OrderListHash is now 5246804e17a67af90028ffceead7d3b3, not ff4a7cbaaf6e36e58ace2b82ab216bdf. The only change from S-10 is weight_mode='invvol' with alloc_vol_window=21 and alloc_vol_power=1.0: a winner's share of the budget is proportional to 1/sigma on its own trailing one-month vol, measured on the *unlevered* ranked series, instead of 1/N. Equal weight equalized notional, so the most volatile winner supplied most of the book's variance, and this sleeve spans GLD/TLT near 12% vol and XLE/XLK near 30%. Sub-periods, both from LEAN: IS 2012-2019 19.18% CAR / 0.884 Sharpe / 25.1% DD (run 20260909T041413Z) beats the S-10 champion's 17.64% / 0.801 / 25.9% on all three; OOS 2020-2026 30.86% / 0.985 / 22.6% (run 20260909T041644Z) beats its 31.09% / 0.972 / 21.5% on Sharpe, is 0.23 points behind on CAR and 1.1 points worse on drawdown. It is a shelf, not a spike: at power 1.0 the vol windows 20, 21 and 30 all beat the champion on CAR, Sharpe and drawdown (24.25/0.915, 24.40/0.921, 24.18/0.911), 40 and 60 beat it on Sharpe and drawdown but not CAR, and 10 loses outright; 21 is one trading month, the a-priori point inside the shelf, and 20 is the argmax. The tilt is also monotone in strength - power 0.5 at the same window gives 24.10 / 0.902, half the gain for half the tilt. Cost: it re-weights as the vol ratios drift, so orders rise 2,573 -> 4,735 and fees $37.4k -> $45.7k; a longer window is the fallback if commission rises. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars); S1_WEIGHT_MODE=equal restores the S-10 champion. I-1 note: the paper runner's order list changes with this promotion, so the pre-deploy comparison must be made against this hash; --mock --dry-run was re-verified against it on 2026-09-09. Harness caveat: scripts/sweep_s1.py agreed on the direction this time but understated it, scoring the same cell at 22.1% CAR / 1.09 against a 21.2% / 1.03 equal-weight baseline, and it also understates the drawdown by ~6 points."
+  "commit": "d41aefe",
+  "tag": "S-18 shipped default: the unlevered book - LEVERED_PROXY={} and the drawdown overlay off (dd_halve=dd_flat=9.0), margin_budget unchanged at 0.75; must reproduce OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3. S1_PROXY=on S1_DD_HALVE=0.15 S1_DD_FLAT=0.25 restores the S-12 champion exactly (hash 5246804e17a67af90028ffceead7d3b3, verified in run 20260911T150020Z).",
+  "note": "S-18 retired two of the strategy's original mechanisms, each on a measurement and neither on preference. (1) The 3x proxies (UPRO/TQQQ/TMF for SPY/QQQ/TLT): IBKR charges 0.333 of margin per unit of economic exposure on a 3x ETF against 0.5 on an ordinary one, so their whole contribution was that 2.25x of exposure fitted inside the 0.75 margin budget - room, not edge (S-15 e: -1.28 CAR for worse Sharpe, worse drawdown and $20k more commission). (2) The step drawdown breaker: S-15 priced it at -1.59 CAR (paired -0.51 bps/day, t -1.93, OOS t -2.35) for 2.1 points of drawdown, the only near-significant statistic in that attribution and against the switch, and S-16 showed it is strictly harmful in an unlevered book (0.80 budget: shipped 24.551 / DD 25.5, widened 25.333 / DD 25.0, off 25.903 / DD 25.1) - S-8's re-arming problem, a step breaker that flattens at -25% sells the bottom and the cooldown holds the book out of the recovery. THE CASE IS NOT MORE RETURN. Full period at 0 bp the two books are a dead heat: 24.403% vs 24.404%, paired -0.00 bps/day at t -0.00 on 3,689 sessions; at 2 bp it is +0.142 CAR at +0.05 bps/day, t +0.12. The case is the same return carried with less risk and less cost: Sharpe 0.994 vs 0.921, realized vol 0.155 vs 0.170, drawdown 23.7 vs 25.1 at 0 bp and 25.0 vs 29.2 at 2 bp, PSR 33.2 vs 23.0, fees $27.2k vs $45.7k, and economic exposure 1.50x against 2.25x. Why it is promoted now when S-16 refused it by 0.001 CAR points: that margin existed only at exactly zero spread, which is LEAN's default rather than a choice, and the crossover between the two books is at ~0.03 bp against a half-cent tick worth 0.27 bp on XLK, 0.71 on TQQQ and 0.77 on XLE - the hard floor of a real fill is an order of magnitude past it (S-17). Sub-periods (S-18, the halves S-12 itself was promoted on), candidate vs champion: IS 2012-2019 at 0 bp 17.698% / 0.911 / DD 23.7 against 19.180% / 0.884 / 25.1, i.e. -1.48 CAR (paired -0.50 bps/day, t -1.25) but better Sharpe and 1.4 fewer points of drawdown; OOS 2020-2026 at 0 bp 32.801% / 1.108 / 23.3 against 30.863% / 0.985 / 22.6, i.e. +1.94 CAR (+0.58 bps/day, t +0.87). At 2 bp: IS 16.349 vs 17.509 (DD 25.0 vs 29.2), OOS 31.477 vs 29.621. So the return difference is out-of-sample weighted and the risk difference holds in both halves; nothing in the comparison reaches |t| = 2, which the promotion does not hide. Reproduce with: py -3.11 scripts/backtest.py s1_momo (no env vars) -> 5,128 orders, 24.403%, 0.994, 23.700%, $27,199.76, OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3. I-1 deploy gate re-run after the change: scripts/compare_orders.py passes 3,689/3,689 dates, 5,021 orders on both sides, and paper_trade.py --mock --dry-run plans XLE/XLK/IWM at 1.50x gross with margin 0.75. Live consequence to expect on the next 15:45 ET paper session: the book rotates out of TQQQ into unlevered names. The no-trade band was measured on this book and NOT changed: 0.03 is worth +0.064 CAR at 0 bp and +0.103 at 2 bp (t +0.58 / +0.94), a fifth of what S-17 measured on the 3x champion, so the shipped 0.01 stands. Open and deliberately not taken here: the unlevered book frees risk that margin_budget can buy back (S-16: 0.78 / 0.80 / 0.82 give 25.307 / 25.903 / 26.474 at rising Sharpe), which is the owner's Reg-T buffer question in BLOCKERS.md - this promotion leaves the budget at 0.75 and makes that question worth more, not less."
 }
