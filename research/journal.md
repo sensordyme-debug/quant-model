@@ -2,6 +2,193 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - S-17: the daily sleeve has been judged on a harness that charges no spread, and the deployed runner trades a signal one session stale
+
+- **What.** The backlog held no open research item with a mechanism, so this iteration audited the
+  instrument instead of the strategy: what does the champion's 24.404% assume about *execution*,
+  and what does each assumption cost? Two omissions came out of reading the engine source and the
+  live log rather than out of any sweep. Both are now priceable knobs on the shipped algorithm
+  (`S1_SLIPPAGE_BPS`, `S1_SIGNAL_LAG`, both defaulting to the champion), twelve full-period LEAN
+  cells (`scripts/_s17_runs.sh`, read by `scripts/sweep_s17.py`), a new live-fill instrument
+  (`scripts/daily_fills.py`), 12 ledger rows. **The control reproduces `OrderListHash
+  5246804e17a67af90028ffceead7d3b3`** (4,735 orders, 24.404%, 0.921, 25.100%, $45,695.46), so both
+  knobs are inert at their defaults and the daily paper runner's path is untouched.
+- **Why it was worth an iteration.** S-1 through S-16 have compared cells against each other on a
+  number that charges commission and **no spread at all**, and the cells differ in order count by
+  up to 2.7x (S-13: 4,735 vs 1,727). A cost that scales with turnover and is set to zero does not
+  bias a comparison a little - it biases it in one direction, toward whichever cell trades most.
+
+### 1. The harness charges zero spread, and that is LEAN's default, not a choice anyone made
+
+`DefaultBrokerageModel.GetSlippageModel` returns `NullSlippageModel.Instance` and
+`InteractiveBrokersBrokerageModel` does not override it, so every fill in this repository is booked
+at the exact opening print. `EquityFillModel.MarketOnOpenFill` *does* apply a slippage model when
+one is set (`+slip` on a buy, `-slip` on a sell), so the omission is priceable:
+
+| champion + | orders | CAR% | dCAR | Sharpe | MaxDD% | PSR% | fees | paired bps/day | t |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 bp (shipped) | 4,735 | **24.404** | | 0.921 | 25.1 | 23.0 | $45,695 | | |
+| 1 bp | 4,725 | 23.699 | -0.70 | 0.894 | 27.2 | 20.0 | $43,632 | -0.23 | -1.84 |
+| 2 bp | 4,723 | 22.926 | -1.48 | 0.865 | 29.2 | 17.0 | $41,886 | -0.48 | -3.48 |
+| 5 bp | 4,783 | 21.129 | -3.27 | 0.795 | 31.7 | 11.0 | $37,997 | -1.06 | -9.32 |
+| 10 bp | 4,772 | 18.216 | -6.19 | 0.684 | 32.3 | 4.8 | $32,755 | -2.03 | -10.27 |
+
+- **A basis point of spread costs 0.68 points of CAR** (mean slope over the ladder; -0.705 / -0.739
+  / -0.655 / -0.619 per bp, so essentially linear). That slope is also a turnover meter: 0.68 CAR
+  per bp implies the book pays spread on roughly **68x its equity a year of one-way notional**,
+  about 27% of equity a session, which is what a daily-rebalanced vol-targeted three-name book at
+  1.5-2.25x gross does.
+- **Drawdown is where it hurts most**: 25.1 -> 27.2 -> 29.2 -> 31.7 -> 32.3. A cost that is charged
+  every day compounds into the path, not just the level, and at 10 bp the champion is 2.7 points
+  from the owner's 35% cap on a strategy that is nominally at 25.1.
+- **The honest caveat on the size of the constant.** A true MarketOnOpen order is filled at the
+  official opening print, which is not a spread-crossing venue, so for a book that really used MOO
+  the omitted cost is impact rather than half-spread and 0 bp is less wrong than it looks. The
+  deployed runner does **not** use MOO - it sends plain MKT orders at 15:45 ET, which do cross a
+  spread - so the ladder above is most relevant to the path that is actually live. What was
+  measured on that path is below, and it is 2.9 bps.
+
+### 2. The live fills: +2.9 bps of execution cost, and a convention gap that is not slippage
+
+New `scripts/daily_fills.py`, the daily counterpart of `slippage_report.py`. Six fills over the two
+paper sessions (2026-09-09, 2026-09-10), $1.42M traded:
+
+| measured against | notional-weighted | per-fill sd | se |
+| --- | --- | --- | --- |
+| the 15:45 close the runner aimed at (**execution cost**) | **+2.9 bps** | 16.7 | 6.8 |
+| the D+1 open the backtest fills at (**convention**) | -16.9 bps | 63.2 | 25.8 |
+
+The first number is execution cost and is the one that belongs against the ladder - it is the same
+size as the intraday sleeve's measured +2.89 bps (A-5 part 2), on far more liquid instruments, which
+is a coincidence worth distrusting until there are more fills. The second is a **whole session of
+price movement**: its per-fill dispersion is four times the first's, so six fills say nothing about
+it and it can only be priced over fourteen years. That is section 3.
+
+### 3. The deployed runner trades a signal one session stale, and it costs 4.75 CAR points
+
+This started as a suspicion that XLK's sizing `ref_price` was stale (byte-identical on both
+sessions) and ended as something better established and less exotic. XLK really did close at 187.87
+on 2026-09-08 *and* 2026-09-09, so that was a coincidence, not a bug. What is real:
+
+- `scripts/paper_trade.py` builds its price frame from `yf.download(period="2y")` at 15:45 ET, and
+  the last **complete** daily bar at that moment is the **previous** session's close. Measured, not
+  inferred: `ref_price` equals the previous close in **6 of 6 fills**, and the runner's own `plan`
+  event has been recording it the whole time - `as_of = 2026-09-08` on the 2026-09-09 session and
+  `as_of = 2026-09-09` on the 2026-09-10 one.
+- So the two paths are: **backtest** reads closes through D and fills at the open of D+1 (one
+  overnight gap); **live** reads closes through D-1 and fills at the close of D (one overnight gap
+  plus a full session). Both act on the same signal date and fill a session apart.
+
+`S1_SIGNAL_LAG=1` prices that, holding the sizing price current so the effect is signal staleness
+alone. It is an **upper bound**: it adds a session of staleness *and* keeps the D+1 open fill, so it
+is one overnight gap more stale than the live path, never less.
+
+| champion + | orders | CAR% | dCAR | Sharpe | MaxDD% | PSR% | paired bps/day | t |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 session of lag, 0 bp | 4,878 | **19.649** | **-4.75** | 0.736 | **23.7** | 7.2 | -1.55 | **-2.65** |
+| 1 session of lag, 2 bp | 4,879 | 18.592 | -5.81 | 0.695 | 24.2 | 5.2 | -1.90 | -3.24 |
+
+- **The deployed daily champion is not running the backtested strategy.** Its 24.404% assumes it
+  acts on the close it has just seen; the runner acts on a close that is a session old, and that is
+  worth up to 4.75 points of CAR at t = -2.65 on 3,689 paired sessions - **the largest single
+  number this iteration produced, and larger than every lever the S-track has argued about since
+  S-9.** With the measured spread on top the honest expectation for the deployed path is around
+  **18.6%, not 24.4%**.
+- **It costs return, not risk**: drawdown *improves* (23.7 vs 25.1) and realized vol is unchanged
+  (0.171 vs 0.170). A staler momentum signal trades less of the whipsaw and less of the edge.
+- **The fix is a schedule change, which the loop may not make.** The exact match for the backtest
+  is a pre-open run: read the previous close (complete by then) and send MarketOnOpen/OPG orders,
+  which fill at the open of D - literally "decide on the close of D-1, fill at the open of D". That
+  needs the Windows task moved from 15:45 ET to before 09:28 ET and `--order-type` extended, and
+  AGENTS.md forbids the loop from touching scheduled tasks. It is in `BLOCKERS.md` with the exact
+  prescription. A smaller in-place alternative (append the live 15:45 price as the frame's last row
+  so the signal reads through D) is written up there too, with its own risk: the paper account has
+  no real-time subscription, so that price is itself delayed.
+
+### 4. The spread re-ranks S-16's parked frontier, and frees one cell from the owner's question
+
+S-16 measured that turning off the 3x proxies *and* the drawdown overlay at the **unchanged** 0.75
+margin budget earns the champion's return to three decimal places with strictly less risk, and had
+to refuse it because it missed on CAR by **0.001 points**. That margin only exists at exactly zero
+spread:
+
+| spread | (e+g) at budget 0.75 | champion | dCAR | Sharpe | MaxDD |
+| --- | --- | --- | --- | --- | --- |
+| 0.0 bp | 24.403% | 24.404% | **-0.001** | 0.994 vs 0.921 | 23.7 vs 25.1 |
+| 1.0 bp | 23.735% | 23.699% | **+0.036** | 0.966 vs 0.894 | 24.3 vs 27.2 |
+| 2.0 bp | 23.068% | 22.926% | **+0.142** | 0.938 vs 0.865 | 25.0 vs 29.2 |
+
+- **The crossover is at about 0.03 bp.** A half-cent tick is 0.27 bp on XLK, 0.71 on TQQQ and 0.77
+  on XLE, so the *hard floor* of what a real fill can cost is already an order of magnitude past
+  it. At 2 bp the unlevered book wins on CAR, wins on Sharpe by 0.073, carries **4.2 fewer points
+  of drawdown** and pays **$24.9k of commission against $41.9k**.
+- **And it needs no change to `margin_budget`**, so unlike S-16's three passing cells it is not
+  behind the open owner question. Its economic exposure is 1.50x against the champion's 2.25x.
+- **What it is not.** The paired return difference at 2 bp is **+0.05 bps/day at t = +0.12** -
+  indistinguishable from zero, exactly as at 0 bp. The case for this cell is not that it earns more;
+  it is that it earns the same for less risk and less cost, and that the 0.001-point refusal was an
+  artifact of a harness that charges nothing per order. S-16's other cell (e+g at budget 0.80) keeps
+  its lead at 2 bp (24.453% vs 22.926%, +1.53 CAR, t +1.46) and stays behind the owner's question.
+
+### 5. The owner's no-trade-band question is answered, in the direction S-13 predicted
+
+S-13 swept `min_order_value` with zero spread, found CAR flat across a factor of eight, and sent it
+to the owner precisely because "every skipped order is also a spread not crossed" and the backtest
+could not see it. Charged at 2 bp:
+
+| band | orders | CAR% @0bp | CAR% @2bp | Sharpe @2bp | MaxDD% @2bp | vs 0.01 @2bp |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0.01 (shipped) | 4,723 | 24.40 | 22.926 | 0.865 | 29.2 | |
+| **0.03** | 2,752 | 24.34 | **23.491** | 0.885 | **25.4** | **+0.57 CAR, t +1.22** |
+| 0.08 | 1,720 | 24.47 | 23.015 | 0.865 | 29.7 | +0.09 CAR, t +0.19 |
+
+A wider band is worth **+0.57 CAR and 3.8 points of drawdown** once orders cost something, and 0.08
+gives almost all of it back - which is S-13's own conclusion that this parameter's fine structure is
+path luck. So the *direction* is now evidence (wider is better than 0.01) and the *level* still is
+not. Note what this does not settle: LEAN's MOO fill means the band is being priced against opening
+prints, while live it is priced against 15:45 market orders.
+
+### 6. Decision
+
+**Nothing shipped, nothing promoted, and no default changed.** Specifically:
+
+- **`S1_SLIPPAGE_BPS` stays 0.0.** Charging 2 bp by default would re-baseline every number in this
+  repository against a constant measured on **six fills with a standard error of 6.8 bps**. That is
+  A-5 part 2's rule applied to the daily sleeve: measure first, move the constant only when the gap
+  exceeds two standard errors. What changes today is that the knob exists and every future
+  judgement can be made at a non-zero spread as well as at zero.
+- **The champion is unchanged at S-12** and `research/champion.json` is untouched. The (e+g) cell at
+  budget 0.75 is the best candidate this iteration produced and it is **not promoted**, for reasons
+  that are about evidence and not about the rule: the case rests on a cost model introduced in this
+  same iteration, its return advantage is t = +0.12, and it has no in-sample/out-of-sample runs and
+  no re-baselined `OrderListHash`. Promoting a deployed strategy on a same-iteration cost model
+  would be exactly the mistake A-9's holdout was built to catch. It is the top backlog item (S-18)
+  with its three missing pieces named.
+- **`live/` and the scheduled tasks are untouched**, and no file the daily runner or the intraday
+  trader loads was modified - the two new knobs are in `algorithms/s1_momo/main.py`, which LEAN
+  loads and the runner does not (the runner imports `signals.py`). Rule (a) owes no replay.
+- **A-5 part 2 (standing job) had no new input**: this ran at 08:4x ET, before the open, so the
+  intraday ledger is still the single 2026-09-10 session - 32 fills, $1.87M, **+2.89 bps (se
+  1.33)** against the shipped 1.50, |diff|/se 1.05, ~6.8 sessions to settle it. `SLIPPAGE_BPS`
+  untouched. One incidental fix: `slippage_report.py` must be run on the default Python, not
+  `py -3.11`, which has no pyarrow.
+
+### 7. What it changes for the loop
+
+The backlog's conclusion after S-15/S-16 was that nothing was left but owner decisions. That was
+true about *strategies* and wrong about the *instrument*. Two of the three things this iteration
+found are measurement defects rather than levers, which is why they were invisible to sixteen
+iterations of sweeping: the harness's cost model and the runner's clock. Concretely:
+
+1. **Every cross-cell comparison in the S-track is biased toward turnover** by up to 0.68 CAR per
+   bp of unmodelled spread, and the cells differ by 2.7x in order count. The S-13 band result, the
+   S-12 promotion (which added 2,162 orders) and the S-16 frontier all sit inside that bias.
+2. **The deployed path is worth 4.75 CAR points less than the backtest says**, for a reason that is
+   a scheduling accident and is fixable. That is a bigger number than any signal lever measured
+   since S-9, and it is the one thing on this sleeve where effort has a known, large payoff.
+3. **The next candidate is free of the owner's budget question**, which is the first time since
+   O-1b that the daily sleeve has had one.
+
 ## 2026-09-11 - S-16: the 3x sleeve and the drawdown breaker are worth zero return between them
 
 - **What.** S-15 removed each of the champion's switches one at a time. Two of them pointed the

@@ -273,3 +273,21 @@ resolution the statistics block cannot be trusted until execution is verified se
   assets. What it did buy was drawdown (unlevered 22.4% -> 14.3%), which is a risk-posture trade.
   Split any such comparison into `selected = pool_mean + spread`, and vol-match before blaming
   leverage access.
+- **Audit the harness, not just the strategy, when the backlog runs out of levers.** After S-15
+  and S-16 the daily sleeve appeared to have nothing left but owner decisions. Two of the three
+  largest numbers found since then were measurement defects invisible to sweeping: LEAN's IB
+  brokerage model returns `NullSlippageModel`, so sixteen iterations compared cells that differ
+  by 2.7x in order count on a harness that charges **no spread** (0.68 CAR points per bp on the
+  champion), and the deployed runner reads yfinance's last *complete* daily bar at 15:45 ET, so it
+  trades a signal **one session stale** (-4.75 CAR, t -2.65). Neither is a parameter. When the
+  levers are exhausted, price the instrument and the deploy path.
+- **A cost set to zero is not a neutral assumption, it is a thumb on the scale for turnover.**
+  S-16's unlevered candidate was refused for missing the champion's CAR by 0.001 points; that
+  margin existed only at exactly zero spread, and the crossover sits at ~0.03 bp against a
+  half-cent tick worth 0.27-0.77 bp. Judge every cell at zero *and* at a non-zero cost bracket,
+  and never compare a cell that pays a cost against a baseline that does not.
+- **Check what the live runner's signal is as-of, not just what orders it produced.**
+  `compare_orders.py` had been passing 3,689/3,689 for days while the deployed path acted on a
+  close a session older than the backtest's, because an order-list comparison on historical dates
+  cannot see a clock difference. The fact was in the runner's own `plan` log (`as_of`) the whole
+  time; nobody had compared it to the backtest's convention.

@@ -2,6 +2,48 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
+## Open ops item for the human (2026-09-11, S-17: the daily runner's clock costs 4.75 CAR points)
+
+- **The deployed daily champion is trading a signal one session staler than the strategy that was
+  backtested, and closing the gap needs a scheduled task moved, which the loop may not touch.**
+  This is measured, not suspected:
+
+  | path | signal reads closes through | fills at | elapsed from signal to fill |
+  | --- | --- | --- | --- |
+  | LEAN backtest (the 24.404% number) | day D | the **open of D+1** | one overnight gap |
+  | `scripts/paper_trade.py` as scheduled | day **D-1** | the **close of D** | one overnight gap **plus a full session** |
+
+  The evidence is the runner's own log: `ref_price` equals the previous session's close in **6 of 6
+  fills** (2026-09-09 and 2026-09-10), and the `plan` event recorded `as_of = 2026-09-08` and
+  `as_of = 2026-09-09` respectively. The cause is benign - `fetch_history_yf` calls
+  `yf.download(period="2y")` at 15:45 ET and the last *complete* daily bar at that moment is
+  yesterday's. Priced over the full sample with `S1_SIGNAL_LAG=1` (a tight upper bound: it is one
+  overnight gap staler than the live path, never less), the cost is **CAR 24.404% -> 19.649%,
+  Sharpe 0.921 -> 0.736, paired -1.55 bps/day at t = -2.65 on 3,689 sessions**, and about
+  **18.6%** once the measured 2.9 bps of spread is charged as well. It costs return, not risk:
+  drawdown *improves* (23.7% vs 25.1%).
+- **The clean fix, and why it is yours.** Run the daily sleeve **before the open instead of before
+  the close** and send MarketOnOpen orders: read the previous session's close (complete by then) and
+  fill at the open of D. That is *literally* the backtest's convention, so the deployed path and the
+  24.404% would finally be the same strategy. It needs two things: the Windows task "Quant Daily
+  Sleeve" moved from 15:45 ET to a time before **09:28 ET** (IBKR rejects opening orders outside
+  04:00-09:28), and `paper_trade.py --order-type` extended with an OPG/MOO option. The task is
+  **"Quant Paper Rebalance"** (currently `Ready`; the other two, "Quant Intraday Sleeve" and
+  "Quant Dashboard", are unrelated and were only read, never modified). AGENTS.md forbids
+  the loop from changing scheduled tasks, so **say the word and the loop will write the order-type
+  support, verify it with `--mock --dry-run` and `compare_orders.py`, and hand you the one task
+  change to make.** Nothing has been changed.
+- **A smaller in-place alternative, if you would rather not move the task.** Append the current
+  15:45 price as the last row of the runner's price frame, so the signal reads through day D and the
+  15:46 fill is a minute behind its own decision - *tighter* than the backtest's overnight gap rather
+  than a session looser. The loop did not do this unasked because of a real risk: the paper account
+  has **no real-time market data subscription** (see the item below), so that price is itself 15
+  minutes delayed and the fix would silently re-introduce a smaller version of the same defect. The
+  data bundle below is therefore a prerequisite for this route and not for the pre-open route.
+- **What is not affected.** The champion, `champion.json`, `compare_orders.py` and the
+  `OrderListHash` are all unchanged; this is about *when* the runner acts, not what it decides, and
+  `compare_orders.py` compares order lists on historical dates so it still passes 3,689/3,689.
+
 ## Open ops item for the human (2026-09-11, live alerting is dead)
 
 - **Every alert the paper stack raised on 2026-09-10 was dropped.** The intraday log carries
@@ -78,6 +120,19 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   more slowly in a crash than a 0.75x book of 3x ETFs, so the margin call it is guarding against is
   further away, not nearer. **Answer (a), (b), (c) or (d/d+), or name the excess liquidity you want
   held and the loop will solve for the budget under it.** Nothing has been changed.
+- **S-17 update 2026-09-11: one of the options is no longer yours to answer.** S-16's row three -
+  proxies off and overlay off at the **unchanged** 0.75 budget - was refused only because it missed
+  the champion's CAR by 0.001 points, and S-17 found that the harness charging **zero spread** is
+  what created that margin. Charge a spread and the cell wins outright: at 1 bp **+0.036 CAR**, at
+  2 bp **+0.142 CAR with Sharpe 0.938 against 0.865, drawdown 25.0 against 29.2 and $24.9k of
+  commission against $41.9k**, and the crossover is at about **0.03 bp** against a half-cent tick
+  worth 0.27-0.77 bp on these names. Because it holds the budget at 0.75, **it does not touch your
+  Reg-T buffer at all** and its economic exposure *falls* from 2.25x to 1.50x - so the loop will
+  pursue it as S-18 without an answer from you. **What still needs you is only the size question**:
+  options (b), (c) and (d+) all raise `margin_budget` above 0.75, and rows four and five of the
+  table above are still parked behind that. The honest restatement is that the menu is now "keep the
+  buffer and take the risk reduction for free (loop's call, in progress), or additionally spend the
+  buffer for +1.5 CAR (yours)".
 - **The second dial is the 3x proxies.** Holding the same signal in the unlevered parents instead
   of UPRO/TQQQ/TMF gives **23.128% CAR at Sharpe 0.950, drawdown 23.6%, std 0.153, PSR 27.4% and
   $25,646 of fees** against the champion's 24.404% / 0.921 / 25.1% / 0.170 / 23.0% / $45,695 -

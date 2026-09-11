@@ -17,6 +17,46 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 13:3x UTC (S-17): **sixteen iterations have judged the daily sleeve on a harness
+that charges no spread, and the deployed runner trades a signal one session stale - which is worth
+4.75 CAR points and is the largest number on this sleeve since S-9.** With no open research item
+left, this iteration audited the instrument instead of the strategy. Two knobs on the shipped
+algorithm (`S1_SLIPPAGE_BPS`, `S1_SIGNAL_LAG`, both defaulting to the champion), twelve LEAN cells
+(`scripts/_s17_runs.sh`, read by `scripts/sweep_s17.py`), a new live-fill instrument
+(`scripts/daily_fills.py`), 12 ledger rows, control reproducing **`OrderListHash
+5246804e17a67af90028ffceead7d3b3`**. **(1) The zero spread is LEAN's default, not a choice**:
+`DefaultBrokerageModel.GetSlippageModel` returns `NullSlippageModel.Instance` and the IB model does
+not override it, while `EquityFillModel.MarketOnOpenFill` *does* apply a model when set. The ladder:
+**24.404 -> 23.699 (1bp) -> 22.926 (2bp) -> 21.129 (5bp) -> 18.216 (10bp)** at drawdown **25.1 ->
+27.2 -> 29.2 -> 31.7 -> 32.3**, i.e. **0.68 CAR points per basis point** (paired t -1.84 / -3.48 /
+-9.32 / -10.27), which implies the book pays spread on ~68x its equity a year. **Every cross-cell
+comparison in the S-track is therefore biased toward turnover, and the cells differ by 2.7x in order
+count.** **(2) The measured cost**: `daily_fills.py` on the 6 paper fills / $1.42M gives **+2.9 bps
+(sd 16.7, se 6.8)** against the 15:45 close the runner aims at - the same size as the intraday
+sleeve's +2.89. **(3) The deployed runner is a session late**, proved not inferred: `paper_trade.py`
+reads `yf.download(period="2y")` at 15:45 ET, whose last *complete* bar is the previous close, and
+`ref_price` equals it in **6 of 6 fills** while the runner's own `plan` event has been logging
+`as_of = D-1` all along. So the backtest reads closes through D and fills at the open of D+1, while
+live reads through D-1 and fills at the close of D. `S1_SIGNAL_LAG=1` (a tight upper bound, one
+overnight gap staler than live) prices it at **19.649% / 0.736, -4.75 CAR, paired -1.55 bps/day at
+t -2.65**, and **18.592% with the spread on top** - it costs return, not risk (drawdown *improves*,
+23.7 vs 25.1). The fix is the pre-open MOO convention, which needs the scheduled task moved and is
+in `BLOCKERS.md`. **(4) The spread re-ranks S-16's frontier and frees one cell from the owner's
+question**: S-16's (e+g) at the **unchanged** 0.75 budget was refused by 0.001 CAR points, and that
+margin exists only at exactly zero spread - **0 bp -0.001, 1 bp +0.036, 2 bp +0.142**, with Sharpe
+0.938 vs 0.865, drawdown **25.0 vs 29.2** and fees $24.9k vs $41.9k at 2 bp. The crossover is at
+~0.03 bp against a half-cent tick of 0.27-0.77 bp. Its return edge is still t = +0.12: the case is
+same return for less risk and less cost, not more return. **(5) The owner's no-trade-band question
+is answered**: at 2 bp, band **0.03 earns +0.57 CAR (t +1.22) and 3.8 fewer points of drawdown**
+than the shipped 0.01, while 0.08 gives it back (+0.09) - the direction is evidence now, the level is
+still S-13's path luck. **Nothing shipped, nothing promoted, no default changed**: `S1_SLIPPAGE_BPS`
+stays 0.0 because 2 bps rests on six fills with se 6.8 (A-5 part 2's rule), the champion is unchanged
+at S-12, `champion.json`, `live/` and the scheduled tasks are untouched, and neither new knob is in a
+file the runners load, so rule (a) owes no replay. **What it changes for the loop**: the post-S-16
+conclusion that only owner decisions remained was true about strategies and wrong about the
+instrument - **S-18** (promote the unlevered cell properly) and the runner's clock are both real work
+that no owner answer blocks.
+
 Status 2026-09-11 12:1x UTC (S-16): **the champion's 3x sleeve and its drawdown breaker are worth
 exactly zero return between them, and three cells that pass `evaluate.py` are now sitting behind one
 unanswered owner question.** S-15 removed each switch alone; S-16 runs the two that pointed the same
@@ -746,11 +786,14 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
-**Priority after S-16 (2026-09-11), in order: A-5 part 2 (standing, every session) -> per-session
-ops -> the owner decisions in `BLOCKERS.md`, where the margin-budget question now blocks three
-candidates that already pass `evaluate.py`.** S-15 closed the last open research item and S-16
-turned the leftover risk-posture pair into a costed menu; do not re-open the proxies or the overlay
-as parameter questions. Everything
+**Priority after S-17 (2026-09-11), in order: (1) S-18 - promote the unlevered cell properly,
+which is the first daily-sleeve candidate since O-1b that no owner answer blocks; (2) A-5 part 2 and
+`daily_fills.py`, the two standing per-session measurements; (3) per-session ops; (4) the owner
+decisions in `BLOCKERS.md`, which now include the runner's clock.** S-17 replaced the post-S-16
+conclusion that only owner decisions remained: that was true about strategies and wrong about the
+instrument. The harness charges no spread (0.68 CAR per bp, and the cells it has been ranking differ
+by 2.7x in order count), and the deployed runner acts on a signal a session stale (-4.75 CAR). Both
+are measurement defects, which is why sixteen iterations of sweeping could not see them. Everything
 else under "Open" is parked, settled, infrastructure, or an owner decision. Do not open a new
 intraday lever (the A-track is out of both levers and defences, and the S-track's last mechanism
 closed with S-2), and **do not open a new ranker lever**: S-15 priced the ranker at +3.66 CAR at
@@ -759,6 +802,39 @@ the book - the vol target / margin budget (71% of the return) and the regime fil
 profile) - are risk-posture parameters, so the next move on this sleeve is an owner decision, not
 a backtest.
 
+- **S-18 OPEN, top item (opened by S-17 2026-09-11): promote S-16's (e+g) cell at the unchanged
+  0.75 margin budget - the first daily-sleeve candidate since O-1b that no owner answer blocks.**
+  The cell is `S1_PROXY=off S1_DD_HALVE=9.0 S1_DD_FLAT=9.0` (unlevered parents, no drawdown
+  breaker, budget untouched at 0.75, economic exposure 1.50x against the champion's 2.25x). At zero
+  spread it is a dead heat refused by 0.001 CAR points; at any spread above ~0.03 bp it wins on CAR,
+  Sharpe and drawdown at once (2 bp: **23.068 / 0.938 / DD 25.0 / $24.9k fees** against the
+  champion's 22.926 / 0.865 / 29.2 / $41.9k). **Three pieces are missing and each is a run, not a
+  judgement call:** (a) the in-sample 2012-2019 and out-of-sample 2020-2026 halves at this
+  configuration, which S-16 only produced for the budget-0.80 variant, run both at 0 bp and at 2 bp;
+  (b) a decision on what `evaluate.py` compares against, because the recorded champion stats are
+  zero-spread and a candidate charged 2 bp cannot be measured against them - the like-for-like
+  comparison is the one in journal section 4 and the promotion should be made on it, with
+  `champion.json` recording both columns; (c) `scripts/compare_orders.py` re-run and a new
+  `OrderListHash` baselined, since promotion moves the live order list (I-1's deploy gate). **Do not
+  promote on the return difference** - it is +0.05 bps/day at t = +0.12. The case is identical
+  return for 0.073 more Sharpe, 4.2 fewer points of drawdown and 40% less commission, and the
+  write-up must say that. Related and cheap once (a) is running: `min_order_value` 0.03 is worth
+  +0.57 CAR at 2 bp (t +1.22) with 3.8 fewer points of drawdown, so the band should be swept on the
+  *promoted* cell rather than on the champion, and S-13's warning that its fine structure is path
+  luck still stands.
+- **S-17 DONE 2026-09-11 (see journal): the harness charges no spread and the deployed runner is a
+  session late. Nothing shipped, nothing promoted, no default changed.** Two new knobs on the
+  shipped algorithm, both defaulting to the champion (`S1_SLIPPAGE_BPS`, `S1_SIGNAL_LAG`), twelve
+  full-period LEAN cells (`scripts/_s17_runs.sh`, `scripts/sweep_s17.py`), a new live-fill
+  instrument (`scripts/daily_fills.py`), 12 ledger rows, control reproducing `OrderListHash
+  5246804e17a67af90028ffceead7d3b3`. Spread ladder **24.404 / 23.699 / 22.926 / 21.129 / 18.216** at
+  0 / 1 / 2 / 5 / 10 bp with drawdown **25.1 -> 32.3**, i.e. **0.68 CAR per bp**; measured execution
+  cost on the 6 paper fills **+2.9 bps (se 6.8)**; signal lag of one session **-4.75 CAR at t
+  -2.65**, proved from `ref_price` in 6 of 6 fills and the runner's own logged `as_of`. **Do not
+  re-open as a "what should the constant be" question** - it is a standing measurement now
+  (`daily_fills.py` after every paper close, same rule as A-5 part 2: move the default only at two
+  standard errors). **Do re-use the knobs**: judge every future daily-sleeve cell at 0 bp *and* at a
+  non-zero spread, because the zero-spread comparison is biased toward whichever cell trades most.
 - **S-16 DONE 2026-09-11 (see journal): the 3x proxies and the drawdown overlay are worth zero
   return between them; three passing candidates are parked behind the margin-budget question.**
   Nine full-period cells plus two sub-periods (`scripts/_s16_runs.sh`, `scripts/sweep_s16.py`), 11
@@ -901,6 +977,18 @@ late-day momentum flat. Every A-track iteration: pick one strategy, change one t
 `scripts/intraday_backtest.py --split <date>` on the full universe, keep it only if OOS
 improves after costs, journal it, and update `live/intraday_config.json` only per AGENTS.md rule (c).
 
+- **S-17 part 2 Measured fill slippage on the *daily* sleeve. Standing per-session job, opened
+  2026-09-11.** Run `python scripts/daily_fills.py` after every paper close. It reports two numbers
+  and they must not be pooled: **execution cost** against the 15:45 close the runner aims at
+  (currently **+2.9 bps notional-weighted on 6 fills / $1.42M, per-fill sd 16.7, se 6.8**), and the
+  **convention difference** against the D+1 open the backtest fills at (-16.9 bps, se 25.8, which is
+  a whole session of price movement and is uninformative at this sample size - it is priced by
+  `S1_SIGNAL_LAG` over fourteen years, not here). LEAN charges **0 bps** of spread by default, and
+  each bp is worth **0.68 CAR points** on the champion, so this constant owns roughly 2 points of the
+  reported return. Same decision rule as A-5 part 2: move `S1_SLIPPAGE_BPS`'s default only when the
+  gap to the current value exceeds two standard errors, with a journal entry. At the observed sd of
+  16.7 bps, ~130 fills are needed to place the constant within 1.5 bps, which at 3 fills a session is
+  a long standing job - so judge candidates at a *bracket* (0 bp and 2 bp) rather than waiting for it.
 - **A-5 part 2 Measured fill slippage. First fills measured 2026-09-10 (see journal); slippage is
   still open, the commission half is CLOSED and shipped. Standing per-session job.**
   **Slippage, still open**: 19 fills / $1.1M on the partial first session give **+1.30 bps

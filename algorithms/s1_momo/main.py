@@ -138,6 +138,21 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)
         self.settings.minimum_order_margin_portfolio_percentage = 0.002
 
+        # S-17, two execution assumptions this algorithm has never charged for. Both default
+        # to the champion's behaviour, so a run with no environment override must still
+        # reproduce OrderListHash 5246804e17a67af90028ffceead7d3b3.
+        #
+        #   S1_SLIPPAGE_BPS  a constant half-spread on every fill (see set_slippage_model
+        #                    below). LEAN charges none at all.
+        #   S1_SIGNAL_LAG    trading days of extra staleness between the last close the
+        #                    signal reads and the open it fills at. The backtest decides on
+        #                    the close of D and fills at the open of D+1 (one overnight gap).
+        #                    `scripts/paper_trade.py` sends MKT orders at 15:45 ET off the
+        #                    last complete yfinance daily bar, which during the session may
+        #                    be D-1's close - one whole extra session of lag. This prices it.
+        self.slippage_bps = _env("SLIPPAGE_BPS", 0.0)
+        self.signal_lag = _env("SIGNAL_LAG", 0, int)
+
         self.symbols = {}
         for ticker in sig.traded_universe(self.params):
             equity = self.add_equity(ticker, Resolution.DAILY)
@@ -152,6 +167,16 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             # every day in on_data, so the run reports what was actually carried rather
             # than trusting LEAN's un-netted intraday margin accounting to enforce it.
             equity.set_leverage(10.0)
+            # S-17: LEAN's IB brokerage model returns NullSlippageModel, so every backtest
+            # in this repository has filled at the exact opening print with no spread and no
+            # impact - `DefaultBrokerageModel.GetSlippageModel` returns
+            # `NullSlippageModel.Instance` and the IB model does not override it. Commission
+            # is charged, spread is not. This override charges a constant half-spread per
+            # fill (`EquityFillModel.MarketOnOpenFill` applies the model: +slip on a buy,
+            # -slip on a sell), so the cost the harness has never modelled can be priced.
+            # Default 0.0 keeps the champion bit-identical.
+            if self.slippage_bps > 0:
+                equity.set_slippage_model(ConstantSlippageModel(self.slippage_bps / 1e4))
             self.symbols[ticker] = equity.symbol
         self.by_symbol = {s: t for t, s in self.symbols.items()}
 
@@ -217,7 +242,8 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         Volume is only used by the D-3 point-in-time universe; it is fetched
         unconditionally because it arrives in the same history call and costs nothing.
         """
-        history = self.history(list(self.symbols.values()), self.params.history_bars,
+        history = self.history(list(self.symbols.values()),
+                               self.params.history_bars + self.signal_lag,
                                Resolution.DAILY)
         if history.empty or "close" not in history.columns:
             return None, None
@@ -226,8 +252,14 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         def frame(column):
             if column not in history.columns:
                 return None
-            return history[column].unstack(level=0).rename(
+            out = history[column].unstack(level=0).rename(
                 columns=lambda c: str(c).split(" ")[0].upper())
+            # S-17: hide the last `signal_lag` sessions from the signal. The extra bars were
+            # requested above, so the lookback windows keep their full length and the only
+            # thing that changes is how stale the newest close is. Sizing still uses the
+            # current price in submit_targets, so this isolates signal staleness from a
+            # stale share count.
+            return out.iloc[:-self.signal_lag] if self.signal_lag > 0 else out
         return frame("close"), frame("volume")
 
     def submit_targets(self, weights):
