@@ -41,6 +41,13 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.set_end_date(*_env_date("END", (2026, 9, 4)))
         self.set_cash(100_000)
 
+        # S-15 attribution: S1_PROXY=off drops the levered proxy map for the whole run, so
+        # every winner is held in its own unlevered name. That is what prices the 3x sleeve's
+        # contribution to the champion's return. Default "on" is the champion and leaves the
+        # signal module untouched (the subscription list follows sig.traded_universe below).
+        if os.environ.get("S1_PROXY", "on").lower() == "off":
+            sig.LEVERED_PROXY = {}
+
         # S-7 knobs: the ranking sleeve is a named preset ("etf", "wide", "megacap") rather
         # than a ticker list, so a sweep cannot silently subscribe to something the data
         # pipeline never wrote.
@@ -100,6 +107,10 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             mom_confirm=bool(_env("MOM_CONFIRM", 0, int)),
             entry_mode=os.environ.get("S1_ENTRY_MODE", "absolute"),
             min_rel_momentum=_env("MIN_REL_MOMENTUM", 0.0),
+            # S-15 attribution: the absolute entry floor, exposed so the "no ranking at
+            # all" control (S1_TOP_N=9 with the gate off) can be run without editing this
+            # file. 0.0 is the champion's floor and leaves the order list unchanged.
+            min_momentum=_env("MIN_MOMENTUM", 0.0),
             # S-10: the shipped skip is 5 sessions (one trading week) on the 120- and
             # 252-day horizons only; MOM_SKIP=0 restores the S-9 champion. MOM_WEIGHTS
             # empty gives the horizons an equal vote (S-10 rejected every weighting) and

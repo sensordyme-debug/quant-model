@@ -3,6 +3,32 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## Attribute a strategy's return before tuning any part of it again (learned 2026-09-11, S-15)
+
+- **Most of the champion is not skill.** The nine-ETF pool held equal-weighted and unlevered, with
+  no ranking, no entry gate and no regime filter, run through only the vol target, margin budget
+  and drawdown overlay, earns **17.282% CAR (Sharpe 0.711)** against the shipped **24.404% /
+  0.921** - so **71% of the return is the sizing machinery on ETF beta** and the entire signal
+  stack is worth **+7.12 CAR at t = 1.37** over 3,689 paired trading days. Every switch was priced
+  by re-running the shipped algorithm with one `S1_*` override; none reaches |t| = 2.
+- **Vol-match before crediting any concentration lever.** Dropping ranking costs 6.70 CAR *and*
+  drops realized vol 0.170 -> 0.137 (three names instead of nine). Re-sized to the champion's own
+  std (`margin_budget` 0.93) the no-ranking book earns 20.745%, so ranking is **+3.66 CAR at
+  t = 0.92**, not +6.70. A third of the apparent value of "hold fewer names" is leverage in
+  disguise, and with a flat margin budget the vol target will hand it to either side on request.
+- **Price a crisis switch on risk, not on return.** The regime filter's in-sample (2012-2019)
+  contribution is **exactly zero** (-0.04 bps/day, t -0.03); all of its +2.02 CAR is 2020-2026.
+  What it delivers in every regime is drawdown 31.4 -> 25.1 and vol 0.189 -> 0.170.
+- **Leveraged instruments supply volatility, not edge** - now measured on both sleeves. Holding
+  the same daily signal in unlevered parents instead of the 3x proxies gives **23.128% at Sharpe
+  0.950, DD 23.6%, PSR 27.4% and $25.6k of fees** - better than the champion on every
+  risk-adjusted measure for 1.28 CAR. L-1 reached the same conclusion intraday.
+- **Two LEAN result-file traps** (`scripts/sweep_s15.py` documents both): the `Strategy Equity`
+  chart is marked on every **calendar** day, so 1,669 zero-return weekend/holiday rows divide a
+  paired bps/day by 1.45 (the t is unaffected); and the `Benchmark` series is plotted one day late
+  with repeated values, so it finds 2,317 "sessions" instead of 3,690. Take the trading calendar
+  from `lean_prices.load_closes(["SPY"]).index`.
+
 ## Every directional study needs its own inverted control (learned 2026-09-11, S-2 and A-12)
 
 - **An exit rule can manufacture the gross a signal appears to earn.** S-2's opening-range breakout

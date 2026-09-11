@@ -17,6 +17,37 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 11:1x UTC (S-15): **71% of the champion's 24.4% CAR is no skill of any kind, and
+not one of the switches the loop has spent six iterations tuning is distinguishable from zero.**
+The attribution S-14 asked for: eight full-period LEAN runs, each the shipped algorithm with one
+switch removed through an `S1_*` override (`scripts/_s15_runs.sh` runs them, `scripts/sweep_s15.py`
+reads them), 8 ledger rows, nothing judged. Two new knobs default to the champion
+(`S1_MIN_MOMENTUM`, `S1_PROXY`) and the control reproduces **`OrderListHash
+5246804e17a67af90028ffceead7d3b3`** exactly. **The table**: champion **24.404% / 0.921 / 25.1% DD
+/ 0.170 std**; (f) **no skill at all** - nine ETFs equal-weighted, unlevered, no ranking, no entry
+gate, no regime filter, only the vol target, margin budget and overlay - **17.282% / 0.711**, i.e.
+the entire signal stack is worth **+7.12 CAR at t = 1.37**; (a) no ranking 17.700% / 0.780 at std
+**0.137**, and **vol-matched (a2, budget 0.93, std 0.163) 20.745%**, so **ranking is +3.66 CAR at
+t = 0.92**, not +6.70 - a third of its apparent value is just that three names carry more vol than
+nine, and the +2.20 bps/day it scores is S-14's +2.02 arriving by another route; (b) regime filter
+off 22.383% but **drawdown 31.4%** and std 0.189, with an in-sample contribution of **exactly zero**
+(-0.04 bps/day, t -0.03) - it is a drawdown instrument, not a return one; (e) **levered proxies off
+23.128% at Sharpe 0.950, DD 23.6%, std 0.153, PSR 27.4% and $25.6k of fees** - better than the
+champion on every risk-adjusted measure for 1.28 CAR, which is L-1's finding on the daily sleeve:
+**3x instruments supply volatility, not edge**; (g) overlay off **25.998%**, so the breaker costs
+**1.59 CAR** and is the only near-significant statistic in the table, against it (-0.51 bps/day,
+**t -1.93**, OOS **t -2.35**), buying 2.1 points of drawdown; (d) S-12's allocation tilt +0.80 CAR
+overall but **+0.52 bps/day (t 1.45) in 2012-2019 and -0.06 (t -0.10) in 2020-2026** - the last
+promotion's edge is in-sample. **Nothing shipped, nothing promoted, nothing refused**; champion
+unchanged at S-12, `live/` and the scheduled tasks untouched, all eight cells are env overrides so
+rule (a) owes no replay. **What it changes for the loop**: further ranker tuning is the
+lowest-value work available (+3.66 CAR at t = 0.92, and S-14 showed it does not survive dilution);
+the two components with real effects - the **vol target / margin budget**, which produces 71% of
+the return, and the **regime filter**, which produces the drawdown profile - are risk-posture
+parameters, so they run into the open owner questions in `BLOCKERS.md`, not into another backtest.
+A-5 part 2 had no new input (ran 06:3x ET, before the open; still 2026-09-10 alone: 32 fills,
++2.89 bps, se 1.33, ~6.8 sessions to settle).
+
 Status 2026-09-11 10:3x UTC (daily review, no experiments run): **ten iterations, 82 ledger rows,
 nothing shipped to a deployed file, and the backlog is out of mechanisms.** In 24 hours the owner's
 3-10%/day list was measured in full and refused in full (O-1, O-1b, L-1, X-1, O-2), the A-track
@@ -657,32 +688,30 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
-**Priority after the 2026-09-11 review, in order: A-5 part 2 (standing, every session) -> S-15 ->
-per-session ops.** Everything else under "Open" is parked, settled, infrastructure, or an owner
-decision in `BLOCKERS.md`. Do not open a new intraday lever: the A-track is out of both levers and
-defences, and the S-track's last mechanism closed with S-2.
+**Priority after S-15 (2026-09-11), in order: A-5 part 2 (standing, every session) -> per-session
+ops -> the owner decisions in `BLOCKERS.md`.** S-15 closed the last open research item. Everything
+else under "Open" is parked, settled, infrastructure, or an owner decision. Do not open a new
+intraday lever (the A-track is out of both levers and defences, and the S-track's last mechanism
+closed with S-2), and **do not open a new ranker lever**: S-15 priced the ranker at +3.66 CAR at
+t = 0.92 vol-matched, and S-14 showed it does not survive dilution. The two components that carry
+the book - the vol target / margin budget (71% of the return) and the regime filter (the drawdown
+profile) - are risk-posture parameters, so the next move on this sleeve is an owner decision, not
+a backtest.
 
-**Update 2026-09-11 (S-14): one new open item, and it is about the champion rather than a
-candidate.** S-14 measured the champion's cross-sectional selection edge at **+2.02 bps/day,
-t = 2.07** on 3,099 invested days - the whole contribution of the ranker, and it survives only at
-top-3-of-9. That makes **S-15 (return attribution)** the top open item: the loop has spent S-9
-through S-14 tuning a component that may be a small minority of the book's return, and nobody has
-measured the split.
-
-- **S-15 Attribute the champion's 24.4% CAR to its four parts, before tuning any of them again.**
-  The pieces are separable by construction (`main.py` docstring: momentum picks *what*, the regime
-  filter decides *whether*, the vol target and overlay decide *how much*) and S-14 built the
-  leverage-free walk that isolates the first one. Measure, each as a LEAN run against the shipped
-  control: (a) **no-skill levered beta** - hold the nine-name pool equal-weighted through the same
-  regime filter, vol target, margin budget and overlay, with the levered proxies in place, i.e.
-  everything except ranking; (b) **the regime filter alone** - the champion with
-  `regime_threshold` effectively off, so the crisis switch's timing value is priced; (c) **the
-  ranker** - the difference between (a) and the champion, which S-14's replica already estimates
-  at ~2 bps/day unlevered; (d) **the allocation tilt** - `S1_WEIGHT_MODE=equal`, already measured
-  by S-12 at -0.79 CAR. Judge nothing; the output is a table and a sentence about where the return
-  comes from. It changes what the loop works on next, and it is the only remaining question whose
-  answer cannot be guessed from the ledger. It touches no deployed file (all four cells are env
-  overrides) and owes no replay.
+- **S-15 DONE 2026-09-11 (see journal): 71% of the champion's CAR is no skill of any kind, and no
+  single switch is distinguishable from zero. Nothing shipped, nothing judged.** Eight full-period
+  LEAN cells, each the shipped algorithm with one switch removed through an `S1_*` override
+  (`scripts/_s15_runs.sh`, read by `scripts/sweep_s15.py`); two new knobs, `S1_MIN_MOMENTUM` and
+  `S1_PROXY`, both defaulting to the champion, with the control reproducing `OrderListHash
+  5246804e17a67af90028ffceead7d3b3`. Champion **24.404 / 0.921 / 25.1 / 0.170**; **(f) no skill at
+  all 17.282 / 0.711** (whole signal stack = **+7.12 CAR, t 1.37**); (a) no ranking 17.700 at std
+  0.137 and **vol-matched 20.745** (**ranking = +3.66 CAR, t 0.92**); (b) regime off 22.383 at
+  **DD 31.4** with **zero in-sample contribution** (-0.04 bps/day); (e) **proxies off 23.128 at
+  Sharpe 0.950 / DD 23.6 / PSR 27.4 / $25.6k fees** - better risk-adjusted than the champion;
+  (g) overlay off **25.998**, so the breaker costs 1.59 CAR (-0.51 bps/day, **t -1.93**, OOS
+  **-2.35**) for 2.1 points of drawdown; (d) S-12's tilt +0.80 CAR but **+0.52 bps/day IS,
+  -0.06 OOS**. **Do not re-open as a parameter question** - the answer is a table, and it says the
+  levers left are risk-posture ones in `BLOCKERS.md`.
 
 **Owner instruction 2026-09-10 (midday) - the list is now exhausted, 2026-09-10 20:4x UTC.**
 O-1, O-1b, L-1, X-1 and O-2 have each been measured on the full history and each refused. Nothing

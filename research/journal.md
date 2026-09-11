@@ -2,6 +2,102 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - S-15: where the champion's 24.4% actually comes from, and it is mostly not skill
+
+- **What.** The attribution S-14 asked for. Eight full-period LEAN runs, each the shipped
+  algorithm with exactly one switch removed through an `S1_*` environment override, plus the
+  control and a vol-matched steelman: (a) no ranking, (b) no regime filter, (d) no allocation
+  tilt, (e) no levered proxies, (g) no drawdown overlay, (f) none of them at all.
+  `scripts/_s15_runs.sh` produces the runs, `scripts/sweep_s15.py` reads their LEAN output.
+  **Judged nothing**: the deliverable is the table and a sentence.
+- **Why.** S-9 through S-14 are six consecutive iterations spent tuning the *ranker*, and S-14
+  priced its entire cross-sectional contribution at +2.02 bps/day (t = 2.07). If that is the
+  whole of selection, then most of a 24.4% CAR is something else, and nobody had measured what.
+- **Two new knobs, both defaulting to the champion**: `S1_MIN_MOMENTUM` (the absolute entry
+  floor, so "rank nothing" is expressible as `top_n=9` with the gate off) and `S1_PROXY=off`
+  (drop the levered proxy map, hold every winner in its own unlevered name). The control run
+  reproduces **`OrderListHash 5246804e17a67af90028ffceead7d3b3`** with 4,735 orders, CAR
+  24.404%, Sharpe 0.921, fees $45,695.46 - bit-identical to the champion - so both are inert.
+
+### 1. The table (full period 2012-01-03..2026-09-04)
+
+| cell | orders | CAR% | dCAR | Sharpe | MaxDD% | std | fees | PSR% |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **champion (S-12, shipped)** | 4,735 | **24.404** | | **0.921** | 25.1 | 0.170 | $45,695 | 23.0 |
+| (a) no ranking (top 9, equal) | 1,704 | 17.700 | **-6.70** | 0.780 | 23.3 | 0.137 | $7,907 | 10.3 |
+| (a2) no ranking, vol-matched | 2,332 | 20.745 | **-3.66** | 0.804 | 26.1 | 0.163 | $12,747 | 11.7 |
+| (b) regime filter off | 5,495 | 22.383 | -2.02 | 0.781 | **31.4** | 0.189 | $46,318 | 9.6 |
+| (d) allocation tilt off | 2,573 | 23.605 | -0.80 | 0.874 | 25.9 | 0.174 | $37,380 | 17.7 |
+| (e) levered proxies off | 5,136 | 23.128 | -1.28 | **0.950** | **23.6** | 0.153 | $25,646 | **27.4** |
+| (g) drawdown overlay off | 4,768 | **25.998** | **+1.59** | 0.967 | 27.2 | 0.174 | $48,970 | 28.5 |
+| **(f) no skill at all** | 1,386 | **17.282** | **-7.12** | 0.711 | 28.8 | 0.149 | $3,357 | 6.1 |
+
+Paired daily log returns, champion minus cell, on the 3,689 trading days both books are marked
+(the same split S-12 was promoted on):
+
+| switch removed | bps/day | t | ann.% | IS bps | IS t | OOS bps | OOS t |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| (a) no ranking | +2.20 | 1.76 | 5.71 | +1.77 | 1.27 | +2.73 | 1.24 |
+| (a2) no ranking, vol-matched | +1.19 | 0.92 | 3.04 | +0.44 | 0.29 | +2.08 | 0.94 |
+| (b) regime filter off | +0.65 | 0.53 | 1.66 | **-0.04** | -0.03 | +1.49 | 0.70 |
+| (d) allocation tilt off | +0.26 | 0.82 | 0.65 | +0.52 | 1.45 | **-0.06** | -0.10 |
+| (e) levered proxies off | +0.41 | 1.21 | 1.04 | +0.50 | 1.26 | +0.30 | 0.52 |
+| (g) drawdown overlay off | **-0.51** | **-1.93** | -1.27 | +0.11 | 0.62 | **-1.25** | **-2.35** |
+| (f) no skill at all | +2.35 | 1.37 | 6.09 | +1.04 | 0.56 | +3.92 | 1.30 |
+
+### 2. What it says
+
+- **71% of the champion's CAR is no skill of any kind.** Cell (f) - the nine ETFs held
+  equal-weighted, every name unlevered, no ranking, no entry gate, no regime filter - earns
+  **17.282%** through the vol target, the margin budget and the overlay alone, against the
+  champion's 24.404%. The whole signal stack is worth **+7.12 CAR at t = 1.37**. The sizing
+  machinery is doing the heavy lifting: the unlevered pool itself earns ~13.9%/yr (S-14's
+  5.20 bps/day menu), and SPY over the same window compounds at 9.5%.
+- **Nothing the loop has tuned is individually distinguishable from zero.** Not one switch
+  reaches |t| = 2 on the paired daily series, and the only one that comes close is the drawdown
+  overlay **with the sign against it** (-0.51 bps/day, t -1.93; OOS -1.25 at **t -2.35**).
+- **The ranker is the biggest piece and a third of it is leverage, not selection.** Removing
+  ranking costs 6.70 CAR, but it also drops realized vol 0.170 -> 0.137: hold 9 names instead of
+  3 and the book is simply more diversified. Sized back to the champion's own volatility
+  (`margin_budget` 0.93, std 0.163) the no-ranking book earns **20.745%**, so ranking is worth
+  **+3.66 CAR at t = 0.92**, not +6.70. That is the same ~2 bps/day S-14 measured unlevered,
+  arriving by a completely different route.
+- **The regime filter is a drawdown instrument, not a return one.** +2.02 CAR at t = 0.53, and
+  its in-sample contribution is **exactly zero** (-0.04 bps/day, t -0.03) - the whole of it is
+  2020-2026, i.e. COVID and 2022. What it reliably buys is risk: drawdown **31.4 -> 25.1** and
+  realized vol **0.189 -> 0.170**.
+- **The 3x proxies buy volatility, not edge.** Held in their unlevered parents the same signal
+  earns 23.128% at **Sharpe 0.950, drawdown 23.6%, std 0.153 and PSR 27.4%** - better than the
+  champion on every risk-adjusted measure and on fees ($25.6k against $45.7k) - for 1.28 CAR.
+  This is L-1's intraday finding on the daily sleeve: leveraged instruments supply volatility,
+  and the vol target then hands most of that volatility back.
+- **The last promotion is in-sample.** S-12's allocation tilt is +0.80 CAR overall, but
+  **+0.52 bps/day (t 1.45) in 2012-2019 and -0.06 (t -0.10) in 2020-2026**. It was promoted on
+  a full-period run that beat the champion on all three criteria; the halves say the edge is
+  not there after 2020. Not a reason to demote - t is nowhere near 2 in either direction - but
+  it is the honest read.
+
+### 3. Decision
+
+**Nothing shipped, nothing promoted, nothing refused.** `research/champion.json` is unchanged at
+S-12, the control reproduces the deployed order list hash, and `live/` and the scheduled tasks
+were not touched (all eight cells are environment overrides; the item owes no replay and the
+intraday trader was not loaded). The sentence S-15 was asked for: **the champion is a levered
+long-ETF-beta book with a volatility governor, and the four switches the research loop has spent
+six iterations tuning are worth about seven CAR points between them, none of which is
+individually distinguishable from zero on fourteen years of daily data.**
+
+**What it changes.** Further ranker tuning is the lowest-value work available: its measured
+contribution is +3.66 CAR at t = 0.92, and S-14 showed it does not survive dilution. The two
+components with real, repeatable effects are the ones nobody has swept - the **vol target /
+margin budget** (which produces 71% of the return) and the **regime filter** (which produces the
+drawdown profile). Both are risk-posture parameters, so both run into the open owner questions in
+`BLOCKERS.md` rather than into another backtest.
+
+- **A-5 part 2 (standing job) had no new input**: this ran at 06:3x ET, before the open, so the
+  ledger is still the single 2026-09-10 session - 32 fills, $1.87M, **+2.89 bps (se 1.33)**
+  against the shipped 1.50, |diff|/se 1.05, ~6.8 sessions to settle it. `SLIPPAGE_BPS` untouched.
+
 ## 2026-09-11 - S-14: breadth, and the discovery that the champion's whole cross-sectional edge is one thin number
 
 - **What.** The backlog closed its last open mechanism yesterday (S-2), so this iteration took
