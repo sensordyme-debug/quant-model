@@ -17,6 +17,40 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 12:1x UTC (S-16): **the champion's 3x sleeve and its drawdown breaker are worth
+exactly zero return between them, and three cells that pass `evaluate.py` are now sitting behind one
+unanswered owner question.** S-15 removed each switch alone; S-16 runs the two that pointed the same
+way together and asks what the unlevered book does when its lost exposure is bought back with
+*account* leverage instead of *instrument* leverage. Nine full-period LEAN cells plus two
+sub-periods, all `S1_*` overrides (`scripts/_s16_runs.sh`, read by `scripts/sweep_s16.py`), 11
+ledger rows, control reproducing **`OrderListHash 5246804e17a67af90028ffceead7d3b3`**. **The
+structural fact behind it**: IBKR charges 0.333 of margin per unit of economic exposure on a 3x ETF
+against 0.5 on an ordinary one, so the proxies' whole contribution is that 2.25x of exposure fits
+inside a 0.75 budget. **The dead heat**: proxies off *and* overlay off at the unchanged 0.75 budget
+earns **24.403% against the champion's 24.404%** - paired **-0.00 bps/day, t -0.00 on 3,689
+sessions** - at **std 0.155 vs 0.170, drawdown 23.7 vs 25.1, PSR 33.2 vs 23.0 and $27.2k of fees vs
+$45.7k**. **The frontier**: spending the freed risk through the budget is a clean dial, 0.75 ->
+0.78 -> 0.80 -> 0.82 giving CAR 24.403 / 25.307 / 25.903 / 26.474 at std 0.155 / 0.160 / 0.164 /
+0.168 and Sharpe **rising** 0.994 / 1.003 / 1.008 / 1.012 (on the 3x book, O-1b measured Sharpe
+falling with size). At budget 0.82 the unlevered book matches the champion's realized vol (0.168 vs
+0.170) and earns **26.474% / 1.012 / DD 25.7**, i.e. **+0.66 bps/day at t = 2.02** - the first t
+above 2 the S-track has produced *in favour of* a change. **In an unlevered book the breaker is
+strictly harmful**: at budget 0.80, shipped overlay 24.551 / DD 25.5, widened to 0.20/0.30 25.333 /
+DD **25.0**, off 25.903 / DD 25.1 - monotone in return, flat-to-better in drawdown, a shelf and not
+a spike (S-8's re-arming problem: a step breaker that flattens at -25% sells the bottom).
+**Nothing shipped, and this is not a refusal**: (e) at 0.80, (e+g) at 0.80 and (e+g) at 0.82 each
+return **"BEATS champion"** from `evaluate.py`, and every one of them needs `margin_budget` above
+0.75 - the open owner question from O-1b, which `BLOCKERS.md` records as not the loop's to move. The
+budget-neutral cell is the one the loop could have promoted alone and it **misses by 0.001 CAR
+points**. Champion unchanged at S-12, `champion.json`, `live/` and the scheduled tasks untouched,
+new scripts only so rule (a) owes no replay. **What it changes for the loop**: the owner question in
+`BLOCKERS.md` now carries a fourth option that dominates O-1b's option (b) - the same +1.50 CAR at
+**lower** realized vol, the identical 25.1% drawdown and 31% lower fees - and until it is answered
+there is no daily-sleeve work left that is not behind it. The gain is also one regime deep (IS +0.07
+bps/day at t 0.24, OOS +1.36 at t 2.16), which the entry says out loud. A-5 part 2 had no new input
+(ran 07:3x ET, before the open; still 2026-09-10 alone: 32 fills, +2.89 bps, se 1.33, ~6.8 sessions
+to settle).
+
 Status 2026-09-11 11:1x UTC (S-15): **71% of the champion's 24.4% CAR is no skill of any kind, and
 not one of the switches the loop has spent six iterations tuning is distinguishable from zero.**
 The attribution S-14 asked for: eight full-period LEAN runs, each the shipped algorithm with one
@@ -688,8 +722,11 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
-**Priority after S-15 (2026-09-11), in order: A-5 part 2 (standing, every session) -> per-session
-ops -> the owner decisions in `BLOCKERS.md`.** S-15 closed the last open research item. Everything
+**Priority after S-16 (2026-09-11), in order: A-5 part 2 (standing, every session) -> per-session
+ops -> the owner decisions in `BLOCKERS.md`, where the margin-budget question now blocks three
+candidates that already pass `evaluate.py`.** S-15 closed the last open research item and S-16
+turned the leftover risk-posture pair into a costed menu; do not re-open the proxies or the overlay
+as parameter questions. Everything
 else under "Open" is parked, settled, infrastructure, or an owner decision. Do not open a new
 intraday lever (the A-track is out of both levers and defences, and the S-track's last mechanism
 closed with S-2), and **do not open a new ranker lever**: S-15 priced the ranker at +3.66 CAR at
@@ -698,6 +735,20 @@ the book - the vol target / margin budget (71% of the return) and the regime fil
 profile) - are risk-posture parameters, so the next move on this sleeve is an owner decision, not
 a backtest.
 
+- **S-16 DONE 2026-09-11 (see journal): the 3x proxies and the drawdown overlay are worth zero
+  return between them; three passing candidates are parked behind the margin-budget question.**
+  Nine full-period cells plus two sub-periods (`scripts/_s16_runs.sh`, `scripts/sweep_s16.py`), 11
+  ledger rows, control reproducing `OrderListHash 5246804e17a67af90028ffceead7d3b3`. **Both off at
+  the unchanged 0.75 budget: 24.403% vs 24.404%, paired -0.00 bps/day (t -0.00, 3,689 days), at std
+  0.155 / DD 23.7 / PSR 33.2 / $27.2k fees** against 0.170 / 25.1 / 23.0 / $45.7k. Budget dial with
+  proxies off: 0.78 **25.307 / 1.003 / 24.6**, 0.80 **25.903 / 1.008 / 25.1**, 0.82 **26.474 / 1.012
+  / 25.7 at std 0.168** (+0.66 bps/day, **t 2.02**; IS +0.07 / 0.24, OOS +1.36 / **2.16**). Overlay
+  shelf at 0.80: shipped 24.551 / DD 25.5 -> wide 0.20/0.30 25.333 / **25.0** -> off 25.903 / 25.1.
+  Sub-periods of the 0.80 cell: **IS 18.894 / 0.923 / 25.1**, **OOS 34.687 / 1.124 / 23.6**.
+  `evaluate.py`: three cells "BEATS champion", the budget-neutral one refused by **0.001 CAR
+  points**. **Do not re-open as a proxy-map, breaker-threshold or budget-grid question** - the
+  frontier is measured and the remaining decision is the Reg-T buffer, which is the owner's. The
+  evidence and a fourth option that dominates O-1b's (b) are appended to `BLOCKERS.md`.
 - **S-15 DONE 2026-09-11 (see journal): 71% of the champion's CAR is no skill of any kind, and no
   single switch is distinguishable from zero. Nothing shipped, nothing judged.** Eight full-period
   LEAN cells, each the shipped algorithm with one switch removed through an `S1_*` override

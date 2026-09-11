@@ -2,6 +2,113 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - S-16: the 3x sleeve and the drawdown breaker are worth zero return between them
+
+- **What.** S-15 removed each of the champion's switches one at a time. Two of them pointed the
+  same way and were never run together: the **levered proxies** (cell e - better on every
+  risk-adjusted measure when off) and the **drawdown overlay** (cell g - the only switch with a
+  near-significant paired statistic, and the sign was against it). S-16 runs the interaction, then
+  asks the question the attribution could not: when the unlevered book gives up exposure, what
+  happens if that exposure is bought back with **account** leverage (`margin_budget`) instead of
+  **instrument** leverage (UPRO/TQQQ/TMF)? Nine full-period LEAN cells plus two sub-period runs,
+  all environment overrides of the shipped algorithm; `scripts/_s16_runs.sh` produces them,
+  `scripts/sweep_s16.py` reads them. 11 ledger rows.
+- **Why the two are the same question.** Reg-T charges 50% of notional for an ordinary ETF and
+  IBKR marks a 3x ETF to 100%, so per unit of *economic exposure* the proxies cost **0.333** of
+  margin and the unlevered names cost **0.5**. The 3x sleeve is 33% cheaper in margin - that, and
+  not any signal, is why the champion reaches ~2.25x exposure on a 0.75 budget while the same
+  signal held unlevered stops at 1.5x. S-15 measured the proxies with the exposure removed; that
+  confounds the instrument with the size.
+- **The control reproduces `OrderListHash 5246804e17a67af90028ffceead7d3b3`** (4,735 orders, CAR
+  24.404%, Sharpe 0.921, DD 25.100%, fees $45,695.46), so every cell below is a pure override and
+  the daily paper runner's path is untouched.
+
+### 1. The table (full period 2012-01-03..2026-09-04)
+
+| cell | budget | held | max exp | orders | CAR% | dCAR | Sharpe | MaxDD% | std | fees | PSR% |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **champion (S-12, shipped)** | 0.75 | 3x proxies | 2.25 | 4,735 | **24.404** | | 0.921 | 25.1 | 0.170 | $45,695 | 23.0 |
+| (e) proxies off | 0.75 | unlevered | 1.50 | 5,136 | 23.128 | -1.28 | 0.950 | 23.6 | 0.153 | $25,646 | 27.4 |
+| (g) overlay off | 0.75 | 3x proxies | 2.25 | 4,768 | 25.998 | +1.59 | 0.967 | 27.2 | 0.174 | $48,970 | 28.5 |
+| **(e+g) both off** | 0.75 | unlevered | 1.50 | 5,128 | **24.403** | **-0.00** | **0.994** | **23.7** | **0.155** | **$27,200** | 33.2 |
+| (e) proxies off | 0.80 | unlevered | 1.60 | 5,226 | 24.551 | +0.15 | 0.964 | 25.5 | 0.162 | $29,312 | 28.7 |
+| (e + wide overlay 0.20/0.30) | 0.80 | unlevered | 1.60 | 5,287 | 25.333 | +0.93 | 0.990 | 25.0 | 0.163 | $30,697 | 32.2 |
+| (e+g) | 0.78 | unlevered | 1.56 | 5,219 | 25.307 | +0.90 | 1.003 | 24.6 | 0.160 | $29,800 | 34.0 |
+| **(e+g)** | **0.80** | unlevered | 1.60 | 5,283 | **25.903** | **+1.50** | **1.008** | **25.1** | 0.164 | $31,622 | 34.5 |
+| (e+g) | 0.82 | unlevered | 1.64 | 5,347 | **26.474** | **+2.07** | **1.012** | 25.7 | **0.168** | $33,530 | 34.9 |
+
+Paired daily log returns, **cell minus champion** (the reverse of S-15's convention), on the 3,689
+sessions both books are marked:
+
+| cell | bps/day | t | ann.% | IS bps | IS t | OOS bps | OOS t |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| (e) proxies off, 0.75 | -0.41 | -1.21 | -1.03 | -0.50 | -1.26 | -0.30 | -0.52 |
+| (g) overlay off, 0.75 | +0.51 | 1.93 | +1.28 | -0.11 | -0.62 | +1.25 | 2.35 |
+| **(e+g) both off, 0.75** | **-0.00** | **-0.00** | **-0.00** | -0.49 | -1.25 | +0.59 | 0.84 |
+| (e) proxies off, 0.80 | +0.05 | 0.17 | +0.12 | -0.17 | -0.52 | +0.30 | 0.65 |
+| (e + wide overlay), 0.80 | +0.30 | 1.00 | +0.75 | -0.14 | -0.45 | +0.82 | 1.51 |
+| (e+g), 0.78 | +0.29 | 0.82 | +0.73 | -0.25 | -0.75 | +0.94 | 1.42 |
+| (e+g), 0.80 | +0.48 | 1.42 | +1.21 | -0.09 | -0.31 | +1.16 | 1.81 |
+| **(e+g), 0.82** | **+0.66** | **2.02** | **+1.67** | +0.07 | 0.24 | +1.36 | **2.16** |
+
+### 2. What it says
+
+- **The two switches are worth exactly zero return between them.** Turn off the 3x proxies and the
+  drawdown breaker at the same margin budget and the book earns **24.403%** against the champion's
+  24.404% - **-0.00 bps/day at t = -0.00** on 3,689 paired sessions, which is as close to a dead
+  heat as fourteen years can produce. It gets there at **0.155 realized vol instead of 0.170, a
+  23.7% drawdown instead of 25.1%, PSR 33.2% instead of 23.0% and $27.2k of fees instead of
+  $45.7k**. The champion is paying a wider risk footprint and 68% more commission for a return
+  that is already there without either device.
+- **The proxies buy margin efficiency, not edge.** Their whole contribution is that 2.25x of
+  exposure fits inside a 0.75 budget. Give the unlevered book the same *risk* instead - budget
+  0.82, realized vol 0.168 against the champion's 0.170 - and it earns **26.474% at Sharpe 1.012**,
+  **+0.66 bps/day at t = 2.02**, the first t above 2 the S-track has produced *in favour of* a
+  change rather than against one.
+- **In an unlevered book the drawdown breaker costs return and buys no drawdown.** At budget 0.80:
+  shipped overlay 24.551% / DD 25.5, widened to 0.20/0.30 **25.333% / DD 25.0**, off **25.903% /
+  DD 25.1**. Monotone in return, flat-to-better in drawdown - a shelf, not a spike. This is S-8's
+  re-arming problem: a step breaker that flattens at -25% and re-arms sells the bottom, and on a
+  1.5x unlevered book the tail it is insuring against never justifies the sale.
+- **The gain is out of sample, and the loop should say so.** Every cell is negative or flat in
+  2012-2019 and positive in 2020-2026 (the winner: IS +0.07 bps/day at t 0.24, OOS +1.36 at
+  t 2.16). Sub-periods for (e+g) at 0.80: **IS 18.894% / 0.923 / DD 25.1** against the champion's
+  19.18% / 0.884 / 25.1, **OOS 34.687% / 1.124 / DD 23.6** against 30.86% / 0.985 / 22.6. It wins
+  the half it did not come from and ties the half it did, which is the right way round, but the
+  effect is one regime deep.
+- **The budget response is a clean dial, not a cliff**: 0.75 -> 0.78 -> 0.80 -> 0.82 gives CAR
+  24.403 / 25.307 / 25.903 / 26.474 at std 0.155 / 0.160 / 0.164 / 0.168 and Sharpe 0.994 / 1.003 /
+  1.008 / 1.012. Sharpe *rises* with size here, where on the 3x book (O-1b) it fell.
+
+### 3. Decision
+
+**Nothing shipped and nothing promoted, and this time it is not a refusal.** Three cells - (e) at
+0.80, (e+g) at 0.80 and (e+g) at 0.82 - **pass `scripts/evaluate.py` outright** ("BEATS champion":
+more CAR, more Sharpe, drawdown inside the 1-point tolerance and far under the 35% cap). Every one
+of them needs `margin_budget` above 0.75, and that constant is an **open owner question** opened by
+O-1b on 2026-09-10 and still unanswered; `BLOCKERS.md` records that the loop will not move it on
+its own, so it did not. The budget-neutral version, (e+g) at 0.75, is the one cell the loop could
+have promoted by itself and it **misses by 0.001 CAR points** - `evaluate.py` reports "does NOT
+beat champion: 24.403% does not beat 24.404%". The rule is the rule; it is refused, and the honest
+description is a dead heat with strictly less risk.
+
+**What went to the owner instead**: a fourth option on the open budget question, which dominates
+the one O-1b put there. Option (b) was `margin_budget` 0.75 -> 0.792 keeping the 3x sleeve: about
++1.5 CAR bought at std 0.188. S-16's option (d) is the same +1.50 CAR (25.903% vs 24.404%) at
+**std 0.164, the identical 25.1% drawdown, Sharpe 1.008 against 0.921 and 31% lower fees**, because
+it spends the buffer on unlevered notional instead of stacking account leverage on top of
+instrument leverage. The residual risk it does add is real and is stated there: the Reg-T excess
+liquidity falls from 25% to 20% of equity, against economic exposure that falls from up to 2.25x
+to 1.60x.
+
+**Champion unchanged at S-12**, `research/champion.json` untouched, `live/` and the scheduled tasks
+untouched, no file the daily runner or the intraday trader loads was modified (new scripts only, so
+rule (a) owes no replay).
+
+- **A-5 part 2 (standing job) had no new input**: this ran at 07:3x ET, before the open, so the
+  ledger is still the single 2026-09-10 session - 32 fills, $1.87M, **+2.89 bps (se 1.33)** against
+  the shipped 1.50, |diff|/se 1.05, ~6.8 sessions to settle it. `SLIPPAGE_BPS` untouched.
+
 ## 2026-09-11 - S-15: where the champion's 24.4% actually comes from, and it is mostly not skill
 
 - **What.** The attribution S-14 asked for. Eight full-period LEAN runs, each the shipped

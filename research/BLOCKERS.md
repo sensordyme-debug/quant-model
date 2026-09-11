@@ -50,6 +50,34 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   regime filter, earn **17.282% CAR** against the shipped 24.404%, and the entire signal stack is
   worth +7.12 CAR at t = 1.37. Every signal lever the loop can still pull is smaller than the
   scatter on this constant.
+- **S-16 evidence added 2026-09-11: there is now a fourth option, and it dominates (b).** The two
+  dials below are one dial. The 3x proxies' only contribution is *margin efficiency* - IBKR charges
+  0.333 of margin per unit of economic exposure for a 3x ETF against 0.5 for an ordinary one - so
+  the choice is between buying exposure through the instrument or through the budget. Measured on
+  the full period (`scripts/sweep_s16.py`, all cells environment overrides, control reproducing
+  `OrderListHash 5246804e17a67af90028ffceead7d3b3`):
+
+  | cell | budget | held | max exp | CAR | Sharpe | MaxDD | ann.std | fees |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | shipped champion | 0.75 | 3x proxies | 2.25x | 24.404% | 0.921 | 25.1% | 0.170 | $45,695 |
+  | (b) budget 0.792, 3x kept (2017-2026 window) | 0.792 | 3x proxies | 2.38x | +1.55 pts | 1.042 | 22.8% | 0.188 | $14,530 |
+  | **(d) proxies off + overlay off** | **0.75** | unlevered | 1.50x | **24.403%** | **0.994** | **23.7%** | **0.155** | **$27,200** |
+  | **(d+) the same, budget 0.80** | **0.80** | unlevered | 1.60x | **25.903%** | **1.008** | **25.1%** | 0.164 | $31,622 |
+  | (d+) the same, budget 0.82 | 0.82 | unlevered | 1.64x | 26.474% | 1.012 | 25.7% | 0.168 | $33,530 |
+
+  **Read the third row first: at the *unchanged* 0.75 budget the same signal earns the champion's
+  return to three decimal places** (paired difference -0.00 bps/day, t -0.00 on 3,689 sessions)
+  **with 0.015 less realized vol, 1.4 fewer points of drawdown and $18.5k less commission.** So the
+  3x sleeve and the drawdown breaker together are buying no return at all. Row four spends the
+  freed risk: **+1.50 CAR at the champion's own 25.1% drawdown and below its realized vol**, which
+  is the same size (b) offers, bought more cheaply. `evaluate.py` says "BEATS champion" for rows
+  four and five and refuses row three by 0.001 CAR points, which is why nothing was promoted.
+- **What (d+) costs that the table does not show.** Reg-T excess liquidity falls from 25% to 20% of
+  equity - the buffer objection below still applies, at 0.80 instead of 0.792 - but the account's
+  *economic* exposure falls from up to 2.25x to 1.60x, and a 1.6x unlevered book marks down far
+  more slowly in a crash than a 0.75x book of 3x ETFs, so the margin call it is guarding against is
+  further away, not nearer. **Answer (a), (b), (c) or (d/d+), or name the excess liquidity you want
+  held and the loop will solve for the budget under it.** Nothing has been changed.
 - **The second dial is the 3x proxies.** Holding the same signal in the unlevered parents instead
   of UPRO/TQQQ/TMF gives **23.128% CAR at Sharpe 0.950, drawdown 23.6%, std 0.153, PSR 27.4% and
   $25,646 of fees** against the champion's 24.404% / 0.921 / 25.1% / 0.170 / 23.0% / $45,695 -
