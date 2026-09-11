@@ -127,7 +127,14 @@ def load_book() -> Book:
     if BOOK_FILE.exists():
         d = json.loads(BOOK_FILE.read_text(encoding="utf-8"))
         if d.get("mode") == "live":
-            return Book.from_json(d)
+            b = Book.from_json(d)
+            if d.get("date") != str(dt.date.today()):
+                # A new session: positions carry over (they must be flattened), but yesterday's
+                # closed P&L, costs and trade count do not - on 2026-09-11 they leaked into the
+                # day's P&L and would have tripped the loss limit ~$6.8k early.
+                log("book_rollover", from_date=d.get("date"), positions=b.pos, dropped_closed=b._closed, dropped_trades=b.trades)
+                b._closed, b.costs, b.trades = 0.0, 0.0, 0
+            return b
         log("ignored_book_file", mode=d.get("mode"), date=d.get("date"))
     return Book()
 

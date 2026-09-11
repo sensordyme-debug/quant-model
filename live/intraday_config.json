@@ -1,8 +1,9 @@
 {
   "_comment": "Deployed intraday sleeve config, read by scripts/intraday_launch.py. Change only with OOS evidence recorded in research/journal.md (AGENTS.md rule c). Set 2026-09-09 (A-6) from the 9-month window 2025-12-15..2026-09-09 split 2026-06-15: ORB 1.0 + late-day fade 1.0, no VWAP fade (it lost -56%/yr on the long window). Amended 2026-09-09 (A-2): ORB now carries a 4x ATR14 disaster backstop on top of the midpoint stop, which binds only when the opening range is unusually wide.",
   "_a10_note": "2026-09-10 (A-10, journal): late_momo alloc 1.0 -> 0.0 and equity_frac held at 0.5. On 2,686 sessions of split-adjusted Alpaca SIP bars (2016-01-04..2026-09-09) with the corrected per-share commission, the late-day fade loses -$468/day at t = -7.38, negative in all three regimes (2016-2019 -4.33, 2020-2023 -6.75, 2024-2026 -1.60) and on the fitted window too. A-4 kept it on 260 IBKR sessions at t = +0.27; that sample could not see this. Dropping it also does not cost anything in sample: on the 261 sessions any A-track parameter has ever seen, ORB alone earns +$322/day against the mix's +$302. What remains (ORB alone) is -$289/day at t = -1.17 over the same 2,686 sessions - not proven to lose, not proven to earn - which is why equity_frac stays 0.5 rather than being restored to 1.0. Replay of 2026-09-08 with this exact config passed: 34 trades, 368 decisions, flat at close, P&L -2,280 on 500k of sleeve equity.",
+  "_size_note_2": "2026-09-11 09:35 ET: equity_frac 0.5 -> 0.25. The loop's A-10/A-11 validation on 2,686 Alpaca sessions found the deployed breakout mix negative in every regime after costs; the sleeve keeps running at a quarter size only as an execution-quality and plumbing test until the owner decides whether it trades at all (research/BLOCKERS.md).",
   "strategy": "active",
-  "equity_frac": 0.5,
+  "equity_frac": 0.25,
   "params": {
     "alloc": {"orb": 1.0, "vwap_trend": 0.0, "late_momo": 0.0},
     "sub_params": {
