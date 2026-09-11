@@ -25,7 +25,13 @@ SCALE = 10000
 
 
 def _raw_bars(ticker: str) -> pd.DataFrame:
-    """Raw close and share volume for one ticker, indexed by bar date."""
+    """Raw OHLC and share volume for one ticker, indexed by bar date.
+
+    The LEAN daily line is `date,open,high,low,close,volume` with prices in deci-cents.
+    `close` and `volume` are what `load_frames` has always returned; the other three legs
+    are carried too so a caller that needs a true range or a fill at the next open (F-3)
+    does not have to re-open the zip.
+    """
     path = EQUITY / "daily" / f"{ticker.lower()}.zip"
     if not path.exists():
         raise FileNotFoundError(f"no LEAN daily file for {ticker}: {path}")
@@ -33,7 +39,10 @@ def _raw_bars(ticker: str) -> pd.DataFrame:
         text = zf.read(zf.namelist()[0]).decode()
     rows = [line.split(",") for line in text.strip().splitlines()]
     index = pd.to_datetime([r[0][:8] for r in rows], format="%Y%m%d")
-    return pd.DataFrame({"close": [float(r[4]) / SCALE for r in rows],
+    return pd.DataFrame({"open": [float(r[1]) / SCALE for r in rows],
+                         "high": [float(r[2]) / SCALE for r in rows],
+                         "low": [float(r[3]) / SCALE for r in rows],
+                         "close": [float(r[4]) / SCALE for r in rows],
                          "volume": [float(r[5]) for r in rows]}, index=index)
 
 
@@ -73,6 +82,25 @@ def load_frames(tickers, start=None, end=None) -> tuple[pd.DataFrame, pd.DataFra
     px = pd.DataFrame(closes).sort_index()
     vol = pd.DataFrame(volumes).sort_index().reindex(px.index)
     return px.loc[start:end], vol.loc[start:end]
+
+
+def load_ohlcv(tickers, start=None, end=None) -> dict[str, pd.DataFrame]:
+    """`{field: date-by-ticker frame}` for open/high/low/close/volume.
+
+    Every price leg carries the same dividend adjustment `load_frames` applies to the
+    close, so ratios within a bar (a true range against its close) and across bars (an
+    open-to-open return) are both consistent. Volume is raw, as in `load_frames`.
+    """
+    fields = ["open", "high", "low", "close", "volume"]
+    out: dict[str, dict[str, pd.Series]] = {f: {} for f in fields}
+    for ticker in tickers:
+        bars = _raw_bars(ticker)
+        factor = _price_factors(ticker, bars.index)
+        for f in fields:
+            out[f][ticker] = bars[f] * (1.0 if f == "volume" else factor)
+    frames = {f: pd.DataFrame(out[f]).sort_index() for f in fields}
+    index = frames["close"].index
+    return {f: frames[f].reindex(index).loc[start:end] for f in fields}
 
 
 if __name__ == "__main__":

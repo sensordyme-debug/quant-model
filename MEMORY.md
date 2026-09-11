@@ -3,6 +3,41 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## Judge a signal by its edge per dollar turned over, not by its IC (learned 2026-09-11, F-1 + F-3)
+
+- **The supervised track is closed, on both sleeves, and the reason is arithmetic.** A
+  gradient-boosted cross-sectional forecaster finds an out-of-sample **IC of about +0.011 wherever
+  it is pointed** - 5-minute bars on 56 names with 38 features (F-1) or daily bars on 22 ETFs with
+  41 features (F-3). The IC is real and it is not the question. The question is **gross basis points
+  per dollar of turnover against the cost of turning that dollar**, and that ratio decides
+  everything:
+
+  | mechanism | gross bps / $ turned | cost bps | turnover/day | verdict |
+  | --- | --- | --- | --- | --- |
+  | F-1 intraday GBDT | 0.797 | 0.892 | 13.8x equity | refused |
+  | F-3 daily GBDT (long-short) | 0.304 | 3.31 | 0.59x equity | refused |
+  | F-3 daily GBDT (top 3 of 9) | 9.29 | 3.01 | 0.49x equity | refused anyway |
+  | **shipped champion's momentum blend** | **61.51** | **2.93** | **0.11x equity** | in production |
+
+- **The champion's own ranking is a t = +5.4 signal.** On the nine names it ranks, the four-horizon
+  momentum blend scores **IC +0.04268 (t +5.43)** pooled, **+0.03265 in-sample and +0.05475 out of
+  sample**. The GBDT forecast on the same names scores +0.00691 (t +0.97) and is only **+0.091**
+  rank-correlated with it. Do not spend another iteration looking for a better ranker for this
+  sleeve; S-14 already measured that diluting it costs money.
+- **A high IC with a flat gross P&L t-statistic means the correlation lives where nothing moves.**
+  F-3's pooled IC t was +2.17 while its gross P&L t was +0.18. Always report both.
+- **If a ridge baseline matches or beats the tree, the model has no interactions to sell.** F-1's
+  tree beat ridge four to one on validation IC and the result was worth reading; F-3's ridge scored
+  a *higher* IC than the tree, and nothing in it survived.
+- **LEAN's daily history frame is stamped with the bar's own session date**, not the next midnight
+  (proved 2026-09-11: `last_bar=2012-01-03 16:00:00` carrying the store's 2012-01-03 close). The
+  algorithm decides on D's close and fills at D+1's open, so an exact-date join of any external
+  table built from bars <= D is causal. `main.py` logs `FRAME ...` for the first three rebalances so
+  the next person joining a table onto that index can check rather than assume.
+- **`S1_ML_SCORES` / `S1_ML_MODE` outlive F-3**: any external daily forecast can be ranked through
+  the shipped algorithm, at any time, without editing it. Both default to off and the no-environment
+  run still reproduces `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`.
+
 ## Attribute a strategy's return before tuning any part of it again (learned 2026-09-11, S-15)
 
 - **Most of the champion is not skill.** The nine-ETF pool held equal-weighted and unlevered, with

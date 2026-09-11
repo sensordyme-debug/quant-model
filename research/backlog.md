@@ -17,6 +17,49 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 17:1x UTC (F-3): **the supervised track is closed, and it closes on a comparison
+rather than a tally: at a daily horizon the model's ranking is six times weaker than the momentum
+blend it was built to replace, and the champion's own signal is worth 61.5 bps per dollar it turns
+over.** The top item, opened by F-1's refusal, which was arithmetic and not a verdict: 0.797 gross
+bps against a 0.892 bps floor at 13.8x daily turnover. F-3 ran the identical method where the
+turnover is a hundredth. New `scripts/sweep_f3.py` (panel, walk-forward GBDT, book simulation,
+falsification control, ridge baseline, `--diagnose`), a **128,882-row panel over 22 ETFs x 6,718
+sessions** with 41 causal features, an exported forecast (`data/f3/ml_scores.csv`, 3,692 dates),
+two defaulted-off knobs on the shipped algorithm (`S1_ML_SCORES`, `S1_ML_MODE`), an OHLC loader on
+`lean_prices`, and **12 ledger rows**. Universe is the ETF sleeve **only** - the 50 megacaps are
+excluded features and all, because that list is the 2026 survivor set (S-7). Selection on
+train <= 2007 -> validate 2008-2011 picks the 5-day horizon in every cell; the walk-forward then
+covers **2012-2026, the champion's own window**, retrained yearly on <= Y-2, so the LEAN comparison
+is directly against `champion.json`. **The date convention was proved, not assumed**: `main.py` now
+logs the history frame's last bar, and a two-month run shows `last_bar=2012-01-03 16:00:00` with
+the store's own close, so an exact-date join of a score built from bars <= D is causal.
+**The forecast is real and tiny**: pooled out-of-sample **IC +0.01133 at t +2.17**, but gross P&L
+**t +0.18** and only **0.304 bps per dollar turned** - *less* than F-1's 0.797 - and the **ridge
+baseline scores a higher IC than the tree (+0.01223)**, the opposite of F-1, so there are no
+interactions to earn the complexity. Six of fifteen test years have negative IC. **LEAN refuses it
+on every criterion, three times**: ML ranking with the champion's gate **10.322% / 0.408 / DD
+36.6%**, with the ML gate 9.908% / 0.385 / 35.6%, and with no floor on the ML score at all (the
+cell that answers "was it the gate?") **11.400% / 0.461 / 36.0%** - against the champion's 24.403%
+/ 0.994 / 23.7%, and worse than S-15's *no ranking at all* (17.7%). **The diagnosis is the keeper**:
+on the nine names the sleeve actually ranks, the forecast scores **IC +0.00691 (t +0.97)** against
+the momentum blend's **+0.04268 (t +5.43)**, in both halves, with the two scores only **+0.091**
+rank-correlated; as unlevered top-3-of-9 books the forecast earns $305/day at 9.29 bps per dollar
+turned on 486k/day, the momentum blend **$617/day at 61.51 bps on 105k/day**. **Nothing shipped**:
+control reproduces **`OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`** (5,128 orders, 24.403%,
+$27,199.76) and the I-1 gate passes **3,689/3,689 at 5,021 orders**, so the knob is inert on the
+deployed path; `live/*` and the scheduled tasks untouched; champion unchanged at S-18.
+**One instrument defect fixed**: the two-month convention run annualizes to 47.3% CAR / 1.2% DD on
+71 orders and `evaluate.py` would have called it "BEATS champion" - it now refuses any run whose
+recorded environment moved `S1_START`/`S1_END` as not comparable, S-18's rule applied to the window
+instead of the cost model. **Standing jobs both ran with no new input** (12:3x ET, before the
+rebalance): A-5 part 2 unchanged at 58 fills / +2.42 bps / se 0.88 / |diff|/se 1.04 (~5.5 sessions
+to settle), `daily_fills.py` unchanged at 6 fills / +2.9 bps. **What it changes for the loop**:
+F-1 and F-3 together price the whole supervised class - the model finds IC ~ +0.011 wherever it is
+pointed, and what decides its worth is the edge-to-cost ratio of the mechanism it rides, which on
+both sleeves is weaker than what already ships. **The backlog holds no open research item that is
+not blocked on the owner or on data the human must buy**; the top unblocked number is still the
+runner's clock at -4.75 CAR.
+
 Status 2026-09-11 15:5x UTC (F-1): **the machine learning track finds the first positive
 out-of-sample gross edge the intraday side of this repository has ever produced, and it is worth
 about half of its own commission.** The top backlog item, and the one mechanism class the loop had
@@ -834,7 +877,23 @@ mechanisms - ten refusals in 24 hours, every intraday candidate negative on 2,68
 machinery. That is a finding, not a failure. The next program has to bring NEW information,
 not new rules on the same bars. Two tracks are opened below; the second needs the owner.
 
-- **F-3 The same supervised method at a DAILY horizon, on the daily sleeve (new top item, opened
+- **F-3 DONE 2026-09-11 (see journal): refused, and the refusal is a comparison.** Pooled
+  out-of-sample **IC +0.01133 (t +2.17)** over 2012-2026 but gross P&L t **+0.18** and only **0.304
+  bps per dollar turned**, *less* than F-1's 0.797; the **ridge baseline beats the tree on IC**
+  (+0.01223), so there are no interactions here. In LEAN, three cells at **10.322% / 9.908% /
+  11.400% CAR** against the champion's 24.403%, all with drawdown above the 35% limit, all refused
+  by `evaluate.py` on all four criteria - and worse than S-15's no-ranking-at-all 17.7%. **The
+  diagnosis**: on the nine names the sleeve ranks, the forecast is **IC +0.00691 (t +0.97)** against
+  the momentum blend's **+0.04268 (t +5.43)**, the two are +0.091 rank-correlated, and as unlevered
+  top-3-of-9 books the blend earns **61.51 bps per dollar turned on 105k/day against the model's
+  9.29 on 486k/day**. `scripts/sweep_f3.py`, 12 ledger rows, nothing shipped, control reproduces
+  `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`, I-1 gate 3,689/3,689. **Do not re-open as a
+  feature, model, horizon or universe question** - a longer feature list does not close a six-fold
+  gap in the direction the simple signal already points. Two durable pieces survive it:
+  `S1_ML_SCORES`/`S1_ML_MODE` (any future external forecast can be ranked through the shipped
+  algorithm without editing it) and `evaluate.py`'s new refusal of runs whose window was moved.
+- **F-3 (original text, kept for the pre-registration) The same supervised method at a DAILY
+  horizon, on the daily sleeve (opened
   by F-1).** F-1's refusal is arithmetic, not a verdict on machine learning: a cross-sectional
   forecast worth 0.8-1.6 bps per dollar traded cannot survive a 0.7-1.4 bps commission floor when
   the book turns 13.8x its equity a day. The same bps of edge spread over a *hundredth* of the
@@ -896,7 +955,10 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
-**Priority after F-1 (2026-09-11), in order: (1) F-3, the supervised method at a daily horizon -
+**Priority after F-3 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~5.5 sessions from settling and now gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which are now the whole of the unblocked work, in order of the number attached to them: the runner's clock (-4.75 CAR, the largest unblocked number on the daily sleeve), the Reg-T buffer (S-16: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the now-unlevered book), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** The supervised track is closed by F-1 and F-3 together: the model finds an IC of about +0.011 wherever it is pointed, and on both sleeves it rides a weaker mechanism than the one already shipped - intraday it could not clear its commission, daily it could not out-rank a four-horizon momentum blend that is itself a t = +5.4 signal worth 61 bps per dollar turned.
+
+Superseded, kept for the reasoning: **Priority after F-1 (2026-09-11), in order: (1) F-3, the
+supervised method at a daily horizon -
 F-1 proved the method finds real out-of-sample signal on this data and refused it on turnover
 arithmetic, so the next run is the same method where the turnover is a hundredth; (2) A-5 part 2
 and `daily_fills.py`, the two standing per-session measurements (A-5 part 2 is ~5.5 sessions from

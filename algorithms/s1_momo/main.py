@@ -310,6 +310,15 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             self.debug(f"{self.time}: no history frame")
             return
 
+        # The date convention of the history frame, printed rather than assumed. LEAN can
+        # stamp a daily bar either with its own session date or with the next midnight, and
+        # anything that joins an external table onto this index (F-3's forecast file) is a
+        # look-ahead bug if it guesses wrong. Log-only: compare `last_bar` and `spy_close`
+        # against the store to see which date the last close really belongs to.
+        if self.rebalances < 3:
+            self.log(f"FRAME {self.time} last_bar={prices.index[-1]} "
+                     f"spy_close={float(prices['SPY'].iloc[-1]):.4f} bars={len(prices)}")
+
         weights, diag = sig.target_weights(prices, self.equity_curve, self.params,
                                            self.overlay_state, volumes=volumes)
         self.overlay_state = diag.get("state", {})

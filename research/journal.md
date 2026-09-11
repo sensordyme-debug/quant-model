@@ -2,6 +2,184 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - F-3: the same machine at a daily horizon, and this time the hand-built signal wins
+
+- **What.** The top backlog item, opened by F-1's refusal. F-1's arithmetic was that a forecast
+  worth 0.797 gross bps per dollar traded cannot survive a 0.892 bps commission floor when the book
+  turns 13.8x its equity a day; F-3 runs the identical method where the turnover is a hundredth.
+  New `scripts/sweep_f3.py` (panel builder, walk-forward GBDT, book simulation, falsification
+  control, ridge baseline, and a `--diagnose` mode), a 128,882-row daily panel
+  (`data/f3/panel.parquet`), an exported forecast file (`data/f3/ml_scores.csv`, 3,692 dates x 22
+  names), two new environment knobs on the shipped algorithm and one hardening of `evaluate.py`.
+  **12 ledger rows**: 7 under `daily/f3_gbdt` and 5 LEAN runs (one control, three candidates and
+  the short convention check).
+- **The setup, fixed before a fit was read.** LEAN's own daily store through
+  `lean_prices.load_ohlcv` (new: the loader now returns open/high/low as well as close and volume,
+  which is what an ATR and an open-to-open label need). **Universe: the 22-name ETF sleeve only** -
+  `RANK_UNIVERSE` + S-14's sector and macro rings. The 50 megacaps on disk are excluded *entirely,
+  features included*: that list is the 2026 survivor set (S-7), so a breadth feature built from it
+  leaks exactly what the tradable universe was forbidden. **Decide on the close of D, fill at the
+  open of D+1**, the shipped algorithm's own convention. **Target** `log(open[D+1+h]/open[D+1])`
+  demeaned across the date, in basis points, `h` in {5, 21} chosen like any hyperparameter.
+  **41 causal features** (multi-horizon momentum with the champion's skip-5, distance from the
+  20/50/200-day averages in ATR units, realized-vol levels and ratios, volume against its own
+  trailing median, position in the 252-day range, beta/correlation/residual against SPY, seven SPY
+  features, ten cross-sectional ranks, month and day-of-week). **Split**: hyperparameters chosen on
+  train <= 2007 -> validate 2008-2011, then walk-forward over **2012-2026, the champion's own
+  window**, retrained each year on <= Y-2 and early-stopped on Y-1 - so nothing in the comparison
+  window was seen by selection or by fitting and the full-period LEAN run is directly comparable to
+  `champion.json`.
+- **Pre-registered rule**: the LEAN book returns "BEATS champion" from `evaluate.py` at the 2 bp
+  column *and* beats the champion's CAR in the 2020-2026 half, or it is refused.
+
+### 1. The date convention was proved before anything was joined to it
+
+A forecast file joined onto LEAN's history index is a look-ahead bug if the index is stamped with
+the bar's *next* midnight, which LEAN can do. Rather than assume, `main.py` now logs the frame's
+last bar and its SPY close for the first three rebalances (log-only). A two-month run answers it:
+`FRAME 2012-01-03 16:00:00 last_bar=2012-01-03 16:00:00 spy_close=99.0570`, against the store's own
+99.057032 for 2012-01-03. The last bar in the frame **is** day D's, the algorithm decides at D's
+close and fills at D+1's open, and an exact-date join of a score computed from bars <= D is causal.
+The lookup in `signals.ml_scores` is therefore an exact match that **raises** on a miss inside the
+file's range - a calendar disagreement must fail loudly, never silently rank on a neighbour's row.
+
+### 2. Selection, and a horizon that is not close
+
+| horizon | cell | validation IC | IC t | gross bps / $ turned | cost bps |
+| --- | --- | --- | --- | --- | --- |
+| **5 sessions** | `slow` | **+0.04762** | **+4.27** | +6.53 | 4.67 |
+| 5 sessions | `deep` | +0.04688 | +4.28 | +7.75 | 4.71 |
+| 5 sessions | `mid` | +0.02972 | +2.58 | +11.39 | 4.66 |
+| 21 sessions | `slow` | +0.00979 | +1.03 | +3.34 | 4.63 |
+| 21 sessions | `ridge` | -0.03425 | -2.76 | +11.38 | 4.75 |
+
+The 5-day horizon wins on IC in every cell of the grid; `slow` wins within it and is what stage 2
+used. Note already that the cost floor is **~1.3 bps of commission** on these ETFs (low share
+prices, per-share fees) plus whatever spread is charged - not the 0.89 bps F-1 faced, because the
+sleeve is cheaper per dollar of turnover but its members are cheaper per share.
+
+### 3. The walk-forward, 2012-2026: a small IC that never becomes money
+
+| book (long-short deciles, daily) | days | $/day | t | gross bps / $ turned | cost bps | turn/day | Sharpe |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| no costs at all | 3,691 | -59 | -0.61 | **+0.304** | 0.000 | 587k | -0.16 |
+| commission only | 3,691 | -59 | -0.61 | +0.304 | 1.312 | 587k | -0.16 |
+| **commission + 2 bp** | 3,691 | **-176** | **-1.83** | +0.304 | 3.311 | 587k | -0.48 |
+| IS 2012-2019 | 2,012 | -309 | -2.91 | -1.898 | 3.617 | 559k | -1.03 |
+| OOS 2020-2026 | 1,679 | -18 | -0.11 | +2.686 | 2.981 | 620k | -0.04 |
+| falsification (shuffled labels) | 3,691 | -335 | -4.18 | -0.142 | 3.300 | 973k | -1.09 |
+| ridge baseline | 3,691 | -109 | -1.08 | +1.728 | 3.304 | 690k | -0.28 |
+
+Pooled out-of-sample **IC +0.01133 at t = +2.17** - nominally significant, and the same magnitude
+F-1 found. Three things say it is worth nothing here. **(a)** The gross P&L t-statistic is
+**+0.18**: the IC does not survive translation into a book, which is what happens when the
+correlation lives in names and days that move little. **(b)** The **ridge baseline scores a
+*higher* IC than the tree (+0.01223 vs +0.01133)** - the exact opposite of F-1, where the tree beat
+ridge four to one. There are no interactions to find here, so the model's complexity earns nothing.
+**(c)** Yearly IC is a coin flip: +0.026, **-0.053**, +0.044, +0.049, **-0.091**, +0.020, +0.027,
++0.053, -0.024, **+0.067**, -0.009, +0.009, +0.023, +0.030, -0.008 - six of fifteen years negative,
+and the two largest magnitudes point in opposite directions. The falsification control behaved
+(IC -0.0087), though on a 22-name cross-section its per-date IC is noisy enough to reach t -1.88,
+which is worth remembering: **with twenty names a per-date rank correlation is a weak instrument.**
+
+- **What F-3's thesis got right**: the turnover really does collapse. 0.59x of equity per day here
+  against F-1's 13.8x, a factor of 23, and $194/day of cost against $3,308/day.
+- **What it got wrong**: the edge per dollar traded collapsed further. **0.304 bps against F-1's
+  0.797.** The daily horizon does not spread the same edge over less turnover - it finds less edge.
+
+### 4. LEAN, the decisive test: three cells, all refused on every criterion
+
+The forecast was wired into the shipped algorithm as a *ranking* input (`S1_ML_SCORES` names the
+file, `S1_ML_MODE` chooses whether it also owns the entry gate), with every other mechanism -
+regime filter, vol target, margin budget, inverse-vol allocation, no-trade band - left as shipped.
+
+| cell | orders | CAR | Sharpe | DD | fees | `evaluate.py` |
+| --- | --- | --- | --- | --- | --- | --- |
+| **control, no environment** | 5,128 | **24.403%** | 0.994 | 23.7% | $27,200 | `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3` |
+| ML ranking, champion entry gate | 7,109 | **10.322%** | 0.408 | **36.6%** | $40,193 | does NOT beat champion |
+| ML ranking and ML entry gate | 8,567 | 9.908% | 0.385 | 35.6% | $33,776 | does NOT beat champion |
+| ML ranking, no floor on the ML score | 7,456 | 11.400% | 0.461 | 36.0% | $41,910 | does NOT beat champion |
+
+Every candidate fails **all four** criteria: over the 35% absolute drawdown limit, below the
+champion on CAR by 13-14 points, below it on Sharpe by far more than the tolerance, and worse on
+drawdown by more than a point. The third cell exists to answer the obvious objection - that the
+entry floor, not the ranking, broke it - and it does not: freeing the gate moves 10.32% to 11.40%
+and leaves the drawdown at 36%. **The ranking is what lost.** For context from S-15's attribution,
+this same book with *no ranking at all* earned 17.7%: the forecast is worse than not choosing.
+
+### 5. Why - the measurement that makes the refusal a finding
+
+The panel is 22 names wide but the shipped sleeve ranks nine. `sweep_f3.py --diagnose` scores both
+candidates on exactly that cross-section over 2012-2026 (3,684 sessions):
+
+| score, on the nine names the champion ranks | IC | t |
+| --- | --- | --- |
+| F-3 GBDT forecast, pooled | +0.00691 | +0.97 |
+| **champion momentum blend, pooled** | **+0.04268** | **+5.43** |
+| F-3 GBDT, IS 2012-2019 / OOS 2020-2026 | +0.00848 / +0.00502 | +0.89 / +0.47 |
+| **champion momentum blend, IS / OOS** | **+0.03265 / +0.05475** | **+3.03 / +4.77** |
+
+Mean per-date rank correlation between the two scores: **+0.091**. They are nearly unrelated, and
+the hand-built one is six times better - in both halves. As unlevered top-3-of-9 books with no
+other machinery at all (no regime filter, no vol target, no margin budget):
+
+| book | $/day | t | gross bps / $ turned | turn/day | Sharpe |
+| --- | --- | --- | --- | --- | --- |
+| GBDT top-3 of 9 | 305 | +1.77 | 9.29 | 486k | 0.46 |
+| **momentum top-3 of 9** | **617** | **+3.94** | **61.51** | **105k** | **1.03** |
+
+**The champion's momentum blend earns 61.5 bps per dollar it turns over, on a fifth of the
+turnover.** That is 6.6x the forecast's edge per dollar traded and 77x F-1's 0.797 bps. Read across
+the three iterations, the ratio of edge to cost is the whole story of the last day's work: F-1
+0.797 bps of edge against 0.892 of cost (refused), F-3's forecast 9.29 against 3.01 (refused
+anyway, because momentum does better on the same names), and the shipped champion **61.5 against
+2.93**. The daily sleeve was never short of turnover budget; it is already spending it well.
+
+### 6. Decision, and what did not move
+
+- **REFUSED and closed.** Nothing shipped. `live/intraday_config.json`, `live/APPROVED_PAPER.md`,
+  `live/HALT*` and the scheduled tasks were not touched; the champion is unchanged at S-18's
+  unlevered book.
+- **The two no-ops are proved, not asserted.** The control run with no environment reproduces
+  **`OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`** with 5,128 orders / 24.403% / 0.994 / 23.7%
+  / $27,199.76 - identical to `champion.json` - so the new knob, the new log line and the new
+  loader are bit-for-bit inert. The **I-1 deploy gate passes 3,689/3,689 dates at 5,021 orders on
+  both sides**, so the daily runner's path is unchanged.
+- **One defect found in the instrument and fixed.** The two-month run used to prove the date
+  convention annualizes to **47.3% CAR at a 1.2% drawdown on 71 orders**, and before this iteration
+  `evaluate.py` would have called it "BEATS champion" - every criterion passes, and it is not a
+  strategy. `evaluate.py` now refuses any run whose recorded environment moved `S1_START` or
+  `S1_END` as "not comparable", the same principle S-18 applied to the cost model. Verified on the
+  diagnostic row (refused on the window) and on the control (judged normally, and it ties rather
+  than beats).
+- **Standing jobs both ran, neither had new input** (this iteration ran at 12:3x ET, before the
+  15:45 rebalance and before the close). `slippage_report.py`: **58 fills over 2 sessions, +2.42
+  bps pooled (se 0.88) against the shipped 1.50, |diff|/se 1.04** - inside 2 se, so the constant is
+  untouched; ~5.5 sessions to settle. `daily_fills.py`: unchanged at 6 fills / **+2.9 bps (se
+  6.8)**.
+- **Do not re-open F-3 as a feature, model, horizon or universe question.** The gap is not a
+  percent: on the nine names the sleeve trades, the forecast's IC is +0.0069 at t +0.97 against
+  momentum's +0.0427 at t +5.43, and the two scores are 0.09 correlated. A longer feature list does
+  not close a six-fold gap in the direction the simple signal already points.
+
+### 7. What it changes for the loop
+
+F-1 and F-3 together close the supervised track, and they close it with a *reason* rather than a
+tally. Machine learning on this data finds an IC of about +0.011 wherever it is pointed - intraday
+and daily, 38 features or 41, tree or ridge. What decides whether that is worth anything is the
+**edge-to-cost ratio of the mechanism it is riding**, and on both sleeves the model rides a weaker
+mechanism than the one already shipped. The daily champion is not beatable by a better ranker: its
+ranking is already a t = +5.4 signal worth 61 bps per dollar turned, S-14 measured that diluting it
+costs money, and S-15 measured that the rest of its return is sizing machinery.
+
+So the loop is back where the 2026-09-11 review left it, with the ML detour now priced: **the
+binding constraint is the owner decisions in `BLOCKERS.md`, not a missing idea.** In order of the
+number attached to them: the runner's clock (**-4.75 CAR**, needs the scheduled task moved to a
+pre-open MOO convention), the Reg-T buffer (S-16: budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 /
+26.474 at *rising* Sharpe on the now-unlevered book), and `equity_frac` on an intraday sleeve that
+eleven tracks have now measured negative. The next unblocked research item is **F-2**, the index
+futures track, and it needs data the human must buy.
+
 ## 2026-09-11 - F-1: the machine finds a real forecast and it is worth half its own commission
 
 - **What.** The top backlog item and the one mechanism class this loop had never tried: a

@@ -96,10 +96,31 @@ def champion_stats(run, champion):
     return champion.get("stats") or {}, None
 
 
+def window_note(run):
+    """Refuse a run whose backtest window is not the champion's.
+
+    F-3 recorded a two-month diagnostic run (a log-only check of LEAN's daily-bar date
+    convention) whose annualized numbers were 47.3% CAR at a 1.2% drawdown on 71 orders -
+    every criterion passed, and it is not a strategy at all. `S1_START` / `S1_END` are the
+    only way that window can be moved and `backtest.py` records them, so a short run is
+    detectable rather than merely discouraged. Same principle as the spread rule above: a
+    comparison across different axes is refused, not judged against the wrong column.
+    """
+    env = run.get("env") or {}
+    moved = {k: env[k] for k in ("S1_START", "S1_END") if k in env}
+    if moved:
+        return (f"run used {', '.join(f'{k}={v}' for k, v in sorted(moved.items()))}, so its "
+                f"window is not the champion's - not comparable")
+    return None
+
+
 def verdict(run, champion):
     crit = champion.get("criteria", {})
     stats = run.get("stats", {})
     reasons = []
+    note = window_note(run)
+    if note:
+        reasons.append(note)
     if NOT_PROMOTABLE in (run.get("tag") or "").lower():
         reasons.append(f"tagged '{NOT_PROMOTABLE}' by the run that produced it")
     trades = num(stats.get("Total Orders"))

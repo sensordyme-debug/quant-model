@@ -537,6 +537,60 @@ def blended_momentum(prices: pd.DataFrame, lookbacks) -> pd.Series:
     return per_horizon.mean(axis=0)
 
 
+#: F-3. Path to a CSV of daily cross-sectional forecasts, `date` rows by ticker columns, as
+#: written by `scripts/sweep_f3.py --export`. Empty (the default) means the champion's momentum
+#: blend decides the ranking and nothing below runs.
+ML_SCORES_PATH = os.environ.get("S1_ML_SCORES", "")
+#: "rank" (the researched cell) replaces only the *ranking*, keeping the absolute momentum floor
+#: as the entry gate; "pure" hands both the ranking and the gate to the forecast.
+ML_MODE = os.environ.get("S1_ML_MODE", "rank")
+
+_ML_TABLE: "pd.DataFrame | None" = None
+_ML_LOADED = False
+
+
+def ml_table() -> "pd.DataFrame | None":
+    """The forecast file, read once. Returns None when the feature is off."""
+    global _ML_TABLE, _ML_LOADED
+    if not _ML_LOADED:
+        _ML_LOADED = True
+        if ML_SCORES_PATH:
+            path = Path(ML_SCORES_PATH)
+            if not path.is_absolute():
+                path = Path(__file__).resolve().parents[2] / ML_SCORES_PATH
+            frame = pd.read_csv(path, index_col=0)
+            frame.index = pd.to_datetime(frame.index).normalize()
+            _ML_TABLE = frame.sort_index()
+    return _ML_TABLE
+
+
+def ml_scores(as_of, tickers) -> "pd.Series | None":
+    """The forecast row for `as_of`, reindexed onto `tickers`, or None.
+
+    The lookup is an **exact** date match, never an as-of fill. The file is written from the
+    same daily calendar the engine reads, so a miss means the two calendars disagree - which
+    must fail loudly rather than silently rank on a neighbouring day's forecast. A date
+    outside the file's range (before it starts or after it ends) simply returns None and the
+    caller keeps the momentum ranking, so a run wider than the forecast is still well defined.
+    """
+    table = ml_table()
+    if table is None:
+        return None
+    stamp = pd.Timestamp(as_of).normalize()
+    if stamp not in table.index:
+        if stamp < table.index[0] or stamp > table.index[-1]:
+            return None
+        raise KeyError(f"S1_ML_SCORES has no row for {stamp.date()} inside its own range "
+                       f"({table.index[0].date()}..{table.index[-1].date()})")
+    row = table.loc[stamp]
+    if isinstance(row, pd.DataFrame):           # duplicate dates would be a build bug
+        raise KeyError(f"S1_ML_SCORES has {len(row)} rows for {stamp.date()}")
+    # A name with no forecast (listed after the panel was built, or dropped from it) is
+    # unrankable rather than best: -1e9 puts it last, the convention `mom_score="riskadj"`
+    # already uses above.
+    return row.reindex(tickers).astype(float).fillna(-1e9)
+
+
 def momentum_scores(prices: pd.DataFrame, p: Params) -> tuple[pd.Series, pd.Series]:
     """(ranking score, eligibility mask) per column. See `Params.mom_score` (S-9).
 
@@ -562,6 +616,16 @@ def momentum_scores(prices: pd.DataFrame, p: Params) -> tuple[pd.Series, pd.Seri
     eligible = pd.Series(True, index=score.index)
     if p.mom_confirm:
         eligible &= (per_horizon > 0).all(axis=0).reindex(score.index).fillna(False)
+
+    # F-3: an external cross-sectional forecast may replace the ranking score. Off unless
+    # S1_ML_SCORES names a file, so an unset environment leaves the champion untouched.
+    ml = ml_scores(prices.index[-1], score.index)
+    if ml is not None:
+        if ML_MODE == "rank":
+            # Keep the champion's entry discipline - a name must still clear the absolute
+            # momentum floor to be fundable - and change only the *order* of the survivors.
+            eligible &= (score > p.min_momentum)
+        score = ml
     return score, eligible
 
 
