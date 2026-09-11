@@ -178,7 +178,12 @@ def main() -> int:
     ap.add_argument("--cells", nargs="*", type=float, default=CELLS)
     ap.add_argument("--symbols", nargs="*", help="subset of the universe (smoke tests only)")
     ap.add_argument("--record", action="store_true", help="append the regime runs to the ledger")
+    ap.add_argument("--label", default="", help="text added to the ledger tag and the output dir, "
+                                                "so a subset run cannot be confused with the main one")
     args = ap.parse_args()
+    global OUT
+    if args.label:
+        OUT = OUT / args.label
     OUT.mkdir(parents=True, exist_ok=True)
     cells = [c for c in args.cells]
     if 0.0 not in cells:
@@ -302,7 +307,8 @@ def main() -> int:
                         "trades_per_day": tpd, "costs_per_day": cpd,
                         "stopped_days": sum(per_year[y][n]["stopped_days"] for y in yrs)}
                 ib.RISK["part_cap"] = 0.0 if n == "off" else float(n)
-                ib.record("active", f"A-11 alpaca part_cap={n} [{scope}] (yearly-reset $1M book)",
+                suffix = f" {args.label}" if args.label else ""
+                ib.record("active", f"A-11 alpaca part_cap={n}{suffix} [{scope}] (yearly-reset $1M book)",
                           fake, DEPLOYED, dt.date(lo, 1, 1), dt.date(hi, 12, 31))
         ib.RISK["part_cap"] = 0.0
 

@@ -2,6 +2,140 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - A-11: the impossible fills are real, and they are not load-bearing
+
+- **What.** A-5 measured that the sleeve's orders are **median 1.03%, p90 5.55%, p99 26.1% and at
+  worst 199%** of the volume of the minute they fill in, on the 260-session IBKR store, and called
+  it a cost-model defect rather than a lever: a fill of a fifth of a minute's volume at that
+  minute's open with zero impact is not a fill. A-11 sizes the defect on ten years and asks the
+  only question that matters - **what does the sleeve earn when the impossible fills are gone?**
+  `scripts/sweep_a11.py` on the Alpaca SIP store (2,686 sessions, 2016-01-04..2026-09-09, the
+  deployed allocation, which after A-10 is ORB alone), one backtest per (cell, calendar year) from
+  a fresh $1M book, pooled into A-10's three a-priori regimes; 18 ledger rows under
+  `intraday/active`. `RISK["part_cap"]` clips every order to a share of the **trailing median**
+  volume of the minute it will fill in (`volume_limits()`, 20 prior sessions, strictly before the
+  session, so the cap is knowable at decision time); a clipped order is *worked* over the following
+  bars rather than dropped, and whatever the cap cannot work off by the close is dumped into the
+  closing bar and counted.
+- **Provenance, stated plainly.** The three sweeps (main grid, and the universe split in half by
+  participation) ran to completion at 03:40-04:03 ET in the preceding iteration, which was cut off
+  before it wrote anything. This iteration verified the outputs against the store, added the
+  cost/gross decomposition and the paired liquid-vs-illiquid statistics below, ran the replay, and
+  recorded the result. No sweep was re-run; nothing in the ledger was rewritten.
+- **The decision rule was fixed before the runs** and cannot promote anything: A-10 measured this
+  book at -$289/day and a cap can only make a losing book smaller. The outcomes that mattered were
+  (a) capped materially *better* - the shipped numbers were dragged down by impossible fills;
+  (b) materially *worse* - every A-track number is optimistic by that amount; (c) inside one
+  standard error - the defect is real and immaterial, and the honest record is that it was measured.
+
+### 1. The diagnostic: the defect is four times what the IBKR window showed
+
+90,441 fills, 16 names, 2,686 sessions, each fill's size against the **actual** volume of the
+minute the backtester assumed it filled in, notional-weighted:
+
+| | p50 | p75 | p90 | p99 | max |
+| --- | --- | --- | --- | --- | --- |
+| A-5, 260 IBKR sessions | 1.03% | - | 5.55% | 26.1% | 199% |
+| **A-11, 2,686 Alpaca sessions** | **1.46%** | **4.71%** | **18.80%** | **950%** | **38,759%** |
+
+**24.1% of traded notional fills at more than 5% of its minute, 9.7% at more than 20%, and 4.1%
+(3,651 fills) at more than 100%** - orders larger than everything that traded in the minute they
+are booked at. It is one half of the universe:
+
+| sym | notional % | median % | p90 % | p99 % | sym | notional % | median % | p90 % | p99 % |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| SMCI | 4.8 | **23.04** | **1733** | 4668 | NFLX | 7.0 | 1.86 | 7.23 | 26.3 |
+| SOXL | 7.6 | 5.14 | 159 | 1400 | GOOGL | 7.0 | 1.58 | 6.30 | 23.1 |
+| MSTR | 5.2 | 7.21 | 143 | 834 | NVDA | 7.1 | 0.50 | 5.24 | 33.9 |
+| SOXS | 4.0 | 3.80 | 28.2 | 106 | TSLA | 7.2 | 0.27 | 4.33 | 23.5 |
+| AVGO | 7.2 | 4.99 | 21.5 | 68.2 | MSFT | 7.1 | 0.91 | 4.25 | 13.0 |
+| PLTR | 3.9 | 2.34 | 17.9 | 79.5 | META | 7.2 | 0.86 | 3.01 | 9.26 |
+| COIN | 4.0 | 2.45 | 10.5 | 35.7 | AMZN | 7.1 | 0.55 | 2.02 | 6.93 |
+| AMD | 6.8 | 0.86 | 9.97 | 491 | AAPL | 6.8 | 0.50 | 1.63 | 4.55 |
+
+The store is split-adjusted on **both** price and volume - SMCI 2016-01-04 shows 4.34M adjusted
+shares at an adjusted $2.39, i.e. 434k real shares at $23.88 - so the ratio is internally
+consistent and these are real participations, not an adjustment artifact. That was checked against
+the raw tape before any of the numbers below were believed.
+
+### 2. The cap: removing the impossible fills costs the book nothing in gross
+
+Paired against the uncapped control on the same 2,686 sessions, and decomposed against the cost
+per day the ledger rows carry:
+
+| cap | tr/day | $/day | t | vs off $/day | vs off t | costs/day | **implied Δgross** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| off (shipped) | 34.9 | -331 | -1.35 | | | 907 | |
+| 0.10 | 95.3 | -336 | -1.39 | **-5** | -0.25 | 917 | **+5** |
+| 0.05 | 137.2 | -367 | -1.52 | -36 | -1.24 | 941 | -2 |
+| 0.02 | 206.8 | -430 | -1.83 | -99 | **-2.40** | 969 | -37 |
+
+By regime the paired difference is -11 / -3 / +1 at the 0.10 cap (t -0.34 / -0.06 / +0.38) and
+never reaches |t| = 2 except at 0.02 in 2016-2019. **Outcome (c), and sharply.** At the 0.10 cap
+the backtester clips **213,338 orders** and refuses a cumulative **$4.78M/day** of intended
+notional against $3.59M/day actually executed (the same intended position is re-clipped every
+minute until it is worked off, so that flow is far larger than the book's turnover), and the book
+moves by **-$5/day at t = -0.25** - of which **+$10/day is the extra commission and slippage of
+slicing**. The gross is unchanged. Only at 0.02, where the sleeve is forced to 207 trades a day,
+does gross itself erode ($37/day), and that is the cost of the slicing schedule, not lost alpha:
+the cap also starts failing, dumping 261 fills and $2,269/day of un-workable residual into the
+closing bar.
+
+**So the fills nobody could get were not the ones making the money.** Every A-track number stands
+where it is: the sleeve's negative result is not an artifact of impossible fills, and the shipped
+`part_cap = 0` stays, because switching it on buys nothing and pays 3x the turnover for it.
+
+### 3. The half of the universe whose fills are real is the half that never made money
+
+The strongest thing in this iteration is not the cap. Running the same book on the 8 names whose
+fills are executable and the 8 whose are not, as two disjoint $1M books over the same sessions:
+
+| universe | fills > 5% of the minute | $/day, 2,684 sessions | t | Sharpe | tr/day | costs/day |
+| --- | --- | --- | --- | --- | --- | --- |
+| **liquid 8** (AAPL AMZN META MSFT TSLA NVDA GOOGL NFLX) | **8.8% of notional** | **-195** | **-1.89** | -0.54 | 18.1 | 385 |
+| **illiquid 8** (SMCI SOXL MSTR SOXS AVGO PLTR COIN AMD) | **45.8%** | -164 | -0.83 | -0.23 | 15.1 | 553 |
+| full 16 (deployed) | 24.1% | -329 | -1.34 | -0.37 | 34.9 | 907 |
+
+The two halves are not redundant (corr of daily P&L 0.498) and the paired difference between them
+is **-$31/day at t = -0.18**, i.e. indistinguishable - but the liquid half, where the median fill
+is 0.89% of its minute and only 1.0% of notional exceeds 20%, is the **most significant negative
+reading this sleeve has ever produced**. Restricting to the names where the backtest is believable
+does not rescue it; it sharpens the loss.
+
+And it accounts for the one piece of positive evidence the sleeve has:
+
+| | fitted window (261 sessions, >= 2025-08-26) | t |
+| --- | --- | --- |
+| liquid 8 | **-$102/day** | -0.40 |
+| illiquid 8 | **+$361/day** | +0.42 |
+| full 16 | +$278/day | +0.29 |
+
+**The only window in eleven years where this sleeve made money made all of it in the half of the
+universe whose fills cannot be trusted** - the half where the median order is 4.12% of its minute,
+p90 is 94% and 21.8% of notional exceeds a fifth of the minute's volume. That is the same finding
+as A-9's holdout in another shape, and it is the last defence the sleeve had.
+
+- **Decision. Refused and closed; nothing shipped.** `part_cap` stays 0 in the shared sizing code,
+  `live/intraday_config.json`, `live/APPROVED_PAPER.md`, `live/HALT*` and the scheduled tasks were
+  not touched, and the only file changed is `scripts/sweep_a11.py` (a `--label` flag so a subset
+  run cannot be confused with the main one). Champion unchanged at **S-12**; the daily sleeve was
+  not touched.
+- **Rule (a) replay.** No file the live trader loads moved, so none was owed; run anyway against
+  the deployed config - 2026-09-08, `--equity-frac 0.5` with the config's params: **34 trades, 368
+  decisions, flat at close, P&L -2,302 on 500k**, identical to A-12's. (The toolchain note from
+  2026-09-10 still bites: a *naive* `--replay` reads strategy defaults at `equity_frac` 1.0 and
+  reports 217 trades / -10,051, which looks like a regression and is not one.)
+- **A-5 part 2, the standing job: no input today.** `slippage_report.py` still finds exactly one
+  session with live fills (2026-09-10, 32 fills, $1.87M): **+2.89 bps notional-weighted, se 1.33,
+  against the shipped 1.50 - |diff|/se = 1.05**, not yet 2 se, so `SLIPPAGE_BPS` was not touched.
+  ~6.8 more sessions settle it against A-5 part 1's 2.52 bps breakeven.
+- **Next.** The A-track is now out of levers *and* out of defences: A-9 killed the entry gate, A-10
+  killed the level, O-1 killed the regime conditioner, A-12 killed the re-entry filter, and A-11
+  has now killed the last "the backtest was unfair to it" argument in both directions - the
+  impossible fills were not helping, and the executable names lose at t = -1.89. The open owner
+  question in `BLOCKERS.md` (keep `equity_frac` 0.5 to finish the slippage measurement, or retire
+  the sleeve to 0.0) is the only thing left on it, and A-11 is appended there as evidence.
+
 ## 2026-09-11 - A-12: the ORB whipsaw lockout - the mechanism is real, measured, and points the other way
 
 - **What.** The question the 2026-09-10 paper session left behind: the sleeve lost -6,779 and

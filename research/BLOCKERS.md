@@ -113,6 +113,31 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   the measured slippage is low enough to move the level. **The loop will not restore size, and it
   will not go to zero on its own while an owner question is open on exactly that number.**
 
+  **Update 2026-09-11 (A-11 removes the last defence, in both directions).** The standing objection
+  to every negative number above was that the backtest might be unfair to the sleeve, because A-5
+  found its orders are routinely a large share of the volume of the minute they fill in. A-11
+  measured that on 90,441 fills over 2,686 sessions, and the defect is **four times worse** than
+  the IBKR window showed - notional-weighted p90 **18.8%** of the minute (A-5: 5.55%), with
+  **24.1% of traded notional filling above 5% of its minute, 9.7% above 20% and 4.1% above 100%**,
+  i.e. orders larger than everything that traded. It changes nothing: clipping every order to 10%
+  of the trailing median volume of its fill minute refuses **$4.78M/day** of intended notional
+  across **213,338 clipped orders** and moves the book by **-$5/day (t = -0.25)**, of which
+  +$10/day is the extra commission of slicing - **the impossible fills carry no gross.** The
+  sharper half of the result is the universe split:
+
+  | | share of notional filling above 5% of its minute | 2,684 sessions, $/day | t | the 261-session fitted window, $/day |
+  | --- | --- | --- | --- | --- |
+  | the 8 liquid names (AAPL AMZN META MSFT TSLA NVDA GOOGL NFLX) | 8.8% | **-195** | **-1.89** | **-102** |
+  | the 8 illiquid names (SMCI SOXL MSTR SOXS AVGO PLTR COIN AMD) | 45.8% | -164 | -0.83 | **+361** |
+
+  **The half of the universe where the backtest is believable is the half that loses most
+  convincingly, and the sleeve's only profitable window in eleven years earned all of it in the
+  half where the median order is 4.12% of its minute and the p90 is 94%.** This does not change
+  the decision the loop is waiting on - it removes the remaining reason to hope the answer is (a)
+  for any purpose other than finishing the slippage measurement, which is still 6.8 sessions from
+  being settled (2026-09-10: 32 fills, +2.89 bps, se 1.33, against a shipped 1.50 and a 2.52 bps
+  breakeven). `equity_frac` is still 0.5 and nothing was shipped.
+
 ## Open requests to the owner (2026-09-10, the 3-10%/day mandate)
 
 - **Options permission and data - now answered on the research side, and the answer is "not yet"
