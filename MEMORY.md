@@ -214,3 +214,14 @@ resolution the statistics block cannot be trusted until execution is verified se
   returns a fresh state dict, so any new persistent field (here `held` / `held_age`) has to be
   read before that call and written back after it. Every early return that means "sit in cash"
   must clear the field, or the next call defends holdings that do not exist.
+- **Measure the size of the edge you are tuning.** S-14 isolated the daily champion's
+  cross-sectional selection edge - the only part the ranker is responsible for - at **+2.02
+  bps/day, t = 2.07** over 3,099 invested days, and it exists only at top-3-of-9: at five
+  holdings no sleeve's spread is significant. Six iterations (S-9 to S-14) were spent tuning
+  that component. Before optimizing a piece of a strategy, price the piece.
+- **Breadth is not free diversification.** Widening a momentum ranking pool (9 -> 17 -> 22 ETFs)
+  made the champion monotonically worse (CAR 24.4 -> 17.3 -> 11.6) at unchanged realized vol, and
+  four fifths of the damage was the ranking spread collapsing, not the added names being worse
+  assets. What it did buy was drawdown (unlevered 22.4% -> 14.3%), which is a risk-posture trade.
+  Split any such comparison into `selected = pool_mean + spread`, and vol-match before blaming
+  leverage access.
