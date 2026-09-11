@@ -73,6 +73,26 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   - not that 1.9 points of return are being measured with confidence. **Nothing changed**: the
   request is still the one task move plus the `--order-type` work, and the loop has not touched
   either.
+- **Update 2026-09-11 (S-22): the number survives being charged the other two costs, and the
+  request is now the cheapest and best-priced item on this page.** S-17's spread, S-19's clock and
+  S-21's financing have been charged together for the first time. They are **independent** (the LEAN
+  triple prints 18.785% against a pre-registered multiplicative null of 18.811, every pairwise
+  interaction inside 0.021 CAR points), so the clock's value does not shrink once the book is paying
+  for its spread and its margin loan. On the honestly-costed book, at today's 3.63% cost of money:
+
+  | path | CAR (fully charged) |
+  | --- | --- |
+  | the deployed 15:45 runner | **19.415%** |
+  | **the pre-open MOO fix you are being asked for** | **21.264%** |
+
+  **+1.85 CAR points**, against S-19's -1.9 on a book that paid neither of the other two costs.
+  Everything else about the request is unchanged: move "Quant Paper Rebalance" to before 09:28 ET
+  and the loop writes the `--order-type` OPG/MOO support, verifies it with `--mock --dry-run` and
+  `compare_orders.py`, and hands you the one task change. **One further fact you should have when
+  you read any number in this repository**: the champion's promoted headline of 24.403% is what the
+  harness reports with all three costs switched off. The deployed book's honest expectation is
+  **~20%** (19.95% at historical rates, 19.42% at today's), and `champion.json` now records that
+  beside the headline. `ref_price` has now matched the previous close in **10 of 10** paper fills.
 
 ## Open ops item for the human (2026-09-11, live alerting is dead)
 

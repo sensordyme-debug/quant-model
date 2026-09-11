@@ -17,6 +17,48 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 21:0x UTC (S-22): **the three instrument corrections are independent, they
+compose, and the deployed daily book should be expected to earn about 20% CAR rather than the
+champion's headline 24.4%.** S-17 (spread), S-19 (clock) and S-21 (financing) each priced one
+harness defect alone; nobody had charged them together, and the owner had never been given one
+number for the paper account. New `scripts/_s22_runs.sh` (7 LEAN cells) and `scripts/sweep_s22.py`
+(`--report` = the 2^3 factorial and the composition test, `--book` = the pandas book), plus **one
+optional argument on `scripts/sweep_s19.py`** (`simulate(..., financing=...)`, default `None`, so
+every S-19 row stays bit-identical - the clean cells reproduce 24.077 / 22.192 / 20.965 to the
+digit); **25 ledger rows**, control reproducing **`OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`**.
+**The rule was pre-registered in `_s22_runs.sh` before any cell ran**, and its second clause wrote
+down the answer first: composing the three singles multiplicatively predicts **18.81%** for the LEAN
+triple, and the test was whether the measurement landed within 0.5 CAR points of it. **(1) It
+landed within 0.026.** Full period: control 24.403 / spread 23.068 / financing 23.087 / clock bound
+21.384 / spread+fin 21.745 / spread+clock 20.074 / fin+clock 20.095 / **all three 18.785**, every
+pairwise interaction inside **0.021 points**. **The three corrections are independent**, so the loop
+may keep pricing defects one at a time and compose them afterwards - which is the reusable half of
+the result. **(2) The headline needs the book LEAN cannot be**: the engine cannot fill at the close
+of the session it decided in, so its triple overstates the clock. The S-19 pandas book with the new
+financing hook agrees with LEAN's financing drag at the backtest convention (**-1.357 against
+-1.316**) and its fully-charged `lag1` cell translates to **18.755 against LEAN's 18.785 - two
+harnesses 0.03 CAR points apart**. On that footing the deployed 15:45 convention, charged 2 bp of
+spread and IBKR Pro financing, earns **19.640% (19.954% in LEAN units), i.e. -4.449 points**, and
+**19.415% at today's 3.63% cost of money (-4.988)**. **The promoted headline is about 18% high.**
+**(3) Out-of-sample weighted, again**: the triple's halves are **IS 14.194% against 17.698%**
+(-2.98% in wealth terms) and **OOS 24.259% against 32.801% (-6.43%)**, more than two to one, for
+S-21's reason. **And it costs return, not risk** - across the whole factorial drawdown moves
+23.70 -> 23.00 and realized vol 0.155 -> 0.156. **(4) One owner number moves and it is not the risk
+posture**: the pre-open task move is worth **+1.85 CAR points on an honestly-costed book at today's
+rates** (19.415 -> 21.264), close to S-19's -1.9 on an uncosted one, precisely because the clock and
+the two costs do not interact. **Nothing shipped, nothing promoted, no default changed**:
+`S1_SLIPPAGE_BPS` 0.0, `S1_SIGNAL_LAG` 0 and `S1_FINANCING` off, champion unchanged at S-18,
+`live/*` and the three scheduled tasks untouched, `signals.py`/`main.py` not modified so rule (a)
+owes no replay, and the I-1 gate re-ran anyway at **3,689/3,689, 5,021 orders**. **Standing jobs**:
+`daily_fills.py` **has new input** - the 15:51 TQQQ sale lands, pooling to **10 fills / $2.37M /
++3.2 bps (se 4.5)** with `ref_price` the previous close in **10 of 10**, a fourth confirmation of the
+S-19 clock; A-5 part 2 unchanged at 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90 (~4.4 sessions).
+One instrument note: `slippage_report.py` needs the default `python` (no `pyarrow` under `py -3.11`),
+which is what AGENTS.md prescribes for utility scripts. **What it changes for the loop: the
+instrument audit is finished.** Spread, clock and financing are measured, composed and proved
+independent; there is no fourth defect of that class left, and every daily-sleeve number from here
+should be quoted against ~20% rather than 24.4%.
+
 Status 2026-09-11 20:0x UTC (S-21): **the champion has been borrowing half its equity for free
 for twenty-one iterations, that is worth 1.32 CAR points full period and 2.03 out of sample, and
 82% of the money was spent in the last four years.** With the unblocked work down to two standing
@@ -1094,6 +1136,24 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
+- **S-22 DONE 2026-09-11 (see journal): measured, not judged. The three instrument corrections are
+  independent, and the deployed daily book's honest expectation is ~20% CAR, not 24.4%.**
+  LEAN full-period factorial: control 24.403 / spread 2 bp 23.068 / financing 23.087 / clock bound
+  21.384 / **all three 18.785**, against a **pre-registered multiplicative null of 18.811** - an
+  interaction of **-0.026 points**, every pair inside 0.021. The S-19 pandas book (new optional
+  `financing=` argument, S-19's own rows bit-identical) prices the convention LEAN cannot express:
+  the deployed 15:45 clock fully charged earns **19.640%, i.e. 19.954% in LEAN units, -4.449 points**,
+  and **19.415% at today's 3.63% benchmark**; its `lag1` cell agrees with LEAN's to **0.03 CAR
+  points**. Halves **IS 14.194 / OOS 24.259** against 17.698 / 32.801, out-of-sample weighted more
+  than two to one, and drawdown is flat across the whole factorial (23.70 -> 23.00), so it costs
+  return and not risk. `scripts/_s22_runs.sh`, `scripts/sweep_s22.py`, 25 ledger rows, nothing
+  shipped, control reproduces `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`, I-1 gate 3,689/3,689
+  at 5,021 orders. **Do not re-open as a fourth-defect or an interaction question** - the factorial
+  is complete and the residual is a fortieth of a CAR point. Two durable pieces survive it: the
+  financing hook on `sweep_s19.py` (any future execution question can now be asked on a financed
+  book) and the rule that **defects on this sleeve compose multiplicatively**, so they may be priced
+  one at a time and multiplied, which is what makes the three audits reusable rather than stale.
+
 - **S-21 DONE 2026-09-11 (see journal): measured, not judged. LEAN charges no financing, and the
   champion's leverage costs 1.32 CAR points full period, 2.03 out of sample and about 2.0 a year
   forward.** `DefaultBrokerageModel.cs:368` -> `MarginInterestRateModel.Null` (empty
@@ -1148,7 +1208,9 @@ sleeve that does not exist (S-5). **The binding constraint is the four owner dec
   calendar days** and so sit ~17% below the same curve's trading-day figures - safe to compare
   within the ledger, never against a statistic computed elsewhere.
 
-**Priority after S-21 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and `daily_fills.py` now gets input every rebalance (9 fills, +3.9 bps); (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work and whose headline item has just been re-priced: the Reg-T buffer now reads +1.209 / +1.655 CAR at budget 0.80 / 0.82 rather than +1.500 / +2.071, with the Sharpe argument six times weaker; then the runner's clock (-1.9 CAR, S-19) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-21 opened nothing and closed nothing that was open - it moved a number, and it is the third and last of the instrument audits that were available (spread S-17, clock S-19, financing S-21). **Two columns are now compulsory on any future daily-sleeve comparison**: the vol-matched one (S-20) whenever a cell changes realized volatility, and the financed one (S-21) whenever two cells carry *different amounts of leverage* - the second exists because the owner's own frontier was being judged on numbers that gave the borrowing away.
+**Priority after S-22 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and `daily_fills.py` now gets input every rebalance (10 fills, +3.2 bps, se 4.5); (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work, now in a corrected order of value: the **pre-open task move** is the cheapest and best-priced of them at **+1.85 CAR points on an honestly-costed book at today's rates**, then the Reg-T buffer (+1.209 / +1.655 financed at budget 0.80 / 0.82) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-22 closed the instrument audit rather than opening anything: spread (S-17), clock (S-19) and financing (S-21) are now measured, composed and **proved independent to 0.026 CAR points**, so there is no fourth defect of that class to look for and no reason to re-run the three against each other. **One number replaces another everywhere on this sleeve**: the deployed daily book's honest expectation is **~20% CAR (19.95% at historical rates, 19.42% at today's)**, not the champion's 24.403%, and any future candidate quoted against the headline is being flattered by about 18%. The two compulsory columns from S-20 (vol-matched) and S-21 (financed) are unchanged, and S-22 adds the rule that makes them cheap: **corrections on this sleeve multiply**, so a cell may be priced against one defect at a time and composed afterwards.
+
+Superseded, kept for the reasoning: **Priority after S-21 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and `daily_fills.py` now gets input every rebalance (9 fills, +3.9 bps); (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work and whose headline item has just been re-priced: the Reg-T buffer now reads +1.209 / +1.655 CAR at budget 0.80 / 0.82 rather than +1.500 / +2.071, with the Sharpe argument six times weaker; then the runner's clock (-1.9 CAR, S-19) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-21 opened nothing and closed nothing that was open - it moved a number, and it is the third and last of the instrument audits that were available (spread S-17, clock S-19, financing S-21). **Two columns are now compulsory on any future daily-sleeve comparison**: the vol-matched one (S-20) whenever a cell changes realized volatility, and the financed one (S-21) whenever two cells carry *different amounts of leverage* - the second exists because the owner's own frontier was being judged on numbers that gave the borrowing away.
 
 Superseded, kept for the reasoning: **Priority after S-20 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling and gets input every session; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, which remain the whole of the unblocked work: the Reg-T buffer (budget 0.78 / 0.80 / 0.82 earn 25.307 / 25.903 / 26.474 at rising Sharpe on the unlevered book), the runner's clock (-1.9 CAR, S-19), and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-20 closed the last daily-sleeve item that was neither a ranker lever nor a risk-posture parameter, and it closed it by measuring that it *is* a risk-posture parameter in disguise. **Read every future daily-sleeve cell through the vol-matched column** (`sweep_s20.py --report`): S-15, S-16 and S-20 are three forms of one finding - on this sleeve anything that looks like new return is a size decision until it beats the control scaled to its own realized volatility.
 

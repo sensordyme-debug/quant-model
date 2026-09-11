@@ -55,6 +55,7 @@ sys.path.insert(0, str(REPO / "algorithms" / "s1_momo"))
 sys.path.insert(0, str(REPO / "scripts"))
 
 import signals as sig                       # noqa: E402
+import rates                                # noqa: E402  (S-22: optional financing hook)
 from lean_prices import load_ohlcv          # noqa: E402
 
 LEDGER = REPO / "research" / "experiments.jsonl"
@@ -89,7 +90,7 @@ def tstat(x) -> float:
 # ------------------------------------------------------------------------------- the book
 
 def simulate(frames: dict, params, lag: int, fill: str, start: str, end: str,
-             slippage_bps: float = 0.0) -> pd.DataFrame:
+             slippage_bps: float = 0.0, financing: dict | None = None) -> pd.DataFrame:
     """Walk the shipped signal day by day and execute it at `fill` on the fill session.
 
     `lag` is the number of *extra* sessions of staleness beyond the backtest's own: 0 is
@@ -101,6 +102,13 @@ def simulate(frames: dict, params, lag: int, fill: str, start: str, end: str,
     runner's `prices` dict built from the last complete yfinance close). Holding that fixed
     is what makes the two conventions produce the same order list from the same state, so
     the only thing that moves between them is the fill.
+
+    S-22 adds one optional argument and changes nothing when it is absent. `financing` is
+    `{"rates": {"YYYY-MM-DD": pct}, "spread": pp}` and, when given, accrues interest on the
+    settled cash balance at the top of every session for the *calendar* days since the last
+    one, exactly as `main.py:accrue_financing` does in LEAN - charged before the day's
+    sizing, so it compounds against the book rather than being reported beside it. Default
+    `None` leaves the S-19 rows bit-identical.
     """
     closes = frames["close"]
     opens = frames["open"]
@@ -116,7 +124,21 @@ def simulate(frames: dict, params, lag: int, fill: str, start: str, end: str,
     state: dict = {}
     rows = []
 
+    fin_rates = (financing or {}).get("rates") or {}
+    fin_shift = float((financing or {}).get("spread", 0.0))
+    fin_first, fin_final = (min(fin_rates), max(fin_rates)) if fin_rates else ("", "")
+
     for i in range(i0, i1):
+        # --- S-22: one day's financing on the settled balance, before the day's sizing
+        interest, prev_mark = 0.0, equity      # prev_mark is pre-interest: the charge has
+        if fin_rates and i > i0:               # to land inside the day's return, not beside it
+            days = (index[i].date() - index[i - 1].date()).days
+            stamp = min(max(index[i].date().isoformat(), fin_first), fin_final)
+            interest = rates.accrual(cash, fin_rates[stamp], days, fin_shift)
+            cash += interest
+            equity += interest
+            equity_curve[-1] += interest
+
         # --- decide, on the information the convention allows
         lo = max(0, i - lag - params.history_bars)
         window = closes.iloc[lo:i - lag]                 # closes through i-1-lag
@@ -153,8 +175,9 @@ def simulate(frames: dict, params, lag: int, fill: str, start: str, end: str,
         mark = closes.iloc[i]
         value = cash + sum(n * float(mark[t]) for t, n in positions.items()
                            if t in mark.index and pd.notna(mark[t]))
-        rows.append({"date": index[i], "equity": value, "prev": equity,
+        rows.append({"date": index[i], "equity": value, "prev": prev_mark,
                      "orders": len(deltas), "fees": fees, "turnover": turnover,
+                     "interest": interest, "cash": cash,
                      "held": len([1 for n in positions.values() if n])})
         equity = value
         equity_curve.append(value)

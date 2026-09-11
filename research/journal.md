@@ -1,5 +1,106 @@
 # Research journal
 
+## 2026-09-11 - S-22: the three instrument corrections charged together, and the first honest expectation for the deployed daily book
+
+**Hypothesis.** S-17 (no spread), S-19 (the runner's clock) and S-21 (no financing) each
+priced one harness defect against a clean control, and each was reported alone. Charged at
+once they should compose, and the composite - not the champion's headline 24.403% - is what
+the paper account should be expected to earn. Three reasons the sum is not obviously the
+answer: a staler signal changes *which* trades fire and so moves the spread bill; financing
+is charged on a cash path the other two corrections both move; and CAR is geometric.
+
+**Pre-registered in `scripts/_s22_runs.sh` before any cell ran.** (1) A measurement, not a
+candidate: every cell charges a cost the control does not, so every cell must lose and
+`evaluate.py` is not the judge (it already refuses `S1_FINANCING=on` as not comparable).
+(2) The a-priori prediction, written down first so the composite could be wrong rather than
+merely reported: composing the three singles multiplicatively in (1+CAR) gives **18.81%**
+for the LEAN triple, against 18.73% if the points simply added; **the test was |measured -
+multiplicative| <= 0.5 CAR points**. (3) The headline is the *deployed* convention, which
+LEAN cannot express, so it had to come from the S-19 pandas book and is readable only if
+that book reproduces LEAN's financing drag. (4) One scenario cell, labelled as such.
+(5) Nothing shipped, no default changed.
+
+**What was built.** `scripts/_s22_runs.sh` (7 LEAN cells), `scripts/sweep_s22.py`
+(`--report` reads the 2^3 factorial out of the ledger and runs the composition test;
+`--book` runs the pandas book), and **one optional argument on `scripts/sweep_s19.py`**:
+`simulate(..., financing=...)` accrues interest on the settled cash balance at the top of
+each session for the calendar days since the last, before the day's sizing, exactly as
+`main.py:accrue_financing` does. Default `None` leaves every S-19 row bit-identical, and the
+full-period clean cells reproduce S-19 to the digit (24.077 / 22.192 / 20.965). **25 ledger
+rows.** Control reproduces **`OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`**.
+
+**(1) The factorial, and the corrections are independent.** Full period, LEAN:
+
+| cell | CAR% | drag | Sharpe | MaxDD% | fees |
+| --- | --- | --- | --- | --- | --- |
+| control (as promoted) | 24.403 | - | 0.994 | 23.70 | $27,200 |
+| spread 2 bp (S-17/S-18) | 23.068 | -1.335 | 0.938 | 25.00 | $24,921 |
+| financing (S-21) | 23.087 | -1.316 | 0.939 | 24.10 | $25,313 |
+| clock bound, lag1 (S-19) | 21.384 | -3.019 | 0.860 | 22.70 | $23,808 |
+| spread + financing | 21.745 | -2.658 | 0.882 | 25.40 | $23,211 |
+| spread + clock | 20.074 | -4.329 | 0.805 | 22.90 | $21,929 |
+| financing + clock | 20.095 | -4.308 | 0.806 | 22.80 | $22,278 |
+| **all three** | **18.785** | **-5.618** | **0.750** | 23.00 | $20,565 |
+
+The multiplicative null is **18.811** and the measured triple is **18.785**: the interaction
+is **-0.026 CAR points**, and every pair is inside 0.021. **The three corrections are
+independent to a fortieth of a point**, so the loop may keep pricing them one at a time and
+compose them afterwards - which is the useful half of this result, because it means the
+three audits did not need to be re-run against each other.
+
+**(2) The headline, from the book that can fill where the runner fills.** The pandas book
+agrees with LEAN's financing drag at the backtest convention (**-1.357 against -1.316**) and
+its fully-charged `lag1` cell translates to **18.755** in LEAN units against LEAN's own
+**18.785** - two harnesses, **0.03 CAR points apart**, on the one cell both can run:
+
+| what it is | book CAR% | in LEAN units | against the promoted 24.403% |
+| --- | --- | --- | --- |
+| the champion as reported | 24.077 | 24.403 | - |
+| the deployed 15:45 clock alone (S-19) | 22.192 | 22.513 | -1.890 |
+| **the deployed book, fully charged** | **19.640** | **19.954** | **-4.449** |
+| the same at today's 3.63% cost of money | 19.102 | **19.415** | **-4.988** |
+| the pre-open fix, fully charged, today's rates | 20.946 | 21.264 | -3.139 |
+
+**So the number to carry is ~20% CAR, not 24.4%** - the promoted headline is about **18%
+high**, and 20% at today's price of money. This is not a defect and nothing is broken: the
+paper account has been paying all three since its first fill.
+
+**(3) The correction is out-of-sample weighted, again.** LEAN's triple by half: **IS
+2012-2019 14.194% against 17.698%** (-3.504 points, -2.98% in wealth terms) and **OOS
+2020-2026 24.259% against 32.801%** (-8.542 points, **-6.43%**) - more than two to one, the
+same shape S-21 found and for the same reason (82% of the interest was incurred in
+2023-2026). **And it costs return, not risk**: drawdown across the whole factorial moves
+23.70 -> 23.00, and realized vol 0.155 -> 0.156.
+
+**(4) One thing it changes for the owner, and it is not the risk posture.** The pre-open fix
+in `BLOCKERS.md` is worth **+1.85 CAR points on an honestly-costed book at today's rates**
+(19.415 -> 21.264), which is close to the -1.9 S-19 measured on an uncosted one, because the
+clock and the two costs do not interact. The Reg-T frontier is untouched by this iteration
+and stays where S-21 left it.
+
+**Decision.** Measured, not judged. **Nothing shipped, nothing promoted, no default
+changed**: `S1_SLIPPAGE_BPS` stays 0.0, `S1_SIGNAL_LAG` stays 0 and `S1_FINANCING` stays off
+so the ledger stays on one scale (S-17's and S-21's precedent); champion unchanged at S-18;
+`live/*` and the three scheduled tasks untouched. `signals.py` and `main.py` were not
+modified, so rule (a) owes no replay, and the **I-1 gate was re-run anyway: 3,689/3,689
+dates, 5,021 orders both sides**. `champion.json` carries the expectation as a recorded
+note and `BLOCKERS.md` is updated in place.
+
+**Standing jobs.** `daily_fills.py` **has new input** - today's rebalance now shows 4 fills
+(the 15:51 TQQQ sale is in), pooling to **10 fills / $2.37M / +3.2 bps (se 4.5)** against
+9 / +3.9 / se 5.0, with `ref_price` the previous close in **10 of 10**, a fourth confirmation
+of the S-19 clock. A-5 part 2 unchanged at **66 fills / +2.22 bps / se 0.80 / |diff|/se
+0.90** (~4.4 sessions to settle), so `intraday_common.SLIPPAGE_BPS` stays 1.50. One
+instrument note: `slippage_report.py` reads the parquet minute store and **fails under
+`py -3.11`** (no `pyarrow` in that interpreter); it runs under the default `python`, which is
+what AGENTS.md prescribes for utility scripts. Nothing was installed.
+
+**Next.** The instrument audit is finished - spread, clock and financing are measured,
+composed and proved independent, and there is no fourth defect of that kind left to find.
+The unblocked work is back to the two standing per-session measurements and per-session ops;
+everything else is one of the four owner decisions in `BLOCKERS.md`, of which the cheapest
+and now the best-priced is the pre-open task move.
+
 ## Paper session 2026-09-11
 
 Operations only, no research. Account DUT091359, net liquidation 988,089.19 at 15:49 ET.
