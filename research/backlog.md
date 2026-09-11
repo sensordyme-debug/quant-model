@@ -17,6 +17,54 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 22:5x UTC (S-24): **the daily store's close is the official closing cross to the
+cent and its open is not the opening cross - and once the pre-open book is filled at the price a
+real MOO order actually receives, the move the owner is being asked for is worth +1.98 CAR points
+rather than +2.13.** S-23 closed with one unmeasured assumption and an explicit instruction not to
+re-open it *from that data*: the surcharge the opening auction might charge over the closing one,
+bounded at a 3.10 bps breakeven and proxied by minute *ranges* (1.0x-2.0x) because the Alpaca
+minute store carries no quotes. This iteration used different data - the same key serves
+`/v2/stocks/auctions` (official cross prints, 2016-2026) and `/v2/stocks/quotes` (full SIP NBBO),
+neither of which this repository had ever touched. New `scripts/sweep_s24.py`; **4 ledger rows**
+under `daily/s24_auction`; three clauses pre-registered in the docstring **before any fetch**.
+**(1) The identity clause failed, and how it failed is the finding**: only **82.18%** of sessions
+match within 2 bps against the pre-registered 95%, and splitting the test by leg says why - the
+implied *close* factor `store_close / sip_close` has a median day-over-day change of **exactly
+0.000 bps for all nine names** while the implied *open* factor wobbles 0.6-1.5 bps a day for six of
+them. **Yahoo's daily open is the first consolidated print, not the primary auction**; the deployed
+15:45 convention has always been marked at exactly the right price, and the defect lands entirely
+on the pre-open book. A useful instrument check came free: picking the official cross as "the
+largest print by size" independently recovered each fund's listing venue (Arca for seven, NASDAQ
+for QQQ/TLT) with no hard-coded table. **(2) So the surcharge was measured rather than estimated.**
+The exact close leg makes `f = store_close / sip_close` recover each date's whole adjustment, so
+`sip_open x f` puts the real cross on the book's basis and S-19's `simulate` needs no change.
+On 2,683 sessions: deployed **22.007%**, pre-open at the store's open 24.134%, **pre-open at the
+official cross 23.985%** - the benchmark defect costs **-0.149 CAR points** (paired -0.047 bps/day,
+t -1.86), **8% of the move**. And it is the conservative end: an MOO order is matched in a call
+auction and **crosses no spread**, so the 2 bp charged to that row is an overcharge; charged
+nothing it earns **25.204%**, making the honest range **+1.98 to +3.20** and the recommendation
++1.98. **(3) The pre-registered clause-2 statistic was mis-specified and the placebo is what caught
+it.** On 6,074 NBBO rows the opening cross sits **6.12 bps** from the mid 30 seconds later, which
+read naively is a 5.75 bps surcharge that would refuse the move - but an unsigned deviation has no
+direction, and the *next* 30 seconds with no auction in them move the same names **4.10 bps**.
+Signed, the cross sits **-0.213 bps** from fair value with mixed signs. The arithmetic closes it
+without the quotes at all: at S-17's **0.68 CAR points per bp**, a real 6.1 bps auction cost would
+be worth ~4.2 CAR points, and re-filling the book found 0.149, i.e. **~0.22 bps** against a 3.10 bps
+breakeven - **7% of the budget**. **What the quotes do establish is operational, not economic**: the
+quoted spread at 09:30:00 is **4.63x** the closing one (XLK **12.7x**, XLE **11.7x**), far worse
+than the range proxy, decaying within 30 seconds - not what an MOO order pays, but exactly what a
+*fallback* market order would pay, which raises the value of S-23's 09:28 clock guard.
+**Nothing shipped, nothing promoted, no default changed**: `--order-type` still defaults to `MKT`,
+champion unchanged at S-18, `champion.json`, `live/*` and all three scheduled tasks untouched, and
+no file either runner loads was modified, so rule (a) owes no replay and the I-1 gate is unaffected
+(S-19's precedent). **Standing jobs both ran with no new input** (S-23 had already pooled today's
+session): A-5 part 2 at 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90, `daily_fills.py` at 10
+fills / $2.37M / +3.2 bps (se 4.5), `ref_price` the previous close 10 of 10. **What it changes for
+the loop**: the owner's cheapest decision is now fully priced with nothing left to assume, and the
+reusable rule is that **an execution cost on this sleeve must be measured with a sign, or by
+re-filling the book - never as an unsigned distance**, because an unsigned distance is mostly
+volatility and the placebo proves it.
+
 Status 2026-09-11 21:5x UTC (S-23): **the pre-open MOO path is written, clock-guarded and gated, and
 the move it buys survives up to 3.1 bps of extra opening-auction cost - which the only evidence
 available says is roughly what the opening auction might charge.** With the instrument audit closed
@@ -1184,6 +1232,29 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
+- **S-24 DONE 2026-09-11 (see journal): measured, not judged. The harness's "open" is not the
+  opening cross, and at the price a real MOO order receives the pre-open move is worth +1.98 CAR
+  points.** The daily store's **close is the official closing cross to the cent on every session of
+  all nine names** (implied close factor, median day-over-day change exactly 0.000 bps); its
+  **open is the first consolidated print, not the primary auction**, so the pre-open identity clause
+  failed at **82.18% within 2 bps** against a pre-registered 95%. Re-filled at the official cross on
+  2,683 sessions: deployed **22.007%**, S-23's assumption 24.134%, **the real MOO fill 23.985%** -
+  the benchmark defect is **-0.149 CAR points** (paired -0.047 bps/day, t -1.86), and the 2 bp
+  charged to a call-auction fill that crosses no spread is an overcharge, so the honest band is
+  **+1.98 to +3.20**. The surcharge S-23 bounded at 3.10 bps measures **~0.22 bps**, 7% of the
+  budget. The pre-registered unsigned statistic (6.12 bps) was **mis-specified and the matched
+  placebo caught it**: 30 auction-free seconds move the same names 4.10 bps, signed the cross sits
+  -0.213 bps from fair value, and at S-17's 0.68 CAR/bp a real 6.1 bps cost would have shown up as
+  ~4.2 CAR points instead of 0.149. `scripts/sweep_s24.py`, 4 ledger rows, nothing shipped, no
+  runner-loaded file modified so rule (a) owes no replay. **Do not re-open as an auction-cost
+  question** - it is now measured on the official prints at both ends and the residual is a fifth of
+  a basis point. Three durable pieces survive it: the **auction store** (`data/auctions/`, official
+  opening and closing crosses for the sleeve, 2016-2026) and the `cross_frames` substitution, which
+  let any future execution question be asked at real auction prices; the finding that **the store's
+  close is exact and its open is not**, which every future "open" number in this repository is
+  subject to; and the rule that **an execution cost must be measured with a sign, or by re-filling
+  the book, never as an unsigned distance**.
+
 - **S-23 DONE 2026-09-11 (see journal): the loop's half of the pre-open request is written and
   gated, and the move now has a breakeven instead of an assumption.**
   `scripts/paper_trade.py --order-type MOO` sends the order IBKR accepts (`MKT` + `tif="OPG"`) and
@@ -1276,6 +1347,14 @@ sleeve that does not exist (S-5). **The binding constraint is the four owner dec
   measurement that **LEAN's reported Sharpe and Annual Standard Deviation are resampled onto
   calendar days** and so sit ~17% below the same curve's trading-day figures - safe to compare
   within the ledger, never against a statistic computed elsewhere.
+
+**Priority after S-24 (2026-09-11): unchanged in order from S-23 below, with one item now fully
+priced.** The pre-open move is no longer carrying an assumption - it is **+1.98 CAR points** at the
+real MOO fill (band to +3.20), the surcharge is **~0.22 bps against a 3.10 bps breakeven**, and the
+loop has nothing further to add to that decision. The compulsory columns are now four: vol-matched
+(S-20), financed (S-21), the breakeven surcharge for anything that moves *where* an order fills
+(S-23), and - new - **priced at the official auction print rather than the store's open** (S-24),
+because the store's open is the first consolidated print and only its close is the real cross.
 
 **Priority after S-23 (2026-09-11), in order: (1) A-5 part 2 and `daily_fills.py`, the two standing per-session measurements - A-5 part 2 is ~4.4 sessions from settling, and `daily_fills.py` now carries the instrument that settles the S-23 breakeven the moment the task moves; (2) per-session ops; (3) the owner decisions in `BLOCKERS.md`, unchanged in order but with the top one now reduced to a single task change: the **pre-open move** (+1.844 CAR at today's rates, breakeven +3.10 bps of extra opening-auction cost, the loop's half merged and gated), then the Reg-T buffer (+1.209 / +1.655 financed at budget 0.80 / 0.82) and `equity_frac` on the intraday sleeve; (4) F-2, the index futures track, which needs data the human must buy.** S-23 opened nothing: it finished a request rather than starting a line of research, and the one general thing it leaves behind is a framing rule - **an execution change on this sleeve is quoted as a breakeven in the units `daily_fills.py` measures on live fills**, because a CAR delta against a counterfactual that charges the other side nothing is not a decision, it is an assumption. The three compulsory columns are now vol-matched (S-20), financed (S-21) and, for anything that moves *where* an order fills, the breakeven surcharge (S-23).
 

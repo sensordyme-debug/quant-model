@@ -1,5 +1,108 @@
 # Research journal
 
+## 2026-09-11 - S-24: the harness's "open" is not the opening cross, and the pre-open move survives being priced at the one a real MOO order gets
+
+**Hypothesis.** S-23 left the owner's cheapest decision resting on one unmeasured
+assumption. It priced the pre-open move at **+1.85 CAR points** and solved for indifference
+- the opening auction may cost up to **3.10 bps more** than the closing one before the move
+stops paying - but it could not measure that surcharge, because the only store it had
+(Alpaca SIP 1-minute TRADES bars) carries no quotes. It fell back on a proxy, the opening
+minute's *range* against the closing minute's (1.0x-2.0x), and wrote "do not re-open as a
+'what is the real opening spread' question **from this data**". This is different data: the
+same Alpaca key already in `live/secrets.env` serves two endpoints this repository has never
+used - `/v2/stocks/auctions` (official opening and closing cross prints, 2016-2026) and
+`/v2/stocks/quotes` (full SIP NBBO). New `scripts/sweep_s24.py`; **4 ledger rows** under
+`daily/s24_auction`; no file either runner loads was modified, so rule (a) owes no replay and
+the I-1 gate is unaffected (S-19's precedent).
+
+**Pre-registered in the script docstring before any fetch, in three clauses.** (1) *Identity*:
+if the daily store's own open/close ratio matches the SIP cross ratio on at least 95% of
+sessions within 2 bps, the harness's "open" IS the opening cross and an MOO fill carries zero
+slippage against it by construction. (2) *Surcharge*: what the opening auction costs against
+the market 30 seconds later, minus what a 15:45 market order costs against the market at
+15:45. (3) *Verdict* against 3.10 bps, and nothing is promotable - both books are the same
+strategy at a different fill.
+
+**(1) The identity fails, and how it fails is the finding.** Pooled, only **82.18%** of
+sessions land within 2 bps, against the pre-registered 95%. Splitting the test by leg says
+why, and the split is clean: the implied *close* factor `store_close / sip_close` has a
+median day-over-day change of **exactly 0.000 bps for all nine names** - **the store's close
+is the official closing cross to the cent, every session** - while the implied *open* factor
+wobbles 0.6-1.5 bps a day for six of them. On raw recent bars where the dividend factor is 1,
+SPY's store open misses the Arca cross by -0.39 / +0.52 / -1.04 / +0.78 bps on consecutive
+sessions while its close matches at 0.00 every time, and XLE misses by -10.88 and -7.80 on
+two of eight. **Yahoo's daily open is the first consolidated print, not the primary opening
+auction.** So the deployed 15:45 convention was already being marked at exactly the right
+price, and it is the *pre-open* book - the one the owner is being asked to authorise - that
+was priced against a price no MOO order can receive. One instrument check worth keeping: the
+"largest print by size" rule for picking the official cross independently recovered each
+fund's listing venue (Arca for the seven Arca-listed, NASDAQ for QQQ and TLT) without a
+hard-coded listing table.
+
+**(2) So the surcharge was measured directly instead of estimated.** Because the close leg is
+exact, `f = store_close / sip_close` recovers each date's whole adjustment - dividend factor
+and splits together - and `sip_open x f` puts the real cross on the book's own basis. S-19's
+`simulate` reads `frames["open"]`, so the substitution needs no change to that harness.
+Over **2,683 sessions (2016-2026)**, 2 bp base spread, today's cost of money:
+
+| cell | CAR% | Sharpe | MaxDD% |
+| --- | --- | --- | --- |
+| deployed 15:45 MKT (fills at the closing cross) | 22.007 | 1.117 | 24.065 |
+| pre-open MOO at the store's open (S-23's assumption) | 24.134 | 1.212 | 23.559 |
+| **pre-open MOO at the OFFICIAL opening cross (S-24)** | **23.985** | **1.206** | **23.609** |
+| pre-open MOO at the cross, charged no spread (band) | 25.204 | 1.256 | 23.429 |
+
+**The move is worth +1.977 CAR points at the price a real MOO order receives**, against
++2.126 as S-23 priced it on this window: the benchmark defect costs **-0.149 CAR points**
+(paired -0.047 bps/day at t -1.86), about **8%** of the move. The store's open sits a
+sleeve-weighted **+0.050 bps** better than the cross with a median of exactly 0.000 and mixed
+signs - it is a noisy benchmark, not a flattering one, which is why correcting it moves so
+little. The fourth row is the other end of a band the loop had not stated: an MOO order is
+matched in a single-price call auction and **does not cross a quoted spread**, so charging it
+the same 2 bp as a continuous market order is an overcharge of unknown size. **The honest
+range for the move is +1.98 to +3.20 CAR points, and +1.98 is the conservative end.**
+
+**(3) Clause 2's own statistic turned out to be mis-specified, and the placebo is what says
+so.** On 135 sampled sessions x 4 instants x 9 names (6,074 NBBO rows), the opening cross
+sits **6.12 bps** from the mid 30 seconds later, which read naively is a surcharge of 5.75
+bps and would refuse the move at the 3.10 breakeven. It is not a cost: an unsigned deviation
+has no direction, and the book's direction is set by the previous close, independently of the
+auction imbalance. A matched placebo - the *next* 30 seconds, with no auction in them - moves
+the same names **4.10 bps**, so two thirds of it is simply what these names do in 30 seconds
+at the open; signed, the cross sits **-0.213 bps** from fair value with mixed signs across the
+nine. The arithmetic closes it without the quotes at all: S-17 measured this book at **0.68
+CAR points per basis point** of one-way cost, so a systematic 6.1 bps auction cost would be
+worth ~4.2 CAR points, and the direct substitution above found **0.149**, i.e. ~0.22 bps.
+**The 6 bps is drift.** Recorded as a reusable rule: on this sleeve an execution cost has to
+be measured with a sign, or by re-filling the book, never as an unsigned distance.
+
+**What the quotes do establish is an operational risk, not a cost.** The quoted spread at
+09:30:00 is **4.63x** the closing one sleeve-weighted - far worse than the 1.0x-2.0x range
+proxy S-23 had to use - and it is concentrated in exactly the names that need it least:
+**XLK 12.7x (5.00 bps half-spread), XLE 11.7x (6.82 bps)** against SPY 3.0x (0.28 bps). It
+decays fast (XLK 5.00 -> 1.52 bps by 09:30:30). None of that is what an MOO order pays, but
+it is precisely what a *fallback* market order would pay if the MOO were ever missed - so it
+raises the value of the clock guard S-23 already built, and it is an argument against any
+future "send a market order at the open instead" shortcut.
+
+**Decision.** Nothing promoted, nothing shipped, no default changed: `--order-type` still
+defaults to `MKT`, `champion.json`, `live/APPROVED_PAPER.md`, `live/HALT*`,
+`live/intraday_config.json` and all three scheduled tasks untouched, and the only tracked
+changes are one new script and the ledger. **The recommendation to the owner is unchanged and
+is now better supported than it was**: the surcharge S-23 could only bound is measured, it is
+about 0.22 bps against a 3.10 bps breakeven - **7% of the budget** - and the move is worth
+**+1.98 CAR points** conservatively charged. `BLOCKERS.md` is corrected in place.
+
+**Standing jobs both ran and both had no new input** (S-23 had already pooled today's session
+after the close): A-5 part 2 unchanged at 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90
+(~4.4 sessions to settle), `daily_fills.py` unchanged at 10 fills / $2.37M / +3.2 bps (se 4.5)
+with `ref_price` the previous close in 10 of 10.
+
+**Next.** The owner decision is unchanged and now fully priced; the loop has nothing further
+to add to it. `daily_fills.py` scores MOO fills against the open they aim at, and S-24 has
+now established that the open it should be scored against is the **official cross**, not the
+store's open - a one-line correction that the first post-move session will exercise.
+
 ## 2026-09-11 - S-23: the pre-open MOO path is written and verified, and the move it buys survives up to 3.1 bps of extra opening-auction cost
 
 **Hypothesis.** `BLOCKERS.md` has asked the owner since S-17 to move the daily task to a

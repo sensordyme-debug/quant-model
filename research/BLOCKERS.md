@@ -120,6 +120,46 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
     but it is now an informed call rather than a free one, and `daily_fills.py` has been extended to
     score MOO fills against the **open** they aim at, so the first post-move session measures
     whether the 1.85 was collected.
+- **Update 2026-09-11 (S-24): the assumption above is no longer an assumption. It was measured on
+  the official auction prints, it costs about 0.22 bps against the 3.10 bps you had to budget for,
+  and the move still pays.** The Alpaca key already in `live/secrets.env` serves two endpoints the
+  loop had never used - `/v2/stocks/auctions` (the official opening and closing cross prints back
+  to 2016) and `/v2/stocks/quotes` (full SIP NBBO) - so the surcharge S-23 could only bound has now
+  been priced directly rather than proxied.
+  - **One thing you should know about every "open" number in this repository.** The daily store's
+    **close is the official closing cross to the cent, on every session of all nine names** - so
+    the deployed 15:45 convention has always been marked at exactly the right price. Its **open is
+    not the opening cross**: Yahoo's daily open is the first consolidated print, and it misses the
+    primary auction by about a basis point a day (XLE by 8-11 bps on some sessions). That defect
+    lands entirely on the *pre-open* book - the one you are being asked to authorise - so it was
+    worth removing before you decide.
+  - **Re-priced at the price a real MOO order actually receives**, on 2,683 sessions (2016-2026),
+    both books fully charged, today's cost of money:
+
+    | path | CAR (fully charged) |
+    | --- | --- |
+    | the deployed 15:45 runner | **22.007%** |
+    | the pre-open MOO fix, as S-23 priced it | 24.134% |
+    | **the pre-open MOO fix at the official cross** | **23.985%** |
+
+    **+1.98 CAR points**, against +2.13 on the same window before the correction - the benchmark
+    defect costs 0.149 points, about 8% of the move, and it is the *conservative* end of a band.
+    An MOO order is matched in a single-price call auction and **does not cross a quoted spread**,
+    so the 2 bp charged to that row is an overcharge; charged nothing it earns 25.204%, i.e.
+    **+3.20 points**. The honest range is **+1.98 to +3.20, and the recommendation uses +1.98.**
+  - **The worry S-23 raised is answered and it was drift, not cost.** The opening cross sits 6.12
+    bps from the mid 30 seconds later, but the *next* 30 seconds - with no auction in them - move
+    the same names 4.10 bps, and signed the cross sits -0.21 bps from fair value with mixed signs
+    across the nine. Re-filling the whole book at the real cross cost 0.149 CAR points, i.e. ~0.22
+    bps, against the 3.10 bps you had to budget for: **7% of the budget.**
+  - **One new operational fact, and it argues for the guard rather than against the move.** The
+    quoted spread at 09:30:00 is **4.6x** the closing one (XLK **12.7x**, a 5.00 bps half-spread;
+    XLE **11.7x**, 6.82 bps) and decays within 30 seconds. That is *not* what an MOO order pays -
+    it is matched in the cross - but it is exactly what a fallback market order would pay if the
+    MOO were ever missed. So the 04:00-09:28 clock guard S-23 built is doing real work, and
+    "just send a market order at the open instead" is not a shortcut worth taking.
+  - **The ask is unchanged and still one line**: move "Quant Paper Rebalance" to a weekday time
+    before 09:28 ET and append `--order-type MOO`. Nothing has been changed.
 
 ## Open ops item for the human (2026-09-11, live alerting is dead)
 
