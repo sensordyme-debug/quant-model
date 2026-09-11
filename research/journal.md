@@ -2,6 +2,117 @@
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - F-1: the machine finds a real forecast and it is worth half its own commission
+
+- **What.** The top backlog item and the one mechanism class this loop had never tried: a
+  walk-forward gradient-boosted forecaster on the ten-year Alpaca minute store, instead of another
+  hand-designed rule. New `scripts/sweep_f1.py` (panel builder + model + book simulation +
+  falsification control), a cached 1.59M-row modelling panel (`data/f1/panel.parquet`, gitignored),
+  5 ledger rows under `intraday/f1_gbdt`. `scikit-learn` 1.9.1 installed (the backlog item allows
+  pip); nothing else in the repository changed.
+- **The setup, all of it fixed before a single fit was read.** 5-minute bars, regular session,
+  **56 tradable names** (the whole Alpaca store minus SPY/QQQ/IWM/TQQQ/UPRO/SQQQ/SPXU, which stay
+  as market features so AGENTS.md's disjointness rule holds). A decision on the close of the bar
+  starting 09:55, 10:25 ... 14:55 - **11 per session, 2,682 sessions** - filled at the next bar's
+  open and unwound 30 minutes later, so the book is flat long before the 15:38 flatten.
+  **38 features**, every one causal: returns at 5/15/30/60 min, session return, overnight gap,
+  VWAP deviation in ATR units and bps, range/ATR, realized-vol ratio, volume against the trailing
+  20-session median of the *same* time-of-day slot, position in the session range, time-of-day,
+  day-of-week, prior day's return, the SPY copies, the residual against SPY, and the
+  cross-sectional percentile rank of nine of them. **Target**: `log(open[t+7]/open[t+1])` demeaned
+  across the cross-section - what a dollar-neutral book can actually capture. **Split**: train
+  2016-2021, validate 2022-2023 (hyperparameters only), test 2024-2026 with a yearly expanding
+  retrain (year Y trained on 2016..Y-2, early-stopped on Y-1). **Book**: long the top decile,
+  short the bottom decile, gross 1.0x, rebalanced every 30 minutes, costs from
+  `intraday_common` (1.5 bps slippage + IBKR commission + the A-5 part 2 regulatory fees).
+- **Pre-registered rule**: net P&L/day positive at t > 2 pooled over 2024-2026 **and** positive in
+  at least two of the three test years.
+
+### 1. There is a signal, and it is out of sample
+
+| year | trained on | IC | IC t | gross $/day | gross t | gross bps per $ turned | net $/day | net t |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2024 | <=2022, valid 2023 | **+0.01917** | **+5.08** | +1,781 | +3.19 | **1.293** | -1,434 | -2.54 |
+| 2025 | <=2023, valid 2024 | **+0.01133** | **+2.85** | +913 | +1.69 | 0.638 | -2,582 | -4.72 |
+| 2026 | <=2024, valid 2025 | -0.00012 | -0.03 | +387 | +0.45 | 0.293 | -2,787 | -3.23 |
+| **pooled 2024-2026** | | **+0.01133** | **+4.74** | **+1,102** | **+3.04** | **0.797** | **-2,206** | **-6.02** |
+
+- The pooled out-of-sample information coefficient is **+0.0113 at t = +4.74** and the gross P&L of
+  the book it implies is **+$1,102/day at t = +3.04**. This is the **first candidate on the
+  intraday side of this repository with a positive, significant gross edge measured out of
+  sample** - O-1, L-1, X-1, A-10 and S-2 all had gross at or below zero before a cent of cost.
+- **The falsification control says the pipeline is not the source.** The identical code trained on
+  labels shuffled *within each timestamp* scores IC **+0.0031 (t +1.59)** and gross **0.071 bps**
+  per dollar turned, against the real model's 0.797 - a ninth of it, and its book loses more
+  ($-3,817/day) purely because noise turns the book over harder.
+- **A linear baseline does not find it**: ridge on the same 38 features scores validation IC
+  +0.0027 (t +0.74) against the tree's +0.0105 (t +3.34), so the edge is in the interactions.
+
+### 2. And it is worth about half of its own commission
+
+The book turns over **$13.8M/day on a $1M account** - 13.8x equity a day, 11 rebalances of a
+decile book. At that turnover the only statistic that matters is what a dollar traded earns
+against what a dollar traded costs:
+
+| cell | gross bps per $ turned | commission+fees bps | **breakeven slippage** | net $/day | net t |
+| --- | --- | --- | --- | --- | --- |
+| decile 0.04 (2 names a side) | 1.551 | 1.422 | **+0.129 bps** | -1,943 | -2.58 |
+| decile 0.10 (the pre-registered book) | 0.797 | 0.892 | **-0.095 bps** | -2,206 | -6.02 |
+| decile 0.20 | 0.513 | 0.743 | -0.229 bps | -2,361 | -9.79 |
+| decile 0.34 | 0.353 | 0.713 | -0.360 bps | -2,355 | -14.86 |
+
+- **At the pre-registered book the breakeven slippage is negative.** The signal does not cover the
+  commission and the regulatory fees *at zero spread* - this is not a question about the 1.5 bps
+  constant A-5 has been measuring, and no execution improvement can reach it.
+- The narrowest slice is the only one where gross clears commission, and it clears it by
+  **0.129 bps**. Half a cent on these names is **0.3-1.0 bps** of half-spread (S-18's tick
+  arithmetic), so the hard floor of a real fill is several times the whole surplus. Concentrating
+  further is not available either: at 2 names a side the worst day is already **-$81,038** on a
+  $1M book, past the sleeve's own 2.5% daily loss limit.
+- The ranking across deciles is the honest shape of a real but thin signal: gross bps rises
+  monotonically as the book concentrates (0.353 -> 0.513 -> 0.797 -> 1.551) while its t-statistic
+  stays flat at ~2.9-3.0. There is edge; there is not enough of it per dollar.
+
+### 3. The edge decays, which is the part that matters for a next step
+
+IC by test year runs **+0.0192 -> +0.0113 -> -0.0001** and gross bps **1.293 -> 0.638 -> 0.293**.
+The 2026 model, trained through 2024 and early-stopped on 2025, forecasts nothing. Two readings
+are available and this iteration cannot separate them: the features are being arbitraged away, or
+an expanding window trained mostly on 2016-2021 is increasingly mismatched to the current market.
+**Feature importance is stable while the edge is not** - permutation importance ranks correlate
+**0.66-0.77** across the three retrains and the top of the list is the same every year
+(`vwap_atr`, its cross-sectional rank, `vol_rel`, `rng_atr`, `cs_rvol_ratio`) - i.e. the model
+keeps reading intraday mean reversion against VWAP conditioned on relative volume, the same
+mechanism L-1 refused on leveraged ETFs, and that mechanism's *payoff* is shrinking, not the
+model's grip on it.
+
+### 4. Decision
+
+**Refused and closed. Nothing shipped.** `live/intraday_config.json`, `live/APPROVED_PAPER.md`,
+`live/HALT*` and the scheduled tasks were not touched; no file the live trader or the daily runner
+loads was modified, so AGENTS.md rule (a) owes no replay. The champion is unchanged at S-18's
+unlevered book.
+
+**Do not re-open as a feature, model or horizon question.** The refusal is not "the model is not
+good enough" - it is that a 30-minute cross-sectional forecast of this quality is worth **0.8-1.6
+bps per dollar traded** against a commission floor of **0.7-1.4 bps** before any spread at all.
+Making the model better has to move gross by a factor, not a percent. What *would* change the
+arithmetic is a lower-turnover expression of the same forecast (a horizon measured in days rather
+than 30 minutes, where the same bps of edge is spread over a hundredth of the turnover) - and that
+is the daily sleeve, where the champion already lives and where S-14 measured its cross-sectional
+edge at +2.02 bps/day. That is a genuinely new item, not a re-run of this one.
+
+### 5. Standing jobs, both with new input
+
+- **A-5 part 2** (`slippage_report.py`): **58 fills over 2 sessions, $2.64M traded**, realized
+  slippage **+2.42 bps notional-weighted (se 0.89)** against the shipped 1.50 - **|diff|/se = 1.03**,
+  still inside 2 se, so `SLIPPAGE_BPS` is untouched. Per session: 2026-09-10 32 fills +2.89 (se 1.33),
+  2026-09-11 26 fills **+1.26 (se 0.95)** - today's session pulled the pooled estimate *down* from
+  S-18's +2.42 reading on 23 fills while halving its standard error. ~5.5 sessions to settle against
+  the 2.52 bps breakeven.
+- **`daily_fills.py`**: unchanged at 6 fills / +2.9 bps (se 6.8) - the daily sleeve's 15:45 ET
+  rebalance had not run when this iteration finished.
+
 ## 2026-09-11 - S-18: the champion is now the unlevered book - same return, less risk, less leverage, 40% less commission
 
 - **What.** The top backlog item, and the first promotion since S-12. The candidate is S-16's

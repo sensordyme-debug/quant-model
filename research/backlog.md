@@ -17,6 +17,38 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 15:5x UTC (F-1): **the machine learning track finds the first positive
+out-of-sample gross edge the intraday side of this repository has ever produced, and it is worth
+about half of its own commission.** The top backlog item, and the one mechanism class the loop had
+never tried. New `scripts/sweep_f1.py` (panel builder, walk-forward GBDT, book simulation,
+falsification control), a cached 1.59M-row panel over **56 tradable names x 2,682 sessions x 11
+decision points**, 38 causal features, 5 ledger rows under `intraday/f1_gbdt`; `scikit-learn`
+1.9.1 installed. Train 2016-2021, validate 2022-2023 (hyperparameters only), test 2024-2026 with a
+yearly expanding retrain. **The signal is real**: pooled out-of-sample IC **+0.0113 at t = +4.74**
+and gross **+$1,102/day at t = +3.04**, against a falsification control (labels shuffled within
+each timestamp) at IC +0.0031 and gross **0.071 bps** per dollar turned - a ninth - and a ridge
+baseline that finds almost nothing (validation IC +0.0027 vs the tree's +0.0105), so it lives in
+the interactions. **And it is refused on arithmetic that no execution can reach**: the book turns
+**$13.8M/day on $1M**, and per dollar traded it earns **0.797 bps against 0.892 bps of commission
+and regulatory fees - at zero spread**. Breakeven slippage by decile: 0.04 **+0.129 bps**, 0.10
+**-0.095**, 0.20 -0.229, 0.34 -0.360; the one cell that clears commission does so by 0.129 bps
+against a half-cent tick worth 0.3-1.0 bps, and its worst day is **-$81,038** on a $1M book, past
+the sleeve's own 2.5% loss limit. Net **-$2,206/day at t -6.02**, 0 of 3 test years positive,
+**REFUSED** by the pre-registered rule. **The decay is the finding for the next step**: IC by test
+year **+0.0192 -> +0.0113 -> -0.0001** and gross bps **1.293 -> 0.638 -> 0.293**, while permutation
+importance is *stable* (rank correlation 0.66-0.77 across retrains, the same top features every
+year: `vwap_atr`, its cross-sectional rank, `vol_rel`, `rng_atr`) - the model keeps its grip on
+intraday VWAP reversion conditioned on relative volume and that mechanism's payoff is shrinking.
+**Nothing shipped**: `live/intraday_config.json`, `live/APPROVED_PAPER.md`, `live/HALT*` and the
+scheduled tasks untouched, no file either runner loads was modified, so rule (a) owes no replay;
+champion unchanged at S-18's unlevered book. **What it changes for the loop**: F-1 is closed and
+should not be re-opened as a feature, model or horizon question - the gap is a factor, not a
+percent. The successor it opens is **F-3**: the same supervised method at a *daily* horizon on the
+daily sleeve, where a hundredth of the turnover buys the same bps of edge. **Standing jobs both
+ran**: A-5 part 2 now has **58 fills over 2 sessions** (+2.42 bps pooled, se **0.89**, |diff|/se
+1.03 - today's 26 fills came in at +1.26 and halved the standard error; ~5.5 sessions to settle),
+`daily_fills.py` unchanged at 6 fills / +2.9 bps because the 15:45 ET rebalance had not run.
+
 Status 2026-09-11 15:1x UTC (S-18): **the champion is now the unlevered book - the first promotion
 since S-12, and the first one whose case is risk rather than return.** S-17 left (e+g) at the
 unchanged 0.75 budget as the top item with three missing pieces, each a run rather than a judgement;
@@ -802,7 +834,44 @@ mechanisms - ten refusals in 24 hours, every intraday candidate negative on 2,68
 machinery. That is a finding, not a failure. The next program has to bring NEW information,
 not new rules on the same bars. Two tracks are opened below; the second needs the owner.
 
-- **F-1 Supervised intraday forecaster on the ten-year minute store (top item).** Stop hand-
+- **F-3 The same supervised method at a DAILY horizon, on the daily sleeve (new top item, opened
+  by F-1).** F-1's refusal is arithmetic, not a verdict on machine learning: a cross-sectional
+  forecast worth 0.8-1.6 bps per dollar traded cannot survive a 0.7-1.4 bps commission floor when
+  the book turns 13.8x its equity a day. The same bps of edge spread over a *hundredth* of the
+  turnover is a different trade. Build the panel on the daily LEAN store (69 symbols, 1998-2026,
+  `scripts/fetch_data.py`; the ETF sleeve is the trusted universe - the single names are
+  survivorship-biased and must be excluded from any tradable book, features only), target = next
+  5-day or next 21-day cross-sectionally demeaned return, features the daily analogues of F-1's
+  (multi-horizon momentum, distance from moving averages in ATR units, realized-vol ratios, volume
+  against its own trailing median, the market's own features, cross-sectional ranks). Same
+  discipline as F-1 and it is what made F-1 readable: walk-forward expanding retrain, a
+  shuffled-label falsification control, a ridge baseline, and the decisive column reported as
+  **gross bps per dollar turned over against the cost floor** rather than as P&L. Judge the book
+  through LEAN (`scripts/backtest.py` + `scripts/evaluate.py`) against the champion at the same
+  cost model (S-18's `stats_by_spread` rule), at 0 bp and at 2 bp. Pre-register before fitting:
+  beats the champion on `evaluate.py`'s criteria in the 2020-2026 out-of-sample half, or it is
+  refused. **Carry F-1's three usable facts forward**: the target must be in basis points or
+  sklearn's absolute early-stopping `tol` silently stops the fit at iteration 1; early stopping
+  must use an explicit time-ordered `X_val`/`y_val`, never `validation_fraction`; and the model's
+  edge was in the interactions, so the ridge baseline is the control that says whether a tree is
+  earning its complexity.
+- **F-1 DONE 2026-09-11 (see journal): a real out-of-sample forecast - pooled IC +0.0113 at
+  t = +4.74, gross +$1,102/day at t = +3.04 - refused because it earns 0.797 bps per dollar traded
+  against a 0.892 bps commission floor at zero spread. Nothing shipped.** `scripts/sweep_f1.py`;
+  1.59M-row panel (56 tradable names, 2,682 sessions, 11 decisions/session, 38 causal features),
+  train 2016-2021 / validate 2022-2023 / test 2024-2026 with a yearly expanding retrain; 5 ledger
+  rows under `intraday/f1_gbdt`. Net **-$2,206/day at t -6.02**, **0 of 3 test years positive**.
+  Breakeven slippage by decile **+0.129 / -0.095 / -0.229 / -0.360 bps**; the only cell that clears
+  commission does so by 0.129 bps against a 0.3-1.0 bps tick and posts a **-$81,038** worst day on
+  $1M. Falsification control (labels shuffled within each timestamp) 0.071 gross bps, a ninth of
+  the model's; ridge baseline validation IC +0.0027 against the tree's +0.0105. IC decays by test
+  year **+0.0192 -> +0.0113 -> -0.0001** while permutation-importance ranks stay stable at
+  0.66-0.77 correlation, the top features being VWAP deviation, its cross-sectional rank and
+  relative volume. **Do not re-open as a feature, model, decile or retrain-frequency question** -
+  the gap between edge and cost is a factor, not a percent, and every knob inside this design was
+  measured. The successor is **F-3**, above: the same method where the turnover is a hundredth.
+- **F-1 (original text, kept for the pre-registration) Supervised intraday forecaster on the
+  ten-year minute store.** Stop hand-
   designing rules. Build a walk-forward machine-learning model on `data/minute_alpaca` for the
   50 megacaps + the 16-name universe: features per 5-minute bar (returns at 5/15/30/60 min,
   VWAP deviation, range/ATR ratios, volume vs 20-day same-time-of-day average, opening gap,
@@ -827,7 +896,20 @@ per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
 
-**Priority after S-18 (2026-09-11), in order: (1) F-1, the supervised intraday forecaster - the only
+**Priority after F-1 (2026-09-11), in order: (1) F-3, the supervised method at a daily horizon -
+F-1 proved the method finds real out-of-sample signal on this data and refused it on turnover
+arithmetic, so the next run is the same method where the turnover is a hundredth; (2) A-5 part 2
+and `daily_fills.py`, the two standing per-session measurements (A-5 part 2 is ~5.5 sessions from
+settling and now gets input every session); (3) per-session ops; (4) the owner decisions in
+`BLOCKERS.md` - the Reg-T buffer, which S-18 made more valuable, and the runner's clock, which is
+the largest unblocked number on the daily sleeve at -4.75 CAR.** The intraday sleeve has now been
+refused by a rule-based track (A-3 .. A-12), by every instrument the owner's mandate named (O-1,
+O-1b, L-1, X-1, O-2, S-2) and by a supervised model with a measurably real forecast (F-1). Its
+binding constraint is not a missing signal - it is that 13.8x daily turnover costs more than any
+30-minute forecast measured here is worth.
+
+Superseded, kept for the reasoning: **Priority after S-18 (2026-09-11), in order: (1) F-1, the
+supervised intraday forecaster - the only
 open item left with a mechanism, and the one class of model this loop has never tried; (2) A-5
 part 2 and `daily_fills.py`, the two standing per-session measurements (A-5 part 2 is ~6 sessions
 from settling and now has live input every session); (3) per-session ops; (4) the owner decisions in
