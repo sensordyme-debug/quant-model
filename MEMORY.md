@@ -3,6 +3,28 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## Every directional study needs its own inverted control (learned 2026-09-11, S-2 and A-12)
+
+- **An exit rule can manufacture the gross a signal appears to earn.** S-2's opening-range breakout
+  looked profitable on gross until the mirrored *fade* was run on the same bars: the fade earns
+  positive gross in **14 of 16 cells**. A stop plus a hold-to-close exit is convex in either
+  direction, so a coin flip collects it. Split gross into the part both signs share,
+  `(signal + inverse)/2` - **positive in all sixteen cells, +0.33 to +1.43 bps, and it is the
+  stop** - and the part the signal owns, `(signal - inverse)/2`, which peaked at **+1.09 bps
+  against a 3.65 bps round trip and was negative in 6 of 16 cells**. On TQQQ the two sides
+  finished at +$33.78 and +$33.79 a day: no direction left at all. **Run the inverted control in
+  the same pass as the signal, always** - X-1 and L-1 were saved by the same test.
+- **One session's worst pattern is not evidence about the population.** A-12 existed because the
+  2026-09-10 paper session lost 77% of a -6,779 day to a stopped-out-then-flipped trade in semis.
+  Over 44,219 round trips the `flip` re-entry is the sleeve's **only profitable trip category**
+  (+$15/trip) and **98% of the loss is in first entries**, which no re-entry filter can reach.
+  When a live day motivates a research item, label the whole population by that day's feature and
+  read the base rate *before* building the fix.
+- **A cell chosen after seeing the diagnostic is in sample, however good its t looks.** A-12's only
+  positive grid cell (`same15`, +$38/day at t +1.69) was picked after reading the gap table, is
+  worth 0.1 trades/day, and passes 0 of 3 regimes. Name it a falsification control in the write-up
+  rather than a candidate.
+
 ## Split the universe by executability, not only the sample by time (learned 2026-09-11, A-11)
 
 - **Run the holdout across names, not just across dates.** A-11 split the intraday universe into

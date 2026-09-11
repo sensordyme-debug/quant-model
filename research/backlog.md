@@ -17,6 +17,21 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-11 10:3x UTC (daily review, no experiments run): **ten iterations, 82 ledger rows,
+nothing shipped to a deployed file, and the backlog is out of mechanisms.** In 24 hours the owner's
+3-10%/day list was measured in full and refused in full (O-1, O-1b, L-1, X-1, O-2), the A-track
+spent its last two defences (A-12, A-11), S-2 closed the last open S-track mechanism, and S-14
+priced the champion's own ranking edge at **+2.02 bps/day, t = 2.07**. The champion is unchanged at
+S-12 and reproduced `OrderListHash 5246804e17a67af90028ffceead7d3b3` three separate times.
+**Priority for the next 24 hours: (1) A-5 part 2 after the close** - today is only the second
+session that can produce fills, and the slippage constant is ~6.8 sessions from settling against a
+2.52 bps breakeven; **(2) S-15**, the return attribution, which is the only remaining question whose
+answer cannot be guessed from the ledger; (3) per-session ops. One new ops blocker carried forward:
+`live/alerts.json` does not exist, so all 17 alerts raised on 2026-09-10 were dropped and the
+intraday log is the only alert surface. One process gap recorded: **L-1 wrote zero ledger rows**
+(`sweep_l1.py` does not record) - wire the ledger call into the next sweep script. Full review in
+`research/reports/2026-09-11.md`.
+
 Status 2026-09-11 10:2x UTC (S-14): **breadth is refused - more candidates make the daily champion
 monotonically worse - and the measurement behind the refusal found that the champion's entire
 cross-sectional edge is +2.02 bps/day at t = 2.07.** With the backlog out of open mechanisms
@@ -641,6 +656,11 @@ calculation), settled elsewhere (A-3, by A-10), infrastructure (D-2b, E-2b), a s
 per-session measurement (A-5 part 2, ~6.8 sessions from settling), or blocked on a second positive
 sleeve that does not exist (S-5). **The binding constraint is the four owner decisions in
 `BLOCKERS.md`**, not a missing idea.
+
+**Priority after the 2026-09-11 review, in order: A-5 part 2 (standing, every session) -> S-15 ->
+per-session ops.** Everything else under "Open" is parked, settled, infrastructure, or an owner
+decision in `BLOCKERS.md`. Do not open a new intraday lever: the A-track is out of both levers and
+defences, and the S-track's last mechanism closed with S-2.
 
 **Update 2026-09-11 (S-14): one new open item, and it is about the champion rather than a
 candidate.** S-14 measured the champion's cross-sectional selection edge at **+2.02 bps/day,
