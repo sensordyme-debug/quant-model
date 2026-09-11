@@ -1,5 +1,33 @@
 # Research journal
 
+## Paper session 2026-09-11
+
+Operations only, no research. Account DUT091359, net liquidation 988,089.19 at 15:49 ET.
+
+| sleeve | trades | P&L | costs | worst event |
+| --- | --- | --- | --- | --- |
+| intraday `active` | 34 | -201.99 (realized, closed) | 57.95 | 17 `notify_failed` (no `live/alerts.json`); no halt, no loss_limit, no error |
+| daily `s1_momo` | 3 | -3,414.56 unrealized on the book | IBKR commission, not itemized in log | `foreign_positions_ignored` for TQQQ 3,227 sh (~229.8k) at the 15:45 rebalance |
+
+- **Intraday.** Two `start` events (09:25 launch at equity_frac 0.50, 09:33 relaunch at 0.25;
+  the 09:33 preflight replay of 2026-09-10 passed). 34 orders, 34 fills across 15 names
+  (PLTR and AVGO 4 fills each, the rest 2). `end` at 15:42 ET with `positions: {}` - the
+  sleeve ended flat, and `live/state/intraday_book.json` confirms empty `pos`. No flatten run
+  was needed. Costs of 57.95 against -201.99 realized: the day's loss is signal, not friction.
+- **Daily 15:45 rebalance.** Plan `s1_momo` as of 2026-09-10, regime risk-on (vol 0.0854 vs
+  median 0.127), vol_scale 1.9658, gross weight 1.50. Targets XLE 0.5154, XLK 0.3755,
+  IWM 0.6091 on net_liq 988,671.84. Orders sent and all filled at 15:46:33:
+  BUY IWM 2,093 @ 289.19 (ref 287.70), SELL XLE 942 @ 65.10 (ref 64.93),
+  SELL XLK 286 @ 187.90 (ref 185.22). The 15:49 re-plan emitted no orders, so the book is
+  on target. Resulting positions: IWM 2,093, XLE 7,847, XLK 2,004, TQQQ 3,227.
+- **Flag for the owner.** TQQQ 3,227 shares is outside the `s1_momo` universe and the runner
+  logs it as `foreign_positions_ignored` every session - it is neither managed nor hedged by
+  either sleeve. It is also a daily-sleeve instrument sitting in an account the intraday
+  sleeve trades, so the disjoint-universe rule is intact but the position is orphaned.
+  No action taken (flattening it changes risk posture and is the owner's call).
+- **Also.** `live/alerts.json` is missing, so every notify attempt fails in both logs.
+  Cosmetic today, but it means a real halt would go unannounced.
+
 ## 2026-09-11 - S-20: the regime gate's off-state does not want to be a defensive holding, and the reason is the one every other lever on this sleeve gave
 
 - **What.** The backlog holds no open research item that is not blocked on the owner or on

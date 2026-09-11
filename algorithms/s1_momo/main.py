@@ -7,10 +7,42 @@
 # scripts/sweep_s1.py runs the in-sample / out-of-sample split and the sensitivity grid
 # without editing the file (backlog E-2).
 import os
+from pathlib import Path
 
 from AlgorithmImports import *
 
 import signals as sig
+
+#: S-21. IBKR Pro USD schedule, blended per tranche: a $600k loan pays +1.5% over the
+#: benchmark on its first $100k and +1.0% on the rest. Kept here rather than imported from
+#: scripts/rates.py because LEAN puts only the algorithm's own directory on sys.path;
+#: scripts/rates.py holds the identical constants and the docstring that sources them.
+FIN_DEBIT_TIERS = ((100_000, 1.50), (1_000_000, 1.00), (50_000_000, 0.75), (float("inf"), 0.50))
+FIN_CREDIT_SPREAD = 0.50      # credit interest is paid at benchmark - this, floored at zero
+FIN_CREDIT_MIN = 10_000.0     # and only on the balance above this
+FIN_DAY_COUNT = 360.0
+
+
+def _fin_accrual(cash, benchmark_pct, days, shift=0.0):
+    """Signed interest in dollars on a settled balance of `cash` for `days` calendar days.
+
+    Negative is a charge. Identical arithmetic to `scripts/rates.py:accrual`, which is what
+    `scripts/sweep_s21.py` prices the same book with outside LEAN.
+    """
+    if days <= 0:
+        return 0.0
+    frac = days / FIN_DAY_COUNT
+    if cash < 0:
+        owed, lower, cost = abs(cash), 0.0, 0.0
+        for upper, spread in FIN_DEBIT_TIERS:
+            tranche = max(0.0, min(owed, upper) - lower)
+            if tranche <= 0:
+                break
+            cost += tranche * (benchmark_pct + spread + shift) / 100.0 * frac
+            lower = upper
+        return -cost
+    earning = max(0.0, cash - FIN_CREDIT_MIN)
+    return earning * max(0.0, benchmark_pct - FIN_CREDIT_SPREAD - shift) / 100.0 * frac
 
 
 def _env(name, default, cast=float):
@@ -173,6 +205,45 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.slippage_bps = _env("SLIPPAGE_BPS", 0.0)
         self.signal_lag = _env("SIGNAL_LAG", 0, int)
 
+        # S-21, the third assumption of the same kind, and the only one with a sign that
+        # depends on the calendar. LEAN charges **no financing at all**:
+        # `DefaultBrokerageModel.GetMarginInterestRateModel` returns
+        # `MarginInterestRateModel.Null`, whose `ApplyMarginInterestRate` is an empty method,
+        # and `InteractiveBrokersBrokerageModel` does not override it. So a backtest of a book
+        # that carries 1.50x gross borrows 0.50x of equity for nothing, and a book sitting in
+        # cash through a risk-off episode earns nothing on it. Both are real at a broker.
+        #
+        #   S1_FINANCING       "on" accrues interest on the settled USD balance every day,
+        #                      actual/360 on *calendar* days so a weekend costs three.
+        #                      Default "off" is the champion, bit-identical.
+        #   S1_FIN_SPREAD      shift (percentage points) applied to every tier spread and to
+        #                      the credit spread, so the result can be read as a function of
+        #                      the schedule rather than of one broker's price list. -1.5 puts
+        #                      the loan at the benchmark itself.
+        #   S1_FIN_RATES       benchmark CSV (default data/rates/usd_benchmark.csv, written by
+        #                      scripts/rates.py from FRED's DFF - IBKR's USD "BM").
+        #
+        # The charge is applied to the cash book, so it flows into total_portfolio_value and
+        # therefore into the next day's share sizing: this costs return the way a real debit
+        # balance does, by compounding against the book, not as a reported statistic.
+        self.financing = os.environ.get("S1_FINANCING", "off").lower() == "on"
+        self.fin_spread = _env("FIN_SPREAD", 0.0)
+        self.fin_rates, self.fin_last_day = {}, None
+        self.fin_paid, self.fin_earned, self.fin_debit_days, self.fin_debit_sum = 0.0, 0.0, 0, 0.0
+        if self.financing:
+            import pandas as _pd
+            rel = os.environ.get("S1_FIN_RATES", "data/rates/usd_benchmark.csv")
+            path = Path(rel)
+            if not path.exists():
+                path = Path(__file__).resolve().parents[2] / rel
+            frame = _pd.read_csv(path)
+            self.fin_rates = dict(zip(frame["date"].astype(str), frame["rate_pct"].astype(float)))
+            if not self.fin_rates:
+                raise ValueError(f"S1_FINANCING=on but {path} holds no rates")
+            self.fin_first, self.fin_final = min(self.fin_rates), max(self.fin_rates)
+            self.log(f"FINANCING on: {len(self.fin_rates):,} benchmark days "
+                     f"{self.fin_first}..{self.fin_final} spread_shift={self.fin_spread:+.2f}pp")
+
         self.symbols = {}
         for ticker in sig.traded_universe(self.params):
             equity = self.add_equity(ticker, Resolution.DAILY)
@@ -310,6 +381,38 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         for symbol in sorted(deltas, key=lambda s: deltas[s]):   # sells before buys
             self.market_order(symbol, deltas[symbol])
 
+    def accrue_financing(self):
+        """Charge one day's interest on the settled USD balance (S-21).
+
+        Called from `on_data`, before the rebalance, so the day's sizing already sees
+        yesterday's financing. Days are *calendar* days since the last accrual, which is how
+        a broker bills: a Friday debit balance is charged three days of interest by Monday.
+        The benchmark table is forward-filled by `scripts/rates.py`, and a date past the end
+        of it holds the last published rate rather than silently accruing nothing - the store
+        ends at FRED's last publication, a few days behind a backtest that runs to today.
+        """
+        day = self.time.date()
+        if self.fin_last_day is None:              # first live bar: start the clock, no charge
+            self.fin_last_day = day
+            return
+        days = (day - self.fin_last_day).days
+        if days <= 0:
+            return
+        self.fin_last_day = day
+        cash = float(self.portfolio.cash_book["USD"].amount)
+        stamp = min(max(day.isoformat(), self.fin_first), self.fin_final)
+        benchmark = self.fin_rates[stamp]
+        interest = _fin_accrual(cash, benchmark, days, self.fin_spread)
+        if cash < 0:
+            self.fin_debit_days += 1
+            self.fin_debit_sum += -cash / max(1.0, float(self.portfolio.total_portfolio_value))
+        if interest < 0:
+            self.fin_paid -= interest
+        else:
+            self.fin_earned += interest
+        if interest:
+            self.portfolio.cash_book["USD"].add_amount(interest)
+
     def rebalance(self):
         if self.is_warming_up:
             return
@@ -367,6 +470,9 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
             self.max_observed_gross = max(self.max_observed_gross, gross / equity)
             self.max_observed_margin = max(self.max_observed_margin, margin / equity)
 
+        if self.financing and not self.is_warming_up:
+            self.accrue_financing()
+
         if not self.is_warming_up and data.bars.contains_key(self.symbols["SPY"]):
             self.rebalance()
 
@@ -385,3 +491,9 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
                   if self.params.margin_budget_cap > 0 else str(self.params.margin_budget))
         self.log(f"max initial margin actually used: {self.max_observed_margin:.3f} "
                  f"(budget {budget})")
+        if self.financing:
+            days = max(1, self.fin_debit_days)
+            self.log(f"financing: paid ${self.fin_paid:,.2f} earned ${self.fin_earned:,.2f} "
+                     f"net ${self.fin_earned - self.fin_paid:,.2f} on {self.fin_debit_days} "
+                     f"debit days, mean debit {self.fin_debit_sum / days:.3f}x equity "
+                     f"(spread shift {self.fin_spread:+.2f}pp)")

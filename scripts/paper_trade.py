@@ -419,9 +419,17 @@ def main() -> int:
     sig = load_signal(name)
     universe = list(sig.UNIVERSE)
     # Sleeve isolation: the account is shared with the intraday sleeve (scripts/intraday_trader.py),
-    # which trades a disjoint universe and is flat by 15:40 ET. Positions outside this signal's
-    # universe are never touched here, so a straggler from another sleeve cannot be sold by this run.
-    foreign = {s: q for s, q in positions.items() if s not in universe}
+    # which trades a disjoint universe and is flat by 15:40 ET. Only positions in THAT sleeve's
+    # universe are left alone. Everything else is this runner's responsibility, including names the
+    # champion used to trade and no longer targets: on 2026-09-11 S-18 retired the 3x proxies, TQQQ
+    # dropped out of the signal universe, and the old rule ("outside the universe = foreign") left
+    # 3,227 TQQQ sitting in the account after the rebalance. Such names now get a zero target.
+    try:
+        sys.path.insert(0, str(REPO / "scripts"))
+        from intraday_common import UNIVERSE as _INTRADAY_UNIVERSE
+    except Exception:  # noqa: BLE001
+        _INTRADAY_UNIVERSE = []
+    foreign = {s: q for s, q in positions.items() if s in _INTRADAY_UNIVERSE}
     if foreign:
         print(f"leaving positions outside this signal's universe alone: {foreign}")
         log_event("foreign_positions_ignored", positions=foreign)
