@@ -43,6 +43,20 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   **(c)** name a drawdown you are willing to carry and let the loop solve for the budget under it.
   Nothing has been changed pending your answer, and this is a size decision, so the loop will not
   take it on its own.
+- **S-15 evidence added 2026-09-11: this question is now the highest-value lever left on the daily
+  sleeve, and a second risk-posture dial sits beside it.** The attribution run (full period,
+  `scripts/sweep_s15.py`) shows the vol target plus the margin budget produce **71% of the
+  champion's return** - the nine ETFs held equal-weighted and unlevered, with no ranking and no
+  regime filter, earn **17.282% CAR** against the shipped 24.404%, and the entire signal stack is
+  worth +7.12 CAR at t = 1.37. Every signal lever the loop can still pull is smaller than the
+  scatter on this constant.
+- **The second dial is the 3x proxies.** Holding the same signal in the unlevered parents instead
+  of UPRO/TQQQ/TMF gives **23.128% CAR at Sharpe 0.950, drawdown 23.6%, std 0.153, PSR 27.4% and
+  $25,646 of fees** against the champion's 24.404% / 0.921 / 25.1% / 0.170 / 23.0% / $45,695 -
+  **better on every risk-adjusted measure and on cost, for 1.28 points of CAR.** So the leveraged
+  sleeve is not buying edge, it is buying volatility (the same thing L-1 found intraday), and
+  whether to keep paying for it is the same kind of decision as the budget above. The loop has
+  changed nothing; `S1_PROXY=off` exists only as a research override and defaults to the champion.
 
 ## Open request to the owner (2026-09-10, intraday sleeve - supersedes the size half of the 2026-09-09 item)
 
