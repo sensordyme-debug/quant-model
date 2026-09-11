@@ -168,6 +168,22 @@ then the owner decisions in `BLOCKERS.md`.
 
 Newest entry first. Each entry: what was tried, why, the result, the decision, the next step.
 
+## 2026-09-11 - Ops: the S-18 rotation left 3,227 TQQQ in the account; fixed and sold before the close
+
+- **What happened.** S-18 retired the 3x proxies, so TQQQ dropped out of the champion's signal
+  universe. At 15:45 the daily runner bought IWM and trimmed XLE/XLK to the new targets but did
+  not sell TQQQ: its sleeve-isolation rule treated any position outside the signal universe as
+  another sleeve's and left it alone. The account carried the intended 1.5x book plus a stale
+  $230k TQQQ position for seven minutes.
+- **Fix (scripts/paper_trade.py).** Only positions in the intraday sleeve's universe
+  (`intraday_common.UNIVERSE`) are foreign now; every other held name is this runner's and gets a
+  zero target when the champion stops naming it. History is fetched for held names outside the
+  universe so they have a price. Re-run at 15:51: SELL 3,227 TQQQ filled at 71.06. Deploy gate
+  (`compare_orders.py`) re-run afterwards: PASS.
+- **Lesson.** A champion that changes its universe changes what "foreign" means. Any future
+  universe change must be followed by a `--dry-run` that shows the retired names with a zero
+  target before the 15:45 session.
+
 ## 2026-09-11 - S-19: the deployed runner's clock costs 1.9 CAR points, not 4.75, and two thirds of the correction is the promotion that already happened
 
 - **What.** The largest unblocked number on the daily sleeve is the one in `BLOCKERS.md` asking the

@@ -434,7 +434,10 @@ def main() -> int:
         print(f"leaving positions outside this signal's universe alone: {foreign}")
         log_event("foreign_positions_ignored", positions=foreign)
         positions = {s: q for s, q in positions.items() if s in universe}
-    closes = fetch_history_yf(universe) if (args.history == "yfinance" or ib is None) else fetch_history_ib(ib, universe)
+    # History for the signal universe PLUS any held name outside it, so a position the champion no
+    # longer targets still has a price and can be sold to its zero target.
+    fetch_syms = list(universe) + [s for s in positions if s not in universe]
+    closes = fetch_history_yf(fetch_syms) if (args.history == "yfinance" or ib is None) else fetch_history_ib(ib, fetch_syms)
     missing = [s for s in universe if s not in closes.columns or closes[s].dropna().empty]
     if missing:
         print(f"warning: no history for {missing}")
