@@ -3,6 +3,103 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## Price the harness before pricing the strategy (learned 2026-09-11/12, S-17 + S-19 + S-21 + S-22)
+
+- **LEAN charges neither spread nor financing, and cannot express the deployed runner's clock.**
+  `DefaultBrokerageModel` returns `NullSlippageModel` and `GetMarginInterestRateModel` returns
+  `MarginInterestRateModel.Null` (an empty `ApplyMarginInterestRate` body, not overridden by the
+  IB model). The engine also cannot fill at the close of the session it decided in, which is what
+  the 15:45 runner does. So a headline from `backtest.py` is a **zero-cost, wrong-clock** number.
+- **The three defects are INDEPENDENT and may be priced one at a time.** S-22 pre-registered the
+  factorial before any cell ran: the LEAN triple prints 18.785% against a multiplicative null of
+  18.811, every pairwise interaction inside 0.021 CAR points. Compose corrections; do not re-run
+  the grid.
+- **The champion's headline is 24.403% and its honest deployed expectation is ~20%** (19.640% in
+  LEAN units, 19.415% at today's cost of money). Read every figure in `champion.json` against that.
+  This is not a defect and nothing is broken - the paper account has paid all three since its first
+  fill; the only thing that was wrong was the expectation.
+- **Financing is out-of-sample weighted.** 82% of the whole sample's interest was incurred in
+  2023-2026, so the historical drag (-1.32 CAR) understates the forward one (~2.0 at 3.63%).
+  Half is the irreducible cost of money; half is the broker's markup, which a larger account pays
+  less of.
+- **Keep the ledger on one scale.** `S1_SLIPPAGE_BPS`, `S1_FINANCING` and `S1_SIGNAL_LAG` all
+  default off/0, and `evaluate.py` **refuses** a run recorded at a cost model with no matching
+  champion column rather than judging it against the wrong one.
+- **The daily store's close IS the official closing cross to the cent** on all nine sleeve names
+  (S-24, 2,683 sessions). Its **open is not** - Yahoo's open is the first consolidated print and
+  misses the primary auction by ~1 bp (XLE by 8-11 on some sessions). Any pre-open result must be
+  re-filled at the real cross before it is quoted.
+
+## A risk switch is not a forecasting problem (learned 2026-09-12, S-29)
+
+- **A strictly better volatility forecast made a strictly worse crisis gate.** Against the next 21
+  sessions' realized vol, log-log corr is 0.4985 for the shipped trailing-realized estimate, 0.6361
+  for VIX and 0.6857 for SPY ATM implied - and swapping the input in cost **-2.612 bps/day at
+  t -3.06** with the off-rate held fixed (the pre-registered column that kills the "it is just more
+  exposure" explanation).
+- **Why**: vol peaks coincide with the sharpest rebounds. On an ungated reference book every
+  session earns +10.01 bps, the sessions the realized gate removes earn +8.72, the sessions VIX
+  removes earn +20.07, and **the 60 sessions VIX removes that realized does not earn +36.56**. A
+  realized switch is valuable **because it is late**: it is a trailing stop denominated in
+  volatility, acting on damage already done. A forward-looking input converts it into an
+  anti-predictive "risk-off above the median" filter.
+- **The placebo is the tell**: making VIX five sessions **stale** - deliberately destroying a third
+  of its forecast advantage - made the book **better**. When a worse input gives a better book,
+  nothing is being paid for forecast quality and the mechanism is not what you wrote down.
+- **The crisis switch is the only thing keeping the daily book inside its own risk mandate**:
+  removing it is +2.68 CAR for **+12.9 points of drawdown** (DD 36.9%, past the 35% absolute cap).
+  Its 1.50 threshold is a **shelf, not a spike** (Sharpe maximum, neighbours within 1.4 CAR points).
+
+## An attribution is not a signal recipe (learned 2026-09-12, S-25 -> S-28)
+
+- **Where the daily champion is paid**: **+8.103 bps/day overnight (t +6.80), 94% of the total**,
+  against **+0.738 intraday (t +0.47)**; against a same-gross always-invested control the ranking
+  adds **+3.087 bps/day overnight (t +4.20)** and **-0.314 intraday (t -0.37)**, in both halves.
+  The leg that pays 94% of the return carries 61% of the risk. Ruled out rather than assumed:
+  dividends (price-only the excess is *larger*) and the Yahoo open (official crosses agree).
+- **The obvious inference is wrong.** Ranking on the leg that pays does **not** rank better: the
+  close-to-close score and the overnight score have the same rank IC on the next overnight leg
+  (+0.0574, t +7.25 / +7.32), but the quantity the book actually collects - the top-3-minus-EW
+  spread - is **+2.106 bps/day for the shipped score against +1.311** for the overnight one, in
+  both halves and on 45% less turnover. **The leg that pays is better forecast by the whole trend
+  than by its own history.**
+- **A candidate that spends turnover on what the book holds between the open and the close is
+  spending it where fourteen years of evidence measure zero.** That is the standing rule the split
+  leaves behind.
+- **The one place it does change the book is the risk model, not the signal** (S-28): sizing on a
+  level-matched overnight vol estimate is a **dead heat in return (t -0.08) for 2.1 points less
+  drawdown** - refused by 0.027 CAR points under a return-first rule, and filed as an owner option.
+- **Isolating a leg by trading the equity book is arithmetically dead**: 1,248x equity of annual
+  turnover, negative **before** a cent of cost. The only viable route is an overlay.
+
+## The four ways a candidate dies, and why the mode matters (learned 2026-09-11/12, F-track + S-track)
+
+- **Cost** (F-1, X-1, L-1, O-2): real gross edge, smaller than the round trip. *A cheaper
+  instrument can rescue this - but only if the gross sign is right at |t| > 2.*
+- **Sign** (F-4, S-2, A-12): the gross is the opposite of the premise. A cheaper instrument buys a
+  **smaller loss**, not a profit. F-4 and F-5 between them withdrew both signs of the intraday
+  day-move mechanism; what survives is only the **cost table** (a property of the contract).
+- **Absence** (F-6, F-5): nothing is there in either direction before costs. 0 of 336 net, 156 of
+  168 gross columns the wrong sign, largest |t| anywhere 2.08. Do not re-open on a parameter.
+- **Risk** (S-26, S-28): the edge clears the instrument and the book is refused on drawdown or by a
+  return-first rule. **These are the only refusals that are the owner's to overturn**, and they
+  belong in `BLOCKERS.md` with a price tag, not in the backlog.
+- **A post-hoc result measured on nine correlated ETFs is a hypothesis about that universe, not
+  about the mechanism.** S-27's by-product (overnight score forecasting the next intraday leg at
+  t -3.30) vanished completely on the 56 permitted names (F-6). A by-product filed from one sleeve
+  **owes a transport test** before it becomes a lead on another.
+
+## Default-inert hooks are how to price a shipped algorithm without editing it (learned 2026-09-11/12)
+
+- Four now exist in the shipped `signals.py`, all unset in every deployed path: `S1_ML_SCORES`
+  (F-3, ranking), `S1_VOL_RETURNS` (S-28, the vol target's return window), `S1_REGIME_SERIES`
+  (S-29, the crisis gate's input), plus `S1_SLIPPAGE_BPS` / `S1_SIGNAL_LAG` / `S1_FINANCING`.
+- **The discipline that makes them safe**: after every edit, re-run **both** deploy gates -
+  `compare_orders.py` (3,689/3,689 at 5,021 orders) **and** a full LEAN control reproducing
+  `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3` - and quote an **identity cell** in the harness
+  (the deployed book is 22.192150% / 5,052 orders; the leg identity holds to 2.2e-16).
+- Prefer a scale-free hook where possible (S-29's gate reads a level, so no constant is re-tuned).
+
 ## Judge a signal by its edge per dollar turned over, not by its IC (learned 2026-09-11, F-1 + F-3)
 
 - **The supervised track is closed, on both sleeves, and the reason is arithmetic.** A

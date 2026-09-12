@@ -17,6 +17,16 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+**Review 2026-09-12 06:30 ET (`research/reports/2026-09-12.md`).** The objective above is now
+answerable on its own terms. (1) *Make the intraday sleeve honest, or retire it*: the gate hunt is
+finished - O-1 refused, A-11/A-12 refused, and F-6 removed the last intraday mechanism with a
+permitted instrument (0 of 336, refused on **absence**). What is left is A-5 part 2, which is 1-2
+sessions from settling the slippage constant; when it settles, the loop should **say the sleeve
+cannot be validated and hand the owner (b)**, not look for another lever. (2) The daily sleeve's
+leg-split program (hold / rank / size) closed with S-28, and S-29 closed the regime question. The
+one untried construction is **S-30** below. (3) The honest deployed expectation of the daily
+champion is **~20% CAR, not 24.4%** - see `champion.json`'s `deployed_expectation_note`.
+
 Status 2026-09-12 09:4x UTC (S-29): **the market's volatility forecast is a quarter better than
 the book's own and makes a measurably worse crisis switch - the sessions VIX removes are worth
 twice the average session, and with the exposure held fixed the swap costs 2.6 bps a day at
@@ -1595,6 +1605,67 @@ ranking. A sweep rejection is therefore grounds for one LEAN confirmation run, n
 an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
+
+**Reprioritized at the 2026-09-12 daily review.** Twenty-one iterations closed in the previous 24
+hours (S-15..S-29, F-1..F-6), one promotion (S-18), and **both** tracks are now out of mechanisms
+with a stated premise and a permitted instrument. The four genuinely open research items are below;
+everything under them is a closed record. The binding constraint on this repository is **six owner
+decisions in `BLOCKERS.md`**, three of which are now priced to the basis point and two of which
+cost nothing to take.
+
+- **S-30 (NEW, top of the list) - the overnight-only book done properly, as a DELTA book.** Every
+  result of 2026-09-12 points at the same lever and nobody has pulled it: 94% of this book's return
+  and all of its measurable alpha is overnight (S-25), 61% of its variance is the intraday leg that
+  pays nothing, S-26 tried to remove that leg with futures (refused on drawdown, needs owner
+  consent) and S-28 tried to re-measure it (refused by 0.027 CAR). The untried route is **not
+  holding the intraday leg at all**: in the market close-to-open, flat during the session, sized up
+  to the deployed book's own realized volatility.
+  **Why it is not already refused.** S-25 priced an overnight-only book at **1,248x equity of
+  annual turnover and negative before a cent of cost** - but that was a *full round trip on every
+  name every session*. The version worth pricing holds the same targets overnight and trades only
+  the **delta** at the open and the close, which is a different turnover figure entirely (the
+  deployed book turns over ~196x/yr in total).
+  **Pre-register the arithmetic FIRST, before any book is run**: compute the delta-book turnover
+  from the shipped target series, multiply by the round trip, and compare it to the +3.087 bps/day
+  same-gross overnight excess. **If the breakeven is past 2 bp, refuse it on the spot and write
+  that down** - that is a one-hour result and it is worth having either way. Only if it clears does
+  a book get run, on `sweep_s25.legs_simulate` with the identity cell quoted (22.192150% / 5,052
+  orders) and both deploy gates unchanged. Charge 2 bp + IBKR Pro financing; judge on the deployed
+  19.640% / 1.047 / DD 24.037 and the 35% absolute limit.
+  **What would make it interesting rather than merely positive**: it is the only construction on
+  file that could deliver S-26's risk reduction **without** futures, owner consent or a Reg-T
+  decision - i.e. it would move a refused-on-risk result into the loop's own authority.
+
+- **A-5 part 2 (STANDING, and now has an end condition that is close).** Measured intraday fill
+  slippage against the harness's 1.50 bps assumption and the sleeve's **2.52 bps** breakeven. As of
+  2026-09-10: **32 fills, +2.89 bps, se 1.33**. 2026-09-11 added **34 fills** that have not been
+  folded in. **Re-quote the mean and standard error every session.** When the constant is pinned to
+  within two standard errors there is no further information the intraday sleeve can produce, and
+  `BLOCKERS.md` item 6 ((a) keep at reduced size / (b) retire to `equity_frac` 0.0) becomes
+  answerable. **Say so when it is, rather than finding a twelfth lever** - that is the Current
+  objective's own instruction and F-6 removed the last candidate it applied to.
+
+- **S-17 part 2 (STANDING).** The same measurement on the *daily* sleeve. Four sessions of fills
+  now exist and `ref_price` has matched the previous session's close in **13 of 13**, which is the
+  standing evidence for `BLOCKERS.md` item 1. It prices the 2 bp column in `stats_by_spread`
+  directly, and after the pre-open move it also scores MOO fills against the **open** they aim at
+  (`daily_fills.py`, extended in S-23), which is how the +1.98 gets confirmed or refuted live.
+
+- **I-2 (NEW, ops, small).** The three scheduled tasks and the two runners are healthy, but the
+  window produced two live defects that were only caught by reading logs by hand (the S-18 TQQQ
+  orphan, fixed in `c34ff7b`; the intraday book's P&L not resetting on session rollover, fixed in
+  `c16cca4`). With `live/alerts.json` still missing (`BLOCKERS.md` item 2) the log files are the
+  only alert surface. **A one-page end-of-session assertion pass over `live/log/<date>.jsonl` and
+  `live/log/intraday-<date>.jsonl`** - flat at 15:38 ET, no `foreign_positions_ignored`, no
+  `error`, fills reconcile to the plan, P&L reset on rollover - would catch the next one on the day
+  rather than at the next review. It does **not** need the alerts credential; it can write its
+  verdict to the journal and the dashboard.
+
+**Explicitly NOT to be re-opened** (each carries a do-not-re-open clause in its own entry, and each
+was refused on a grid that spans the obvious knobs): S-27 as a ranking/score question, S-28 as an
+estimator/window/level-match/leg question, S-29 as a threshold/staleness/instrument/implied-series
+question, F-4/F-5/F-6 as an entry-minute/lookback/selection/exit/book question, and any daily
+candidate that spends turnover on what the book holds between the open and the close (S-25's rule).
 
 - **S-29 DONE 2026-09-12 (see journal): refused - and it is the first refusal here where the
   input was IMPROVED on its own terms and the book got worse. A risk switch is not a
