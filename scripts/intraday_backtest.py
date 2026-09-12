@@ -14,6 +14,11 @@ Mechanics (identical to scripts/intraday_trader.py):
   * per-symbol and gross caps come from the strategy; the framework adds the daily loss limit
     (flatten and stop for the day) and the end-of-day flatten at FLATTEN_MINUTE;
   * equity is marked to the bar close; daily P&L is booked on the session's last bar.
+AUD-21 (2026-09-12): a pending order whose symbol prints no bar at the fill minute is now held on
+the wire until it does (`--legacy-fills` restores the old decision-close fill), sizing nets what is
+already pending exactly as the live trader does, `RISK["nav_frac"]` lets the loss limit be measured
+against account NAV rather than sleeve equity, drawdown is reported on the intraday path as well as
+the end-of-day marks, and turnover is a fraction of average rather than starting equity.
 Records a line in research/experiments.jsonl with algorithm "intraday/<strategy>".
 """
 from __future__ import annotations
@@ -42,6 +47,32 @@ if str(REPO) not in sys.path:
 from base import features  # noqa: E402
 
 
+def validate_bars(bars: dict, strict: bool = True) -> None:
+    """Refuse to research on a store that fails validation. Part 17 / AUD-13.
+
+    Runs before any session is simulated. A FAIL - a zero or NaN price, a bar on a market
+    holiday, a duplicate timestamp, a tz-naive index - stops the run, because a result
+    computed on a broken store is worse than no result: it enters the ledger and gets
+    compared against. WARNs (zero-volume bars, intraday gaps, after-hours rows on an early
+    close) are printed and the run continues, since the caller may legitimately accept them.
+    """
+    try:
+        from quant_brain.core.dataquality import Severity, validate_store
+        from quant_brain.markets.equity_us import CALENDAR
+    except Exception as exc:  # noqa: BLE001 - never let the validator be the outage
+        print(f"[data] validation unavailable ({type(exc).__name__}); continuing unvalidated")
+        return
+    rep = validate_store(bars, CALENDAR)
+    for f in rep.of(Severity.WARN):
+        print(f"[data] {f.line().strip()}")
+    if rep.failed:
+        for f in rep.of(Severity.FAIL)[:10]:
+            print(f"[data] {f.line().strip()}")
+        if strict:
+            raise SystemExit(f"[data] REFUSED: {rep.summary()}")
+    print(f"[data] {rep.summary()}")
+
+
 def flatten_minute_for(day) -> int:
     """The bar index at which to start flattening on THIS session. AUD-07.
 
@@ -67,10 +98,24 @@ EXPERIMENTS = REPO / "research" / "experiments.jsonl"
 #: change means editing scripts/intraday_common.py and replaying a session (AGENTS.md rule a).
 #: `part_cap` is A-11's participation cap and is 0.0 = OFF in the shipped constants, i.e. the live
 #: trader has no such cap and this default reproduces every prior A-track run bit for bit.
+#: `nav_frac` is AUD-21: the LIVE loss limit is -2.5% of the ACCOUNT NAV while the harness's P&L
+#: is the sleeve's, so at the deployed equity_frac of 0.25 the live limit is 4x looser than the
+#: one this harness enforced. Setting `nav_frac` to the deployed equity_frac makes the two the
+#: same rule; 1.0 (the default) is the pre-2026-09-12 behaviour and keeps every earlier row exact.
 RISK = {"daily_loss_limit": DAILY_LOSS_LIMIT, "per_symbol_hard_cap": PER_SYMBOL_HARD_CAP,
         "gross_hard_cap": GROSS_HARD_CAP, "min_change": MIN_CHANGE, "flatten_minute": FLATTEN_MINUTE,
-        "part_cap": 0.0}
+        "part_cap": 0.0, "nav_frac": 1.0}
 SHIPPED_RISK = dict(RISK)
+
+#: AUD-21: how a pending order is filled when the symbol has no bar at the fill minute.
+#: "next_bar" (the default from 2026-09-12) carries the order until the symbol actually prints and
+#: fills it at that bar's open - the live trader's behaviour, since an order on the wire stays on
+#: the wire. "decision_close" is what the harness did before: it filled at the DECISION bar's own
+#: close, a zero-latency fill at a price that minute never traded, and silently DROPPED the order
+#: when the symbol had not printed at all yet that session. 5.5% of the Alpaca store's minute cells
+#: and 0.6% of the IBKR store's are missing, so this is not a corner case. Kept only to reproduce
+#: rows already in research/experiments.jsonl (`--legacy-fills`).
+FILL_MODEL = "next_bar"
 
 
 def set_slippage(bps: float | None) -> float | None:
@@ -140,7 +185,7 @@ class Book:
 
 def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, float], equity: float,
                       day: dt.date | None = None, caps: dict[str, float] | None = None,
-                      clipped: list | None = None):
+                      clipped: list | None = None, pending: dict[str, int] | None = None):
     """Same sizing rules as scripts/intraday_trader.py:Trader.targets_to_orders.
 
     The whole-share floor is applied at the price that was really quoted, not the adjusted one:
@@ -153,12 +198,19 @@ def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, f
     no-trade band is still tested on the *desired* delta - the strategy re-decides every minute, so
     a clipped order is worked over several bars rather than suppressed - and the clip is applied to
     what actually executes. `caps=None` (the default) is the shipped, uncapped behaviour.
+
+    AUD-21/AUD-06: `pending` is what is already on the wire and not yet filled. The live trader
+    sizes against `book.pos + pending` (intraday_trader.py:562) so a delta that has been sent but
+    not booked is not sent again; under FILL_MODEL "next_bar" an order can now survive more than
+    one bar in the harness too, so the harness must net it the same way. `pending=None` is the
+    pre-2026-09-12 behaviour, where the dict was cleared every bar and could not survive.
     """
     orders = {}
     cap, gross_cap, min_change = RISK["per_symbol_hard_cap"], RISK["gross_hard_cap"], RISK["min_change"]
     gross = sum(abs(w) for w in targets.values())
     scale = min(1.0, gross_cap / gross) if gross > gross_cap else 1.0
-    for sym in set(targets) | set(book.pos):
+    wire = pending or {}
+    for sym in set(targets) | set(book.pos) | set(wire):
         px = prices.get(sym)
         if not px or px <= 0:
             continue
@@ -170,7 +222,7 @@ def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, f
             tgt = int(tgt) if f == 1.0 else tgt
         else:
             tgt = 0
-        cur = book.pos.get(sym, 0)
+        cur = book.pos.get(sym, 0) + wire.get(sym, 0)
         delta = tgt - cur
         if delta and (abs(delta) * px >= min_change * equity or tgt == 0):
             if caps is not None:
@@ -214,6 +266,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
         idx = {s: 0 for s in fd}
         vrow = {s: v.loc[day] for s, v in vlim.items() if day in v.index} if part_cap else None
         eq_open = book.value({s: f["o"].iloc[0] for s, f in fd.items()})
+        eq_low = eq_open
         stopped = False
         stop_minute = -1
         pending: dict[str, int] = {}
@@ -229,23 +282,34 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
                     cur_rows[s] = j
             # 1) fill pending orders at this bar's open
             if pending:
+                carried = {}
                 for s, delta in pending.items():
                     j = cur_rows.get(s)
-                    if j is None:
-                        continue
-                    row = fd[s].iloc[j - 1]
-                    if row.name != t:          # no bar for this symbol at t; fill at last close
+                    row = fd[s].iloc[j - 1] if j else None
+                    if row is None or row.name != t:
+                        # AUD-21: this symbol printed no bar at t. The order is on the wire, so
+                        # it stays there until the symbol trades again; the old harness instead
+                        # booked it at the DECISION bar's own close (zero latency, a price that
+                        # minute never showed) or, when the symbol had not printed at all yet,
+                        # dropped it in silence.
+                        if FILL_MODEL == "next_bar":
+                            carried[s] = delta
+                            continue
+                        if row is None:
+                            continue
                         px = float(row["c"])
                     else:
                         px = float(row["o"])
                     book.fill(t, s, delta, px)
                     orders_total += 1
-                pending = {}
+                pending = carried
             closes = {s: float(fd[s].iloc[j - 1]["c"]) for s, j in cur_rows.items()}
             equity = book.value(closes)
+            eq_low = min(eq_low, equity)      # AUD-21: the drawdown path, not just its EOD marks
             minute = int((t.hour - 9) * 60 + t.minute - 30)
-            # 2) risk: daily loss limit, end-of-day flatten
-            if not stopped and equity - eq_open <= -RISK["daily_loss_limit"] * eq_open:
+            # 2) risk: daily loss limit, end-of-day flatten. AUD-21: the live limit is a fraction
+            # of ACCOUNT NAV, which is the sleeve's equity divided by `nav_frac`.
+            if not stopped and equity - eq_open <= -RISK["daily_loss_limit"] * eq_open / RISK["nav_frac"]:
                 stopped = True
                 stop_minute = minute
                 if verbose:
@@ -258,7 +322,16 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             # the order placed now fills at the NEXT bar's open, so it is worked in minute + 1
             caps = ({s: part_cap * float(r.get(minute + 1, float("nan")))
                      for s, r in vrow.items()} if vrow is not None else None)
-            pending = targets_to_orders(targets, book, closes, equity, day, caps, clipped)
+            if FILL_MODEL == "next_bar":
+                new = targets_to_orders(targets, book, closes, equity, day, caps, clipped, pending)
+                for s, d in new.items():
+                    q = pending.get(s, 0) + d
+                    if q:
+                        pending[s] = q
+                    else:
+                        pending.pop(s, None)
+            else:
+                pending = targets_to_orders(targets, book, closes, equity, day, caps, clipped)
             if minute >= flat_minute and book.pos and not pending:
                 pending = {s: -q for s, q in book.pos.items()}
                 if caps is not None:   # the flatten is worked too: 22 bars exist between 15:38 and the close
@@ -280,6 +353,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             orders_total += 1
         eq_close = book.value({})
         daily.append({"day": day, "pnl": eq_close - eq_open, "ret": eq_close / eq_open - 1.0, "equity": eq_close,
+                      "low": min(eq_low, eq_close),
                       "trades": sum(1 for tr in book.trades if tr["t"].date() == day), "stopped": stopped,
                       "stop_minute": stop_minute})
     elapsed = time.time() - t0
@@ -314,8 +388,21 @@ def summarize(daily, book: Book, equity0: float, elapsed: float):
     cagr = (1 + total_ret) ** (252 / n) - 1.0 if n else float("nan")
     wins = [t for t in book.trades]
     per_day_trades = d["trades"].mean()
-    turnover = sum(abs(t["qty"]) * t["px"] for t in book.trades) / equity0 / n if n else 0
+    # AUD-21: turnover is a fraction of the equity that was actually working, not of the equity the
+    # book started with eleven years ago. On a book that grows or shrinks the two differ by the
+    # growth factor and the old number flattered a losing book.
+    eq_mean = float(np.mean(np.concatenate([[equity0], eq])))
+    turnover = sum(abs(t["qty"]) * t["px"] for t in book.trades) / eq_mean / n if n else 0
+    # AUD-21: the drawdown path includes the intraday troughs, not only the end-of-day marks. The
+    # EOD figure is kept under its old name so ledger rows stay comparable.
+    if "low" in d:
+        path = np.empty(2 * n + 1)
+        path[0], path[1::2], path[2::2] = equity0, d["low"].values, eq
+        dd_intra = float((path / np.maximum.accumulate(path) - 1.0).min())
+    else:
+        dd_intra = dd
     return {
+        "max_drawdown_intraday_pct": -dd_intra * 100,
         "sessions": n, "net_profit_pct": total_ret * 100, "cagr_pct": cagr * 100, "sharpe": sharpe,
         "max_drawdown_pct": -dd * 100, "avg_daily_pnl": d["pnl"].mean(), "daily_pnl_std": d["pnl"].std(ddof=1) if n > 1 else 0,
         "best_day": d["pnl"].max(), "worst_day": d["pnl"].min(), "win_days_pct": (d["pnl"] > 0).mean() * 100,
@@ -331,7 +418,8 @@ def print_summary(name: str, s: dict, label: str = ""):
         return
     print(f"\n=== {name} {label} ({s['sessions']} sessions, {s['elapsed_s']:.0f}s) ===")
     keys = [("net_profit_pct", "net profit %", "{:.2f}"), ("cagr_pct", "annualized %", "{:.1f}"),
-            ("sharpe", "Sharpe (daily)", "{:.2f}"), ("max_drawdown_pct", "max drawdown %", "{:.2f}"),
+            ("sharpe", "Sharpe (daily)", "{:.2f}"), ("max_drawdown_pct", "max drawdown % (EOD)", "{:.2f}"),
+            ("max_drawdown_intraday_pct", "max drawdown % (path)", "{:.2f}"),
             ("avg_daily_pnl", "avg daily P&L $", "{:,.0f}"), ("daily_pnl_std", "daily P&L std $", "{:,.0f}"),
             ("best_day", "best day $", "{:,.0f}"), ("worst_day", "worst day $", "{:,.0f}"),
             ("win_days_pct", "winning days %", "{:.0f}"), ("trades", "trades", "{}"),
@@ -353,6 +441,10 @@ def record(name: str, tag: str, s: dict, params, start, end):
                      "Avg Daily PnL": f"{s['avg_daily_pnl']:.0f}", "Costs Per Day": f"{s['costs_per_day']:.0f}",
                      "Worst Day": f"{s['worst_day']:.0f}", "Loss Limit Days": str(s["stopped_days"]),
                      "Sessions": str(s["sessions"])}}
+    if "max_drawdown_intraday_pct" in s:   # AUD-21; "Drawdown" stays EOD so old rows compare
+        rec["stats"]["Drawdown Intraday"] = f"{s['max_drawdown_intraday_pct']:.3f}%"
+    if FILL_MODEL != "next_bar":
+        rec["fill_model"] = FILL_MODEL
     if RISK != SHIPPED_RISK:
         rec["risk"] = dict(RISK)
     if intraday_common.SLIPPAGE_BPS != SLIPPAGE_BPS:
@@ -384,15 +476,29 @@ def main() -> int:
     ap.add_argument("--symbols", nargs="*")
     ap.add_argument("--start"); ap.add_argument("--end")
     ap.add_argument("--split", help="date: report in-sample (< split) and out-of-sample (>= split) separately")
+    ap.add_argument("--no-validate", action="store_true",
+                    help="downgrade data-validation FAILs to warnings (diagnostics only)")
     ap.add_argument("--equity", type=float, default=1_000_000)
     ap.add_argument("--params", help="JSON overrides for the strategy PARAMS")
     ap.add_argument("--risk", help='JSON overrides for the framework risk limits, research only, e.g. '
                                    '\'{"daily_loss_limit":0.02,"per_symbol_hard_cap":0.25}\'')
     ap.add_argument("--slippage-bps", type=float, help="override intraday_common.SLIPPAGE_BPS, research only")
+    ap.add_argument("--legacy-fills", action="store_true",
+                    help="AUD-21: restore the pre-2026-09-12 fill model (a missing bar filled at the "
+                         "decision bar's own close). Only for reproducing an existing ledger row.")
+    ap.add_argument("--legacy-atr", action="store_true",
+                    help="AUD-21: restore the pre-2026-09-12 atr14, whose bar-0 true range included "
+                         "the overnight gap. Only for reproducing an existing ledger row.")
     ap.add_argument("--tag", default="")
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
+    global FILL_MODEL
+    if args.legacy_fills:
+        FILL_MODEL = "decision_close"
+        print("AUD-21: legacy fill model (missing bar -> decision close), research reproduction only")
+    if args.legacy_atr:
+        print("AUD-21: legacy atr14 (bar-0 true range spans the overnight gap), reproduction only")
     strategy = load_strategy(args.strategy)
     params = {**strategy.PARAMS, **(json.loads(args.params) if args.params else {})}
     changed = set_risk(json.loads(args.risk) if args.risk else None)
@@ -403,20 +509,24 @@ def main() -> int:
     start = dt.date.fromisoformat(args.start) if args.start else None
     end = dt.date.fromisoformat(args.end) if args.end else None
     bars = load_universe(args.symbols or UNIVERSE, start, end)
+    validate_bars(bars, strict=not args.no_validate)
     if not bars:
         sys.exit("no bars in data/minute; run scripts/intraday_data.py first")
     print(f"{len(bars)} symbols, {len(sessions(bars))} sessions on disk")
+    feats = {s: features(df, gap_true_range=args.legacy_atr) for s, df in bars.items()}
     if args.split:
         split = dt.date.fromisoformat(args.split)
-        s_is = run(strategy, bars, args.equity, params, start, split - dt.timedelta(days=1), args.verbose)
-        s_oos = run(strategy, bars, args.equity, params, split, end, args.verbose)
+        s_is = run(strategy, bars, args.equity, params, start, split - dt.timedelta(days=1), args.verbose, feats)
+        s_oos = run(strategy, bars, args.equity, params, split, end, args.verbose, feats)
         print_summary(args.strategy, s_is, f"IN-SAMPLE < {split}")
         print_summary(args.strategy, s_oos, f"OUT-OF-SAMPLE >= {split}")
         if not args.no_record:
-            record(args.strategy, f"{args.tag} [IS<{split}]", s_is, params, start, split)
+            # AUD-21: the in-sample row ends the day BEFORE the split, which is the window it ran.
+            record(args.strategy, f"{args.tag} [IS<{split}]", s_is, params, start,
+                   split - dt.timedelta(days=1))
             record(args.strategy, f"{args.tag} [OOS>={split}]", s_oos, params, split, end)
         return 0
-    s = run(strategy, bars, args.equity, params, start, end, args.verbose)
+    s = run(strategy, bars, args.equity, params, start, end, args.verbose, feats)
     print_summary(args.strategy, s)
     if "daily" in s and args.verbose:
         print(s["daily"][["day", "pnl", "trades", "stopped"]].to_string(index=False))
