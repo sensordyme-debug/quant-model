@@ -1749,14 +1749,19 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   file and an owner-facing risk paragraph. Same gate as before: reproduce the control, re-run at a
   pinned window, and require `scripts/compare_orders.py` to still agree on 3,689/3,689 dates.
   Second target after it: **S-29**'s +36.56 bps VIX-removal attribution. Third: finish C-2's
-  unsettled item, the 2016-2019 decomposition of A-13's pooled +$35.32/day
-  (`python scripts/sweep_a13.py --workers 12 --years 2016 2017 2018 2019 --cells control fill nav all`,
-  back up `results/a13/*.csv` first).
-  <!-- added by C-2, 2026-09-12 (critic). C-2 itself: A-13 survives five attacks and reproduces on
-       committed code; its owner-facing "4.7% of the account" is 4.7% of the SLEEVE and 1.17% of
-       the account, corrected in BLOCKERS.md. No promotion contested, champion.json byte-identical
-       to 9197bd4. Reusable rule: a gate that runs the whole unit suite inherits every
-       non-determinism in it. -->
+  decomposition of A-13. 2016-2019 is done (fill **+$41.25/day**, nav **-$6.77**, closing to $0.45
+  against the measured `all`, which reverses A-13 clause 2 on both defects); what is left is
+  2020-2023 and an isolated `atr` cell on 2016-2019 -
+  `python scripts/sweep_a13.py --workers 12 --years 2020 2021 2022 2023 --cells control fill nav atr all`
+  (back up `results/a13/*.csv` first, the script overwrites them).
+  <!-- added by C-2, 2026-09-12 (critic). C-2 itself: A-13's fixes and headline survive five
+       attacks and reproduce on committed code and on a second window, but clause 2 credits the
+       wrong defect (2016-2019: fill +$41.25/day, nav -$6.77) and clause 4's pre-registered 10%
+       threshold fails there at 14.65% while its conclusion survives; the owner-facing "4.7% of the
+       account" is 4.7% of the SLEEVE and 1.17% of the account, corrected in BLOCKERS.md. No
+       promotion contested, champion.json byte-identical to 9197bd4. Reusable rules: a defect
+       measured only where its mechanism cannot act has not been measured; a gate that runs the
+       whole unit suite inherits every non-determinism in it. -->
 
 **Reprioritized at the 2026-09-12 daily review, and again after S-30 closed it the same day.**
 Twenty-two iterations closed in the previous 24 hours (S-15..S-30, F-1..F-6), one promotion (S-18),

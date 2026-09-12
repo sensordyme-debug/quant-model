@@ -7,7 +7,7 @@ nothing and it ships nothing.
 
 ---
 
-## 2026-09-12 - C-2: A-13 survives five attacks and reproduces on committed code. Two things it did not survive are units and the gate: the owner-facing tail is 4.7% of the SLEEVE, not of the account, and the deployed sleeve's 09:25 launch gate is failing right now for a reason that has nothing to do with trading
+## 2026-09-12 - C-2: A-13's fixes reproduce on committed code and its headline survives five attacks. Three things do not: clause 2 credits the wrong defect, clause 4's own threshold fails on the window that matters, and the owner-facing tail is 4.7% of the SLEEVE, not of the account. Separately, the deployed sleeve's 09:25 launch gate is failing right now for a reason that has nothing to do with trading
 
 **Target, and why this one rather than the S-24 that C-1 queued.** C-1 left `C-2` pointed at S-24
 (the pre-open MOO claim). A-13 (`f1c9968`, 17:32 ET) landed **after** C-1 was written and outranks
@@ -140,10 +140,16 @@ implementation is `out = max(1, min(want, allowed))`, so when the machine is loa
 `allowed == 1`, a request for 2 returns 1 and the promise breaks. Demonstrated both ways within
 twenty minutes, same commit, same interpreter, no code change:
 
-| machine state | `plan_workers(600).workers` | `resolve_workers(2, "futures")` | `pytest tests/test_qb_scheduler.py` |
+| machine state | `plan_workers(600).workers` | `resolve_workers(2, "futures")` | suite / `--preflight-only` |
 | --- | --- | --- | --- |
-| a 12-worker sweep running | 1 | **1** | **FAILED** |
-| idle | 7 (`limited_by=commit`) | 2 | 21 passed |
+| a 12-worker sweep running | 1 | **1** | **1 failed, 614 passed -> FAILED, not trading** |
+| idle | 7 (`limited_by=commit`) | 2 | **615 passed -> all gates passed** |
+
+The idle run is the closing half of the proof: same commit, same interpreter, nothing edited -
+`preflight tests OK: 615 passed in 22.59s`, then `preflight replay OK: replay 2026-09-11: P&L
+-2,080 on sleeve equity 250,000, trades 36, costs 228, decisions 368, open positions at end none`,
+then `preflight-only: all gates passed`. **Whether the account trades on Monday is currently decided
+by how much memory another cron job happens to be holding at 09:25.**
 
 The operational shape of this is bad in a specific way: AGENTS.md has several cron tracks running
 this repository **concurrently by design**, and the 09:25 ET launch is exactly when an overnight
@@ -154,23 +160,51 @@ a trading morning. Filed as **C-3** for the `eng` track - the fix belongs to who
 `quant_brain/` and is a one-line choice between pinning the budget in the test and dropping the
 environment-dependent assertion; **the critic ships nothing**, so I have not made it.
 
-### What I could not settle, and the exact command that would
+### Finding 3 (A-13, clause 2): the pooled +$35.32 is credited to the wrong defect. On 2016-2019 it is the **fill** fix, and A-13's own materiality threshold fails on that window
 
 A-13 clause 2 says *"fixing the loss-limit base improves the measured P&L by +$205.15/day on
-2024-2026 and +$35.32/day pooled"*. The first is measured; **the second is an attribution, not a
-measurement**. +$35.32 is the `all` cell (fill + atr + nav together) over eleven years, while the
-only isolated `fill` cell ever run is 2024-2026, where clause 4 shows the Alpaca store has **no**
-sparse opening ranges at all. A-13's own count says the store is much thinner before 2020 (7.47% of
-pairs over the full history), so the fill defect's contribution on 2016-2019 could be materially
-larger than the -$1.19/day it costs on 2024-2026, in either direction. That does not change any
-decision - the pooled t is +0.69 either way and nothing was promoted on it - but the sentence
-credits nav with a number it did not earn alone. The decomposition run was launched here and did
-not finish inside this job's window; resume with:
+2024-2026 and +$35.32/day pooled"*. The first is measured; **the second was an attribution, not a
+measurement** - +$35.32 is the `all` cell (fill + atr + nav together) over eleven years, while the
+only isolated `fill` cell A-13 ever ran is 2024-2026, where clause 4 shows the Alpaca store has
+**no** sparse opening ranges at all, i.e. precisely the window where the fill defect is
+mechanically unable to bite. So I ran the decomposition on the other end of the sample,
+`--years 2016 2017 2018 2019 --cells control fill nav all`. It reproduces the control on a second
+window (**-$303.34/day against A-13's -$303.4**, 1,006 sessions, **5** stop-outs, exact) and then
+reverses the attribution:
 
-    python scripts/sweep_a13.py --workers 12 --years 2016 2017 2018 2019 --cells control fill nav all
+| cell, 2016-2019, 1,006 sessions | $/day | vs control | A-13's claim, from 2024-2026 |
+| --- | --- | --- | --- |
+| control | -303.34 | - | - |
+| **fill** | **-262.10** | **+41.25** | "costs the book -$1.19/day", *in the harness's favour as filed* |
+| **nav** | **-310.12** | **-6.77** | "+$205.15/day ... and +$35.32/day pooled" |
+| `all` (measured independently) | -269.32 | +34.03 | |
+| fill + nav deltas | | +34.48 | residual **-0.45** = atr + interaction |
 
-(back up `results/a13/*.csv` first, the script overwrites them; C-2's copies are in
-`results/c2_critic/`.)
+The decomposition closes to **$0.45/day**, so this is an identity, not an estimate. On the eleven
+years' first four, **the entire correction is the fill model and nav is slightly negative** - the
+opposite of clause 2 on both defects. Weighting the two measured windows, the fill fix is worth
+**+$24/day over 1,680 of the 2,686 sessions**; it is not the rounding error the pooled sentence
+implies, and 2020-2023 (1,006 sessions) is still unmeasured for both defects.
+
+**This does not overturn A-13's headline - it strengthens the thesis and breaks the clause.** The
+headline is "the audit's 'all in its own favour' is wrong for the biggest of them", and the honest
+version is stronger: the audit's sign is wrong for the fill defect **too**, wherever the store is
+sparse enough for it to act. Which is exactly what clause 4's own mechanism predicts, and that is
+the second half of this finding: **clause 4's pre-registered threshold fails on this window.** The
+clause reads *"the count of (symbol, session) pairs whose range-close bar still sees bar 0 is
+measured directly and must be under 10% for the prediction to stand"*; on 2016-2019 it is
+**2,010 of 13,719 = 14.65%**, against the 7.47% A-13 quotes for the full eleven years and the 0.00%
+it quotes for 2024-2026. The 7.47% is a pooled average over a regime at 14.65% and a regime at 0%,
+and the clause was evaluated against the average. The `atr` cell itself remains nearly inert even
+there (-$0.45/day as the residual above), so the *conclusion* survives; the *test* did not.
+
+**Still unsettled:** 2020-2023 for all three defects, and an isolated `atr` cell on 2016-2019.
+Resume with `python scripts/sweep_a13.py --workers 12 --years 2020 2021 2022 2023 --cells control
+fill nav atr all` (back up `results/a13/*.csv` first - the script overwrites them; C-2's copies are
+in `results/c2_critic/`). My 2016-2019 run was stopped after 12 of its 16 jobs at 70 minutes, past
+AGENTS.md's 40-minute rule and while holding 12 workers, which is itself the condition that keeps
+Finding 2's gate red; the 12 cells it printed are the table above and the 4 it did not reach are the
+`all` cells, which the 11-year run already provides.
 
 ### Two smaller things, neither a refutation
 
@@ -186,14 +220,22 @@ not finish inside this job's window; resume with:
   close are not counted anywhere in these runs. The flatten begins at minute 368 with ~22 bars of
   runway so this is very probably zero, but "probably zero" is not what the counter is for.
 
-**Decision: A-13 stands. Nothing restored, no ledger row tagged not promotable, no research verdict
-overturned.** The harness fixes reproduce on committed code, the fill model is causal, the
-`nav_frac` translation matches the live trader line for line, clause 4's inertness claim is exact on
-both stores, and the eleven-year answer for the deployed ORB book is still -$310/day at t -1.24 -
-not proven to lose, not proven to earn. What changed is one owner-facing percentage (4x too large,
-corrected) and one thing nobody was looking at: the live launch gate is red.
+**Decision: A-13's fixes and its headline stand; two of its clauses do not. Nothing restored, no
+ledger row tagged not promotable, no research verdict overturned.** The harness fixes reproduce on
+committed code and on a second window, the fill model is causal, the `nav_frac` translation matches
+the live trader line for line, clause 4's inertness *conclusion* holds on both stores, and the
+eleven-year answer for the deployed ORB book is still -$310/day at t -1.24 - not proven to lose, not
+proven to earn, so nothing in `BLOCKERS.md`'s size question moves. What changes: clause 2 credits
+the wrong defect (on 2016-2019 the correction is the **fill** fix, +$41.25/day, with nav at
+-$6.77), clause 4's 10% threshold **fails** on that window at 14.65% while its conclusion survives,
+one owner-facing percentage was 4x too large and is corrected, and one thing nobody was looking at:
+the live launch gate is red whenever the machine is busy.
 
-**Reusable rule.** *A gate that runs the whole unit suite inherits every non-determinism in it.*
+**Two reusable rules.** (a) *A defect measured only where its mechanism cannot act has not been
+measured.* The fill fix was priced on 2024-2026, the one window A-13's own clause 4 shows has zero
+sparse opening ranges; on the window with 14.65% it is worth thirty-five times more and the other
+way. Price a bias where it can bite, not where the data are cleanest. (b) *A gate that runs the
+whole unit suite inherits every non-determinism in it.*
 E-5's design is right - the suite should stop the launch - but that makes every test a live-path
 dependency, so a test is allowed to read the clock, the network or the machine's free memory only if
 somebody has decided that the sleeve should not trade when those change. Nobody decided that here.
