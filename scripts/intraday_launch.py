@@ -41,16 +41,42 @@ def config():
 
 
 def last_session() -> dt.date | None:
-    """Most recent session that is COMPLETE (>= 300 bars) for the sampled symbols. A truncated
-    last day (the store was refreshed mid-session) replays with open positions and a nonsense
-    P&L, which happened on 2026-09-10; a preflight must exercise a whole session."""
+    """Most recent session that is COMPLETE for the sampled symbols.
+
+    A truncated last day - the store refreshed mid-session - replays with open positions and a
+    nonsense P&L (2026-09-10, and again on 2026-09-11: 170/390 bars, 15 positions still open,
+    exit 0), so the preflight must pick a session it can carry all the way to the flatten.
+
+    "Complete" is a SHAPE, not a bar count (E-6). The original `>= 300 bars` test is wrong in
+    both directions, and both were confirmed against the live store:
+
+      * A complete early close is 210 bars. `>= 300` rejects it, so the two early closes in the
+        store - 2025-11-28 and 2025-12-24, both 210/210 - are unreplayable, and the morning gate
+        can therefore NEVER exercise the calendar-aware flatten that AUD-07 exists for. That is
+        the path most likely to break, skipped on exactly the mornings it matters.
+      * A fetch that dies at 14:40 leaves 310/390 bars. `>= 300` accepts it, and the replay ends
+        with an open book - the defect the guard was added to prevent.
+
+    Asking whether the session's bars SPAN the session answers both. If `store_health` cannot be
+    imported the old heuristic still runs: a completeness checker must never be the reason the
+    sleeve fails to launch.
+    """
+    try:
+        import store_health as sh
+        from quant_brain.markets.equity_us import CALENDAR
+    except Exception:  # noqa: BLE001 - fall back rather than fail the launch
+        sh = CALENDAR = None
+
     complete = None
     for s in UNIVERSE[:4]:
         df = load_bars(s)
         if df.empty:
             continue
-        counts = df.groupby(df.index.date).size()
-        ok = set(counts[counts >= 300].index)
+        if sh is not None:
+            ok = {x.day for x in sh.session_shapes(df.index, CALENDAR) if not x.truncated}
+        else:
+            counts = df.groupby(df.index.date).size()
+            ok = set(counts[counts >= 300].index)
         complete = ok if complete is None else complete & ok
     return max(complete) if complete else None
 

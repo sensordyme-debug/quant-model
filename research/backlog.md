@@ -3299,14 +3299,36 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   (pandas/numpy) under 3.14 rather than the tests themselves - `-X importtime` on a single
   test would say. Worth it because the launch gate now pays this every morning, and because
   every track's edit-test loop pays it all day.
-- **E-6 Store-completeness checker.** No automated check says whether `data/minute`,
-  `data/minute_alpaca` and the 0DTE store are whole: truncated sessions (a fetch that died
-  mid-day leaves a partial session that silently shortens a backtest), missing trading days,
-  duplicate bars, and Theta Terminal liveness. The intraday harness reads these stores on every
-  run and would rather fail loudly than quietly average over a half session.
+- **E-8 The shared suite fails on 3.11, and the launch gate refuses on a failing suite.**
+  Four pre-existing failures under `py -3.11` (`test_qb_dataquality`, `test_qb_labels`,
+  `test_qb_stats`), all one cause: no `pyarrow`, so `pd.read_parquet` raises. Latent today -
+  `unit_tests_ok` uses `sys.executable` and the 09:25 task runs 3.14, where all 523 pass - but
+  E-5 made pytest exit 1 the one condition that stops the sleeve trading, so repointing the task
+  at 3.11 would cause an outage over a missing optional dependency, which is exactly what E-5
+  was built to prevent. Fix is either `pip install pyarrow` into 3.11 or an `importorskip` in
+  those four files; `tests/test_store_health.py` already takes the second route.
+- **E-9 Nothing consumes `store_health.py` on a schedule.** E-6 shipped the checker and wired
+  its shape test into `intraday_launch.last_session()`, but the stores are only inspected when
+  somebody runs it. Both minute stores currently FAIL on a truncated last session and nothing
+  says so unprompted. Candidates: a `--strict` call in the daily review, or a WARN-only line in
+  the launch preflight. Must not become a new refusal (E-5's asymmetry).
 
 ## Done
 
+- **E-6 Store-completeness checker. DONE 2026-09-12.** `scripts/store_health.py` +
+  `tests/test_store_health.py` (27 tests). The design point: a bar count cannot tell a thin
+  session (381/390, spans 09:30-15:59 - 5,710 in the Alpaca store, benign) from a dead fetch
+  (170/390, last bar 12:19 - 262 there, 16 in the IBKR store, poisons a backtest). Each session
+  is scored on `start_lag`/`end_lead`/`fill` against the calendar's own open and close, and only
+  a contiguous hole is truncation. Report-only, findings rolled up **by date** not by symbol,
+  `--strict`/`--json`/`--theta`; 63M rows in 98 s via `columns=[]`. Found: every IBKR symbol
+  truncated on **2026-09-11** (~12:20 ET), 44 of 63 Alpaca symbols on **2026-09-10** - both need
+  a refetch (D-track); the 0DTE store is whole (1,891 days, no missing expiry since SPY went
+  daily). Also replaced `intraday_launch.last_session()`'s `>= 300 bars` guard with the shape
+  test: the count rejected both complete 210-bar early closes in the store, so the morning gate
+  could never replay an early close and never exercised AUD-07's calendar-aware flatten, while
+  accepting a 310/390 fetch that died at 14:40. Verified by a full `--preflight-only` at exit 0,
+  replay unchanged (2026-09-10, P&L -3,920, 45 trades, flat at end), live book untouched.
 - **E-5 Unit suite wired into the launch preflight. DONE 2026-09-12.**
   `intraday_launch.unit_tests_ok()` runs as preflight step 1 (before the replay);
   `tests/test_launch_preflight.py` (19 tests) pins the mapping. **pytest exit 1 is the only
