@@ -60,7 +60,10 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts"))
+if str(REPO) not in sys.path:          # so `quant_brain` resolves when run as a script
+    sys.path.insert(0, str(REPO))
 import intraday_common as ic  # noqa: E402
+from quant_brain.core import labels as qb_labels  # noqa: E402
 
 LEDGER = REPO / "research" / "experiments.jsonl"
 OUT = REPO / "data" / "f1"
@@ -205,6 +208,15 @@ def build_panel(symbols: list[str] | None = None, verbose: bool = True) -> pd.Da
         exit_day = pd.Series(same_day, index=df5.index).shift(-(1 + HOLD)).to_numpy()
         fwd = np.log(exit_open / nxt_open)
         fwd = fwd.where(pd.Series(exit_day == same_day, index=df5.index), np.nan)
+        # AUD-20: the day check above is necessary and not sufficient. `.shift` moves ROWS,
+        # so a within-day gap makes a window that is labelled a 30-minute return actually
+        # span longer, while still passing the same-day test. Measured on the Alpaca store
+        # (which AGENTS.md recommends for statistical power): 73 within-day gaps of 10-45
+        # minutes, 163 of 190,394 same-day windows mislabelled, the worst spanning 2h10m.
+        # Zero on the IBKR store, so this changes no shipped number - it removes the
+        # dependence on the store happening to be gapless.
+        span_ok = qb_labels.forward_span_mask(df5.index, 1 + HOLD, BAR * (1 + HOLD))
+        fwd = fwd.where(span_ok, np.nan)
 
         sub = f[dm].copy()
         sub["fwd"] = fwd[dm]
