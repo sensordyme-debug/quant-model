@@ -1,0 +1,327 @@
+{
+  "ts": "20260912T211604Z",
+  "host": "127.0.0.1",
+  "port": 4002,
+  "results": {
+    "MES": {
+      "label": "Micro E-mini S&P 500",
+      "exchange": "CME",
+      "errors": [],
+      "secdef": 5,
+      "months": [
+        "20260918",
+        "20261218",
+        "20270319",
+        "20270617",
+        "20270917"
+      ],
+      "head_trades": "2025-06-22 22:00:00",
+      "head_bid_ask": "2025-06-22 22:00:00",
+      "sample_minute": {
+        "t": "2026-09-11 15:59:00-05:00",
+        "o": 7661.25,
+        "c": 7660.75,
+        "v": 243.0
+      },
+      "grid": {
+        "daily": {
+          "TRADES": 252,
+          "MIDPOINT": 252,
+          "BID_ASK": 252,
+          "OPTION_IMPLIED_VOLATILITY": 184
+        },
+        "hour": {
+          "TRADES": 502,
+          "MIDPOINT": 502,
+          "BID_ASK": 502,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "minute": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "second": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        }
+      },
+      "open_interest_bars": 0,
+      "contfut_bars": 5520,
+      "contfut_first": "2026-09-07 17:00:00-05:00",
+      "contfut_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    },
+    "NQ": {
+      "label": "E-mini Nasdaq-100",
+      "exchange": "CME",
+      "errors": [],
+      "secdef": 12,
+      "months": [
+        "20260918",
+        "20261218",
+        "20270319",
+        "20270617",
+        "20270917",
+        "20271217"
+      ],
+      "head_trades": "2025-03-23 22:00:00",
+      "head_bid_ask": "2025-04-09 22:00:00",
+      "sample_minute": {
+        "t": "2026-09-11 15:59:00-05:00",
+        "o": 29392.5,
+        "c": 29391.75,
+        "v": 131.0
+      },
+      "grid": {
+        "daily": {
+          "TRADES": 251,
+          "MIDPOINT": 238,
+          "BID_ASK": 239,
+          "OPTION_IMPLIED_VOLATILITY": 246
+        },
+        "hour": {
+          "TRADES": 502,
+          "MIDPOINT": 502,
+          "BID_ASK": 502,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "minute": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "second": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        }
+      },
+      "open_interest_bars": 0,
+      "contfut_bars": 5520,
+      "contfut_first": "2026-09-07 17:00:00-05:00",
+      "contfut_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    },
+    "MNQ": {
+      "label": "Micro E-mini Nasdaq-100",
+      "exchange": "CME",
+      "errors": [],
+      "secdef": 5,
+      "months": [
+        "20260918",
+        "20261218",
+        "20270319",
+        "20270617",
+        "20270917"
+      ],
+      "head_trades": "2025-06-22 22:00:00",
+      "head_bid_ask": "2025-06-22 22:00:00",
+      "sample_minute": {
+        "t": "2026-09-11 15:59:00-05:00",
+        "o": 29392.75,
+        "c": 29392.75,
+        "v": 388.0
+      },
+      "grid": {
+        "daily": {
+          "TRADES": 252,
+          "MIDPOINT": 252,
+          "BID_ASK": 252,
+          "OPTION_IMPLIED_VOLATILITY": 122
+        },
+        "hour": {
+          "TRADES": 502,
+          "MIDPOINT": 502,
+          "BID_ASK": 502,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "minute": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "second": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        }
+      },
+      "open_interest_bars": 0,
+      "contfut_bars": 5520,
+      "contfut_first": "2026-09-07 17:00:00-05:00",
+      "contfut_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    },
+    "RTY": {
+      "label": "E-mini Russell 2000",
+      "exchange": "CME",
+      "errors": [],
+      "secdef": 11,
+      "months": [
+        "20260918",
+        "20261218",
+        "20270319",
+        "20270617",
+        "20270917",
+        "20271217"
+      ],
+      "head_trades": "2025-06-22 22:00:00",
+      "head_bid_ask": "2025-07-15 22:00:00",
+      "sample_minute": {
+        "t": "2026-09-11 15:59:00-05:00",
+        "o": 2904.6,
+        "c": 2904.7,
+        "v": 188.0
+      },
+      "grid": {
+        "daily": {
+          "TRADES": 251,
+          "MIDPOINT": 183,
+          "BID_ASK": 185,
+          "OPTION_IMPLIED_VOLATILITY": 252
+        },
+        "hour": {
+          "TRADES": 502,
+          "MIDPOINT": 502,
+          "BID_ASK": 502,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "minute": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "second": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        }
+      },
+      "open_interest_bars": 0,
+      "contfut_bars": 5520,
+      "contfut_first": "2026-09-07 17:00:00-05:00",
+      "contfut_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    },
+    "M2K": {
+      "label": "Micro E-mini Russell 2000",
+      "exchange": "CME",
+      "errors": [],
+      "secdef": 5,
+      "months": [
+        "20260918",
+        "20261218",
+        "20270319",
+        "20270617",
+        "20270917"
+      ],
+      "head_trades": "2025-06-22 22:00:00",
+      "head_bid_ask": "2025-06-23 22:00:00",
+      "sample_minute": {
+        "t": "2026-09-11 15:59:00-05:00",
+        "o": 2904.8,
+        "c": 2905.0,
+        "v": 59.0
+      },
+      "grid": {
+        "daily": {
+          "TRADES": 252,
+          "MIDPOINT": 252,
+          "BID_ASK": 252,
+          "OPTION_IMPLIED_VOLATILITY": 0
+        },
+        "hour": {
+          "TRADES": 502,
+          "MIDPOINT": 502,
+          "BID_ASK": 502,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "minute": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "second": {
+          "TRADES": 2760,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        }
+      },
+      "open_interest_bars": 0,
+      "contfut_bars": 5520,
+      "contfut_first": "2026-09-07 17:00:00-05:00",
+      "contfut_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    },
+    "GC": {
+      "label": "Gold",
+      "exchange": "COMEX",
+      "errors": [],
+      "secdef": 34,
+      "months": [
+        "20260928",
+        "20261028",
+        "20261125",
+        "20261229",
+        "20270127",
+        "20270224"
+      ],
+      "head_trades": "2025-02-09 23:00:00",
+      "head_bid_ask": "2025-03-02 23:00:00",
+      "sample_minute": {
+        "t": "2026-09-11 16:59:00-04:00",
+        "o": 4378.6,
+        "c": 4378.6,
+        "v": 0.0
+      },
+      "grid": {
+        "daily": {
+          "TRADES": 251,
+          "MIDPOINT": 251,
+          "BID_ASK": 251,
+          "OPTION_IMPLIED_VOLATILITY": 0
+        },
+        "hour": {
+          "TRADES": 417,
+          "MIDPOINT": 504,
+          "BID_ASK": 504,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "minute": {
+          "TRADES": 1628,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        },
+        "second": {
+          "TRADES": 987,
+          "MIDPOINT": 2760,
+          "BID_ASK": 2760,
+          "OPTION_IMPLIED_VOLATILITY": "skipped"
+        }
+      },
+      "open_interest_bars": 0,
+      "contfut_bars": 8130,
+      "contfut_first": "2026-09-03 18:00:00-04:00",
+      "contfut_last": "2026-09-11 16:59:00-04:00",
+      "ib_errors": []
+    }
+  },
+  "connected": true,
+  "accounts": [
+    "DUT091359"
+  ],
+  "elapsed_s": 253.5
+}

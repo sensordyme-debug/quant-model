@@ -114,6 +114,11 @@ class PropFirmProfile:
 
     # --- session constraints ---------------------------------------------------------------
     allow_overnight: bool = False
+    #: Separate from `allow_overnight` on purpose. Several firms permit an overnight hold on a
+    #: weekday and still require flat into the weekend, because a Friday-to-Sunday gap is the
+    #: one move no intraday stop can protect against. Collapsing the two would make that
+    #: distinction unrepresentable, and it is a rule a real rulebook states explicitly.
+    allow_weekend: bool = False
     #: Minutes before the session close by which the book must be flat. Expressed relative to
     #: the close so it is correct on an early close - the AUD-07 lesson, applied here rather
     #: than repeated as a literal bar index.
@@ -129,6 +134,31 @@ class PropFirmProfile:
     evaluation_fee: float = 0.0
     payout_on_pass: float = 0.0
     profit_split: float = 0.9
+
+    #: Contract ladder: [(profit_above_start, max_total_contracts), ...]. Many firms scale
+    #: permitted size with the account's own profit, so a strategy sized for the funded
+    #: ceiling is untradeable on day one. Empty means the flat `max_total_contracts` applies
+    #: at every balance. The firm supplies the numbers; this only supplies the shape.
+    scaling: tuple[tuple[float, int], ...] = ()
+
+    def contracts_allowed_at(self, profit: float) -> int | None:
+        """The contract cap at a given profit above the starting balance.
+
+        Returns the flat cap when no ladder is configured. With a ladder, the highest rung
+        whose threshold has been reached wins, and below the first rung the FIRST rung's cap
+        applies - a ladder that left a fresh account with no permitted size would be a
+        misreading of every rulebook I have seen.
+        """
+        if not self.scaling:
+            return self.max_total_contracts
+        rungs = sorted(self.scaling)
+        cap = rungs[0][1]
+        for threshold, allowed in rungs:
+            if profit >= threshold:
+                cap = allowed
+        if self.max_total_contracts is not None:
+            cap = min(cap, self.max_total_contracts)
+        return cap
 
     def floor_for(self, peak: float) -> float:
         """The equity level at which this account is dead, given the running peak.
@@ -160,6 +190,11 @@ class PropFirmProfile:
             for a, b in d.get("blackout_windows", [])
         )
         d["max_contracts_per_symbol"] = dict(d.get("max_contracts_per_symbol", {}))
+        # JSON has no tuple, so a round-tripped ladder arrives as a list of lists. Coerce it
+        # back or a reloaded profile compares unequal to the one that was written - which the
+        # round-trip test caught, and which would otherwise only show up as a confusing
+        # inequality the first time a profile was reloaded from disk.
+        d["scaling"] = tuple((float(a), int(b)) for a, b in d.get("scaling", ()))
         known = {f.name for f in dataclasses.fields(cls)}
         unknown = set(d) - known
         if unknown:
@@ -286,11 +321,14 @@ class PropFirmRiskEngine(RiskEngine):
                 f"{sym} cap {cap_sym}: holding {abs(held)}, room for {room}",
                 "max_contracts_per_symbol"))
 
-        if p.max_total_contracts is not None and resulting_total > p.max_total_contracts:
-            room = max(0, p.max_total_contracts - (s.total_contracts - abs(held)) - abs(held))
+        # The ladder, when configured, is the binding total cap - and it moves with the
+        # account's own profit, so it is read from live state rather than from the profile.
+        cap_total = p.contracts_allowed_at(s.balance - p.starting_balance)
+        if cap_total is not None and resulting_total > cap_total:
+            room = max(0, cap_total - (s.total_contracts - abs(held)) - abs(held))
             decision = decision.merge(RiskDecision.reduce(
                 room / per_unit if per_unit else 0,
-                f"total cap {p.max_total_contracts}: holding {s.total_contracts}, room for {room}",
+                f"total cap {cap_total}: holding {s.total_contracts}, room for {room}",
                 "max_total_contracts"))
 
         return decision
@@ -307,7 +345,8 @@ class PropFirmRiskEngine(RiskEngine):
                 return True
         return False
 
-    def must_be_flat(self, minutes_to_close: int) -> bool:
+    def must_be_flat(self, minutes_to_close: int, *,
+                     is_last_session_of_week: bool = False) -> bool:
         """True once the flat-before-close deadline has arrived.
 
         Takes minutes-to-close rather than a wall clock so it is automatically correct on an
@@ -315,6 +354,9 @@ class PropFirmRiskEngine(RiskEngine):
         `SessionCalendar`, not from a constant.
         """
         p = self.state.profile
+        # Friday is decided by the weekend rule, not the overnight one.
+        if is_last_session_of_week and not p.allow_weekend:
+            return minutes_to_close <= p.flat_before_close_minutes
         if p.allow_overnight:
             return False
         return minutes_to_close <= p.flat_before_close_minutes

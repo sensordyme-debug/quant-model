@@ -300,3 +300,72 @@ def test_micro_sizing_gives_ten_times_the_granularity_under_a_contract_cap():
     es, mes = fut.get("ES"), fut.get("MES")
     assert es.spec.multiplier / mes.spec.multiplier == 10.0
     assert fut.micros_of("ES") == ["MES"]
+
+
+# ================================================ weekend and scaling rules (audit Phase 6)
+
+def test_a_weekday_overnight_hold_can_be_allowed_while_the_weekend_is_not():
+    """Several firms permit an overnight hold and still require flat into the weekend, because
+    a Friday-to-Sunday gap is the one move no intraday stop can protect against."""
+    p = replace(EOD_TRAILING_50K, name="wk", allow_overnight=True, allow_weekend=False)
+    eng = PropFirmRiskEngine(state(p))
+    assert not eng.must_be_flat(5, is_last_session_of_week=False)   # Tuesday: hold
+    assert eng.must_be_flat(5, is_last_session_of_week=True)        # Friday: flatten
+
+
+def test_a_firm_that_allows_the_weekend_does_not_force_a_friday_flatten():
+    p = replace(EOD_TRAILING_50K, name="wk", allow_overnight=True, allow_weekend=True)
+    assert not PropFirmRiskEngine(state(p)).must_be_flat(5, is_last_session_of_week=True)
+
+
+def test_an_intraday_only_firm_still_flattens_every_day():
+    p = replace(EOD_TRAILING_50K, name="flat", allow_overnight=False, allow_weekend=False)
+    eng = PropFirmRiskEngine(state(p))
+    assert eng.must_be_flat(5, is_last_session_of_week=False)
+    assert eng.must_be_flat(5, is_last_session_of_week=True)
+
+
+def test_no_ladder_means_the_flat_contract_cap_applies_at_every_balance():
+    p = replace(EOD_TRAILING_50K, name="flat", max_total_contracts=5, scaling=())
+    for profit in (-1000.0, 0.0, 5000.0):
+        assert p.contracts_allowed_at(profit) == 5
+
+
+def test_a_ladder_scales_permitted_size_with_the_accounts_own_profit():
+    """A strategy sized for the funded ceiling is untradeable on day one; the ladder is how
+    a rulebook says so."""
+    p = replace(EOD_TRAILING_50K, name="ladder", max_total_contracts=10,
+                scaling=((0.0, 2), (1_000.0, 5), (2_500.0, 10)))
+    assert p.contracts_allowed_at(0.0) == 2
+    assert p.contracts_allowed_at(999.0) == 2
+    assert p.contracts_allowed_at(1_000.0) == 5
+    assert p.contracts_allowed_at(3_000.0) == 10
+
+
+def test_a_losing_account_keeps_the_first_rung_rather_than_zero():
+    """A ladder that left a fresh or drawn-down account with no permitted size would be a
+    misreading of every rulebook, not a conservative one."""
+    p = replace(EOD_TRAILING_50K, name="ladder", scaling=((500.0, 3), (2_000.0, 6)))
+    assert p.contracts_allowed_at(-800.0) == 3
+
+
+def test_the_flat_cap_still_bounds_the_ladder():
+    p = replace(EOD_TRAILING_50K, name="ladder", max_total_contracts=4,
+                scaling=((0.0, 2), (1_000.0, 20)))
+    assert p.contracts_allowed_at(5_000.0) == 4
+
+
+def test_the_risk_engine_enforces_the_ladder_from_live_account_state():
+    """The cap moves with the balance, so it is read from state, not from the profile alone."""
+    p = replace(EOD_TRAILING_50K, name="ladder", max_total_contracts=10,
+                max_contracts_per_symbol={}, scaling=((0.0, 1), (5_000.0, 10)))
+    poor = state(p, balance=50_000.0)                 # +0 profit -> 1 contract
+    rich = state(p, balance=56_000.0)                 # +6,000    -> 10 contracts
+    assert PropFirmRiskEngine(poor)(OrderIntent("MES", Side.BUY, 5)).quantity == 1
+    assert PropFirmRiskEngine(rich)(OrderIntent("MES", Side.BUY, 5)).allowed
+
+
+def test_the_ladder_round_trips_through_json():
+    p = replace(EOD_TRAILING_50K, name="ladder", scaling=((0.0, 2), (1_000.0, 5)))
+    back = PropFirmProfile.from_dict(__import__("json").loads(p.to_json()))
+    assert back == p and back.scaling == ((0.0, 2), (1_000.0, 5))
