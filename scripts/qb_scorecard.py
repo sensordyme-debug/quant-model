@@ -45,11 +45,20 @@ class Dimension:
     measured: bool = True
 
 
-def _run(cmd: list[str], timeout: int = 300) -> tuple[int, str]:
+def _run(cmd: list[str], timeout: int = 300, *, stdout_only: bool = False) -> tuple[int, str]:
+    """Run a command. `stdout_only` matters for JSON output.
+
+    Learned the hard way: concatenating stderr into stdout made `pyright --outputjson`
+    unparseable, so `pyright_errors()` returned -1 and the Type safety dimension scored 6
+    while pyright itself reported 0 errors. A scorecard whose own measurement is broken is
+    worse than no scorecard, because it looks like evidence.
+    """
     try:
         p = subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.SubprocessError) as exc:
         return 1, str(exc)[:200]
+    if stdout_only:
+        return p.returncode, p.stdout or ""
     return p.returncode, (p.stdout or "") + (p.stderr or "")
 
 
@@ -74,7 +83,7 @@ def pyright_errors() -> int | None:
     exe = shutil.which("pyright")
     if not exe:
         return None
-    code, out = _run([exe, "--outputjson"])
+    code, out = _run([exe, "--outputjson"], stdout_only=True)
     try:
         return int(json.loads(out)["summary"]["errorCount"])
     except (ValueError, KeyError, TypeError):
