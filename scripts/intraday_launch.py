@@ -5,11 +5,15 @@
     python scripts/intraday_launch.py --dry-run  # preflight, then live bars without orders
 
 Preflight (any failure -> alert, no trading):
-  1. replay the most recent stored session through scripts/intraday_trader.py (exercises the
+  1. the runner unit suite (`tests/`) passes - the sizing, gate and book-accounting arithmetic
+     the replay cannot reach (loss limit, HALT files, margin ceiling, shared-constant drift)
+  2. replay the most recent stored session through scripts/intraday_trader.py (exercises the
      exact strategy + execution code that is about to run; catches a broken commit overnight)
-  2. IB Gateway reachable and the account is a paper account
-  3. live/APPROVED_PAPER.md present and no HALT file
+  3. IB Gateway reachable and the account is a paper account
+  4. live/APPROVED_PAPER.md present and no HALT file
 Then it runs the trader in the foreground until 15:42 ET and forwards its exit code.
+
+    python scripts/intraday_launch.py --preflight-only   # run the gates, never launch
 """
 from __future__ import annotations
 
@@ -25,6 +29,7 @@ from intraday_common import LIVE, REPO, UNIVERSE, load_bars, log_event, notify  
 PY = sys.executable
 TRADER = REPO / "scripts" / "intraday_trader.py"
 CONFIG = LIVE / "intraday_config.json"       # {"strategy": "active", "equity_frac": 1.0, "params": {...}}
+PYTEST_TIMEOUT = 300                         # suite is ~35 s on 3.14 / ~21 s on 3.11: hang guard
 
 
 def config():
@@ -50,10 +55,61 @@ def last_session() -> dt.date | None:
     return max(complete) if complete else None
 
 
+def unit_tests_ok(root: Path = REPO, python: str = PY,
+                  timeout: int = PYTEST_TIMEOUT) -> tuple[bool, str, str]:
+    """Run the runner unit suite. Returns (may_trade, outcome, detail).
+
+    The asymmetry here is deliberate and is the whole design of this gate. A failing test means
+    the sizing or book arithmetic the trader is about to use is provably wrong, so trading must
+    not start. *Every other* outcome - pytest not installed, no tests collected, a collection
+    error, a hang - says nothing about the book and must NOT stop the sleeve: refusing to trade
+    because a dev dependency is missing on the machine would be a self-inflicted outage, and the
+    replay preflight below is the check that actually guards the strategy path.
+
+    So importability is probed separately instead of read off the exit code, because
+    `python -m pytest` with pytest absent exits 1 - the same code as a real test failure.
+    """
+    # If this very interpreter is already running pytest, it is importable by definition; the
+    # probe is a second process launch (~1.4 s on Windows) worth skipping. At 09:25 the launcher
+    # is plain python, so the real deploy path always probes.
+    if not (python == sys.executable and "pytest" in sys.modules):
+        try:
+            probe = subprocess.run([python, "-c", "import pytest"], capture_output=True,
+                                   text=True, timeout=60)
+        except (OSError, subprocess.SubprocessError) as exc:   # interpreter gone, or probe hung
+            return True, "skipped", f"could not probe pytest with {python}: {exc}"
+        if probe.returncode != 0:
+            return True, "skipped", f"pytest not importable by {python}"
+    if not (root / "tests").is_dir():
+        return True, "skipped", f"no tests/ directory under {root}"
+
+    try:
+        # no -q here: pytest.ini already sets it, and a second one suppresses the
+        # "126 passed in 35s" summary line that is the whole point of the log record.
+        res = subprocess.run([python, "-m", "pytest", "-p", "no:cacheprovider", "--tb=line"],
+                             cwd=str(root), capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return True, "warn", f"suite exceeded {timeout}s and was abandoned"
+    except OSError as exc:
+        return True, "warn", f"could not run the suite: {exc}"
+
+    out = (res.stdout + res.stderr).strip()
+    tail = out.splitlines()[-1] if out else f"exit {res.returncode}"
+    if res.returncode == 0:
+        return True, "passed", tail
+    if res.returncode == 1:                     # the only refusal: real assertion failures
+        return False, "failed", out[-1500:]
+    # 2 interrupted, 3 internal error, 4 usage error, 5 nothing collected -> not a verdict
+    return True, "warn", f"pytest exit {res.returncode}: {tail}"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--skip-replay", action="store_true")
+    ap.add_argument("--skip-tests", action="store_true")
+    ap.add_argument("--preflight-only", action="store_true",
+                    help="run the preflight gates and exit; never start the trader")
     args = ap.parse_args()
     cfg = config()
     import json
@@ -61,7 +117,20 @@ def main() -> int:
     if cfg.get("params"):
         common += ["--params", json.dumps(cfg["params"])]
 
-    # 1) replay preflight
+    # 1) unit suite: offline, ~35 s, and reaches the guards the replay cannot
+    if not args.skip_tests:
+        ok, outcome, detail = unit_tests_ok()
+        log_event("intraday", "preflight_tests", outcome=outcome, detail=detail[-500:])
+        if not ok:
+            msg = f"INTRADAY preflight FAILED: unit suite failed, not trading. {detail[-400:]}"
+            print(msg); notify(msg)
+            return 4
+        print(f"preflight tests {outcome}: {detail}" if outcome != "passed"
+              else f"preflight tests OK: {detail}")
+        if outcome != "passed":
+            notify(f"INTRADAY preflight: unit suite {outcome} ({detail[-200:]}); trading anyway")
+
+    # 2) replay preflight
     if not args.skip_replay:
         day = last_session()
         if day is None:
@@ -76,7 +145,7 @@ def main() -> int:
             return 2
         print("preflight replay OK:", res.stdout.strip().splitlines()[-1])
 
-    # 2) gates
+    # 3) gates
     if any((LIVE / n).exists() for n in ("HALT", "HALT_INTRADAY")):
         msg = "INTRADAY not started: HALT file present"
         print(msg); notify(msg); log_event("intraday", "not_started", reason="halt")
@@ -84,7 +153,10 @@ def main() -> int:
     if not args.dry_run and not (LIVE / "APPROVED_PAPER.md").exists():
         print("no approval file: running dry"); args.dry_run = True
 
-    # 3) launch
+    # 4) launch
+    if args.preflight_only:
+        print("preflight-only: all gates passed, not launching")
+        return 0
     cmd = [PY, str(TRADER)] + common + (["--dry-run"] if args.dry_run else [])
     log_event("intraday", "launch", cmd=cmd)
     return subprocess.call(cmd)

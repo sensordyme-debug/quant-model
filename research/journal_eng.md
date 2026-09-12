@@ -1,5 +1,74 @@
 # Journal - eng track (platform engineering). Newest first.
 
+## 2026-09-12 - E-5: the unit suite now gates the 09:25 launch, and it only ever refuses for one reason
+
+**Hypothesis.** E-4's suite protects only the tracks that remember to run it. Wiring it into
+`intraday_launch.py` - which already replays the last stored session before letting the trader
+start - makes it protect the deploy. The risk is the obvious one: this is the first check in the
+repo that can *stop the sleeve trading*, so the failure mapping has to be designed rather than
+assumed, or a missing dev dependency becomes a self-inflicted outage.
+
+**What shipped.** `unit_tests_ok()` in `scripts/intraday_launch.py`, called as preflight step 1
+(before the replay, so a broken constant is caught in 35 s instead of after a 47 s replay), plus
+`--skip-tests` and `--preflight-only`, and `tests/test_launch_preflight.py` (19 tests).
+
+The whole design is one asymmetry - **exit 1 is the only refusal**:
+
+| outcome | verdict | why |
+| --- | --- | --- |
+| pytest exit 0 | trade, silent | - |
+| pytest exit 1 | **refuse, exit 4, alert** | assertion failures: the arithmetic is provably wrong |
+| exit 2 collection error, 3 internal, 4 usage, 5 nothing collected | trade + warn | broken *tests*, not a broken book |
+| pytest not importable | trade + warn | E-5's explicit requirement |
+| suite hangs past 300 s | trade + warn | the replay is the check that guards the strategy path |
+
+**The one real trap, and it would have bitten.** `python -m pytest` with pytest absent exits **1**
+- the same code as a genuine test failure. Reading importability off the exit code would have
+turned "dev dependency missing" into "sleeve does not trade", the exact outage E-5 said to avoid.
+Importability is therefore probed in a separate process first, and
+`test_probe_failure_is_detected_without_running_the_suite` asserts the suite is not run afterwards.
+
+**Verification - all three branches, against the real launcher**, with `notify`/`log_event` stubbed
+so the forced failure did not fire a false alert at the owner:
+
+| branch | how | exit | alert | logged |
+| --- | --- | --- | --- | --- |
+| healthy | as-is | 0 | none | `preflight_tests outcome=passed` |
+| failing | planted `assert 1 == 2` in `tests/` | **4** | names the failing test | `outcome=failed` |
+| pytest missing | gate stubbed to `skipped` | 0 | "trading anyway" | `outcome=skipped` |
+
+AGENTS.md's runner-change rule is satisfied: full `--preflight-only` run including the replay is
+**exit 0 in 1 m 41 s** (tests 35 s, replay of 2026-09-10 = P&L -3,920, 45 trades, flat at end).
+`live/state/intraday_book.json` still stamped 2026-09-11 15:42, `APPROVED_PAPER.md` untouched, no
+HALT file created, and the planted test was removed. Suite: **126 passed** on both 3.14 and 3.11.
+
+**Correction to E-4: the suite is not 0.5 s.** Measured today, pre-existing 107 tests only:
+**19.9-24.8 s on Python 3.14, 3.27 s on 3.11.** The scheduled task runs
+`pythoncore-3.14-64\python.exe`, i.e. the slow one, so the number that matters for the launch
+budget was ~40x the journal's figure before I added anything. With E-5's 19 tests: 39 s on 3.14,
+21 s on 3.11. My tests are ~19 s of that and it is almost entirely nested-interpreter start-up -
+five cases spawn a real pytest against a throwaway repo in `tmp_path`, because "which exit code
+does pytest actually emit for a collection error" is a fact about pytest, not about my mapping,
+and a future version returning 1 there would silently start refusing to trade. The remaining
+seven codes are pinned by one parametrized synthetic test at ~0 cost. I cut the probe subprocess
+on the already-under-pytest path (-11 s) and dropped two cases that re-proved exit 1.
+Net launch cost ~35 s against a 09:25 start and a 09:30 open: acceptable, but 3.14 being 6x
+slower than 3.11 on the same suite is worth a look on its own.
+
+**Two self-inflicted lessons, both about testing meta-properties.** A guard test that greps its
+own file for `unit_tests_ok()` matched first its own docstring and then its own assertion line;
+rewritten with `ast` to count zero-argument `Call` nodes, which is what it actually meant. And the
+first draft of that guard was a test asserting the real suite passes - `unit_tests_ok()` with its
+default root, from inside the suite it runs, which recurses until the machine gives up. The
+`ast` guard now exists to stop the next person writing it.
+
+**Decision.** Ship. The gate refuses on exactly one condition, every other path trades, and all
+three branches were exercised against the real launcher rather than argued about.
+
+**Next.** E-6 store-completeness checker (untested code reading `data/minute`,
+`data/minute_alpaca` and the 0DTE store). Worth filing separately: why the shared suite is 6x
+slower on 3.14 than 3.11, since 3.14 is the deploy interpreter.
+
 ## 2026-09-12 - E-4: the runners' money paths get a unit suite, and a mutation run proves it has teeth
 
 **Hypothesis.** The two live runners carry ~1,150 lines of sizing, gate and book-accounting logic

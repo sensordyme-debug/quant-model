@@ -3207,14 +3207,13 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   touching the champion.
 - **E-2b Generalize `sweep_s1.py` off S-1.** Explicitly deferred when E-2 shipped; the second
   designated offline item. Needed before any second sleeve can be swept the same way.
-- **E-5 Wire the unit suite into `intraday_launch.py`'s preflight.** E-4 shipped `tests/` but
-  nothing runs it automatically, so it protects only the tracks that remember to. The launcher
-  already replays the last stored session before letting the trader start, which is the right
-  place - but it gates the 09:25 live start, so the failure mode has to be designed, not assumed:
-  run `python -m pytest -q`, log the result to the launch log, refuse to trade **only** on a real
-  test failure, and treat "pytest not importable" as a pass with a warning so a missing dev
-  dependency can never stop trading. Needs `--replay <date>` plus a forced-failure run to verify
-  both branches before it ships. Deliberately left out of E-4 for this reason.
+- **E-7 Why is the shared test suite 6x slower on 3.14 than on 3.11?** Measured under E-5:
+  the 107 pre-existing tests run in 3.27 s on `py -3.11` but 19.9-24.8 s on
+  `pythoncore-3.14-64\python.exe`, which is the interpreter the "Quant Intraday Sleeve" task
+  uses and therefore the one the preflight budget is spent in. Probably import cost
+  (pandas/numpy) under 3.14 rather than the tests themselves - `-X importtime` on a single
+  test would say. Worth it because the launch gate now pays this every morning, and because
+  every track's edit-test loop pays it all day.
 - **E-6 Store-completeness checker.** No automated check says whether `data/minute`,
   `data/minute_alpaca` and the 0DTE store are whole: truncated sessions (a fetch that died
   mid-day leaves a partial session that silently shortens a backtest), missing trading days,
@@ -3223,6 +3222,16 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
 
 ## Done
 
+- **E-5 Unit suite wired into the launch preflight. DONE 2026-09-12.**
+  `intraday_launch.unit_tests_ok()` runs as preflight step 1 (before the replay);
+  `tests/test_launch_preflight.py` (19 tests) pins the mapping. **pytest exit 1 is the only
+  refusal** (exit code 4, alert names the failing test); collection error, nothing collected,
+  usage error, hang and "pytest not importable" all trade with a warning, because a missing dev
+  dependency must never stop the sleeve. The trap: `python -m pytest` with pytest absent also
+  exits 1, so importability is probed in a separate process first. All three branches verified
+  against the real launcher with alerting stubbed (0 / 4 / 0), plus a full `--preflight-only`
+  run with the replay at exit 0 in 1 m 41 s, live book and approval file untouched. Also added
+  `--skip-tests` and `--preflight-only`. Corrected E-4's "0.5 s" suite claim - see **E-7**.
 - **D-2 Intraday data, LEAN minute store. SPY DONE 2026-09-09**, acceptance run
   `20260909T160005Z` (`algorithms/d2_minute_smoke`, tagged not promotable; no champion change).
   `scripts/fetch_minute.py`: IBKR `reqHistoricalData` 1-min / TRADES / `useRTH=True` -> LEAN
