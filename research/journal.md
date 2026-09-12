@@ -1,5 +1,125 @@
 # Research journal
 
+## 2026-09-11 - F-2a: the futures blocker was never a permission problem, and the instrument's round trip is a tenth of anything this repository has refused
+
+**Hypothesis.** The backlog has carried F-2 (the index-futures track) since 2026-09-10 as
+"needs owner: IBKR futures permission + CME data, or a Databento key", and after S-24 it is
+the last open item with a stated mechanism - everything else is refused, standing, or an
+owner decision. Nobody had ever tested that claim. A blocker that has never been probed is
+an assumption, and this repository's own rule since S-24 is that an assumption gets measured
+or it gets a sign. Two new scripts, `scripts/futures_data.py` (probe, depth, stitch) and
+`scripts/sweep_f2.py` (costs, event study, books); **4 ledger rows** under `futures/f2_es`;
+no file either runner loads was modified, so rule (a) owes no replay and the I-1 gate is
+unaffected (S-19's precedent). Both standing jobs were run first and neither had new input.
+
+**Pre-registered in the script docstrings before the first request, in three clauses.**
+(1) UNBLOCKED if IB Gateway returns at least one full session of 1-minute TRADES bars for a
+front-month ES/MES/NQ/MNQ contract. (2) BLOCKED if every request is refused - and then the
+deliverable is the exact product name and error code, not "needs data". (3) A contract
+definition that resolves is **not** evidence of (1): IBKR describes instruments it will not
+price, so the test is bars and the number of them. For the research half, added before any
+statistic was computed: a mechanism survives only at gross above the cost floor with |t| > 2
+and the sign holding in both halves, and **nothing in the file is promotable whatever it
+prints**, because 313 sessions is 16% of A-4's ~2,000-session power requirement and A-10 is
+the standing lesson about exactly that (260 IBKR sessions kept a strategy 2,686 Alpaca
+sessions killed at t = -7.38).
+
+**(1) The permission claim is simply wrong, and that is the first finding.** The paper
+account (DUT091359) fetched 2,760 one-minute TRADES bars - two full 23-hour sessions - for
+**every one of ES, MES, NQ and MNQ, with zero errors**: no 354 (not subscribed), no 162, no
+10197. Daily bars came back for all four as well. There is nothing to buy for access, and an
+IBKR CME market-data subscription would buy nothing that is missing.
+
+**(2) What is actually missing is retention, and it took one wrong turn to establish.**
+The first depth probe reported that expired quarterlies return error 200 and would have
+concluded they were gone. That was an artifact of a **guessed expiry date** - `ES 20260619`
+does not exist because the real third Friday is the 18th. Addressed by `localSymbol`
+instead, the expired contracts qualify and serve full data: **ESM6 7,740 bars / 5.9M
+contracts of volume, ESH6 6,540 / 6.3M, ESZ5 7,455 / 5.5M, ESU5 6,600 / 4.4M** - and
+**ESM5 and older return no security definition**. So IBKR retains about **four expired
+quarters**. The continuous series is not a way around it: `reqHistoricalData` on a CONTFUT
+refuses an `endDateTime` outright (**error 10339, "Setting end date/time for continuous
+future security type is not allowed"**) and caps a 1-minute request at one month, so CONTFUT
+cannot be paged - a "6 M" and a "1 Y" minute request both time out and are cancelled
+server-side. Daily CONTFUT does go back further and is the one long series available:
+**ES 826 sessions from 2023-06-19**, NQ 633 from 2024-03-18, MES/MNQ 499 from 2024-09-23.
+
+**(3) So the store was built from what exists**: five dated contracts used only in their own
+front quarter, rolling 8 calendar days before expiry, **447,600 one-minute bars over
+2025-06-09..2026-09-10 = 313 cash sessions** (`data/futures/ES.parquet`, gitignored).
+
+**(4) The cost floor is the result worth keeping, because it is a property of the instrument
+and not of the sample.** One ES contract carries **$347,117** of notional at the sample's
+mean price, IBKR Pro charges **$2.05 a side** all-in ($0.85 execution + $1.18 CME + $0.02
+NFA) and the book is one tick ($12.50) wide essentially all session:
+
+| | commission | spread | **round trip** |
+| --- | --- | --- | --- |
+| ES, half tick | 0.121 bps | 0.368 bps | **0.488 bps** |
+| ES, full tick | 0.121 | 0.735 | **0.856** |
+| MES, half tick | 0.376 | 0.368 | 0.744 |
+
+Against this repository's own measured equity round trips - **L-1 6.40-8.20 bps** on
+leveraged ETFs, **X-1 4.70 bps** per megacap leg, **F-1 0.892 bps of commission alone at
+zero spread** - the ES round trip is **10x to 17x cheaper**. That matters more than any
+single backtest here, because **every intraday refusal this repository has written was a
+refusal on cost rather than on signal**: F-1 found a real forecast (pooled OOS IC +0.0113,
+t +4.74) and was refused at 0.797 gross bps against a 0.892 bps floor. The same forecast on
+this instrument would have cleared its floor by 60%.
+
+**(5) Both pre-registered mechanisms are refused on the 313 sessions.** Sign trades, no
+threshold, no sizing, gross:
+
+| mechanism | exit | gross bps | t | 1st half | 2nd half |
+| --- | --- | --- | --- | --- | --- |
+| M1 overnight (18:00 -> 09:15) into the cash open | 10:00 | **+1.161** | +0.78 | +0.378 | +1.940 |
+| M1 | 11:00 | -0.316 | -0.15 | -1.157 | +0.519 |
+| M1 | 16:00 | -0.431 | -0.12 | -5.982 | +5.086 |
+| M2 day momentum (09:30 -> 15:30) into the last 30m | 16:00 | **-2.415** | **-2.56** | -3.925 | -0.916 |
+
+M1 clears the 0.488 floor at its best horizon and **does not reach |t| = 2 anywhere**; it is
+gone by 11:00. M2 is the interesting one: the only statistic in the table that reaches
+significance does so **with the sign reversed from the premise** - the last half hour
+*fades* the day rather than extending it.
+
+**(6) The reversal is recorded, and it is labelled post hoc, but it is not invented here.**
+Flipping M2's sign earns **+2.415 gross / +1.927 net bps at t +2.05, win rate 57%**. The
+flip was chosen after reading stage 1, so by this repository's own A-12 precedent it is in
+sample by construction, and its halves (-3.925 then -0.916 in momentum terms) say the effect
+is concentrated in the first half. What it is not is a new idea: **X-1 already measured
+exactly this shape on megacap equities on 2026-09-10** - "+0.63 bps at 10:30 and **-0.69 bps
+(t = -2.80) at 14:30** - continuation in the morning, reversion in the afternoon" - on a
+different instrument, a different sample and 2,684 sessions, and that entry filed it as
+"worth keeping for a later idea". M1's own shape agrees (positive to 10:00, zero after). So
+the direction was on record before this table existed; what is not on record is whether it
+survives on futures with enough sessions to tell, and 313 cannot tell.
+
+**(7) On the mandate.** The cash session's own gross sd is **0.62% of notional** per
+contract before any leverage decision, against the intraday equity sleeve's 0.49% (L-1) and
+0.27% (X-1) *after* leverage. This is the first instrument the loop has measured where the
+owner's 3-10%/day range is reachable without sizing up an unproven signal - which is the
+distinction USER.md draws. It still needs an edge, and this iteration did not find one.
+
+**Decision.** F-2's blocker is rewritten rather than removed. **Nothing shipped, nothing
+promoted, no default changed**: champion unchanged at S-18, `champion.json`, `live/*` and
+all three scheduled tasks untouched, and no runner-loaded file modified. The purchase request
+in `BLOCKERS.md` is now precise and an order of magnitude better justified than "needs data":
+it is **historical CME futures history back to ~2016 for ES/NQ** (Databento MDP-3 or
+equivalent), **not** an IBKR futures permission or CME market-data subscription, and the
+reason to buy it is the 0.488 bps round trip rather than any number in section 5.
+
+**Standing jobs.** Both ran first and neither had new input (the S-24 iteration had already
+pooled today's sessions): A-5 part 2 at **66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90**
+(~4.4 sessions to settle, constant untouched at 1.50), `daily_fills.py` at **10 fills /
+$2.37M / +3.2 bps (se 4.5)** with `ref_price` the previous close in 10 of 10.
+
+**Next.** Nothing further on this track without the history. Two things worth doing on what
+exists, neither of which needs the owner: the afternoon-reversal shape is now measured on
+two instruments and two samples (X-1's equities at t -2.80, F-2's futures at t -2.56) and
+can be tested properly on the **Alpaca store**, which has 2,684 sessions and where X-1 found
+it in the first place; and `whatIfOrder` would give the margin-to-notional ratio that turns
+section 7's 0.62% into the mandate's own percentage.
+
 ## 2026-09-11 - S-24: the harness's "open" is not the opening cross, and the pre-open move survives being priced at the one a real MOO order gets
 
 **Hypothesis.** S-23 left the owner's cheapest decision resting on one unmeasured

@@ -443,6 +443,52 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   is too low - they are in tension because **no measured edge here is large enough to pay for that
   much volatility.**
 - **Real-time data bundle** (below) so paper fills and live bars are current.
+- **CME futures HISTORY - a purchase request that is now priced, and NOT the one the backlog
+  has been asking for (F-2a, 2026-09-11).** The backlog carried F-2 as "needs IBKR futures
+  permission + CME data". **That was never probed and it is wrong.** This paper account already
+  fetches **ES, MES, NQ and MNQ 1-minute TRADES bars for the full 23-hour session with zero
+  errors** - no 354 "not subscribed", no 162, no 10197 - so **an IBKR futures market-data
+  subscription would buy nothing that is missing, and you should not buy one for this.**
+
+  What is missing is **history retention**. IBKR keeps roughly **four expired quarters**
+  (`ESU5` still serves 6,600 bars and 4.4M contracts of volume; `ESM5` and older return "no
+  security definition"), and the continuous series is not a way around it - `reqHistoricalData`
+  on a CONTFUT **refuses an `endDateTime` outright (error 10339)** and caps a 1-minute request
+  at one month, so it cannot be paged backwards. The best stitch available is **313 cash
+  sessions**, which is **16%** of the ~2,000 that A-4 measured as this repository's own power
+  requirement - and A-10 is the standing lesson about ignoring that, having kept a strategy on
+  260 IBKR sessions that 2,686 Alpaca sessions then killed at t = -7.38.
+
+  **Why it is worth money, which is the part that changed.** Every intraday refusal in this
+  repository was a refusal on **cost**, not on signal:
+
+  | instrument | round trip | source |
+  | --- | --- | --- |
+  | **ES futures** | **0.488 bps** (0.856 at a full tick) | F-2a, measured |
+  | MES futures | 0.744 bps | F-2a, measured |
+  | F-1's intraday equity book | 0.892 bps of commission *alone*, at zero spread | F-1 |
+  | X-1 megacap legs | 4.70 bps | X-1 |
+  | L-1 leveraged ETFs | 6.40 - 8.20 bps | L-1 |
+
+  F-1 found a genuinely real forecast (out-of-sample IC +0.0113 at t +4.74) and it died at
+  0.797 gross bps against a 0.892 bps floor. **On ES that same forecast clears its floor by
+  60%.** The futures instrument is **10x to 17x cheaper** than anything the loop has been
+  allowed to trade, and that is a property of the contract rather than of a backtest.
+  Separately, one ES contract carries $347k of notional whose cash-session gross sd is **0.62%
+  before any leverage decision**, against 0.49% and 0.27% for the equity intraday books *after*
+  theirs - the first instrument measured here where your 3-10%/day range is reachable without
+  sizing up an unproven signal.
+
+  **The ask, concretely**: historical CME futures data for **ES and NQ back to ~2016**, 1-minute
+  or finer, e.g. **Databento MDP-3** (or any vendor that sells expired-contract history). Not an
+  IBKR permission, not a market-data subscription. **What the loop has already built so it is
+  ready the day it arrives**: `scripts/futures_data.py` (probe, retention audit, front-quarter
+  stitch with an 8-day roll) and `scripts/sweep_f2.py` (the cost table above, the event study and
+  the book). **What it will not do without the history**: propose a futures strategy. On the 313
+  sessions available both pre-registered mechanisms were refused - overnight-into-the-open at
+  t +0.78, day-momentum-into-the-close at t -2.56 with the premise's sign reversed - and the one
+  positive cell is a post-hoc sign flip that this repository's own rules do not let it act on.
+  Nothing is blocked today and nothing has been deployed.
 
 ## Open request to the owner (2026-09-09, intraday sleeve)
 

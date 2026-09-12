@@ -1,0 +1,121 @@
+{
+  "ts": "20260911T233828Z",
+  "contfut": {
+    "MES": {
+      "head": "2024-09-22 22:00:00",
+      "bars_1m": 2760,
+      "first": "2026-09-09 17:00:00-05:00",
+      "last": "2026-09-11 15:59:00-05:00",
+      "errors": [],
+      "ib_errors": []
+    },
+    "ES": {
+      "head": "2023-06-18 22:00:00",
+      "bars_1m": 2760,
+      "first": "2026-09-09 17:00:00-05:00",
+      "last": "2026-09-11 15:59:00-05:00",
+      "errors": [],
+      "ib_errors": []
+    },
+    "MNQ": {
+      "head": "2024-09-22 22:00:00",
+      "bars_1m": 2760,
+      "first": "2026-09-09 17:00:00-05:00",
+      "last": "2026-09-11 15:59:00-05:00",
+      "errors": [],
+      "ib_errors": []
+    },
+    "NQ": {
+      "head": "2024-03-17 22:00:00",
+      "bars_1m": 2760,
+      "first": "2026-09-09 17:00:00-05:00",
+      "last": "2026-09-11 15:59:00-05:00",
+      "errors": [],
+      "ib_errors": []
+    }
+  },
+  "expired": {
+    "ES20260619": {
+      "bars_1m": 0,
+      "errors": [
+        "200: No security definition has been found for the request"
+      ],
+      "ib_errors": [
+        {
+          "reqId": 15,
+          "code": 200,
+          "msg": "No security definition has been found for the request"
+        }
+      ]
+    },
+    "ES20250620": {
+      "bars_1m": 0,
+      "errors": [
+        "200: No security definition has been found for the request"
+      ],
+      "ib_errors": [
+        {
+          "reqId": 16,
+          "code": 200,
+          "msg": "No security definition has been found for the request"
+        }
+      ]
+    },
+    "MES20250620": {
+      "bars_1m": 0,
+      "errors": [
+        "200: No security definition has been found for the request"
+      ],
+      "ib_errors": [
+        {
+          "reqId": 17,
+          "code": 200,
+          "msg": "No security definition has been found for the request"
+        }
+      ]
+    }
+  },
+  "errors": [],
+  "extent": {
+    "MES": {
+      "daily_bars": 499,
+      "daily_first": "2024-09-23",
+      "minute_bars": 30120,
+      "minute_first": "2026-08-12 17:00:00-05:00",
+      "errors": [],
+      "daily_last": "2026-09-11",
+      "minute_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    },
+    "ES": {
+      "daily_bars": 826,
+      "daily_first": "2023-06-19",
+      "minute_bars": 30120,
+      "minute_first": "2026-08-12 17:00:00-05:00",
+      "errors": [],
+      "daily_last": "2026-09-11",
+      "minute_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    },
+    "MNQ": {
+      "daily_bars": 499,
+      "daily_first": "2024-09-23",
+      "minute_bars": 30120,
+      "minute_first": "2026-08-12 17:00:00-05:00",
+      "errors": [],
+      "daily_last": "2026-09-11",
+      "minute_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    },
+    "NQ": {
+      "daily_bars": 633,
+      "daily_first": "2024-03-18",
+      "minute_bars": 30120,
+      "minute_first": "2026-08-12 17:00:00-05:00",
+      "errors": [],
+      "daily_last": "2026-09-11",
+      "minute_last": "2026-09-11 15:59:00-05:00",
+      "ib_errors": []
+    }
+  }
+}
