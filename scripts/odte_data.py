@@ -88,6 +88,18 @@ def stored_dates(symbol: str) -> list[str]:
     return sorted(p.stem for p in d.glob("*.parquet"))
 
 
+def _resolve_workers(requested: int, market: str) -> int:
+    """Clamp to the machine's budget; fall back to the request if the scheduler is absent."""
+    try:
+        import sys as _sys
+        if str(REPO) not in _sys.path:
+            _sys.path.insert(0, str(REPO))
+        from quant_brain.core.scheduler import resolve_workers
+        return resolve_workers(requested, market)
+    except Exception:  # noqa: BLE001
+        return max(1, int(requested))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--symbol", default="SPY")
@@ -122,7 +134,12 @@ def main() -> int:
     ok = empty = err = 0
     rows = 0
     done = 0
-    with ThreadPoolExecutor(max_workers=args.workers) as ex:
+    # Part 6: the worker count comes from the machine, not from a constant. This can only
+    # LOWER the request - ask for 2 and you get 2 - so it never reshapes an experiment; what
+    # it prevents is the 2026-09-12 state, where hard-coded fan-out put the box at 98% commit
+    # charge while 34.7 GB of physical RAM still read as free.
+    workers = _resolve_workers(args.workers, "options")
+    with ThreadPoolExecutor(max_workers=workers) as ex:
         for date, n, status in ex.map(lambda d: fetch_day(sym, d, args.interval, args.range,
                                                           args.overwrite), todo):
             done += 1

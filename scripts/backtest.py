@@ -132,6 +132,23 @@ def main() -> int:
         "ts": ts, "algorithm": name, "class": cls, "tag": args.tag, "commit": git_commit(),
         "run_dir": str(run_dir.relative_to(REPO)), "env": overrides, "stats": picked,
     }
+    # Provenance. Part 11 of the architecture brief, and the fix for the environment
+    # ambiguity: this repository runs LEAN on Python 3.11 (pandas 2.2.3) while everything
+    # touching parquet runs on 3.14 (pandas 3.0.5), and both append to THIS file. `env_key`
+    # is a short digest of interpreter plus numeric stack - py311-689198 vs py314-5ba485 -
+    # so a comparison across environments is detectable rather than merely discouraged.
+    # `reproducible` is false on a dirty tree, because the code that ran is then not the
+    # code at that commit. Never allowed to break a recorded run.
+    try:
+        sys.path.insert(0, str(REPO))
+        from quant_brain.core.provenance import Provenance
+        prov = Provenance.capture(experiment_id=f"{name}::{cls}@{ts}", repo=REPO,
+                                  config=overrides, strategy_version=cls)
+        record["provenance"] = prov.to_dict()
+        record["env_key"] = prov.env_key
+        record["reproducible"] = prov.reproducible
+    except Exception as exc:  # noqa: BLE001
+        record["provenance_error"] = f"{type(exc).__name__}: {exc}"[:200]
     EXPERIMENTS.parent.mkdir(parents=True, exist_ok=True)
     with EXPERIMENTS.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
@@ -140,6 +157,9 @@ def main() -> int:
     print(f"[backtest] RESULT {name}::{cls} ({ts})")
     for k, v in picked.items():
         print(f"  {k:<{width}}  {v}")
+    if record.get("env_key"):
+        flag = "" if record.get("reproducible") else "  (DIRTY TREE - not reproducible)"
+        print(f"[backtest] env {record['env_key']}{flag}")
     print(f"[backtest] record appended to {EXPERIMENTS.relative_to(REPO)}")
     return 0
 

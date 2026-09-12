@@ -335,6 +335,23 @@ def record(name: str, tag: str, s: dict, params, start, end):
         rec["risk"] = dict(RISK)
     if intraday_common.SLIPPAGE_BPS != SLIPPAGE_BPS:
         rec["slippage_bps"] = intraday_common.SLIPPAGE_BPS
+    # Provenance: the intraday harness runs on 3.14 (it needs pyarrow) while the LEAN path
+    # runs on 3.11, and both write this file. Stamping env_key makes a cross-environment
+    # comparison detectable. Never allowed to break a recorded run.
+    try:
+        import sys as _sys
+        if str(REPO) not in _sys.path:
+            _sys.path.insert(0, str(REPO))
+        from quant_brain.core.provenance import Provenance
+        prov = Provenance.capture(experiment_id=f"intraday/{name}@{rec['ts']}", repo=REPO,
+                                  config={"params": params, "risk": dict(RISK)},
+                                  strategy_version=name)
+        rec["provenance"] = prov.to_dict()
+        rec["env_key"] = prov.env_key
+        rec["reproducible"] = prov.reproducible
+        rec["commit"] = prov.git_commit[:12]
+    except Exception as exc:  # noqa: BLE001
+        rec["provenance_error"] = f"{type(exc).__name__}: {exc}"[:200]
     with EXPERIMENTS.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, default=str) + "\n")
 
