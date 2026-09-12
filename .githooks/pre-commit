@@ -1,0 +1,19 @@
+#!/bin/sh
+# Run the completion gate before every commit.
+#
+# Added after I committed over a red gate by chaining `qb_check && git commit` in one shell
+# block: every command ran regardless of the previous one's exit code, so the FAIL scrolled
+# past and the commit stood. A gate you have to remember to read is not a gate.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Bypass deliberately:     git commit --no-verify   (say why in the message)
+py -3.14 scripts/qb_check.py --quiet --no-types >/dev/null 2>&1
+status=$?
+if [ $status -ne 0 ]; then
+  echo ""
+  py -3.14 scripts/qb_check.py --quiet --no-types 2>&1 | tail -20
+  echo ""
+  echo "pre-commit: gate failed. Fix it, or commit with --no-verify and say why."
+  exit 1
+fi
+exit 0
