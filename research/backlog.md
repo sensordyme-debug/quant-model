@@ -27,6 +27,48 @@ leg-split program (hold / rank / size) closed with S-28, and S-29 closed the reg
 one untried construction is **S-30** below. (3) The honest deployed expectation of the daily
 champion is **~20% CAR, not 24.4%** - see `champion.json`'s `deployed_expectation_note`.
 
+Status 2026-09-12 13:1x UTC (S-31): **the owner's size decision - the largest of the six - was
+priced on a book that does not exist. About half the advertised gain is not there, the Sharpe
+argument for it reverses once the borrowing is charged, and option (c) is now answered in
+advance.** Not a seventh lever: **both standing jobs ran first and neither has new input**
+(Saturday - `slippage_report.py` 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90;
+`daily_fills.py` 10 fills / $2.37M / +3.2 bps, `ref_price` the previous close 10 of 10), so the
+highest-value remaining act is to make the binding constraint answerable on the right numbers.
+New `scripts/sweep_s31.py`; **37 DIAGNOSTIC ledger rows** under `daily/s31_budget`; seven clauses
+pre-registered; **no shipped or runner-loaded file touched**, so no deploy gate and no replay is
+owed. **(1) Identity exact**: budget 0.75 gives **22.192150% / 5,052 orders** at zero cost and
+**19.640168% / 1.047 / DD 24.037** fully charged, S-22's independent figure. **(2) The drawdown
+calibration is pre-registered and passes, including a NEW LEAN RUN at the budget the answer
+selects** - harness minus LEAN on the backtest convention is DD **-0.442 / -1.135 / -1.294** at
+0.75 / 0.80 / **0.90** (run `20260912T130734Z`, 28.796% / 1.032 / DD 27.900%, `OrderListHash
+7352a42d118919eec701e44af7a4dfff`), so the harness is optimistic and grows more so with size, and
+every drawdown is quoted with that error added back. **(3) About half the gain is not there**:
+against what the owner was shown, the gain over 0.75 at today's cost of money is **+0.428 /
++0.679 / +0.959 / +1.353 / +1.991 / +3.186** at 0.78 / 0.80 / 0.82 / 0.85 / 0.90 / 1.00 against
+**+0.877 / +1.454 / +2.017 / +2.879 / +4.301 / +7.052** - **45-49% survives**, decaying with size
+because the financed debit grows faster than the return. The CAR ordering does **not** reverse.
+**(4) The risk-adjusted ordering does, and that is the headline**: Sharpe runs 1.247 -> 1.246
+(flat) uncosted but **1.047 -> 1.003** costed and **1.023 -> 0.952** at today's rates. **Not a
+convention artifact** - as excess return over the sample's own 1.6924% mean fed funds the uncosted
+cell **rises 1.156 -> 1.176**, reproducing S-21's argument, and LEAN agrees directly (0.994 /
+1.008 / **1.032** at 0.75 / 0.80 / 0.90), while the charged cells fall. Spending the buffer buys
+return but no longer buys risk-adjusted return; it is a pure leverage lever. **(5) Option (c)
+answered**: drawdown <= 25% -> budget **0.70**, *below* the shipped 0.75 (adjusted DD 25.2%);
+<= 30% -> **0.90** at adjusted DD **26.3%**, +1.99 CAR at today's rates; <= 35% -> 0.90 as well.
+**(6) The cap this file calls binding is not**: the 35% limit binds nowhere on the frontier;
+**Reg-T** does, at 1.88x mark-to-market gross at 0.90 and **2.12x at 1.00**. And the reason it
+stopped binding is **S-18** - S-6 measured 35.4% drawdown at budget 1.0 on the 3x book, the
+unlevered book reaches ~30% there - so the only thing holding the budget at 0.75 is the
+excess-liquidity buffer, which is a preference and the owner's. **(7) First statistic past 2
+sigma in both halves on this sleeve** (paired vs 0.75, t +2.35..+2.40 IS and +2.00..+2.18 OOS at
+every budget above 0.75) - and it is read as the significance of **arithmetic**, since a budget
+change is a scaled version of the same book. **Nothing promoted, nothing shipped, no default
+changed**: `margin_budget` stays 0.75, `live/*` and all three scheduled tasks untouched,
+`champion.json` gains a `budget_note` and `BLOCKERS.md` the four-cell table. **What it changes for
+the loop**: a cost correction measured on the champion does **not** transfer to a decision about
+the champion's **size** - the three costs are independent of each other (S-22) but none is
+independent of leverage.
+
 Status 2026-09-12 11:5x UTC (I-2): **the end-of-session assertion pass ships, and it is validated
 by the only test that matters for an alert - it FAILs the one day that had real defects and stays
 quiet on the three that did not.** `scripts/session_audit.py`, 21 assertions over both live logs,
@@ -1638,6 +1680,12 @@ twelfth lever.**
 **Updated after I-2 closed (2026-09-12).** The ops job is done and shipped
 (`scripts/session_audit.py`, validated against both live defects of the window), so **the only
 open work in this file is the two standing measurement jobs** - A-5 part 2, which is ~4.4 sessions
+<!-- amended after S-31 closed, 2026-09-12: still true. S-31 added no item; it re-priced the
+     owner's `margin_budget` decision on the deployed, fully-charged book, which is the only kind
+     of work left that does not need a trading day or an answer from the owner. When the standing
+     jobs cannot advance, THAT is the pattern to repeat: re-price an open owner decision on the
+     honest scale rather than open a new research track. -->
+
 from settling the intraday sleeve's slippage constant and thereby BLOCKERS.md item 6, and S-17
 part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everything else is the
 owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
@@ -1686,6 +1734,32 @@ and no delivery, both of which are barred to the loop.
   ratio between the two verdicts is just ES's 0.488 bps against an equity 4.0 bps round trip. **It
   closes the leg-split program for good: hold (S-26), rank (S-27), size (S-28), shed (S-30) - the
   split is confirmed by three independent routes and monetized by none.**
+
+- **S-31 DONE 2026-09-12 (see journal): the owner's size decision re-priced on the deployed,
+  fully-charged book - about half the gain is gone, the Sharpe argument reverses, and option (c)
+  is answered in advance. Not a new item and not a lever: it prices one that was already open.**
+  `scripts/sweep_s31.py`, 37 DIAGNOSTIC ledger rows under `daily/s31_budget`, seven clauses
+  pre-registered. Eight budgets (0.70 to the Reg-T corner at 1.00) x four cost cells; identity
+  exact (22.192150% / 5,052 orders at zero cost, 19.640168% / 1.047 / DD 24.037 charged);
+  **no shipped or runner-loaded file touched, so no deploy gate is owed**. Drawdown calibration
+  against LEAN at three budgets including a new run at the selected one (DD error -0.442 / -1.135
+  / -1.294 at 0.75 / 0.80 / 0.90; `20260912T130734Z`, 28.796% / 1.032 / DD 27.900%). **Gain over
+  0.75 at today's cost of money: +0.428 / +0.679 / +0.959 / +1.353 / +1.991 / +3.186 against the
+  +0.877 / +1.454 / +2.017 / +2.879 / +4.301 / +7.052 the owner was shown - 45-49% survives.**
+  **Sharpe reverses**: flat uncosted (1.247 -> 1.246), 1.047 -> 1.003 costed, 1.023 -> 0.952 at
+  today's rates, and it is not a convention artifact (excess-return Sharpe at the sample's own
+  1.6924% *rises* 1.156 -> 1.176 uncosted, which is S-21's argument reproduced, and LEAN agrees at
+  0.994 / 1.008 / 1.032). **Inverse solve**: <= 25% -> 0.70 (below the shipped budget), <= 30% and
+  <= 35% -> 0.90. **The 35% cap binds nowhere; Reg-T does** (2.12x mark-to-market gross at budget
+  1.00), and S-18 is why - the retired 3x book hit 35.4% at budget 1.0 where the unlevered one
+  reaches ~30%. **Do not re-open as a budget-grid, cost-model or drawdown-target question** - the
+  grid spans the shipped budget to the Reg-T corner, all three costs are charged in both the
+  historical and today's-rates cells, and the three drawdown targets cover the range `criteria`
+  permits. What is left is the **owner's preference about excess liquidity**, unchanged and now
+  priced honestly in `BLOCKERS.md`. Two durable pieces survive it: the **four-cell convention**
+  (any future comparison of two different-SIZED books is run in cells A/B/C/D rather than shifted)
+  and the rule that **a cost correction measured on the champion does not transfer to a decision
+  about the champion's size**, because none of the three costs is independent of leverage.
 
 - **A-5 part 2 (STANDING, and now has an end condition that is close).** Measured intraday fill
   slippage against the harness's 1.50 bps assumption and the sleeve's **2.52 bps** breakeven.

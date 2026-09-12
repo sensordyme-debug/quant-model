@@ -1,5 +1,158 @@
 # Research journal
 
+## 2026-09-12 - S-31: the owner's size decision was priced on a book that does not exist - half the gain is not there, and the Sharpe argument for it reverses
+
+**Why this iteration exists, given that the backlog says to stop finding levers.** It does not add
+a seventh owner decision; it re-prices the largest of the six. Both standing measurement jobs ran
+first and, this being a Saturday, neither has new input: `slippage_report.py` still reads 66 fills
+/ **+2.22 bps** / se 0.80 / |diff|/se 0.90 (~4.4 sessions from settling), and `daily_fills.py`
+still reads 10 fills / $2.37M / **+3.2 bps** (se 4.5) with `ref_price` the previous close 10 of 10.
+With no research item left that has a stated premise and a permitted instrument, the highest-value
+thing the loop can do is make the binding constraint - the `margin_budget` question open in
+`BLOCKERS.md` since 2026-09-10 as options (a)/(b)/(c)/(d+) - answerable on the right numbers.
+
+**Hypothesis.** Every table the owner has been shown for that decision is on a book that pays none
+of the three costs this repository has since measured. S-16's frontier (0.75/0.78/0.80/0.82 ->
+24.403 / 25.307 / 25.903 / 26.474) is LEAN at zero spread, zero financing and the backtest's clock;
+S-21's (23.087 / 24.296 / 24.742) charges financing only. S-22 then established that the deployed
+book charged all three earns **19.640%, not 24.403%** - the headline is ~18% high. The claim S-31
+tests is that **the correction to this particular decision cannot be a parallel shift**, because
+the financing drag is proportional to the debit balance and the spread bill to turnover, and a
+larger budget raises both. If so, the *gain* from spending the Reg-T buffer is smaller than
+advertised by a predictable amount, and it can be quoted.
+
+**Method.** `scripts/sweep_s31.py`, seven clauses pre-registered before the first number, 37
+DIAGNOSTIC ledger rows under `daily/s31_budget`. **No shipped or runner-loaded file was touched**
+(the budget is already an ordinary `Params` field and an `S1_MARGIN_BUDGET` override), so **no
+deploy gate and no replay is owed**. Eight budgets - 0.70 / 0.75 / 0.78 / 0.80 / 0.82 / 0.85 /
+0.90 / 1.00, run to the Reg-T corner rather than to a chosen stopping point - in four cost cells:
+**(A)** the backtest convention at zero cost, S-16's scale; **(B)** the deployed 15:45 convention
+at zero cost, S-19's scale; **(C)** the deployed convention charged 2 bp of one-way spread and
+IBKR Pro financing on the historic effective fed funds rate; **(D)** the same at today's 3.63%.
+
+**(1) Identity, to the digit.** Budget 0.75 reproduces the deployed cell at **CAR 22.192150% /
+5,052 orders**, and its fully-charged cell lands on **19.640168% / Sharpe 1.047 / DD 24.037%**,
+the figure S-22, S-26, S-28 and S-30 each quote independently. The dial sizes the book; it does
+not change it.
+
+**(2) Calibration, because the decision is selected on drawdown and this is a pandas harness.**
+Pre-registered limits: the harness's drawdown error against LEAN may not exceed 2.0 points at any
+budget, nor grow by more than 1.0 point between them. Scored on the backtest-convention cell
+against LEAN rows, including **one new LEAN run at the budget clause 6 would go on to select**
+(`20260912T130734Z`, 5,587 orders, `OrderListHash 7352a42d118919eec701e44af7a4dfff`):
+
+| budget | LEAN CAR / DD | harness CAR / DD | CAR error | DD error |
+|---|---|---|---|---|
+| 0.75 (champion run) | 24.403% / 23.700% | 24.077% / 23.258% | -0.326 | **-0.442** |
+| 0.80 (S-16) | 25.903% / 25.100% | 25.531% / 23.965% | -0.372 | **-1.135** |
+| **0.90 (new)** | **28.796% / 27.900%** | 28.377% / 26.606% | -0.419 | **-1.294** |
+
+**PASSES**, and the sign matters: the harness is optimistic on drawdown and grows more so with
+size, which is exactly the bias that would make a too-large budget look safe, so every drawdown
+below is quoted with the measured error added back. Two conventions are *not* comparable between
+the two engines and are never compared here: LEAN's Sharpe subtracts a risk-free rate and its
+reported `Annual Standard Deviation` is on a different basis (0.155 against the harness's 0.187 at
+the same cell). Only drawdown and CAR are read across engines.
+
+**(3) The frontier.** Full period, 3,689 sessions:
+
+| budget | A backtest 0bp | B deployed 0bp | **C deployed costed** | D deployed today | DD (C) | mean gross | mean debit |
+|---|---|---|---|---|---|---|---|
+| 0.70 | 22.578 | 20.814 | 18.663 | 18.311 | 23.728 | 1.17x | 0.33x |
+| **0.75 (shipped)** | 24.077 | 22.192 | **19.640** | 19.102 | 24.037 | 1.25x | 0.41x |
+| 0.78 | 24.954 | 22.981 | 20.198 | 19.530 | 24.272 | 1.30x | 0.46x |
+| 0.80 | 25.531 | 23.458 | 20.533 | 19.780 | 24.475 | 1.33x | 0.49x |
+| 0.82 | 26.093 | 23.955 | 20.897 | 20.061 | 24.619 | 1.36x | 0.52x |
+| 0.85 | 26.956 | 24.705 | 21.408 | 20.455 | 24.780 | 1.41x | 0.57x |
+| 0.90 | 28.377 | 25.889 | 22.212 | 21.093 | 25.027 | 1.49x | 0.65x |
+| 1.00 | 31.129 | 28.222 | 23.818 | 22.288 | 27.653 | 1.64x | 0.80x |
+
+Cell A reproduces S-16's *gain* independently: LEAN gives +1.500 CAR from 0.75 to 0.80, the
+harness +1.454.
+
+**(4) THE RESULT: about half the advertised gain is not there, and the haircut is stable across
+the whole frontier.** Gain over the shipped 0.75, by cell:
+
+| budget | A gain (what was shown) | B gain | C gain | **D gain (what you get)** | survives |
+|---|---|---|---|---|---|
+| 0.78 | +0.877 | +0.789 | +0.558 | **+0.428** | 49% |
+| 0.80 | +1.454 | +1.266 | +0.893 | **+0.679** | 47% |
+| 0.82 | +2.017 | +1.763 | +1.257 | **+0.959** | 48% |
+| 0.85 | +2.879 | +2.513 | +1.767 | **+1.353** | 47% |
+| 0.90 | +4.301 | +3.697 | +2.572 | **+1.991** | 46% |
+| 1.00 | +7.052 | +6.030 | +4.178 | **+3.186** | 45% |
+
+So `BLOCKERS.md`'s "one constant buys +1.55 points of CAR" is, on the book the paper account
+actually runs, **+0.68 points**. The haircut decays gently with size (49% -> 45%) because the
+financed debit grows faster than the return does. **The CAR ordering does not reverse anywhere**:
+more budget still buys more return, monotonically, in all four cells. Clause 4's expectation of a
+quarter-to-half shrinkage was right at the top of its range.
+
+**(5) AND THE SHARPE ARGUMENT REVERSES, WHICH IS THE HEADLINE.** The strongest single sentence in
+the case for (d+) is S-18's and S-21's observation that Sharpe *rises* with size on the unlevered
+book. It does not:
+
+| budget | A backtest 0bp | B deployed 0bp | **C costed** | **D today** |
+|---|---|---|---|---|
+| 0.75 | 1.247 | 1.159 | **1.047** | **1.023** |
+| 0.80 | 1.246 | 1.156 | 1.036 | 1.004 |
+| 0.90 | 1.244 | 1.150 | 1.016 | 0.975 |
+| 1.00 | 1.246 | 1.148 | **1.003** | **0.952** |
+
+**It is not a Sharpe-convention artifact**, which is the obvious objection since these are raw
+ratios and LEAN's subtract a risk-free rate. Recomputed as excess-return Sharpe at the sample's
+own mean effective fed funds rate (**1.6924%**), cell A **rises 1.156 -> 1.176** from 0.75 to 1.00
+- i.e. it *reproduces* S-21's argument, and LEAN's own runs say the same thing directly (0.994 at
+0.75, 1.008 at 0.80, **1.032 at 0.90**) - while cell C **falls 0.957 -> 0.933** and cell D, at a
+3.63% cost of money, **falls 0.830 -> 0.802**. The convention is what made the cost invisible:
+subtracting a fixed rate from a numerator while the denominator grows manufactures a rising Sharpe
+out of a flat one. **Spending the buffer buys return. On the deployed book it no longer buys
+risk-adjusted return - it is a pure leverage lever now, and it should be argued for as one.**
+
+**(6) Halves, and an honest reading of a statistic that finally clears |t| = 2.** On cell C the
+paired difference against 0.75 reaches **t +2.35 to +2.40 in 2012-2019 and +2.00 to +2.18 in
+2020-2026, at every budget above 0.75** - the first thing on the daily sleeve to pass 2 sigma in
+both halves. **Read it for what it is**: a budget change is a scaled version of the same book, so
+the paired residual variance is nearly zero and the test is measuring the significance of
+arithmetic, not of an edge. What it does establish is that the *sign* is not sample-dependent. The
+OOS half is where the size is worth most in absolute terms (0.90: 28.749% against 25.967%).
+
+**(7) Option (c) answered in advance - and the cap the owner was told is binding is not.**
+`BLOCKERS.md` offers "name a drawdown and the loop solves for the budget". On cell C with the
+clause-2 error added back:
+
+- **drawdown <= 25%** -> budget **0.70**, i.e. *below* the shipped 0.75, whose own adjusted
+  drawdown is 25.2%. Costs -0.98 CAR points.
+- **drawdown <= 30%** -> budget **0.90** (adjusted DD **26.3%** using the measured -1.294 at that
+  exact budget), worth **+2.57 CAR points** historically and **+1.99** at today's cost of money.
+- **drawdown <= 35%** -> **also 0.90**, because nothing between 0.90 and 1.00 is Reg-T-clean.
+
+**The 35% absolute limit is not binding on this decision anywhere.** The constraint that binds is
+Reg-T: mark-to-market gross peaks at 1.88x at budget 0.90 and **2.12x at 1.00**, over the 2.0x
+ceiling. (Decision-time gross is capped at 2.0 by `max_gross_weight`; the 2.12 is drift between
+rebalances - the daily-book version of the 1.034x `GROSS_HARD_CAP` peak I-2 found intraday.) And
+the reason the cap stopped binding is **S-18**: S-6 measured budget 1.0 at a 35.4% drawdown on the
+3x-proxy book, while the unlevered book that replaced it reaches ~30% at the same budget. Retiring
+the proxies moved the whole frontier inside the risk mandate, so the only thing still holding the
+budget at 0.75 is the excess-liquidity buffer - which is a risk-posture preference, and the
+owner's.
+
+**Decision: nothing promoted, nothing shipped, no default changed.** `margin_budget` stays 0.75,
+every row is tagged DIAGNOSTIC and not promotable, `live/*` and all three scheduled tasks are
+untouched. A size decision is the owner's under AGENTS.md and this iteration's purpose was to make
+it answerable, not to answer it. `BLOCKERS.md` gains the four-cell table and the inverse solve;
+`champion.json` gains a `budget_note`. **The loop is not recommending a move** - on the honest
+numbers the case is "+0.68 CAR points at 0.80 for 0.05 of your excess liquidity and 0.019 of
+Sharpe", which is materially weaker than the case that was on the page this morning.
+
+**What it changes for the loop.** The reusable rule is that **a cost correction measured on the
+champion does not transfer to a decision about the champion's size** - the three costs are
+independent of each other (S-22) but none of them is independent of leverage, so any lever that
+moves the debit balance or the turnover has to be re-priced rather than shifted. Everything in
+this repository that was quoted at zero financing and compares two *different-sized* books is
+suspect by the same argument; the two that matter are already listed in `BLOCKERS.md` (S-26's
+half hedge and S-28's vol estimator), and both were priced fully charged, so nothing else is owed.
+
 ## 2026-09-12 - I-2: the end-of-session assertion pass, validated by reproducing both live defects on the day they happened
 
 **Hypothesis.** Not a strategy hypothesis - the top of the backlog is now two standing

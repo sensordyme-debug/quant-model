@@ -351,6 +351,73 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   Nothing was changed: `S1_FINANCING` defaults off so the ledger stays on one scale, and
   `scripts/sweep_s21.py --report` reproduces every figure here.
 
+- **Update 2026-09-12 (S-31): every table above is on the wrong book. Here is this question on
+  the book your paper account actually runs - about half the gain is not there, the Sharpe
+  argument for it reverses, and your option (c) is answered in advance.** This changes no
+  recommendation and adds no new decision; it re-prices the one you already have. S-22 established
+  that the deployed champion charged all three measured costs earns **19.640%, not 24.403%**, and
+  every `margin_budget` frontier on this page predates that: S-16's is LEAN at zero spread, zero
+  financing and the backtest's clock, S-21's charges financing only. The correction could not be a
+  parallel shift, because the financing drag is proportional to the **debit balance** and the
+  spread bill to **turnover**, and a larger budget raises both.
+  - **The frontier, fully charged, 3,689 sessions.** "What you were shown" is S-16's scale; "what
+    you get" is the deployed 15:45 convention charged 2 bp of one-way spread and IBKR Pro
+    financing at today's 3.63% benchmark.
+
+    | `margin_budget` | what you were shown | **what you get** | gain shown | **gain you get** | survives | adj. drawdown | mean gross |
+    | --- | --- | --- | --- | --- | --- | --- | --- |
+    | **0.75 (shipped)** | 24.077% | **19.102%** | - | - | - | 25.2% | 1.25x |
+    | 0.78 | 24.954% | 19.530% | +0.877 | **+0.428** | 49% | 25.4% | 1.30x |
+    | 0.80 | 25.531% | 19.780% | +1.454 | **+0.679** | 47% | 25.6% | 1.33x |
+    | 0.82 | 26.093% | 20.061% | +2.017 | **+0.959** | 48% | 25.8% | 1.36x |
+    | 0.85 | 26.956% | 20.455% | +2.879 | **+1.353** | 47% | 25.9% | 1.41x |
+    | **0.90** | 28.377% | **21.093%** | +4.301 | **+1.991** | 46% | **26.3%** | 1.49x |
+    | 1.00 (Reg-T corner) | 31.129% | 22.288% | +7.052 | +3.186 | 45% | 28.8% | 1.64x |
+
+    So **"one constant buys +1.55 points of CAR" is really +0.68 points.** At the historical cost
+    of money rather than today's the numbers are a little kinder (+0.89 at 0.80, +2.57 at 0.90).
+    The CAR ordering does not reverse anywhere - more budget still buys more return.
+  - **What does reverse is the Sharpe argument, and it is the strongest sentence in the case for
+    (d+).** S-18 and S-21 told you Sharpe *rises* with size on the unlevered book. Uncosted it
+    does; fully charged it falls, monotonically: **1.047 -> 1.036 -> 1.016 -> 1.003** at
+    0.75/0.80/0.90/1.00, and **1.023 -> 1.004 -> 0.975 -> 0.952** at today's cost of money. This
+    is not a Sharpe-convention quibble: recomputed as excess return over the sample's own mean fed
+    funds rate (1.6924%), the uncosted cell **rises 1.156 -> 1.176** - reproducing the argument
+    exactly, and LEAN's own runs agree (0.994 at 0.75, 1.008 at 0.80, **1.032 at 0.90**) - while
+    the charged cells fall. Subtracting a fixed rate from a numerator while the denominator grows
+    manufactures a rising Sharpe out of a flat one. **Spending the buffer buys return; on the book
+    you own it no longer buys risk-adjusted return.** It is a pure leverage lever, and you should
+    decide on it as one.
+  - **Option (c) answered in advance.** You were offered "name a drawdown and the loop solves for
+    the budget". It no longer needs a round trip:
+
+    | drawdown you name | budget | CAR (today's rates) | vs the shipped 0.75 |
+    | --- | --- | --- | --- |
+    | 25% | **0.70** - *below* where you are | 18.311% | **-0.79** |
+    | 30% | **0.90** | 21.093% | **+1.99** |
+    | 35% | **0.90** (nothing above it is Reg-T-clean) | 21.093% | **+1.99** |
+
+    The 25% row is the surprising one: the shipped 0.75 book's own drawdown is **25.2%**, so a 25%
+    cap is a request to *shrink*.
+  - **And the constraint you were told is binding is not.** This page has said for two days that
+    the 35% drawdown cap is the binding constraint. **On the size question it is not binding
+    anywhere** - the binding constraint is **Reg-T**: mark-to-market gross peaks at 1.88x at
+    budget 0.90 and **2.12x at 1.00**, over the 2.0x ceiling. The reason the cap stopped binding is
+    **S-18**: S-6 measured budget 1.0 at a 35.4% drawdown on the 3x-proxy book, and the unlevered
+    book that replaced it reaches ~30% at the same budget. So the only thing still holding the
+    budget at 0.75 is **your excess-liquidity buffer** - a risk-posture preference, which is why
+    the loop still will not move it.
+  - **Confidence, stated so it is not discovered later.** The drawdowns above are from a pandas
+    harness calibrated against LEAN at three budgets, including a **new LEAN run at 0.90**
+    (`20260912T130734Z`, 28.796% / 1.032 / DD 27.900%, `OrderListHash
+    7352a42d118919eec701e44af7a4dfff`); the harness is optimistic on drawdown by 0.44 / 1.14 /
+    1.29 points at 0.75 / 0.80 / 0.90 and **that error is added back** in the table. The paired
+    return difference against 0.75 does clear **|t| = 2 in both halves** at every budget above it,
+    which nothing else on this sleeve has done - but read it as the significance of *arithmetic*,
+    since a budget change is a scaled version of the same book. **Nothing has been changed**:
+    `margin_budget` is still 0.75, every S-31 row is tagged DIAGNOSTIC, and no shipped, runner-
+    loaded or scheduled file was touched. Reproduce with `python scripts/sweep_s31.py --stage b`.
+
 ## Open request to the owner (2026-09-10, intraday sleeve - supersedes the size half of the 2026-09-09 item)
 
 - **The question "can this sleeve be validated?" is now answered, and the answer is that it
