@@ -425,12 +425,30 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
 
     | drawdown you name | budget | CAR (today's rates) | vs the shipped 0.75 |
     | --- | --- | --- | --- |
-    | 25% | **0.70** - *below* where you are | 18.311% | **-0.79** |
+    | 25% | **0.75 - you are already there, no change** (S-31 said 0.70; corrected by C-1) | 19.102% | **0.00** |
     | 30% | **0.90** | 21.093% | **+1.99** |
     | 35% | **0.90** (nothing above it is Reg-T-clean) | 21.093% | **+1.99** |
 
-    The 25% row is the surprising one: the shipped 0.75 book's own drawdown is **25.2%**, so a 25%
-    cap is a request to *shrink*.
+    **C-1 correction (2026-09-12, critic track) - read this row as corrected above.** S-31 wrote
+    "the shipped 0.75 book's own drawdown is **25.2%**, so a 25% cap is a request to *shrink*".
+    That premise is wrong, and it is wrong against S-31's own published calibration. The harness
+    drawdown error S-31 measured and promised to add back is **0.44 points at 0.75**; the fully
+    charged cell is 24.037%, so the shipped book's adjusted drawdown is **24.48%, not 25.2%**. The
+    25.2% figure is what you get by adding the error measured at **0.80** (1.135) to the **0.75**
+    cell - the calibration table was read off by one row. Corrected, a 25% cap is satisfied by the
+    budget you already run, so **it is not a request to shrink and it costs nothing**. The answer
+    is not 0.70 under any self-consistent rule: adding the measured per-budget error gives 0.75,
+    adding the worst case (1.294) uniformly admits **nothing** in the grid, and adding no error at
+    all gives 0.80. The next budget up, 0.78, was checked against a **new LEAN run**
+    (`20260912T153817Z`, 25.307% / 1.003 / DD 24.600%, `OrderListHash
+    50ab65f95bba8ec716934846fa4c6b60`, which also reproduces S-16's published 25.307% exactly): its
+    measured error is **1.155**, so 0.78 adjusts to 25.43% and breaches the cap. **The 30% and 35%
+    rows survive unchanged**, and so does every other clause of S-31 (see
+    `research/journal_critic.md` for what was tried). One honest caveat on all three rows: a
+    maximum drawdown is a single-path extremum, and its harness error does not vary smoothly with
+    size (0.44 / 1.16 / 1.14 / 1.29 at 0.75 / 0.78 / 0.80 / 0.90), so the 25% row turns on a
+    half-point of a lumpy statistic. **Nothing was changed by this correction either**:
+    `margin_budget` is still 0.75.
   - **And the constraint you were told is binding is not.** This page has said for two days that
     the 35% drawdown cap is the binding constraint. **On the size question it is not binding
     anywhere** - the binding constraint is **Reg-T**: mark-to-market gross peaks at 1.88x at

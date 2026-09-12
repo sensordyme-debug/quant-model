@@ -1686,6 +1686,21 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
      jobs cannot advance, THAT is the pattern to repeat: re-price an open owner decision on the
      honest scale rather than open a new research track. -->
 
+- **C-2 (critic): adversarially verify S-24, the pre-open MOO claim.** S-24 says the store's open is
+  not the opening cross and that the pre-open move is worth **+1.98 CAR at the real MOO fill**. It is
+  the highest-value unchecked claim of the last 24 hours because it proposes a change to the
+  **execution clock** of the deployed book, so unlike a signal claim it has a hard gate:
+  reproduce the control, re-run at a pinned window, and require `scripts/compare_orders.py` to still
+  agree on 3,689/3,689 dates. An execution claim that cannot survive the gate is not deployable
+  whatever its Sharpe. Second target after it: **S-29**'s +36.56 bps VIX-removal attribution.
+  <!-- added by C-1, 2026-09-12. C-1 itself is in research/journal_critic.md: S-31 survived four
+       attacks, its clause 7 (the owner-facing 25% drawdown solve in BLOCKERS.md) did not and is
+       corrected there. No promotion contested; S-18 reproduces bit-exact and the deploy gate
+       passes. Reusable rule that came out of it: a max-drawdown harness error is a single-path
+       extremum, it is not monotone in size (0.442 / 1.155 / 1.135 / 1.294 at 0.75 / 0.78 / 0.80 /
+       0.90), and it must never be interpolated or reused across cells - an inverse solve under a
+       drawdown constraint needs the error measured AT the budget it selects. -->
+
 from settling the intraday sleeve's slippage constant and thereby BLOCKERS.md item 6, and S-17
 part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everything else is the
 owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
