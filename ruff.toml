@@ -81,9 +81,11 @@ ignore = [
 # E501: long parametrize tables and deliberate edge-case values read better unwrapped.
 # DTZ: a test fixture that constructs a naive datetime is usually constructing the exact
 # thing under test - `tests/test_paper_sizing.py` builds naive MOO clock times on purpose to
-# exercise the runner's own tz handling. Requiring tzinfo there would test the fixture, not
-# the runner. DTZ stays enforced on quant_brain/, which is where a naive datetime is a bug.
-"tests/**" = ["E501", "DTZ001", "DTZ011", "DTZ007"]
+# exercise the runner's own tz handling, and `tests/test_gateway_watchdog.py` must match the
+# watchdog's own naive-local convention, which exists so its timestamps line up with the
+# local times Task Scheduler reports. Requiring tzinfo there would test the fixture, not the
+# code. DTZ stays enforced on quant_brain/, which is where a naive datetime is a bug.
+"tests/**" = ["E501", "DTZ001", "DTZ011", "DTZ007", "DTZ005"]
 
 # ---- the futures contract table ----------------------------------------------------------
 # CONTRACTS is a column-aligned table of contract terms. Wrapping those rows to 100 columns
