@@ -27,6 +27,37 @@ leg-split program (hold / rank / size) closed with S-28, and S-29 closed the reg
 one untried construction is **S-30** below. (3) The honest deployed expectation of the daily
 champion is **~20% CAR, not 24.4%** - see `champion.json`'s `deployed_expectation_note`.
 
+Status 2026-09-12 17:0x UTC (S-33 / AUD-11, `daily` track - journal `research/journal_daily.md`):
+**the champion's "OOS 2020-2026" label is wrong and its number is not, and the audit's own first
+remedy would have cost 1.87 CAR points at t -2.18.** With the owner pile re-priced twice (S-31,
+S-32) and both standing jobs again without new input on a Saturday (`daily_fills.py` 10 fills /
+$2.37M / **+3.2 bps**, se 4.5), the highest-value act left in scope is the operator audit's own
+daily items, and AUD-11 is the one that decides how every OOS-weighted claim in this repository
+should be read. `scripts/sweep_s33.py`, seven clauses pre-registered, **60 DIAGNOSTIC rows** under
+`daily/s33_oos`, **no shipped or runner-loaded file touched** so no deploy gate and no replay is
+owed; identity exact at **22.192150% / 5,052**. The selection is re-done with 2020-2026 genuinely
+withheld on the three axes whose grids are copied verbatim from the `signals.py` docstrings that
+record how each shipped value was chosen. **(1) The shipped set is not even the full-period
+argmax** - `mom_skip=10` beats the shipped 5 by 0.485 on the window the choice was made on and was
+not taken, which is S-10's "a-priori point inside a shelf, not its argmax" rule visible in the
+data rather than only in the prose. **(2) The audit's re-select remedy is REFUSED**: it moves one
+axis (`alloc_vol_window` 21 -> 10), that cell is the **worst of its axis's six out of sample**,
+and it costs **-1.865 CAR points, -0.569 bps/day, t -2.18** - past |t| = 2 and the first
+non-arithmetic statistic this sleeve has produced that gets there. **(3) The contamination is
+about half a point**: against the 18 unique cells the shipped set sits **+0.974 above the grid
+mean (0.53 sd, 78th percentile)** and +0.492 above the median, under this iteration's own
+pre-registered 0.5 threshold for "cosmetic". Both (2) and (3) follow from one number - the
+**selection premium is -0.049 CAR points** pooled over 20 cells; the IS top three cells average
+28.420 OOS against the IS bottom three at 28.283, and the single global IS-argmax lands *below*
+the grid mean. Honest fully-charged (cell C) withheld half: shipped **25.967% / 1.151 / DD
+24.040**, grid band ~20.0..27.7%. The relabel branch is **adopted** and the champion.json edit is
+**owed, not taken** (that file is reserved to `--promote`, and AUD-10 should be fixed first); the
+exact replacement sentence is filed under AUD-11 below. **What it changes for the loop**: on this
+sleeve a parameter **shelf** is worth reporting and a parameter **argmax** is worth nothing, so
+the convention S-9/S-10/S-12 already used is not conservatism but the only rule the data supports
+- and when an audit names a defect *and* a fix, those are two claims, and here the expensive one
+was the fix.
+
 Status 2026-09-12 15:4x UTC (S-32, `daily` track - journal now `research/journal_daily.md`):
 **the second open owner decision re-priced, and this one closes on its own conditional. The
 no-trade band stays at 0.01.** Same rule as S-31 and for the same reason - both standing jobs ran
@@ -1738,6 +1769,24 @@ part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everythi
 owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
 and no delivery, both of which are barred to the loop.
 
+- **S-33 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-11 priced - the
+  "OOS 2020-2026" label is wrong and the number is not, and the audit's own re-select remedy is
+  refused at t -2.18.** `scripts/sweep_s33.py`, seven clauses pre-registered, **60 DIAGNOSTIC
+  rows** under `daily/s33_oos`, no shipped or runner-loaded file touched, identity exact
+  (22.192150% / 5,052). Selection re-done with 2020-2026 withheld on the three axes whose grids
+  come verbatim from the `signals.py` docstrings. Re-selecting on 2012-2019 moves
+  `alloc_vol_window` 21 -> 10, the **worst of six** on that axis out of sample, for **-1.865 CAR
+  points / -0.569 bps/day / t -2.18**. The contamination itself is **+0.974 above the grid mean
+  (0.53 sd, 78th percentile of 18 cells)**, +0.492 above the median. Cause: the **selection
+  premium is -0.049 CAR points** (IS top three 28.420 OOS vs IS bottom three 28.283; the global
+  IS-argmax lands below the grid mean). Also: the shipped set is **not the full-period argmax**
+  (`mom_skip=10` beats it by 0.485 there and was not taken). Cell C withheld half, shipped:
+  **25.967% / 1.151 / DD 24.040**; grid band ~20.0..27.7%. **Adds no research item**; leaves one
+  owed edit to `champion.json`'s label, blocked behind AUD-10 and the `--promote` gate, with the
+  exact replacement text filed under AUD-11. Reusable rule: on this sleeve a parameter **shelf**
+  is reportable and a parameter **argmax** is worth nothing, so every S-item's headline cell
+  should be read against its axis's dispersion, not against its neighbours.
+
 - **S-32 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): the execution no-trade
   band stays at 0.01 - refused after its clauses PASSED, because the CAR column is 3.5x larger
   than the mechanism can produce.** `scripts/sweep_s32.py`, seven clauses pre-registered, **55
@@ -3399,7 +3448,38 @@ carry the owning track in brackets; record each fix in that track's journal and 
 - **AUD-08 [eng]** start-up/`--flatten` sell the book not the account; daily HALT path sells intraday names; outside-RTH submits queue to the next open. Reconcile against `ib.positions()`, cancel open INTRADAY orders at start-up, refuse outside RTH.
 - **AUD-09 [eng]** `--feed auto` always Yahoo (09:25 probe), no IB re-subscribe on reconnect, uncaught crashes leave no alert, `notify()` before the loss-limit submit, NaN price skips the step.
 - **AUD-10 [daily+critic]** `evaluate.py --promote` leaves `stats_by_spread` stale so the next candidate is judged against the old champion.
-- **AUD-11 [daily]** the "OOS 2020-2026" label is a sub-period of full-period parameter selection; relabel or re-select on 2012-2019.
+- **AUD-11 [daily] PRICED AND HALF-CLOSED 2026-09-12 by S-33** (`scripts/sweep_s33.py`, 60
+  DIAGNOSTIC rows `daily/s33_oos`, `research/journal_daily.md`). The finding stands; its two
+  remedies do not fare the same. **Re-select on 2012-2019: REFUSED on evidence.** It moves exactly
+  one of the three documented axes (`alloc_vol_window` 21 -> 10), that cell is the *worst* of its
+  axis's six out of sample, and it costs **-1.865 CAR points on 2020-2026, -0.569 bps/day,
+  t -2.18** - past |t| = 2 and the first non-arithmetic statistic on this sleeve to get there.
+  **Relabel: ADOPTED, and now quotable with a number.** Against the 18 unique grid cells the
+  shipped set sits **+0.974 above the grid mean (0.53 sd, 78th percentile, rank 14 of 18)** and
+  **+0.492 above the median**, i.e. selection on these three axes inflates the published
+  2020-2026 figure by about **half a CAR point at 0 bp** - under S-33's own pre-registered 0.5
+  threshold for "cosmetic". Both results follow from one number: the **selection premium is
+  -0.049 CAR points** pooled over 20 cells (IS top three 28.420 OOS vs IS bottom three 28.283;
+  the global IS-argmax lands *below* the grid mean). Also found: **the shipped set is not the
+  full-period argmax either** - `mom_skip=10` beats the shipped 5 by 0.485 on the selection window
+  and was not taken, which is S-10's docstring rule behaving as advertised. Honest fully-charged
+  (cell C) withheld half: shipped **25.967% / 1.151 / DD 24.040**; grid band ~20.0..27.7%.
+  **LOWER BOUND:** three dials priced (`mom_skip`, `alloc_vol_window`, the 252 shelf) plus the
+  band by S-32; `top_n`, `target_vol`, `regime_threshold`, `regime_vol_window` and
+  `target_exposure` are not, so +0.5 is a floor on total selection inflation, not an estimate.
+  - **STILL OPEN, and it is a one-sentence edit the daily track may not make.** The wrong label
+    lives in `champion.json`'s `note`; AGENTS.md reserves that file to `scripts/evaluate.py
+    --promote`, and re-running `--promote` for a wording fix would rewrite the record and trip
+    **AUD-10** on the way. **Fix AUD-10 first, then have the next promotion carry this
+    replacement** for the sentence beginning "So the return difference is out-of-sample
+    weighted...": *"The 2020-2026 half is NOT out-of-sample: every shipped parameter was chosen on
+    full-period tables, so it is a sub-period check of the chosen set (AUD-11). S-33 priced the
+    contamination on the three documented axes at ~+0.5 CAR points at 0 bp (78th percentile of 18
+    cells, 0.53 sd above the grid mean) and measured the selection premium at -0.049, so the
+    figures below are right to about half a point and wrong in their label. IBKR paper trading
+    from 2026-09-09 is the only genuinely out-of-sample evidence this strategy has."*
+
+- **AUD-11 [daily] (original text)** the "OOS 2020-2026" label is a sub-period of full-period parameter selection; relabel or re-select on 2012-2019.
 - **AUD-12 [daily+eng]** runner and gate always trade `Params()`; a promotion carrying `S1_*` env would pass the gate and trade something else.
 - **AUD-13 [daily+eng]** no data-completeness gate in the runner: a missing SPY column flattens the whole book.
 - **AUD-14 [eng+critic]** no track guard in `evaluate.py`; intraday rows carry `commit ""`; `OrderListHash` not captured into the ledger.

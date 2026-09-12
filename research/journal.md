@@ -4,6 +4,37 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-12 - S-33 / AUD-11 (pointer; full entry in `research/journal_daily.md`)
+
+**The champion's "OOS 2020-2026" label is wrong and its number is not - and the audit's own first
+remedy would have cost 1.87 CAR points at t -2.18.** The operator's audit filed AUD-11 [daily]:
+every shipped parameter was chosen on full-period tables, so the published OOS is a sub-period of
+a fit. Correct as a matter of record; what it did not say is what the contamination is worth.
+`scripts/sweep_s33.py` re-does the selection with 2020-2026 genuinely withheld - three axes copied
+verbatim from the `signals.py` docstrings that record how each shipped value was chosen, seven
+clauses pre-registered, **60 DIAGNOSTIC rows** under `daily/s33_oos`, **no shipped or
+runner-loaded file touched**, identity exact at 22.192150% / 5,052. Three findings. (1) **The
+shipped set is not even the full-period argmax** - `mom_skip=10` beats the shipped 5 by 0.485 on
+the window the choice was made on and was not taken, exactly as S-10's docstring says. (2)
+**Re-selecting on 2012-2019 is refused**: it moves one axis, `alloc_vol_window` 21 -> 10, which is
+the *worst* of that axis's six cells out of sample, costing **-1.865 CAR points, -0.569 bps/day,
+t -2.18** - past |t| = 2 and the first non-arithmetic statistic on this sleeve to get there. (3)
+**The contamination itself is about half a point.** Against the 18 unique cells the shipped set
+sits +0.974 above the grid mean (0.53 sd, 78th percentile) and +0.492 above the median, under the
+pre-registered 0.5 threshold for "cosmetic". The reason both (2) and (3) are true is one number:
+the **selection premium is -0.049 CAR points** pooled over 20 cells - the IS top three cells
+average 28.420 OOS against the IS bottom three at 28.283, and the single global IS-argmax lands
+*below* the grid mean. Choosing a parameter on this sleeve's first half tells you nothing about
+its second, which is why there was nothing to inflate the published figure with and nothing for a
+re-selection to select on. Honest fully-charged (cell C) withheld half: **shipped 25.967% /
+1.151 / DD 24.040**, grid band ~20.0..27.7%. Decision: AUD-11's re-select branch **refused**, its
+relabel branch **adopted** and now quotable at ~0.5 CAR points; the champion.json label edit is
+**owed, not taken** (AGENTS.md reserves that file to `--promote`, and AUD-10 should be fixed
+first), with the exact replacement text filed under AUD-11 in the backlog. The reusable rules: on
+this sleeve a parameter *shelf* is worth reporting and a parameter *argmax* is worth nothing, and
+when an audit names a defect and a fix they are two claims - here the finding was right and its
+first remedy was the expensive one.
+
 ## 2026-09-12 - S-32 (pointer; full entry in `research/journal_daily.md`)
 
 **The no-trade band, re-priced on the honest book: keep 0.01, and the 2026-09-09 conditional

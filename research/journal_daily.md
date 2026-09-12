@@ -4,6 +4,174 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-12 - S-33 (AUD-11): the label is wrong and the number is not; choosing a parameter on 2012-2019 buys -0.05 CAR points on 2020-2026, and the audit's own first remedy makes the book worse at t -2.18
+
+**What this iteration is.** The operator's 2026-09-12 platform audit filed **AUD-11 [daily]**: the
+champion's "OOS 2020-2026" is a sub-period of a full-period fit, so "the honest ~20% CAR is fully
+in-sample, and the 33% PSR says the same", and "every OOS-weighted claim (S-18, S-22, S-26, S-28)
+inherits it". Its proposed fix has two branches - *re-select on 2012-2019 and report 2020-2026
+once*, or *relabel and treat paper trading as the only out-of-sample evidence*. The finding is
+correct as a matter of record and I am not contesting it. What it does not say is what the
+contamination is **worth**, and that is the only form of the question the loop can act on: a label
+that overstates by 0.1 CAR points is a documentation fix, one that overstates by 5 is a different
+strategy than the one in `champion.json`. This iteration measures it, by re-doing the selection
+with 2020-2026 genuinely withheld and reading the withheld half once.
+
+Both standing measurement jobs ran first, as on every iteration since S-31, and it being a
+Saturday neither has new input: `daily_fills.py` still reads **10 fills / $2,373,115 / +3.2 bps**
+against the auction the runner aims at (per-fill sd 14.1, se 4.5), `ref_price` the previous close
+10 of 10.
+
+**Provenance and scope.** New `scripts/sweep_s33.py`, seven clauses pre-registered before the
+first number; **60 DIAGNOSTIC ledger rows** under `daily/s33_oos` (stamp `20260912T170105Z`); full
+console output recovered to `results/s33_run.txt`. **No shipped or runner-loaded file was
+touched** - the shipped `Params()` defaults, `live/*`, `champion.json` and all three scheduled
+tasks are unchanged - so no deploy gate and no `--replay` is owed. Nothing is promotable.
+
+**(1) Identity, to the digit.** The shipped `Params()` over 2012-2026 at zero cost reproduces
+**CAR 22.192150% / 5,052 orders**, the cell S-25, S-26, S-28, S-30, S-31 and S-32 each quote
+independently. The grid below is the deployed book with one parameter moved.
+
+**(2) The grid is the selection record, not a new search.** Three axes, each copied verbatim from
+the `signals.py` docstring that records how the shipped value was chosen - S-10's `mom_skip` walk,
+S-12's `alloc_vol_window` table, S-9's fourth-horizon shelf - and taken coordinate-wise from the
+shipped set, which is how the record shows the three were actually chosen (one iteration each).
+IS is 2012-2019, OOS is 2020-2026, zero spread, because zero spread is the cell all three of those
+tables were read in.
+
+| axis | shipped | FULL 2012-2026 argmax | IS 2012-2019 argmax | moved? |
+| --- | --- | --- | --- | --- |
+| `mom_skip` | 5 | **10** (22.677 vs 22.192) | 5 | no |
+| `alloc_vol_window` | 21 | 21 | **10** (16.560 vs 16.488) | **YES** |
+| fourth `mom_lookbacks` horizon | 252 | 252 | 252 | no |
+
+Read the middle column before the right one, because it is the first thing that is not what the
+audit expects: **the shipped set is not the full-period argmax either.** `mom_skip=10` beats the
+shipped 5 by 0.485 CAR points on the very window the choice was made on, and it was not taken -
+because S-10's docstring says in as many words that 5 is "one trading week, the a-priori unit
+inside that shelf, not its argmax". Whatever else is true of this parameterization, it was not
+fitted to its argmax, and that is visible in the data and not only in the prose.
+
+**(3) The withheld half, read once.**
+
+| set | parameters | OOS CAR% | Sharpe | MaxDD% | orders |
+| --- | --- | --- | --- | --- | --- |
+| shipped | - | **29.124** | 1.262 | 23.855 | 2,267 |
+| IS-selected | `alloc_vol_window=10` | 27.260 | 1.193 | 23.396 | 2,963 |
+| FULL-selected | `mom_skip=10` | 30.552 | 1.317 | 22.392 | 2,203 |
+
+**The audit's first remedy is refused on evidence.** Re-selecting on 2012-2019 moves one axis, and
+that move costs **-1.865 CAR points** on the withheld half at **-0.569 bps/day over 1,677
+sessions, t -2.18** - past |t| = 2, and the first thing on this sleeve to get there that is not
+S-31's arithmetic. Worse, `alloc_vol_window=10` is not merely a loss, it is the **worst of the six
+cells on its own axis out of sample** (27.260 against 27.993 / 28.875 / 28.961 / 29.124 / 29.144).
+The first half's best cell is the second half's last.
+
+**(4) Which means the -1.865 is not the contamination, and the pre-registered branch label was
+imprecise.** Clause 4 fired branch **(b) CONTAMINATED**, because I defined the gap as
+*IS-selected minus shipped* and it cleared the 0.5-point threshold. That is the right number for
+"what does the audit's remedy cost" and the **wrong** number for "how much is the published OOS
+inflated by selection", which is what AUD-11 alleges. Inflation is measured against a *typical*
+cell, not against one particular unlucky draw. On the 18 unique cells of the grid:
+
+| statistic | OOS CAR% |
+| --- | --- |
+| grid minimum | 23.166 |
+| grid mean | 28.150 (sd 1.832) |
+| grid median | 28.632 |
+| **shipped set** | **29.124** |
+| grid maximum | 30.846 |
+
+The shipped set sits **+0.974 above the grid mean, 0.53 sd, 78th percentile (rank 14 of 18)** and
+**+0.492 above the median** - i.e. under the pre-registered 0.5-point threshold by which this
+iteration called a finding cosmetic. **So the correct reading is: the label is wrong and the
+number is not.** Selection on these three axes inflates the published 2020-2026 figure by about
+**half a CAR point at zero cost**, not by the 1-3 the hypothesis expected.
+
+**(5) The selection premium - the part of this that generalizes past the champion.** One draw is
+one draw. The durable question is whether choosing a parameter on this sleeve's first half
+predicts anything at all about its second:
+
+| axis | cells | rho(IS CAR, OOS CAR) | OOS of the IS-argmax | OOS of the median cell | premium |
+| --- | --- | --- | --- | --- | --- |
+| `mom_skip` | 7 | +0.000 | 29.124 | 29.124 | +0.000 |
+| `alloc_vol_window` | 6 | **-0.257** | 27.260 | 28.918 | **-1.658** |
+| fourth horizon | 7 | +0.607 | 29.124 | 27.613 | +1.511 |
+| **pooled** | 20 | +0.323 | | | **-0.049** |
+
+And on the 18 unique cells, split by what the first half said about them:
+
+| | mean OOS CAR% |
+| --- | --- |
+| the IS **top** three cells | 28.420 |
+| the IS **bottom** three cells | 28.283 |
+| every cell | 28.150 |
+| the single global IS-argmax | **27.260** (below the grid mean) |
+
+**Picking the best third of 2012-2019 instead of the worst third buys 0.137 CAR points on
+2020-2026.** The pooled premium against the median cell is **-0.049**. The single best cell of the
+first half is a below-average cell in the second. On these three axes, selection on 2012-2019
+carries **no out-of-sample content** - which is simultaneously why the published OOS is only half
+a point inflated (there was nothing to inflate it with) and why the audit's re-selection remedy
+cannot work (there is nothing for it to select on).
+
+**(6) The honest number.** Cell C is the deployed 15:45 convention charged 2 bp of one-way spread
+plus IBKR Pro financing on the historical effective fed funds rate - S-22's honest historical
+book, the cell `champion.json`'s `deployed_expectation_note` is quoted in (full period 19.640%).
+On the withheld half:
+
+| set | OOS CAR% | Sharpe | MaxDD% |
+| --- | --- | --- | --- |
+| shipped | **25.967** | 1.151 | 24.040 |
+| IS-selected | 23.922 | 1.073 | 23.575 |
+
+The cell-C charge on this half is **-3.157 points**, so applied to the grid's own 0 bp dispersion
+the honest fully-charged 2020-2026 band of this parameterization is roughly **20.0 .. 27.7%,
+centre ~25.0-25.5%**. That is a *parameter-selection* band, not a forecast interval; it says how
+much of the 25.967 is a property of the strategy rather than of three dials, and the answer is
+most of it.
+
+**(7) Significance, stated rather than discovered.** The only statistic here past |t| = 2 is
+**t -2.18**, and it is against the audit's own proposed fix rather than for anything. Nothing in
+the selection-premium table is significant and none of it is claimed to be.
+
+**Decision.** AUD-11's **first remedy (re-select on 2012-2019) is refused**: it lands on the worst
+out-of-sample cell of the one axis it moves, costs -1.865 CAR points at t -2.18, and the pooled
+premium of -0.049 says it could not have done better than chance. AUD-11's **second remedy
+(relabel, and treat paper trading as the only out-of-sample evidence) is adopted**, and it can now
+be quoted with a number rather than a caveat: **the three documented axes inflate the published
+2020-2026 figure by ~0.5 CAR points at 0 bp (78th percentile of 18 cells, 0.53 sd above the grid
+mean), so every OOS-weighted claim that inherits the label - S-18, S-22, S-26, S-28 - is wrong in
+its wording and right to within about half a point in its arithmetic.** Nothing is promoted,
+nothing is defaulted, `champion.json` is untouched.
+
+**The one part of AUD-11 I could not close, and why.** The wrong label physically lives in
+`champion.json`'s `note` ("OOS 2020-2026 at 0 bp 32.801% ... the return difference is
+out-of-sample weighted"), and AGENTS.md's "Parallel tracks" rule says `champion.json` may be
+changed only through `scripts/evaluate.py --promote` or restored from git by the critic. There is
+no promotion here, and re-running `--promote` to carry a one-sentence label fix would rewrite the
+whole record and trip **AUD-10** (stale `stats_by_spread`) on the way. So the edit is **owed, not
+taken**; the exact replacement sentence is filed against AUD-11 in `research/backlog.md` for the
+next promotion to carry, and AUD-10 should be fixed before it.
+
+**Lower bound, said plainly.** This prices **three** of the champion's dials. `top_n`,
+`target_vol`, `regime_threshold`, `regime_vol_window` and `target_exposure` were also chosen on
+full-period tables and are not priced here; the band was, by S-32, and came out the same shape
+(criteria pass, no mechanism underneath). So **+0.5 CAR points is a lower bound on the total
+selection inflation**, not an estimate of it.
+
+**What it changes for the loop.** Two things, both durable. (1) A selection premium of -0.049 over
+20 cells is a statement about **every** S-item in this repository, not just this one: on this
+sleeve, a parameter shelf is worth reporting and a parameter argmax is worth nothing, and the
+a-priori-point-inside-a-shelf convention that S-9, S-10 and S-12 already used is not conservatism,
+it is the only defensible rule the data supports. (2) When an audit names a defect **and** a fix,
+they are two separate claims and the fix is the one more likely to be wrong - here the finding was
+right and its first remedy, applied literally, would have cost 1.87 CAR points out of sample at
+the only t past 2 sigma this sleeve has produced from an actual book.
+
+**Reproduce:** `py -3.11 scripts/sweep_s33.py --stage all` (~25 min; `--stage a` for the grid
+alone). Output: `results/s33_run.txt`.
+
 ## 2026-09-12 - S-32: the no-trade band's CAR column is 3.5x larger than the mechanism can produce, and one random skip in five beats it
 
 **Provenance, stated first.** `scripts/sweep_s32.py` and its 55 DIAGNOSTIC ledger rows under
