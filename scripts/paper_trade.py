@@ -39,6 +39,11 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+# Run as `python scripts/paper_trade.py`, sys.path[0] is scripts/, so the repo root is not
+# importable and `import quant_brain` would fail. Added here rather than at the call site so
+# there is one place that knows it.
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
 LIVE = REPO / "live"
 LOG_DIR = LIVE / "log"
 STATE_DIR = LIVE / "state"
@@ -243,13 +248,51 @@ def fetch_history_ib(ib, symbols, days=500):
 
 
 def load_state():
+    """Read the real account's state. Every scope reads this file; only PAPER writes it.
+
+    A dry run SHOULD read live state - it is simulating what would happen from where the
+    account actually is. What it must not do is write back, which is what `save_state`'s
+    scope routing now prevents (AUD-04).
+    """
     p = STATE_DIR / "last_run.json"
-    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    state = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    # The file on disk today was written by simulated runs before the scope routing above
+    # existed: equity 100000, equity_curve [100000 x4], "dry_run": true - all MockAccount.
+    # Warn rather than refuse: the champion ships with the drawdown breaker off, so this is
+    # currently inert, and refusing here would stop the 15:45 rebalance over state it does
+    # not read. Made loud so it is fixed deliberately rather than discovered by a
+    # liquidation the first time the breaker is switched on.
+    try:
+        from quant_brain.core.state import is_contaminated
+        if is_contaminated(state):
+            msg = (f"{p} was written by a simulated run (dry_run/mock). Its equity and "
+                   f"equity_curve are not the account's. Safe while the drawdown breaker is "
+                   f"off; delete the file to let the next real run rebuild it.")
+            print(f"WARNING: {msg}")
+            log_event("state_contaminated", path=str(p), detail=msg)
+    except Exception:  # noqa: BLE001 - a diagnostic must never stop the runner
+        pass
+    return state
 
 
-def save_state(state):
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    (STATE_DIR / "last_run.json").write_text(json.dumps(state, indent=2, default=str) + "\n", encoding="utf-8")
+def save_state(state, *, scope=None):
+    """Persist run state into the scope that produced it.
+
+    AUD-04: `--mock` and `--dry-run` used to write this exact file, so seven simulated runs
+    put `MockAccount.net_liq = 100_000` into the live equity curve and drove `held_age` to
+    15. It was harmless only because the champion ships with the drawdown breaker off -
+    switching it on reads a ~90% drawdown against a fabricated `equity_high` and liquidates
+    a real book.
+
+    The fix is structural rather than a conditional: the scope selects a `StateStore`, and a
+    simulated store has no reachable path to the live file. `base=STATE_DIR` keeps the
+    existing test isolation working, because `tests/conftest.py` redirects `STATE_DIR` into
+    tmp_path and every scope root is derived from it.
+    """
+    from quant_brain.core.state import StateScope, StateStore
+
+    store = StateStore.open(scope or StateScope.PAPER, base=STATE_DIR)
+    store.write_json("last_run.json", state)
 
 
 class MockAccount:
@@ -518,8 +561,13 @@ def main() -> int:
     print_plan(plan, net_liq, targets, sig)
     log_event("plan", signal=name, as_of=str(as_of.date()), targets=targets, net_liq=net_liq, diagnostics=diag,
               orders=[{"symbol": s, "delta": d, "price": p} for s, d, p, _, _ in plan if d is not None])
+    # AUD-04: the scope is derived from the run's own flags, so a simulation physically
+    # cannot reach live/state/last_run.json. `for_run` resolves any flag combination to the
+    # least privileged scope, so a future flag cannot fail open to PAPER.
+    from quant_brain.core.state import StateScope
     save_state({**state, "signal": name, "as_of": str(as_of.date()), "targets": targets,
-                "ran_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "dry_run": args.dry_run or args.mock})
+                "ran_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "dry_run": args.dry_run or args.mock},
+               scope=StateScope.for_run(mock=args.mock, dry_run=args.dry_run))
 
     mode = "MOCK" if args.mock else ("DRY RUN" if args.dry_run else "LIVE PAPER")
     order_lines = [f"{'BUY' if d > 0 else 'SELL'} {abs(d)} {s} @~{p:.2f}" for s, d, p, _, _ in plan if d is not None]
