@@ -183,6 +183,37 @@ def watchdog_trustworthy() -> tuple[bool, str]:
         return False, f"not importable: {exc}"[:120]
 
 
+def ml_corrections() -> dict[str, bool]:
+    """Is the statistical machinery AUD-18/19/20 need present AND wired into the ML code?"""
+    def has(path: str, needle: str) -> bool:
+        f = REPO / path
+        return f.exists() and needle in f.read_text(encoding="utf-8", errors="replace")
+    return {
+        "HAC t-stat exists": has("quant_brain/core/stats.py", "def tstat_hac"),
+        "lag derived from horizon": has("quant_brain/core/stats.py", "def lag_for_overlap"),
+        "multiplicity correction": has("quant_brain/core/stats.py", "def bonferroni_threshold"),
+        "time-aware label guard": has("quant_brain/core/labels.py", "def forward_span_mask"),
+        "guard wired into sweep_f1": has("scripts/sweep_f1.py", "forward_span_mask"),
+        "HAC adopted by the ML sweeps themselves": has("scripts/sweep_f3.py", "tstat_hac"),
+    }
+
+
+def execution_abstraction() -> dict[str, bool]:
+    """Can a strategy reach a venue without naming one?"""
+    def has(path: str, needle: str) -> bool:
+        f = REPO / path
+        return f.exists() and needle in f.read_text(encoding="utf-8", errors="replace")
+    return {
+        "OrderIntent exists": has("quant_brain/core/execution.py", "class OrderIntent"),
+        "RiskChain cannot be re-permitted": has("quant_brain/core/risk.py", "def merge"),
+        "flatten bypasses risk": has("quant_brain/core/risk.py", "is_flatten"),
+        "prop-firm engine is deterministic": has(
+            "quant_brain/markets/futures_cme/propfirm.py", "class PropFirmRiskEngine"),
+        "runners emit OrderIntent": has("scripts/intraday_trader.py", "OrderIntent"),
+        "broker adapter layer": has("quant_brain/core/execution.py", "class ExecutionAdapter"),
+    }
+
+
 def resource_legs() -> tuple[bool, str]:
     from quant_brain.core.resources import plan_workers, snapshot
     s = snapshot()
@@ -206,6 +237,7 @@ def build() -> list[Dimension]:
     wd_ok, wd_note = watchdog_trustworthy()
     res_ok, res_note = resource_legs()
     wired = sum(calls.values())
+    ml = ml_corrections()
     dq_wired = "validate_bars" in (REPO / "scripts" / "intraday_backtest.py").read_text(
         encoding="utf-8", errors="replace")
 
@@ -253,6 +285,23 @@ def build() -> list[Dimension]:
           "only the intraday harness calls it; the LEAN daily path and the ML panel builder "
           "do not. No cross-source reconciliation check (IBKR vs Alpaca) runs as a gate"),
 
+        D("Research harness", 8.0 if (REPO / "tests/test_research_harness.py").exists() else 4.0,
+          ["40 tests on the code that decides what a result is: drawdown from the opening "
+           "peak, sqrt(252) annualisation, NaN Sharpe on zero variance, whole-share floor, "
+           "gross/per-symbol caps, the no-trade band never suppressing a close",
+           "OOS split proven adjacent and non-overlapping for any split date",
+           "an errored run is never recorded; a relaxed-risk run is flagged on the row",
+           "harness and live runner asserted to read the same cap constants"],
+          "the 15 sweep_* files that produce most research still have no unit tests; only "
+          "the shared harness does"),
+
+        D("Execution safety", 6.0 if sum(execution_abstraction().values()) >= 4 else 4.0,
+          [f"{sum(execution_abstraction().values())}/{len(execution_abstraction())} pieces present"]
+          + [f"  {'yes' if v else 'NO '}  {k}" for k, v in execution_abstraction().items()],
+          "the runners still build ib_async objects inline - OrderIntent is defined and "
+          "tested but no runner emits one, so a second broker or a prop-firm venue is not "
+          "yet reachable without editing the trading loop"),
+
         D("Observability", 6.0,
           [f"watchdog emits structured JSONL with 6 states: {wd_note}",
            "resource snapshot + per-market allocation available as CLIs",
@@ -260,7 +309,8 @@ def build() -> list[Dimension]:
           "live alerting is still recorded as DEAD in BLOCKERS.md - the system still cannot "
           "reliably tell the owner it is broken"),
 
-        D("Orchestration reliability", 7.0 if wd_ok else 4.0,
+        D("_Orchestration reliability (not in the brief's twelve; kept for continuity)",
+          7.0 if wd_ok else 4.0,
           ["watchdog polls for readiness and records time-to-bind, replacing a fixed 45s sleep "
            "that misreported 4 of 6 restarts as failures",
            "kill scoped to the gateway's own process, no longer to any 'openclaw' node process",
@@ -282,13 +332,18 @@ def build() -> list[Dimension]:
           "CostModel and Sizer are still constants in intraday_common.py; the runners do not "
           "yet emit OrderIntent, so no second broker or prop-firm adapter is possible"),
 
-        D("ML pipeline integrity", 4.0,
-          ["1,591,974-row panel, 38 features, HistGradientBoostingRegressor",
-           "label scaling and explicit (X_val,y_val) early stop are correct and documented"],
-          "AUD-18 (naive t-stat on overlapping labels), AUD-19 (selection on the test window) "
-          "and AUD-20 (shift by row on an irregular grid) are ALL STILL OPEN. No ML sweep has "
-          "unit tests. This is the lowest score on the board and it is the right one",
-          measured=False),
+        D("ML pipeline integrity", 4.0 + 4.0 * (sum(ml.values()) / len(ml)),
+          [f"{sum(ml.values())}/{len(ml)} corrections present and wired"]
+          + [f"  {'yes' if v else 'NO '}  {k}" for k, v in ml.items()]
+          + ["AUD-18 measured: F-3 IC t 2.17 -> 1.31 (h=5) and 2.41 -> 0.79 (h=21); "
+             "bootstrap p 0.196 / 0.436 - the result does not survive",
+             "AUD-19 re-diagnosed: ml_f7:647's argmax is over a MONOTONE series, so its "
+             "selection bias is +0.000. The real exposure is 55 untested specifications "
+             "against one window with no multiplicity control (threshold |t| > 3.32)",
+             "AUD-20 measured: 0 labels dropped on IBKR, 173 of 190,394 (0.091%) on Alpaca"],
+          "the corrections exist, are tested and are wired for LABELS, but the ML sweeps "
+          "still report the naive t in their own output and apply no multiplicity "
+          "correction; and 15 sweep_* files remain untested"),
 
         D("Deployment safety", 7.0,
           ["09:25 launch gates on the unit suite (E-5) and a replay preflight",
