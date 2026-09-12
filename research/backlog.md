@@ -1749,6 +1749,25 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
      the loop's own numbers rather than waiting on one. The standing jobs remain the only open
      work; both still need a trading day. -->
 
+- **D-4 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): AUD-16 closed - the IBKR
+  minute store had been frozen since 2026-09-11 12:35 ET and could not unfreeze itself, because
+  the fetcher wrote a truncated session and then counted it as present.** Full detail under
+  **AUD-16** in the audit section below. Headline: `snap_after_close`'s `min(20:00, now)` lands
+  inside a live session on **78 of 288** probes across a regular day (**0** after the fix, on all
+  three day types), and the count-based skip issued **0 requests for all 16 symbols** while every
+  one of them held a 170-175-bar 2026-09-11. Repaired against the live gateway - 16 requests,
+  6.1 min, **+3,483 bars**, `store_health` **0 fail / 0 warn** - and the preflight now replays the
+  full session. The truncated day was worth **27% of its own trades** to research and a replay of
+  **-149,012 against -9,489** to any consumer without E-6's shape guard. Suite **601 pass**, no
+  ledger row, nothing under `live/` touched. **This lifts the data-side obstacle the objective
+  names**: the execution-matched store can now reach A-5 part 2's end condition, which needs
+  trading days rather than another fix. **Next `iterate` audit item that needs no trading day:
+  AUD-15** [data] - the IBKR store is split-adjusted but treated as raw, so SOXS/NFLX per-share
+  commission is understated up to 100x in IBKR-store backtests; it needs `data/minute/_splits.json`
+  written first, which D-4's fetcher can now do without freezing the store. After it, **AUD-17**
+  [data] (the LEAN daily store writes adjusted prices as raw with split factor 1) is the same
+  defect one store over.
+
 - **A-13 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): AUD-21 closed - the harness
   is corrected, the sleeve's eleven-year verdict is not, and the owner has been shown a tail
   $12,551 too small.** Full detail under **AUD-21** in the audit section below. Headline:
@@ -1761,6 +1780,9 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
   reaching A-5 part 2's end condition. **AUD-15** [data] (the IBKR store treated as raw when it is
   split-adjusted, per-share commission understated up to 100x) is the same shape and the larger
   number, but it needs `data/minute/_splits.json` written first.
+  <!-- AUD-16 closed by D-4 later the same day; the pointer above is history, the live one is on
+       the D-4 bullet and names AUD-15. -->
+
 
 - **C-2 (critic): adversarially verify S-24, the pre-open MOO claim.** S-24 says the store's open is
   not the opening cross and that the pre-open move is worth **+1.98 CAR at the real MOO fill**. It is
@@ -3677,7 +3699,35 @@ carry the owning track in brackets; record each fix in that track's journal and 
 - **AUD-13 [daily+eng]** no data-completeness gate in the runner: a missing SPY column flattens the whole book.
 - **AUD-14 [eng+critic]** no track guard in `evaluate.py`; intraday rows carry `commit ""`; `OrderListHash` not captured into the ledger.
 - **AUD-15 [data]** the IBKR minute store is split-adjusted but treated as raw: SOXS/NFLX per-share commission understated up to 100x in IBKR-store backtests; write `data/minute/_splits.json`.
-- **AUD-16 [data]** `intraday_data.py` cannot extend the store and truncates today's session (all 16 symbols hold a 170-bar 2026-09-11).
+- **AUD-16 [data] DONE 2026-09-12 by D-4** (`scripts/sweep_d4.py`, 7 clauses,
+  `tests/test_intraday_data_extend.py`, `research/journal.md`; no ledger row, nothing under
+  `live/` touched). **Both halves confirmed, both fixed, and the store repaired against the live
+  gateway.** The two defects hid each other: `snap_after_close` clamped with `min(20:00, now)`,
+  which during regular hours is *inside* the session it exists to stay out of (**78 of 288**
+  five-minute probes on a regular day, **42** on an early close, **0** after the fix on all
+  three day types), so the fetcher wrote a truncated day; then `fetch_symbol`'s "15 or more
+  sessions on disk" counted that day as present, so a `--months N` run issued **0 requests for
+  all 16 symbols** and could never advance past its own truncation. The skip is now "is any
+  CALENDAR session in this window missing or truncated", truncation is
+  `store_health.session_shapes` **imported rather than re-drawn** (0 of 16 symbols disagree with
+  E-6), `--repair` spans the calendar instead of the days on disk so a never-fetched session is
+  finally visible, and the settle margin is the calendar's close + 15 min (13:15 on an early
+  close, not a hard-coded 16:15). **Repair: 16 requests, 6.1 min, every symbol 101,99x ->
+  102,210 bars**; `store_health --store minute` now reports **0 fail, 0 warn**. **The audit's
+  gate implication is narrower than filed**: `intraday_launch.last_session()` already skipped a
+  truncated day on E-6's shape test, so the preflight fell back to an older session rather than
+  replaying a half day - the damage was that the store froze, not that the gate broke. What the
+  truncated session was worth to a consumer without that guard, same $1M base: replay **-149,012
+  / 175 decisions / 14 open positions at the close** against **-9,489 / 368 / flat**, while the
+  research harness moves only **-9,920 -> -9,418 (+$502, 5.3%)** and yet books **158 trades
+  against 215** - a truncated session hides **27% of the day's trading** while barely moving its
+  P&L. Suite **601 pass**; preflight passes and now replays the full 2026-09-11. **Adds no
+  research item and closes one audit item.** Reusable rule: **a fetcher's resume rule must be the
+  completeness checker's rule, imported** - a bar count is always available and a calendar has to
+  be imported, so the cheap instrument wins by default and the store freezes at exactly the
+  defect the checker was written to find. **AUD-24 files the same shape** for the events and
+  options caches ("marked complete when partial").
+- **AUD-16 [data] (original text)** `intraday_data.py` cannot extend the store and truncates today's session (all 16 symbols hold a 170-bar 2026-09-11).
 - **AUD-17 [data]** LEAN daily store writes adjusted prices as raw with split factor 1; per-share fees charged on adjusted share counts.
 - **AUD-18 [ml]** F-3's IC t-stat is naive on overlapping 5-day labels (NW t ~1.2, not 2.17); no embargo.
 - **AUD-19 [ml]** F-7 draft: persistence table is a composition artifact; best cell chosen on the test window; report 2019-23 separately.

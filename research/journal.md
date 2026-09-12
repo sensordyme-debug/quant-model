@@ -4,6 +4,90 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-12 - D-4 / AUD-16 (`iterate` track)
+
+**The IBKR minute store had not advanced since 2026-09-11 12:35 ET and could not, because the
+fetcher's two defects hid each other: it wrote a truncated session, then counted that session as
+present and refused to request the month again. Both fixed, the store repaired against the live
+gateway (16 symbols, +3,483 bars, E-6 now reports 0 fail / 0 warn), and the thing the truncated
+session was worth is not in its P&L - it is 27% of the day's trades and a replay that ends with
+14 open positions.**
+
+`scripts/sweep_d4.py`, seven clauses pre-registered in its docstring, no ledger row (this is a
+data-pipeline fix, not a strategy result), `tests/test_intraday_data_extend.py` (17 tests), suite
+**601 pass** (584 before). Nothing under `live/` touched; `live/intraday_config.json` unchanged.
+
+**What was broken.** Both defects are in `scripts/intraday_data.py`, and each one is a decision
+the module makes locally before it asks IBKR anything:
+
+| # | defect | fixed to |
+| --- | --- | --- |
+| 1 | `snap_after_close` clamped its end timestamp with `min(20:00, now)`. During regular hours `now` **is** inside the session, so the clamp re-introduced the exact truncation the function exists to prevent - IBKR truncates the session `endDateTime` lands in | clamped to `last_safe_end`: after the CALENDAR's close plus a 15-minute settle margin `now` is safe, before it the only safe boundary is the previous 20:00. A midday run now fetches nothing for today instead of a third of it |
+| 2 | `fetch_symbol` skipped any window with **15 or more sessions on disk**. A count cannot tell a complete month from one missing its last five days, and with 263 sessions stored every window cleared 15, so `--months N` was a no-op for every N | skip only when no CALENDAR session in the window is missing or truncated (`sessions_needed`) |
+| 3 | `--repair` iterated the days **on disk**, so a session that was never fetched at all was invisible to it, and the default run did not repair | `incomplete_sessions` spans the calendar, not the store; the default run repairs everything inside `--months` and names what is left older than that |
+| 4 | truncation was `n < 390 and n != 210`, which calls every sparse session truncated and passes a 390-minute day stored with exactly 210 bars | `store_health.session_shapes` (E-6's head/tail rule) imported rather than re-drawn |
+
+**Clause by clause.**
+
+1. **Identity: PASS, and it is the withdrawal condition.** A fetcher that re-requests a complete
+   store is worse than one that cannot extend it, because it burns the pacing budget the repair
+   needs. Measured twice: before the repair 0 of 16 symbols were clean, so the clause was
+   vacuous; **after** it, all 16 are clean and the new rule issues **0 requests** for
+   `--months 3`, against 3 windows x 16 symbols it could have asked for.
+2. **Truncation: PASS, and the old rule fails it badly.** Over 288 five-minute probes across a
+   whole day, the OLD `snap_after_close` returned an instant inside a live session on **78** of
+   them on a regular day and **42** on an early close; the NEW rule on **0 of 3 x 288**, regular
+   day, early close and holiday. The settle margin is added to the *calendar's* close, so it is
+   16:15 on a regular day and 13:15 on an early close - a hard-coded 16:15 would have thrown away
+   three of the only hours in which a half day can be stored complete.
+3. **No-op: PASS.** A `--months 3` run today issues **0 requests for all 16 symbols** under the
+   count-based skip while every one of them holds a truncated last session, and **exactly 1** per
+   symbol under the new rule, on the window containing 2026-09-11.
+4. **Line: PASS, 0 of 16 disagree.** The fetcher's "needs a refetch" set equals
+   `store_health`'s truncated-or-missing set symbol by symbol. Two modules that disagree about
+   what "complete" means give an operator two answers and no way to choose, which is how the
+   2026-09-10 defect survived a `--repair`.
+5. **Materiality: 16 (symbol, session) pairs, 3,483 bars.** One session, but *the last* one, and
+   `scripts/intraday_launch.py` preflights by replaying the last stored session.
+6. **Deploy gate: PASS, and the honest version is narrower than the audit implies.** The preflight
+   was **not** broken by AUD-16 - `intraday_launch.last_session()` already skips a truncated day
+   on E-6's shape test, so the gate silently fell back to an older session rather than replaying a
+   half day. The damage was that the store could not advance at all. What the truncated session is
+   worth to a consumer *without* that guard, measured by reconstructing the pre-repair store
+   (2026-09-11 cut at 12:25 ET) and replaying it through `intraday_trader.py` on the same $1M base:
+
+   | store | decisions | trades | replay P&L | open at close |
+   | --- | --- | --- | --- | --- |
+   | truncated | 175 | 146 | **-149,012** | 14 names |
+   | repaired | 368 | 215 | **-9,489** | none |
+
+   The research harness is nearly immune, because it flattens on its last bar: **-9,920 against
+   -9,418** for that session, +$502 or 5.3%. But it books **158 trades against 215**, so a
+   truncated session hides **27% of the day's trading** from research while barely moving its
+   P&L - which is exactly why a P&L-only check would have passed it and why E-6's shape test is
+   the right instrument. After the repair `scripts/intraday_launch.py --preflight-only` passes and
+   replays the full 2026-09-11 (P&L -2,080 on 250,000, 36 trades, 368 decisions, flat at close).
+7. **Withdrawal: not triggered.** `--legacy-skip` restores the count-based skip and
+   `snap_after_close(..., legacy=True)` the old clamp, both pinned by tests, so D-4's control
+   cells are reproducible rather than remembered.
+
+**The repair itself.** `python scripts/intraday_data.py --months 3` against IB Gateway (clientId
+61), **6.1 minutes, 16 requests**, one per symbol. Every symbol went 101,990-101,997 ->
+**102,210 bars** and `store_health.py --store minute` now reports **16 symbols, 1,635,362 rows,
+0 fail, 0 warn -> usable**. A side finding from the reconstruction: the repaired 09:30-12:24 head
+is dense at 175 bars for all 16 while the implied pre-repair counts were 170-175, so the dead
+fetch had also left **0-5 minutes missing inside its own head** - a truncated fetch is not only
+short at the tail.
+
+**What it changes for the loop.** The fetcher's skip and the completeness checker were asking the
+same question with different instruments, and the cheap instrument won by default: a bar count is
+always available, a calendar has to be imported. Every store this repo keeps (`data/minute`,
+`data/minute_alpaca`, `data/options/odte`) has a fetcher with its own idea of "already have it",
+and **AUD-24 files the same shape for the events and options caches** ("marked complete when
+partial"). The rule D-4 leaves behind: **a fetcher's resume rule must be the completeness
+checker's rule, imported, or the store will freeze at exactly the defect the checker was written
+to find.**
+
 ## 2026-09-12 - A-13 / AUD-21 (`iterate` track)
 
 **All six harness biases fixed, and priced on the book the owner is deciding about: they are worth
