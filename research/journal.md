@@ -4,6 +4,38 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-12 - S-35 / AUD-12 (pointer; full entry in `research/journal_daily.md`)
+
+**One row in the ledger passes the promotion gate today and would put a strategy on the paper
+account that the runner cannot trade: it claims +1.914 CAR points and delivers 0.000 of them.**
+`main.py` builds its `Params` from `S1_*` environment variables; `paper_trade.py:196` asks for
+`getattr(sig, "PARAMS", None)` and `signals.py` defines `DEFAULTS`, so the runner always trades
+the defaults; `compare_orders.py:158` builds `sig.Params()`, so the deploy gate compares the
+defaults with the defaults and agrees with itself; and `--promote` recorded no `env` at all.
+`scripts/sweep_s35.py`, seven clauses pre-registered, prices it on the real row `20260911T184723Z`
+(S-20's defensive off-state at 2 bp), which returned `(True, [])` from `verdict()` before the
+patch. Identity exact on the union price frame (22.192150170492255% / 5,052). The reach surface,
+re-derived from `main.py` by AST: **56 `S1_*` names, 49 of which reach the shared signal path and
+7 of which do not** - so the fix has to be an allow list, and `S1_PROXY` (which mutates a
+`signals.py` global rather than a `Params` field) is why it cannot be derived from the `Params(...)`
+call. Of 167 `s1_momo` rows, 15 carry a reaching key - a **floor**, since `env` recording only began
+with S-18 - and 1 passes. What the account gets: the promoted book and the runner's book **hold
+different things on 13.6% of sessions** (the runner flat on 590 of 3,689 against the promoted
+book's 87), paired
++0.51 bps/day at t +0.47, and in LEAN's column the promotion moves the champion from 23.068% to a
+claimed 24.982% while the account keeps trading 23.068%. **Second order, and larger: 11 of the 167
+rows then flip from "beats" to "does not"** against a bar no deployed book can reach - AUD-10 handed
+a candidate slack it had not earned, AUD-12 denies the account improvements it had. Fixed in two
+independent halves (`param_env_note()` candidate-side, `champion_env_note()` reader-side) plus
+`--promote` now recording the run's `env`; the audit's second remedy (plumb the env into the runner
+and the gate) is **refused on merit** - it would widen the deployed surface to buy a capability
+nothing asked for, and a parameter worth shipping belongs in `signals.py`'s defaults. Withdrawal
+condition holds: 167 rows re-judged, **exactly 1 verdict moved, `yes -> no`, on the tainted row**,
+0 the dangerous way and 0 on a clean row; suite **543 pass**; `champion.json` untouched. No LEAN
+run, no ledger row, no live-runner edit (clause 7 pins that invariant with a test instead of
+patching `paper_trade.py`). Adds no research item and closes one audit item. Next daily audit item
+that needs no trading day: **AUD-25**.
+
 ## 2026-09-12 - S-34 / AUD-10 (pointer; full entry in `research/journal_daily.md`)
 
 **The promotion gate hands the next candidate 4.2 points of drawdown slack, and 15 rows already in

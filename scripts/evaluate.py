@@ -17,6 +17,10 @@ Promotion also rewrites `stats_by_spread` to the promoted run's own cost column 
 the others (AUD-10 / S-34): they belong to the book that just lost, and leaving them in place
 judged the next candidate against a retired champion. The `*_note` keys are kept. A champion
 whose columns do not contain its own run is reported stale and every comparison is refused.
+
+A run made with an `S1_*` override that reaches the code the paper runner shares with LEAN is
+refused outright (AUD-12 / S-35) and the promoted run's `env` is recorded on the champion, so
+the record states the environment the book was measured in.
 """
 import argparse
 import datetime as dt
@@ -184,6 +188,77 @@ def env_note(run, champion):
     return None
 
 
+#: AUD-12 / S-35. The only `S1_*` keys that do NOT reach the code `scripts/paper_trade.py`
+#: shares with LEAN. `algorithms/s1_momo/main.py` reads 56 of them; 49 are fed into
+#: `sig.Params(...)` or mutate a `signals.py` global (`S1_PROXY`), and the runner sees none of
+#: those - it calls `target_weights` with `getattr(sig, "PARAMS", None)`, which is always
+#: `None` because `signals.py` defines `DEFAULTS`, so the runner trades the defaults whatever
+#: was promoted. The seven below reach only LEAN's own plumbing: the backtest window, the
+#: slippage and financing models LEAN applies after the signal has spoken, the extra staleness
+#: `S1_SIGNAL_LAG` puts in front of it, and S-22's null instrument, which nothing reads at all.
+#:
+#: ALLOW, never deny. A deny list would have to name the 49 and be re-derived every time a knob
+#: is added to `main.py`; this one fails safe, and `tests/test_evaluate_param_env.py` pins it to
+#: the file so a new knob is refused by default rather than silently promotable.
+INERT_ENV = {
+    "S1_START", "S1_END",                                   # window; also see window_note
+    "S1_SLIPPAGE_BPS", "S1_SIGNAL_LAG",                     # S-17's two execution assumptions
+    "S1_FINANCING", "S1_FIN_SPREAD", "S1_FIN_RATES",        # S-21/S-22's cost of money
+    "S1_NOOP",                                              # S-22's null instrument
+}
+
+
+def reaching_env(env) -> dict:
+    """The overrides in `env` that the paper runner cannot reproduce."""
+    return {k: v for k, v in sorted((env or {}).items()) if k not in INERT_ENV}
+
+
+def param_env_note(run):
+    """AUD-12: refuse a run whose parameters the deployed runner cannot trade.
+
+    The fifth axis-mismatch rule, and the one with the largest blast radius. `main.py` builds
+    its `Params` from the environment; nothing carries that environment to `paper_trade.py`,
+    to `compare_orders.py`, or into `champion.json`. So a run made with an override could be
+    promoted, pass the deploy gate - which compares `sig.Params()` with `sig.Params()` and
+    therefore agrees with itself - and leave the paper account trading the defaults.
+
+    S-35 priced it on the one ledger row that passes this file's rules today
+    (`20260911T184723Z`, S-20's defensive off-state at 2 bp): it claims +1.914 CAR points over
+    the champion, the account would receive **0.000** of them because the runner holds cash in
+    risk-off and cannot even subscribe to IEF, the two books hold different things on 13.6% of
+    sessions, and `champion.json` would afterwards demand 24.982% from a book that earns
+    23.068% - so the gate would then refuse every genuinely better candidate as well.
+
+    Refusing is the whole fix, and it is not a limitation: a parameter that is worth shipping
+    belongs in `signals.py`'s `Params` defaults, which LEAN and the runner both read. An
+    override is a research instrument. This rule says so in the one place that could otherwise
+    turn one into a deployment.
+    """
+    bad = reaching_env(run.get("env"))
+    if not bad:
+        return None
+    return (f"run set {', '.join(f'{k}={v}' for k, v in bad.items())}, which "
+            f"scripts/paper_trade.py cannot reproduce (it always trades signals.DEFAULTS) - "
+            f"not comparable; ship the value as a Params default in signals.py and re-run")
+
+
+def champion_env_note(champion):
+    """The reader half of the same rule: refuse a champion that records an override.
+
+    `--promote` cannot write one any more, so this fires only on a hand-edited or
+    half-written file - which is exactly the case `stale_note` exists for on the cost columns.
+    Silent when `env` is absent: promotions before S-35 recorded nothing, and treating an
+    unstated environment as a violation would refuse every comparison against today's book.
+    """
+    bad = reaching_env(champion.get("env"))
+    if not bad:
+        return None
+    return (f"champion.json records the override(s) "
+            f"{', '.join(f'{k}={v}' for k, v in bad.items())}, which the paper runner does not "
+            f"trade (AUD-12), so the deployed book is not the one described here - restore the "
+            f"file from git or re-promote a run made without overrides")
+
+
 def window_note(run):
     """Refuse a run whose backtest window is not the champion's.
 
@@ -217,6 +292,12 @@ def verdict(run, champion):
     stats = run.get("stats", {})
     reasons = []
     note = stale_note(champion)
+    if note:
+        reasons.append(note)
+    note = champion_env_note(champion)
+    if note:
+        reasons.append(note)
+    note = param_env_note(run)
     if note:
         reasons.append(note)
     note = window_note(run)
@@ -257,9 +338,9 @@ def verdict(run, champion):
 
 
 def table(runs, champion):
-    warning = stale_note(champion)
-    if warning:
-        print(f"WARNING: {warning}\n")
+    for warning in (stale_note(champion), champion_env_note(champion)):
+        if warning:
+            print(f"WARNING: {warning}\n")
     header = ["ts", "algorithm", "tag"] + SHOW + ["beats?"]
     rows = []
     for r in runs:
@@ -307,6 +388,11 @@ def main() -> int:
                 "algorithm": run["algorithm"], "class": run["class"], "run_dir": run["run_dir"],
                 "stats": run["stats"], "commit": run.get("commit"), "tag": run.get("tag"),
                 "stats_by_spread": columns,
+                # AUD-12 / S-35: state the environment the promoted book was measured in.
+                # `param_env_note` has already refused anything reaching, so this can only be
+                # the inert set or empty - which is the point: a champion that says nothing
+                # about its environment is indistinguishable from one that hid an override.
+                "env": dict(run.get("env") or {}),
                 "promoted_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             })
             CHAMPION.write_text(json.dumps(champion, indent=2) + "\n", encoding="utf-8")

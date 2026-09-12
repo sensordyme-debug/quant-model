@@ -4,6 +4,149 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-12 - S-35 (AUD-12): one row in the ledger passes the gate today and would put a strategy on the paper account that the runner cannot trade - it claims +1.914 CAR points and delivers 0.000 of them
+
+**What this iteration is.** S-34 named **AUD-12** as the next daily audit item that needs no
+trading day, and named the shape it expected: *"same as this one: a promotion that does not carry
+everything the champion is."* That is right and it understates it. AUD-10 left the wrong *number*
+behind after a promotion; AUD-12 leaves the wrong *strategy* on the account.
+
+The mechanism, three files deep and each one individually reasonable. `algorithms/s1_momo/main.py`
+builds its `sig.Params(...)` from `S1_*` environment variables - that is how every sweep in this
+repository moves a parameter without editing a shipped file, and it is deliberate (E-2). Nothing
+carries those overrides anywhere else:
+
+- `scripts/paper_trade.py:196` asks for `getattr(sig, "PARAMS", None)`. `signals.py` defines
+  `DEFAULTS`, never `PARAMS`, so the expression is `None` on every run and `target_weights` falls
+  through to `params or DEFAULTS`. **The live runner always trades the defaults.**
+- `scripts/compare_orders.py:158` builds `sig.Params()`. **The deploy gate compares the defaults
+  with the defaults**, so it agrees with itself whatever was promoted - 3,689/3,689, every time.
+- `scripts/evaluate.py --promote` wrote `stats`, `run_dir`, `commit`, `tag` and `stats_by_spread`
+  and **no `env` at all**, so after the promotion the override was not even in the record.
+
+Both standing measurement jobs ran first, as on every iteration since S-31, and it being a
+Saturday neither has new input: `daily_fills.py` still reads **10 fills / $2,373,115 / +3.2 bps**
+against the auction the runner aims at (per-fill sd 14.1, se 4.5), `ref_price` the previous close
+10 of 10.
+
+**Provenance and scope.** New `scripts/sweep_s35.py` (seven clauses pre-registered before the
+first number; console output in `results/s35_stage_{a,b,c}.txt`), a patch to `scripts/evaluate.py`,
+and `tests/test_evaluate_param_env.py` (20 tests). **No LEAN run, no ledger row, no strategy
+parameter and no runner-loaded file** - `evaluate.py` is shared code but nothing in `live/` imports
+it, so no `--replay` is owed. `research/champion.json` was **not** modified: `git diff` on it is
+empty, and both the promotion clause and the end-to-end promotion tests write to scratch copies.
+
+**(1) Identity, and the defect is preventive.** The offline book reproduces the cell six previous
+iterations agree on **exactly** - 22.192150170492255% / 5,052 orders - and it does so on the
+**union** price frame both books of clause 5 need, so adding IEF to the frame is *proven* inert
+rather than assumed, and the two books are comparable on one load. Today's champion is clean:
+`champion.json` carries no `env` key and its own ledger row `20260911T145705Z` recorded `{}`. So,
+as with AUD-10, the answer to "has the deployed book ever been the wrong one" is **no**.
+
+**(2) The reach surface, and why the fix has to be an allow list.** Re-derived from `main.py` by
+AST rather than from memory: it reads **56** `S1_*` names, of which **49 reach the code the runner
+shares** and **7 do not** (`S1_START`, `S1_END`, `S1_SLIPPAGE_BPS`, `S1_SIGNAL_LAG`,
+`S1_FINANCING`, `S1_FIN_SPREAD`, `S1_FIN_RATES`; `S1_NOOP` is allow-listed and no longer read at
+all). A deny list would have to name 49 keys and be re-derived every time a knob is added. The
+allow list names 7 and fails safe, and one of the 49 is why the derivation cannot simply read the
+`Params(...)` call: **`S1_PROXY` is not a Params argument** - it mutates `signals.LEVERED_PROXY`,
+a module global, so a promoted 3x book would paper trade unlevered parents.
+
+**(3) The defect reproduces on a real row, not a constructed one.** `20260911T184723Z` - S-20's
+defensive off-state TLT/IEF/GLD at 2 bp - **passed `verdict()` today**, `(True, [])`, on every
+criterion: CAR 24.982% against the champion's 23.068%, Sharpe 0.914 within the 0.03 tolerance of
+0.938, drawdown 25.700% within the 1.0-point tolerance of 25.000%. Promoted into a scratch
+champion it writes CAR 24.982% and **no `env` key**. Meanwhile the runner's `risk_off_sleeve` is
+`()` - cash - and its universe has **no IEF at all**, so it could not subscribe to the promoted
+book even if it knew about it.
+
+**(4) The blast radius on the record.** Of **167** `s1_momo` rows, **36** record any `env`, **15**
+carry a reaching key, and **1 passes today's gate**. That 15 is a **floor, not an estimate**:
+`backtest.py:126` began recording `env` with S-18 on 2026-09-11, so every earlier row reads as
+clean whatever it was actually run with.
+
+**(5) The price, in the unit that matters - and it is not a CAR gap.** At the row's own cost model
+(2 bp, no financing), the promoted parameters and the defaults the runner would trade instead:
+
+| book | CAR | Sharpe | MaxDD | orders |
+| --- | --- | --- | --- | --- |
+| promoted parameters | 21.886% | 1.027 | 30.330% | 5,258 |
+| what the runner trades | 20.996% | 1.107 | 23.963% | 5,062 |
+
+Paired **+0.5093 bps/day at t +0.47** over 3,689 sessions - which is S-20's own refusal arriving
+by a second route - and the two books **hold different things on 503 of 3,689 sessions (13.6%)**.
+The runner is flat on **590 sessions (16.0%)** where the promoted book is flat on 87.
+
+The decisive column is LEAN's, because that is what decides the promotion:
+
+| | CAR | Sharpe | DD |
+| --- | --- | --- | --- |
+| champion, 2 bp column | 23.068% | 0.938 | 25.000% |
+| candidate claims | 24.982% | 0.914 | 25.700% |
+| **what the account then trades** | **23.068%** | **0.938** | **25.000%** |
+
+**The promotion buys +1.914 CAR points and delivers +0.000 of them - 0%** - because what the
+runner trades after the promotion is the book it was already trading. The pre-registered test
+was "material iff the runner-traded CAR is at or below the champion's"; it is **equal to it by
+construction**, so: MATERIAL.
+
+**The second-order damage is larger than the first and points the opposite way from AUD-10.**
+With that champion in place the bar becomes 24.982% CAR on a book the account cannot earn, and
+**11 of the 167 rows flip from "beats" to "does not"** - real candidates refused for failing to
+beat a fiction - while the drawdown ceiling moves **+0.700 points** the loose way. AUD-10 handed
+a candidate slack it had not earned; AUD-12 denies the account improvements it had.
+
+**(6) The fix, and backward compatibility as the withdrawal condition.** The audit offered two
+remedies; this iteration takes the first and refuses the second on its merits. Plumbing
+`champion.json["env"]` into the runner and the gate would *enable* trading overridden parameters,
+which widens the deployed surface and edits a live runner to buy a capability nothing has asked
+for. Refusing is the whole fix and it is not a limitation: **a parameter worth shipping belongs
+in `signals.py`'s `Params` defaults**, which LEAN and the runner both read. An override is a
+research instrument, and the gate is the one place that could otherwise turn one into a deployment.
+
+Two halves that do not depend on each other, matching S-34's shape:
+- **candidate side** - `param_env_note()` refuses any run carrying a reaching key, the fifth
+  axis-mismatch rule after the spread, window, financing and environment rules, and it names the
+  remedy in the message;
+- **reader side** - `champion_env_note()` refuses *every* comparison when the champion file itself
+  records a reaching override, which catches a hand-edit or an interrupted promotion however it
+  got there. Silent when `env` is absent, because every promotion before today recorded nothing.
+- and `--promote` now records the run's `env` on the champion, so the record states the
+  environment the book was measured in. It can only ever be the inert set or empty, which is the
+  point: a champion that says nothing about its environment is indistinguishable from one that hid
+  an override.
+
+Withdrawal condition, as in S-34: **167 rows re-judged old against new. Exactly 1 verdict moved,
+`yes -> no`, on the tainted row - 0 moved the dangerous way and 0 moved on a clean row.** The 14
+other tainted rows were already refused for other reasons and did not move. Full suite **543 pass**.
+
+**(7) The runner's dead lookup, and a deliberate non-edit.** `hasattr(signals, "PARAMS")` is
+`False` and `DEFAULTS == Params()`, so `paper_trade.py:196` resolves to the identical object on
+every run: the lookup is dead code that *reads* as parameter support, which is how AUD-12 stayed
+invisible for as long as it did. **This iteration does not edit the live runner.** The refusal
+above closes the hole completely - nothing reaching can be promoted - so a cosmetic edit to
+`paper_trade.py` would owe a `--replay` for zero measured risk reduction. The invariant it relies
+on is pinned by a test instead: if `signals.PARAMS` ever appears, the runner starts trading
+something `compare_orders.py` does not check, and the suite says so.
+
+**Decision.** AUD-12 closed; the gate refuses a promotion whose parameters the account cannot
+trade, and the champion now records its environment. **Adds no research item.** The one
+consequence worth stating for the other tracks: any future S-item that wants to ship a parameter
+must change the default in `signals.py` and re-run, not promote a sweep cell.
+
+**Next daily audit item that needs no trading day: AUD-25** (`daily`) - `ML_MODE="rank"` gates on
+sign, the `Params` window guard is incomplete, and `--history ib` has a clock convention. It is
+the last `daily`-owned audit item; AUD-11's remaining half is a manual edit to a reserved file
+and stays the owner's or the critic's.
+
+**Reusable rule.** *A gate that judges a run must refuse every axis on which the run and the
+deployed book can differ, and the list of axes has to be derived from the source rather than
+remembered.* Four of the five rules in `verdict()` were each added after one specific instrument
+appeared (spread, window, financing, interpreter). This one was found by asking the opposite
+question - what is the full surface, and which parts of it are safe - and the answer was 56 and 7.
+
+---
+
 ## 2026-09-12 - S-34 (AUD-10): the promotion gate hands the next candidate 4.2 points of drawdown slack, 15 rows already in the ledger would take it, and the fix moves no existing verdict
 
 **What this iteration is.** S-33 closed by naming its own blocker: the AUD-11 relabel "is a

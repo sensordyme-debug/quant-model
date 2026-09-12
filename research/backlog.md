@@ -1769,6 +1769,24 @@ part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everythi
 owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
 and no delivery, both of which are barred to the loop.
 
+- **S-35 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-12 fixed and
+  priced - one row in the ledger passed the promotion gate today and would have put a strategy
+  on the paper account that the runner cannot trade, claiming +1.914 CAR points and delivering
+  0.000 of them.** Full detail under **AUD-12** in the audit section below. Headline: the runner
+  always trades `signals.DEFAULTS` (`paper_trade.py:196` reads a `PARAMS` attribute that does
+  not exist) and the deploy gate builds `sig.Params()` too, so it agrees with itself whatever was
+  promoted; 49 of the 56 `S1_*` names `main.py` reads reach that shared path; the two books hold
+  different things on 13.6% of sessions; and the second-order damage is larger than the first -
+  11 of 167 rows flip to "does not beat" against a bar no deployed book can reach, which is the
+  **opposite** direction from AUD-10's slack. Fixed candidate-side and reader-side with
+  `--promote` now recording the run's `env`; the audit's alternative remedy (plumb the env into
+  the runner and the gate) is refused on merit. 167 verdicts re-judged, **1 moved and in the safe
+  direction**, suite 543 pass, `champion.json` untouched, no live-runner edit. **Adds no research
+  item and closes one audit item.** **Next daily audit item that needs no trading day: AUD-25**
+  (`daily`) - `ML_MODE="rank"` gates on sign, the `Params` window guard is incomplete, and
+  `--history ib` has a clock convention. It is the last `daily`-owned audit item; AUD-11's
+  remaining half is a manual edit to a reserved file and stays the owner's or the critic's.
+
 - **S-34 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-10 fixed and
   priced - the promotion gate handed the next candidate 4.2 points of drawdown slack and 15
   ledger rows would have taken it.** Full detail under **AUD-10** in the audit section below.
@@ -3589,7 +3607,38 @@ carry the owning track in brackets; record each fix in that track's journal and 
     from 2026-09-09 is the only genuinely out-of-sample evidence this strategy has."*
 
 - **AUD-11 [daily] (original text)** the "OOS 2020-2026" label is a sub-period of full-period parameter selection; relabel or re-select on 2012-2019.
-- **AUD-12 [daily+eng]** runner and gate always trade `Params()`; a promotion carrying `S1_*` env would pass the gate and trade something else.
+- **AUD-12 [daily+eng] DONE 2026-09-12 by S-35** (`scripts/sweep_s35.py`, 7 clauses,
+  `tests/test_evaluate_param_env.py`, `research/journal_daily.md`; no LEAN run, no ledger row,
+  no live-runner edit, `champion.json` untouched). **MATERIAL on its pre-registered threshold,
+  and live: one row in the ledger passed `verdict()` before the patch.** `20260911T184723Z`
+  (S-20's defensive off-state TLT/IEF/GLD at 2 bp) returned `(True, [])` - CAR 24.982% over the
+  champion's 23.068%, Sharpe and drawdown both inside their tolerances - and promoting it would
+  have left the account trading the **defaults**, i.e. the book it was already trading: **+1.914
+  CAR points claimed, +0.000 delivered, 0%**. The two books hold different things on **503 of
+  3,689 sessions (13.6%)**; the runner is flat on 590 where the promoted book is flat on 87, and
+  its universe has no IEF at all, so it could not subscribe to the promoted book either.
+  **The second-order damage is larger and points the opposite way from AUD-10**: with that
+  champion in place the bar is 24.982% on a book the account cannot earn, and **11 of the 167
+  rows flip from "beats" to "does not"** - real candidates refused for failing to beat a fiction -
+  while the drawdown ceiling moves +0.700 points the loose way. Reach surface re-derived from
+  `main.py` by AST: **56 `S1_*` names, 49 reaching the shared signal path, 7 inert**, so the fix
+  is an **allow list** (a deny list would need re-deriving on every new knob) and it cannot be
+  read off the `Params(...)` call, because `S1_PROXY` mutates a `signals.py` global instead.
+  Fixed in two independent halves - `param_env_note()` (candidate: the fifth axis-mismatch rule)
+  and `champion_env_note()` (reader: refuse everything when the champion file itself records a
+  reaching override) - plus `--promote` now recording the run's `env`. **The audit's second
+  remedy is refused on merit**: plumbing `champion.json["env"]` into the runner and the gate
+  would widen the deployed surface to buy a capability nothing has asked for, and a parameter
+  worth shipping belongs in `signals.py`'s `Params` defaults, which LEAN and the runner both
+  read. Backward compatibility was the withdrawal condition and holds: **167 rows re-judged,
+  exactly 1 verdict moved, `yes -> no`, on the tainted row**, 0 the dangerous way and 0 on a
+  clean row; suite **543 pass**. Clause 7 found `paper_trade.py:196`'s `getattr(sig, "PARAMS",
+  None)` to be dead code that *reads* as parameter support, and **deliberately did not patch the
+  live runner** - the refusal closes the hole, so the edit would owe a `--replay` for zero
+  measured gain; the invariant is pinned by a test instead. Reusable rule: **a gate must refuse
+  every axis on which a run and the deployed book can differ, and that list has to be derived
+  from the source rather than remembered** - four of `verdict()`'s five rules were each added
+  after one instrument appeared; asking for the whole surface instead returned 56 and 7.
 - **AUD-13 [daily+eng]** no data-completeness gate in the runner: a missing SPY column flattens the whole book.
 - **AUD-14 [eng+critic]** no track guard in `evaluate.py`; intraday rows carry `commit ""`; `OrderListHash` not captured into the ledger.
 - **AUD-15 [data]** the IBKR minute store is split-adjusted but treated as raw: SOXS/NFLX per-share commission understated up to 100x in IBKR-store backtests; write `data/minute/_splits.json`.
