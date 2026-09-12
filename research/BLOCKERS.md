@@ -2,6 +2,38 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
+## Open data item for the human (2026-09-12, the Theta options subscription has lapsed - O-3)
+
+- **Theta Data options dropped from STANDARD to FREE and every options endpoint now returns HTTP
+  478.** The terminal's own log carries both lines: `[09-10-2026 02:24:41] Subscriptions: Stock:
+  FREE Options: STANDARD Index: FREE` and `[09-12-2026 10:32:18] Subscriptions: Stock: FREE
+  Options: FREE Index: FREE`. It is not a terminal fault - the process authenticates and starts
+  normally; it is the entitlement. Even the cheapest call fails
+  (`theta_data.expirations('SPY')` -> 478), and `odte_data.fetch_day('SPY','2026-09-11')` returns
+  `error HTTP Error 478: 478`, so the 2026-09-11 chain is already missing.
+- **What is lost.** Nothing on disk: the 0DTE store is intact at **1,891 SPY sessions,
+  2016-01-08..2026-09-10, 176 MB**, and O-3 ran entirely from it today. What is lost is
+  everything *new*: no chain after 2026-09-10, no second symbol, no implied-vol or greeks history,
+  no event-vol pull. The O-track can still re-analyse what it has and cannot acquire anything.
+- **Why it is yours.** It is a paid subscription on your account. The loop does not edit
+  credentials and does not spend money.
+- **What restoring it would buy, concretely, and it is not "more of the same".** The one O-item
+  with a stated premise that this repository has never been able to price is the same 0DTE
+  variance risk premium in a **cash-settled European index option (SPXW)**. O-2's refusal turned
+  on an exit that SPY cannot make honest - SPY settles on the official 16:00 print and is
+  exercisable against until 17:30 ET, so its expire-free branch (+0.767% at t +3.05) is an
+  assumption, and buffering it walked the result to 0 of 3 regimes. SPXW is European and
+  cash-settled, so an untouched OTM spread genuinely expires worthless with no assignment
+  exposure and no closing spread, and at ~10x the notional per contract the commission term
+  (-0.950% of max risk on SPY) falls by roughly a factor of ten. That is a
+  `odte_data.fetch_day('SPXW', ...)` away - the script is already symbol-parameterised - and it
+  is the only thing in this track that would test O-2's verdict rather than restate it.
+- **What it would not buy.** It would not re-open selection: **O-3 closed that axis today** on the
+  data already here (best of twelve terciles chosen with hindsight: cover 1.043, net +0.052% at
+  t +0.09 - the ceiling is zero). And it is still **not** the OPRA-through-the-close-plus-
+  settlement-print purchase O-2 asked for; SPXW sidesteps that question rather than answering it.
+- **Nothing is blocked today** beyond the O-track, and the loop will not open an options position.
+
 ## Open ops item for the human (2026-09-11, the daily runner's clock - **re-priced at ~1.9 CAR points by S-19**)
 
 - **The deployed daily champion is trading a signal one session staler than the strategy that was

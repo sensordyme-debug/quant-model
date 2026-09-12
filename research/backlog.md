@@ -2661,6 +2661,42 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
   the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
   test: the 50 megacaps from D-1 are now fetchable at minute resolution.
+- **O-3 DONE 2026-09-12 (see `research/journal_options.md`): the 0DTE variance risk premium is
+  NOT conditional, and the ceiling on session selection is net zero. Refused; nothing shipped.**
+  `scripts/sweep_o3.py`, 14 DIAGNOSTIC ledger rows under `options/odte_o3_select`, two features
+  and two directions pre-registered in the file's docstring before any run. O-2 refused the SPY
+  0DTE credit spread on COST and closed the delta, width, entry-time, structure and stop axes;
+  **selection was the one lever that is none of those five**, and O-2's own conditioning test used
+  only the *external* `iv_regime.parquet`. O-3 conditions on the traded chain's own state:
+  `rn_skew` (the risk-neutral asymmetry from the chain's `dP/dK` at +/-0.5% of spot) and `vrp`
+  (half the risk-neutral interquartile span minus the trailing-20-session realized half-span,
+  strictly prior, therefore causal). **Both identities exact**: `sweep_o2.run_study` over the whole
+  store reproduces the O-2 ledger row `20260910T203647Z` to every digit (1,889 sessions, -1.5301%,
+  t -3.20) and matches O-3's control on the 1,848 feature-complete sessions at **max |difference|
+  0.000e+00**; `sweep_o2.py` is imported, not modified, and **no shipped or runner-loaded file was
+  touched, so no deploy gate is owed**. **0 of 4 feature/cell pairs clear Stage A**, so Stage B
+  never ran: `rn_skew` t(T3-T1) = -1.61 / -0.76 and `vrp` +0.15 / **-0.52 monotone in the WRONG
+  direction** - richer premium, lower gross, which is implied vol being high because realized is
+  about to be high, measured here rather than assumed. **The result that closes the axis is one
+  level up**: `cover` = gross/(spread+fee), and **cover = 1.000 IS net zero by construction**, so a
+  filter must find cover > 1 out of sample. Unconditional cover is 0.319 on B1 (needs 3.14x) and
+  0.765 on B2 (needs only 1.31x), per-session **corr(gross, cost) = -0.598 / -0.482** because the
+  expensive sessions are the losing ones (a breached position is bought back through a wide
+  quote), and **the best of twelve terciles chosen with full hindsight - B2 `rn_skew` T1, n 550 -
+  reaches cover 1.043, net +0.052% at t +0.09.** That is the ceiling on selection and it is zero.
+  **Do not re-open as a feature, threshold, quantile or conditioner question** - the bound is not a
+  property of these two features, it is the -0.5 to -0.6 coupling between gross and cost, and no
+  filter built from the same chain escapes it. Durable piece: **when a construction is refused on
+  cost, measure `cover` per candidate subset before building a filter** - if cover is capped at 1
+  with hindsight, no causal selection exists and the search is over in one pass.
+  **Found in passing and filed in `BLOCKERS.md`: the Theta options subscription dropped from
+  STANDARD to FREE between 2026-09-10 02:24 and 2026-09-12 10:32** (both lines in the terminal's
+  log); every options endpoint returns HTTP 478 and the 2026-09-11 chain cannot be fetched. The
+  store is frozen at 1,891 sessions ending 2026-09-10; O-3 ran entirely from disk. **With
+  selection closed and the data path dead, the O-track has no item that can advance without the
+  owner**; the one that would have been next - the same premium in cash-settled European **SPXW**,
+  where O-2's fatal exit assumption becomes a fact and the commission per unit of risk falls ~10x -
+  is one `fetch_day('SPXW', ...)` away and is blocked precisely by the 478.
 - **O-2 DONE 2026-09-10 (see journal): the SPY 0DTE credit spread has a real, calibrated gross
   edge and it is still refused - at the quote it loses in 8 of 11 years, and the version that wins
   needs a settlement convention the data cannot price. Nothing shipped.** Research needed no owner
