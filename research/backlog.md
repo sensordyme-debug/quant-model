@@ -27,6 +27,26 @@ leg-split program (hold / rank / size) closed with S-28, and S-29 closed the reg
 one untried construction is **S-30** below. (3) The honest deployed expectation of the daily
 champion is **~20% CAR, not 24.4%** - see `champion.json`'s `deployed_expectation_note`.
 
+Status 2026-09-12 11:5x UTC (I-2): **the end-of-session assertion pass ships, and it is validated
+by the only test that matters for an alert - it FAILs the one day that had real defects and stays
+quiet on the three that did not.** `scripts/session_audit.py`, 21 assertions over both live logs,
+one verdict, exit code 0/1/2. Log-only, **no shipped or scheduled file touched**, so no gate and
+no replay is owed. 2026-09-11 **FAIL** on exactly `daily.no_foreign_positions` (the S-18 TQQQ
+orphan) and `intraday.pnl_reset` (`trades 32 > 0 fills logged by then`, 32 = 2026-09-10's fill
+count); 2026-09-09 and 2026-09-10 WARN with no failure; 2026-09-08 PASS as pre-deployment. Four
+false positives were removed by reading the runners rather than loosening thresholds, the most
+useful being that **`effective_exposure` is not a limit** (1.77x on 2026-09-09 under the 3x
+proxies) - the one shipped ceiling is `margin_used <= 0.75`, which held on every live plan. **One
+new finding, not a defect**: the intraday book's mark-to-market gross peaked at **1.034x
+`GROSS_HARD_CAP`** on 2026-09-10 because the cap is applied to decision-time targets while
+`MIN_CHANGE` leaves 2% of drift per name (implied drift at that peak 0.0025), the backtest harness
+caps identically so it is already priced, and total notional was ~2.09x of NAV against 4x DT
+buying power - reported as a WARN, trader unchanged. **Standing jobs both ran first with no new
+input** (Saturday): `slippage_report.py` 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90;
+`daily_fills.py` 10 fills / $2.37M / +3.2 bps (se 4.5), `ref_price` the previous close 10 of 10.
+**What it changes for the loop**: a verdict now exists but has no schedule and no delivery, and
+both are barred to the loop - filed in `BLOCKERS.md` beside item 2.
+
 Status 2026-09-12 09:4x UTC (S-29): **the market's volatility forecast is a quarter better than
 the book's own and makes a measurably worse crisis switch - the sessions VIX removes are worth
 twice the average session, and with the exposure held fixed the swap costs 2.6 bps a day at
@@ -1615,6 +1635,14 @@ decisions in `BLOCKERS.md`**, three of which are priced to the basis point and t
 nothing to take. **The Current objective's own instruction applies: say so rather than find a
 twelfth lever.**
 
+**Updated after I-2 closed (2026-09-12).** The ops job is done and shipped
+(`scripts/session_audit.py`, validated against both live defects of the window), so **the only
+open work in this file is the two standing measurement jobs** - A-5 part 2, which is ~4.4 sessions
+from settling the intraday sleeve's slippage constant and thereby BLOCKERS.md item 6, and S-17
+part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everything else is the
+owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
+and no delivery, both of which are barred to the loop.
+
 - **S-30 DONE 2026-09-12 (see journal): refused on COST at every h - and the 'delta book' the
   item was built on does not exist, which one identity run settled in two minutes.**
   `scripts/sweep_s30.py`, 18 DIAGNOSTIC ledger rows under `daily/s30_delta`, seven clauses
@@ -1679,15 +1707,35 @@ twelfth lever.**
   directly, and after the pre-open move it also scores MOO fills against the **open** they aim at
   (`daily_fills.py`, extended in S-23), which is how the +1.98 gets confirmed or refuted live.
 
-- **I-2 (NEW, ops, small).** The three scheduled tasks and the two runners are healthy, but the
-  window produced two live defects that were only caught by reading logs by hand (the S-18 TQQQ
-  orphan, fixed in `c34ff7b`; the intraday book's P&L not resetting on session rollover, fixed in
-  `c16cca4`). With `live/alerts.json` still missing (`BLOCKERS.md` item 2) the log files are the
-  only alert surface. **A one-page end-of-session assertion pass over `live/log/<date>.jsonl` and
-  `live/log/intraday-<date>.jsonl`** - flat at 15:38 ET, no `foreign_positions_ignored`, no
-  `error`, fills reconcile to the plan, P&L reset on rollover - would catch the next one on the day
-  rather than at the next review. It does **not** need the alerts credential; it can write its
-  verdict to the journal and the dashboard.
+- **I-2 DONE 2026-09-12 (see journal): `scripts/session_audit.py` ships, and it is validated by
+  reproducing BOTH live defects on the day they happened while staying quiet on the three clean
+  days.** 21 assertions over `live/log/<date>.jsonl` and `live/log/intraday-<date>.jsonl`, one page,
+  one rolled-up verdict, exit code 0/1/2, `--all` and `--json`. Log-only: **no IBKR connection, no
+  order, and no shipped, runner-loaded or scheduled-task file touched**, so no deploy gate and no
+  replay is owed. **The validation is the whole point**: 2026-09-08 PASS (pre-deployment),
+  2026-09-09 WARN 0/3/5, 2026-09-10 WARN 0/5/12, **2026-09-11 FAIL on exactly
+  `daily.no_foreign_positions` and `intraday.pnl_reset`** - the S-18 TQQQ orphan (`['TQQQ'] are NOT
+  intraday-sleeve names`) and the rollover leak (`trades 32 > 0 fill(s) logged by then`, 32 being
+  2026-09-10's fill count). Both fixes are already shipped, so those two rows are now **regression
+  guards**. **Four false positives were removed by reading the code, not by loosening a
+  threshold**, and each is a durable fact: (1) `effective_exposure` is **not a limit** (1.7363x on
+  2026-09-10, 1.7669x on 2026-09-09, because a 3x proxy carries 3 units of economic exposure at
+  0.333 of the margin - S-18's point); the one shipped ceiling is `margin_used <= 0.75`, which
+  holds on every live plan, so the assertion moved there with a 2.30x runaway alarm beside it;
+  (2) a `connect_failed` only costs a session if no live plan follows (six each on 09-09 and 09-10
+  from manual attempts while IB Gateway was down, both rebalances went through); (3) a live plan
+  wanting orders and logging none is a `--dry-run` outside 15:40-15:50 ET and a **lost session**
+  inside it; (4) dates before the first real fills (daily 2026-09-09, intraday 2026-09-10) have no
+  session to lose. **One new finding, and it is not a defect**: the intraday book's
+  mark-to-market gross peaked at **1.034x `GROSS_HARD_CAP`** on 2026-09-10 (1 of 15 snapshots over,
+  14 names), because the cap is applied to **decision-time targets** while `MIN_CHANGE` leaves a
+  name alone until it drifts 2% of sleeve equity - the implied per-name drift at that peak is
+  **0.0025 against the 0.02 band**, `intraday_backtest.py` caps identically from the same constants
+  so the harness already prices it, and total notional was ~2.09x of NAV against 4x DT buying
+  power. Reported as a WARN naming the band; **the trader was not changed**, because nothing
+  warrants it and rule (a) would require a replay. **What is left of I-2 needs the owner**: the
+  pass runs when the loop runs, and wiring it to ~16:00 ET from its own scheduled task is barred to
+  the loop by AGENTS.md - filed in `BLOCKERS.md` beside item 2.
 
 **Explicitly NOT to be re-opened** (each carries a do-not-re-open clause in its own entry, and each
 was refused on a grid that spans the obvious knobs): S-27 as a ranking/score question, S-28 as an

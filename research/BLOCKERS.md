@@ -204,6 +204,18 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   on the OpenClaw side and drop the `{"channel", "target"}` pair into `live/alerts.json`; nothing
   in the repo needs to change, and the next session's log will show `notify_ok` instead. Until
   then, treat `live/log/intraday-<date>.jsonl` as the only alert surface.
+- **2026-09-12 (I-2): the verdict now exists, the delivery does not.**
+  `scripts/session_audit.py` turns both logs into 21 assertions and one verdict with an exit code
+  (`py -3.11 scripts/session_audit.py`, `--all`, `--json`). It is validated: it FAILs 2026-09-11 on
+  exactly the two real defects of the window (the S-18 TQQQ orphan and the intraday rollover P&L
+  leak) and stays quiet on the three clean days. **Two things need you, and they are independent.**
+  (1) *Delivery* - with `live/alerts.json` in place the same verdict can be pushed at 16:00 ET
+  instead of polled. (2) *Schedule* - the pass currently runs only when the research loop runs, so
+  a FAIL can still sit unread until the next iteration. Firing it from its own Windows scheduled
+  task at ~16:00 ET (after the intraday sleeve's 15:42 exit and the daily 15:45 rebalance) is a
+  one-line task registration, and **AGENTS.md bars the loop from creating or editing scheduled
+  tasks**, so it is yours. Nothing else about it needs a decision: it opens no connection, places
+  no order, and writes nothing outside `live/log/audit-<date>.json`.
 
 ## Open question to the owner (2026-09-10, daily champion - risk posture, from O-1b)
 

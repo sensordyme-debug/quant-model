@@ -1,5 +1,101 @@
 # Research journal
 
+## 2026-09-12 - I-2: the end-of-session assertion pass, validated by reproducing both live defects on the day they happened
+
+**Hypothesis.** Not a strategy hypothesis - the top of the backlog is now two standing
+measurement jobs and this one ops item, because S-30 closed the last research item with a stated
+premise and a permitted instrument. The claim I-2 makes is operational and falsifiable: **the two
+live defects of the deployment window each left a signature in `live/log/*.jsonl` on the day they
+happened, so a log-only assertion pass would have caught both within the session rather than at
+the next review.** Those defects were (a) the S-18 TQQQ orphan - the daily runner treating a name
+the champion had stopped targeting as "foreign" and leaving 3,227 shares in the account after the
+15:45 rebalance, fixed in `c34ff7b`; and (b) the intraday book's closed P&L, costs and trade count
+not resetting on session rollover, which would have tripped the -2.5% loss limit about $6.8k
+early, fixed in `c16cca4`. Both were found by reading logs by hand, days late. With
+`live/alerts.json` still missing (BLOCKERS.md item 2) the log files are the only alert surface
+this repository has, so the test of the hypothesis is whether a script can turn them into a
+verdict.
+
+**What was built.** `scripts/session_audit.py` - 21 assertions over `live/log/<date>.jsonl` and
+`live/log/intraday-<date>.jsonl`, one page of output, a single rolled-up verdict and an exit code
+(0 PASS / 1 WARN / 2 FAIL) so a wrapper can act on it. `--all` audits every date on disk,
+`--json` writes `live/log/audit-<date>.json`. It reads logs and nothing else: **no IBKR
+connection, no order, no write outside the optional artifact**, and **no shipped, runner-loaded or
+scheduled-task file was touched**, so no deploy gate and no replay is owed under AGENTS.md rule
+(a). The two defect signatures are encoded directly. For (a): post-`c34ff7b` the runner's
+`foreign` set is exactly the intraday sleeve's universe and that sleeve is flat by 15:38 ET, so a
+`foreign_positions_ignored` event at the rebalance can only mean either the intraday book did not
+flatten or the fix regressed - and the check names which, by testing the skipped symbols against
+`intraday_common.UNIVERSE`. For (b): one `fill` event is one book trade, so if a snapshot's trade
+count runs ahead of the fills logged by that timestamp, yesterday's book leaked into today's P&L
+and the loss limit is being measured against the wrong number.
+
+**Result - the pass reproduces both defects and raises no false alarm on the other three days.**
+Run over every session log on disk:
+
+| date | verdict | fail | warn | pass | what failed |
+|---|---|---|---|---|---|
+| 2026-09-08 | PASS | 0 | 0 | 0 | pre-deployment, 11 mock runs, nothing to audit |
+| 2026-09-09 | WARN | 0 | 3 | 5 | - |
+| 2026-09-10 | WARN | 0 | 5 | 12 | - |
+| 2026-09-11 | **FAIL** | **2** | 5 | 12 | `daily.no_foreign_positions`, `intraday.pnl_reset` |
+
+The two 2026-09-11 failures are the two known defects, quoted by the script in their own terms:
+`positions ['TQQQ'] left alone - ['TQQQ'] are NOT intraday-sleeve names (the S-18 orphan
+signature)` and `2026-09-11 09:30:00-04:00: trades 32 > 0 fill(s) logged by then` - 32 being
+exactly 2026-09-10's fill count carried across the rollover. Both fixes are in the shipped runners
+already, so these two rows are now **regression guards**, not open defects.
+
+**Four false positives were removed by reading the code rather than loosening a threshold**, and
+each correction is a fact about the runners worth keeping. (1) `effective_exposure` is **not** a
+limit: it was 1.7363x on 2026-09-10 and 1.7669x on 2026-09-09 against a 1.50x notional gross,
+because a 3x proxy carries three units of economic exposure per unit of notional at 0.333 of the
+margin - which is S-18's whole point. The single shipped ceiling is `margin_used <= 0.75`, which
+held on every live plan, so the assertion moved there and exposure gets a loose 2.30x runaway
+alarm plus an INFO line. (2) A `connect_failed` only costs a session if no live plan follows it;
+2026-09-09 and 2026-09-10 carry six each from manual attempts while IB Gateway was down and the
+scheduled rebalance went through both times. (3) A live plan that wants orders and logs none is a
+`--dry-run` outside the 15:40-15:50 ET submission window and a lost session inside it - the
+2026-09-09 13:48 UTC plan is the former. (4) Dates before the first real fills (daily 2026-09-09,
+intraday 2026-09-10) have no session to lose, so "no live plan" is INFO there, not FAIL.
+
+**One genuinely new finding, and it is not a defect.** On 2026-09-10 the intraday book's
+mark-to-market gross peaked at **$818,518 = 1.034x the $791,280 `GROSS_HARD_CAP`** (1.6x of
+$494,550 sleeve equity) on 14 names - 1 of 15 snapshots across both live sessions over the cap,
+max 1.034x. The cause is structural rather than a breach: `targets_to_orders` applies
+`GROSS_HARD_CAP` to the **target weights at decision time**, while the snapshot marks the book to
+market a minute or more later, and `MIN_CHANGE` deliberately leaves a name alone until it drifts
+2% of sleeve equity. The implied per-name drift at that peak is **0.0025 of sleeve equity against
+the 0.02 band** - eight times smaller than the slack the trader is designed to carry. It is also
+**not a live-vs-backtest divergence**: `intraday_backtest.py` caps targets the same way from the
+same constants, so the harness already prices this drift. And the binding external constraint has
+room - total notional was ~2.09x of NAV on 2026-09-10 (daily 1.2637x + intraday 0.827x) against
+4x day-trading buying power. So it is recorded, the check reports it as a WARN naming the band,
+and **the trader was not changed** - there is no evidence a change is warranted and rule (a) would
+require a replay for one.
+
+**Standing jobs, both run first, both with no new input** (Saturday, so unchanged from
+2026-09-11's close). A-5 part 2: 66 fills over 2 sessions, **+2.22 bps** notional-weighted, se
+0.80, `|measured - shipped| / se = 0.90` against the shipped 1.50 - the harness is optimistic by
+0.72 bps and the two are still **not distinguishable at 2 se**, which needs ~145 fills, i.e. ~4.4
+more sessions at 33 fills/session. `intraday_common.SLIPPAGE_BPS` unchanged. S-17 part 2: 10 fills
+over 3 sessions, $2.37M traded, **+3.2 bps** against the auction the runner aimed at (per-fill sd
+14.1, se 4.5), and `ref_price` was the previous close in **10 of 10**.
+
+**Decision.** Ship the script, change nothing else. Champion unchanged at S-18, `live/*`
+untouched, all three scheduled tasks untouched, no default moved, `champion.json` not edited (this
+iteration produced no strategy number). The pass is validated by the only test that matters for an
+alert - it fires on the two real defects and stays quiet on the three clean days.
+
+**Next.** The audit currently runs when the loop runs. Wiring it to fire at ~16:00 ET from its own
+scheduled task is the ops step that would make it an actual alert surface, and that needs the
+owner (AGENTS.md bars the loop from touching the scheduled tasks) - filed in `BLOCKERS.md` beside
+item 2, whose `live/alerts.json` credential would let the same verdict be pushed rather than
+polled. Beyond that the backlog is down to the two standing measurement jobs, and A-5 part 2 is
+~4.4 sessions from settling the intraday sleeve's slippage constant, at which point the Current
+objective's own instruction applies: say the sleeve cannot be validated and hand the owner
+BLOCKERS.md item 6 (b), rather than look for a twelfth lever.
+
 ## 2026-09-12 - S-30: the leg split's equity route is priced and refused on COST, and the delta book it was built on does not exist
 
 **Hypothesis.** The backlog's top item, and the last untried route in the leg-split program.
