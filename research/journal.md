@@ -1,5 +1,118 @@
 # Research journal
 
+## 2026-09-12 - F-5: F-4's momentum column is mostly the drift, and the published intraday-momentum effect is not in this store
+
+**Hypothesis.** F-4 closed the last open item with a stated mechanism and left behind one piece of
+arithmetic it never followed up. Its refusal of the afternoon reversal was on **sign**: over
+6,654,000 legs the day's move *extends*, the directional book's gross is positive at **12 of 12**
+entry minutes, and every gross statistic in the grid past |t| = 2 is momentum (raw 11:30 **+2.24
+bps at t +2.61**, raw 15:00 +0.89 at +2.48, neutral 11:30 +1.78 at +3.54). F-4 then wrote down a
+reusable rule - *a cost refusal is an argument for a cheaper instrument only when the gross column
+has the right sign at |t| > 2* - and applied it **only to the sign its own table says is wrong**.
+Charged F-2a's measured **0.488 bps** ES round trip instead of the equity sleeve's 4.59, that raw
+11:30 cell reads +2.24 - 0.49 = **+1.75 bps** rather than -2.35. F-5 exists to ask whether that
+arithmetic survives being put to the instrument that would actually carry it, because a 56-name
+equal-weighted basket is not something a future can hold.
+
+New `scripts/sweep_f5.py`. Store `data/minute_alpaca`, **SPY / QQQ / IWM**, 1-minute SIP bars,
+**2016-01-04..2026-09-10, 2,687 sessions, 367,872 legs** - the three index ETFs this repository
+has never run an event study on, because X-1, L-1, A-10, F-1 and F-4 all excluded them under the
+AGENTS.md disjointness rule. **Said before the first number and repeated here: nothing measured
+on SPY/QQQ/IWM may ever be deployed on the intraday equity sleeve**, whatever it says, because
+that sleeve's universe must stay disjoint from the daily champion's book. The only instrument
+this mechanism could trade is the index future, whose history past 313 sessions is the purchase
+request in `BLOCKERS.md`, so a survivor here would be evidence for that purchase, not a strategy.
+
+**Pre-registered in the script docstring before the first number**, in seven clauses. Signal =
+the **sign** of a session return measured from bars that have closed, entered at the **open of
+the next bar**; two definitions (`todate`, the open-to-minute-T return, which is F-4's own; and
+`first30`, the first half hour held fixed, which is the published Gao/Han/Li/Zhou predictor), two
+exits (`flatten` = the 15:38 framework constant, `h30` = thirty minutes), twelve entry minutes
+10:00-15:30, three indices. One leg per session per cell, so the t is over sessions with no
+overlap to cluster. Pass mark is the one every A-, X- and F-track candidate has faced: **net of
+the 0.488 bps decision cost, positive at t > 2 in at least two of the three regimes**. Two clauses
+carry the entry. **Clause (5) is the control F-4 did not run**: a book that is long whenever the
+market is up so far is long more often than not, so it collects the equity risk premium with no
+forecasting content at all - the cell must therefore **also** beat an **always-long control over
+the identical windows**, paired session by session, at t > 2, with a fixed-seed random-sign
+placebo printed beside it. **Clause (6) wrote the expectation down first**: the index should carry
+a noisier version of F-4's number, the survivor was most likely to be `first30` into a late `h30`
+because that is the published object, and *if clause (5) killed the `todate` family the honest
+reading would be that F-4's momentum column was the risk premium seen through a directional book -
+which would also explain why it was positive at 12 of 12 entry minutes, since a mechanism is
+rarely that tidy.* Clause (7) put the dependence on the record: F-4's gross column **is** the
+discovery sample for this hypothesis over the same calendar window on a correlated object, so
+nothing pooled here is an out-of-sample confirmation of anything, which is why the pass mark is
+enforced per index and per regime.
+
+**(1) The verdict is a clean refusal: 0 of 144 cells** (3 indices x 2 signals x 2 exits x 12
+entry minutes) reach t > 2 net in two of three regimes.
+
+**(2) Clause (5) is the finding, and it lands exactly where clause (6) said it would.**
+Session-clustered over the `todate`/`flatten` family, gross is **+1.55 bps at t +2.42** - F-4's
+sign and roughly its size, reproduced on the index - but the **always-long control on the
+identical windows earns +0.54**, and the difference that is the actual forecast is **+1.01 bps at
+t +0.89**. By regime it is **-0.78 / +1.83 / +2.47 at t -0.51 / +0.81 / +1.22**: negative in the
+first third of the sample and never significant anywhere. Cell by cell, **5 of 138 beat the
+always-long control at t > 2** against the ~3.2 expected by chance at a one-sided 2.3% - i.e. at
+chance - and all five sit at the **same entry minute (15:00)** across correlated books, which is
+what one lucky window looks like, not five confirmations. The signal is long on **52.6%** of
+sessions.
+
+**(3) So F-4's momentum column is identified rather than contradicted.** The index reproduces it
+at the same entry minutes and the same magnitude - 11:30 gross **+1.99 (SPY) / +3.64 (QQQ) /
++1.57 (IWM)** against F-4's 56-name **+2.24** - which says F-4's directional book was a market-
+factor bet all along. That is why it was positive at 12 of 12 entry minutes, and about a third of
+it is drift the always-long control collects for nothing.
+
+**(4) Clause (6)'s named favourite is the weakest family in the file.** The published effect -
+the first half hour predicting a later window - is **13 of 33 cells positive net** and pooled
+negative. The exact classic cell (first-30-minute signal, entering 15:30 and held to the flatten)
+is **gross -0.19 / +0.10 / +0.05 bps on SPY / QQQ / IWM, |t| <= 0.73**, i.e. indistinguishable
+from zero before any cost, and -0.68 / -0.39 / -0.44 net. As a book its best-t cell earns **CAR
+0.90% at Sharpe 0.25**. This repository cannot find market intraday momentum in 2,687 sessions of
+SIP bars at this construction.
+
+**(5) The nearest miss, labelled post hoc and failing both clauses.** QQQ, `todate`, entering
+15:00 and held to the flatten: gross **+2.52 at t +3.30**, net **+2.03 at t +2.66**, by regime
+**+0.04 (t 0.04) / +3.94 (t 2.56) / +2.12 (t 1.78)** - **one** of three regimes, so it fails
+clause (3) - and against always-long **+1.75 at t +1.54**, so it fails clause (5) as well. As a
+1x-notional session book net of 0.488 bps it earns **CAR 4.99% / Sharpe 0.82 / maxDD 8.4% / win
+51.7% / worst day -359 bps**. Put against the owner's 3-10%/day mandate that is the useful way to
+read it: reaching 3% a day from a 5% CAR book needs roughly **10x** on the future, where the worst
+session becomes **-36%**.
+
+**(6) One cell worth recording for the same reason X-1 recorded its own by-product.** Entering at
+**15:30** in the day's direction and holding to the flatten is gross **-0.05 / +0.10 / +0.07** -
+zero - and net **-0.53 (t -2.09) / -0.39 / -0.41**. The last half hour is the one place the sign
+leans against the day's move, which is where X-1's afternoon reversal lives, and it is a **pure
+cost refusal**: there is no gross there to buy in either direction.
+
+**Nothing shipped, nothing promoted, no default changed.** Champion unchanged at S-18;
+`champion.json`, `live/APPROVED_PAPER.md`, `live/HALT*`, `live/intraday_config.json` and all three
+scheduled tasks untouched; one new script only and no runner-loaded file modified, so AGENTS.md
+rule (a) owes no replay and the I-1 gate is unaffected (S-19's precedent). **No ledger rows**, on
+F-4's precedent: `record` is reached only from a harness run, and a stage-1 event study measures
+bars rather than running a strategy.
+
+**Standing jobs both ran first, neither has new input.** `slippage_report.py` unchanged at **66
+fills / +2.22 bps / se 0.80 / |diff|/se 0.90** (~4.4 sessions to settle), so `SLIPPAGE_BPS` stays
+1.5. `daily_fills.py` at 10 fills / $2,373,115, `ref_price` the previous close in **10 of 10** (a
+sixth confirmation of the S-19 clock), pooled execution **+1.7 bps (se 5.3)** - still the
+benchmark-availability artifact F-4 recorded, because the daily store has not published
+2026-09-11's closes and today's four fills score NaN.
+
+**What it changes for the loop.** The durable rule is clause (5) itself: **a directional intraday
+book must be quoted against an always-long control on the identical windows before its gross
+column may be called momentum**, because the equity risk premium is delivered intraday and a
+sign-based book that is long 52.6% of sessions collects part of it for free. That is the
+time-series twin of what S-15/S-16/S-20 made compulsory on the daily sleeve (the vol-matched
+control) and of what F-1 and F-3 needed the shuffled-label control for. Applied backwards it
+resolves F-4's own loose end: the arithmetic that opened F-5 is **refused**, so the CME purchase
+case in `BLOCKERS.md` keeps the cost table and the 0.62% gross sd per contract and loses this
+third leg as well. The backlog again holds no open research item with a stated mechanism, and the
+binding constraint remains the owner decisions in `BLOCKERS.md`.
+
 ## 2026-09-11 - F-4: the afternoon reversal does not exist at this construction, and the sign is what refuses it rather than the cost
 
 **Hypothesis.** F-4 was opened by F-2a as the last open item with a stated mechanism. Two

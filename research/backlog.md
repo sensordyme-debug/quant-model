@@ -17,6 +17,55 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-12 02:0x UTC (F-5): **F-4's momentum column is about a third drift and the rest does
+not reach significance, and the published market-intraday-momentum effect is not in this store at
+all.** F-4 refused the afternoon reversal on sign and left one piece of arithmetic unfollowed: it
+wrote the rule *a cost refusal is an argument for a cheaper instrument only when the gross column
+has the right sign at |t| > 2* and then applied it **only to the sign its own table says is
+wrong**. Charged F-2a's 0.488 bps ES round trip, F-4's raw 11:30 momentum cell reads **+2.24 -
+0.49 = +1.75 bps** instead of -2.35. F-5 put that arithmetic to the instrument that would carry
+it - the **index itself**, since a 56-name basket is not something a future holds. New
+`scripts/sweep_f5.py`; store `data/minute_alpaca`, **SPY / QQQ / IWM**, **2,687 sessions /
+367,872 legs, 2016-01-04..2026-09-10** - the three index ETFs no event study in this repository
+had ever touched, because the disjointness rule excludes them from the sleeve. **Stated before the
+first number and unchanged by the result: nothing measured here may ever be deployed on the
+intraday equity sleeve**; the only instrument is the index future, so a survivor would have been
+evidence for the CME purchase, not a strategy. Seven clauses pre-registered, two of which carry
+the entry. **(1) A clean refusal: 0 of 144 cells** (3 indices x 2 signals x 2 exits x 12 entry
+minutes) reach the pass mark of net positive at t > 2 in two of three regimes. **(2) Clause (5) -
+the always-long control F-4 did not run - is the finding, and clause (6) predicted it.**
+Session-clustered over the `todate`/`flatten` family the gross is **+1.55 bps at t +2.42**, F-4's
+sign reproduced on the index; the **always-long book over the identical windows earns +0.54**; and
+the difference that is the actual forecast is **+1.01 bps at t +0.89**, by regime **-0.78 / +1.83
+/ +2.47 at t -0.51 / +0.81 / +1.22** - negative in the first third and never significant. Cell by
+cell **5 of 138 beat the control at t > 2** against ~3.2 expected by chance, and all five sit at
+the **same entry minute**. The signal is long on **52.6%** of sessions. **(3) So F-4 is identified
+rather than contradicted**: the index reproduces its column at the same minutes and size (11:30
+gross **+1.99 / +3.64 / +1.57** on SPY/QQQ/IWM against F-4's 56-name +2.24), which says the raw
+book was a market-factor bet - and is why it was positive at 12 of 12 entry minutes. **(4) The
+published effect is the weakest family in the file**: first-30-minute signal into a later window,
+**13 of 33 cells positive net**, and the exact classic cell (enter 15:30, hold to the flatten) is
+**gross -0.19 / +0.10 / +0.05 bps, |t| <= 0.73** - zero before any cost - with a best-t book at
+**CAR 0.90% / Sharpe 0.25**. **(5) The nearest miss, post hoc and failing both clauses**: QQQ
+`todate` 15:00 -> flatten, gross +2.52 (t +3.30), net **+2.03 (t +2.66)**, but **one** of three
+regimes (+0.04 / +3.94 / +2.12 at t 0.04 / 2.56 / 1.78) and only +1.75 (t +1.54) over always-long;
+as a 1x book **CAR 4.99% / Sharpe 0.82 / DD 8.4% / worst day -359 bps**, i.e. ~**10x** on the
+future to reach the 3%/day mandate, where the worst session is -36%. **(6) One by-product**:
+entering at **15:30** in the day's direction is gross **-0.05 / +0.10 / +0.07** and net -0.53
+(t -2.09) / -0.39 / -0.41 - the last half hour is where X-1's reversal sign lives and it is a
+**pure cost refusal**, with no gross to buy in either direction. **Nothing shipped, nothing
+promoted, no default changed**: champion unchanged at S-18, `champion.json`, `live/*` and all
+three scheduled tasks untouched, one new script only so rule (a) owes no replay. **No ledger
+rows**, on F-4's precedent. **Standing jobs both ran first with no new input**: A-5 part 2 at 66
+fills / +2.22 bps / se 0.80 / |diff|/se 0.90; `daily_fills.py` 10 fills / $2.37M / +1.7 bps
+(se 5.3), `ref_price` the previous close **10 of 10**, still the benchmark-availability artifact
+(2026-09-11's closes unpublished, today's four fills NaN). **What it changes for the loop**: the
+reusable rule is that **a directional intraday book must be quoted against an always-long control
+on the identical windows before its gross column may be called momentum** - the time-series twin
+of the vol-matched control S-15/S-16/S-20 made compulsory on the daily sleeve. Applied backwards
+it closes F-4's loose end: the arithmetic that opened F-5 is refused, so the CME purchase case
+keeps the cost table and the 0.62% gross sd per contract and **loses this third leg too**.
+
 Status 2026-09-12 01:0x UTC (F-4): **the afternoon reversal is refused, and it is refused on SIGN
 rather than on cost - on 6,654,000 legs over 2,664 sessions the day's move extends, it does not
 fade, and the only gross statistics past |t| = 2 anywhere in the grid are momentum.** F-2a opened
@@ -1343,6 +1392,32 @@ not new rules on the same bars. Two tracks are opened below; the second needs th
   daily-reset decay; overnight session momentum into the cash open and the 15:30-16:00 futures
   flow are documented effects that the equity-only data cannot express. Prepare the harness
   (contract roll, tick value, CME fees) so the day the data arrives the tests run.
+- **F-5 DONE 2026-09-12 (see journal): refused, 0 of 144 cells - and the always-long control is
+  what refuses it, which retro-diagnoses F-4's own momentum column.** F-4 left one piece of
+  arithmetic unfollowed (its rule about cheap instruments, applied only to the wrong sign); F-5
+  put it to the instrument that could carry it. `scripts/sweep_f5.py`, **SPY / QQQ / IWM**,
+  `data/minute_alpaca`, **2,687 sessions / 367,872 legs, 2016-01-04..2026-09-10**; seven clauses
+  pre-registered. **Nothing measured here is deployable on the intraday equity sleeve** (the three
+  index ETFs are the daily champion's, AGENTS.md disjointness) - the only instrument is the index
+  future. **0 of 144** cells reach net t > 2 in two of three regimes. **The diagnosis is clause
+  (5)**: session-clustered, `todate`/`flatten` gross is +1.55 bps (t +2.42) but the **always-long
+  book on the identical windows earns +0.54** and the forecast difference is **+1.01 at t +0.89**,
+  by regime **-0.78 / +1.83 / +2.47** - negative in the first third; **5 of 138 cells** beat the
+  control at t > 2 against ~3.2 expected by chance, all five at one entry minute. The index
+  reproduces F-4's column at the same minutes and size (11:30 gross +1.99 / +3.64 / +1.57 against
+  F-4's +2.24), so **F-4's raw book was a market-factor bet and about a third of its gross is
+  drift**. The **published market-intraday-momentum effect is absent**: the classic cell (first 30
+  minutes -> 15:30 to the flatten) is gross **-0.19 / +0.10 / +0.05 bps at |t| <= 0.73**, best-t
+  book CAR 0.90% / Sharpe 0.25. Nearest miss, post hoc and failing both clauses: QQQ 15:00 ->
+  flatten, net +2.03 (t +2.66) but 1 of 3 regimes and +1.75 (t +1.54) over always-long; 1x book
+  CAR 4.99% / Sharpe 0.82 / DD 8.4%, so ~10x on the future for the 3%/day mandate at a -36% worst
+  session. **Do not re-open as an entry-minute, index, signal-definition or holding-period
+  question** - the grid spans all four on 2,687 sessions and the control is what kills it, not the
+  grid. Two durable pieces survive it: the **always-long control rule** (a directional intraday
+  book is quoted against always-long on the identical windows before its gross is called
+  momentum - the time-series twin of the daily sleeve's vol-matched control), and the closing of
+  F-4's loose end, which removes the third leg of the CME purchase case in `BLOCKERS.md` while
+  leaving the cost table and the 0.62% gross sd per contract standing.
 - **F-4 DONE 2026-09-11 (see journal): refused, and refused on SIGN rather than on cost - which
   is the stronger refusal and the one clause (5) did not expect.** `scripts/sweep_f4.py`, 56
   names disjoint from the daily sleeve, **2,664 sessions / 6,654,000 legs, 2016-01-04..2026-09-09**

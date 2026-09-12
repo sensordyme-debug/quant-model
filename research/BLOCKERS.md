@@ -504,6 +504,20 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   forecast, which was real at t +4.74 and would clear the ES floor by 60%. Read the request as
   "buy the instrument's economics", not "buy it to rescue the afternoon reversal".
 
+  **Amendment (F-5, 2026-09-12) - the other half of that leg is withdrawn too, and the cost table
+  still is not.** F-4 refused the reversal sign and reported that the *momentum* sign was the one
+  with |t| > 2 gross, which by its own rule made it the candidate a 0.488 bps instrument could
+  rescue. F-5 tested exactly that, on the object a future can hold - **SPY / QQQ / IWM minute
+  bars, 2,687 sessions, 367,872 legs** - and **0 of 144 cells** pass, because the gross was mostly
+  the market's own drift: the always-long book over the identical windows earns +0.54 of the +1.55
+  bps, and the forecast that is left is **+1.01 bps at t +0.89**, negative in 2016-2019. The
+  published market-intraday-momentum effect is not there either (**gross -0.19 / +0.10 / +0.05
+  bps, |t| <= 0.73**). So neither sign of the day-move mechanism is a reason to buy CME history.
+  **What the request still rests on is unchanged and is not a backtest**: the **0.488 bps round
+  trip** (a property of the contract), the **0.62% cash-session gross sd per contract before any
+  leverage**, against the 3-10%/day mandate, and **F-1's forecast**, which was real at t +4.74 and
+  died 11% short of an equity commission floor the future clears by 60%. Nothing is blocked today.
+
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
 - **The intraday sleeve cannot be validated by backtest, at any sample size we can reach
