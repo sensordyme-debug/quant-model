@@ -61,9 +61,37 @@ approval, in live trading.
    trade count, fees, turnover. Compare with the champion. Check a second period when data allows.
 6. Record a journal entry (what, why, result, next), update the backlog, and promote the
    champion only if it wins on both risk-adjusted and absolute return with at least 30 trades.
-7. Commit: `git add -A && git commit -m "research: <name> - <one-line result>"`.
+7. Commit ONLY the files you touched: `git add <paths> && git commit -m "<track>: <name> - <one-line
+   result>"`. Never `git add -A` (other tracks run concurrently in this repo). If git reports
+   `index.lock`, wait 5-10 s and retry up to five times.
 8. If data or credentials are missing, write the blocker to `research/BLOCKERS.md`, say so in
    your reply, and stop instead of guessing.
+
+## Parallel tracks (from 2026-09-12: several agents work this repo at the same time)
+
+The owner wants research and development pushed to the plan's limits, so OpenClaw runs
+several jobs concurrently, each with a scope and its own journal. Rules that make that safe:
+
+- Scopes (the job message names yours): `iterate` = A-track intraday rules, X-track breadth,
+  S-2, D-track data; `ml` = F-1 supervised forecaster (`algorithms/intraday/ml/`, `scripts/ml_*`);
+  `daily` = the daily champion S-track (LEAN, `algorithms/s1_momo`, `scripts/sweep_s*`);
+  `options` = O-track (Theta store, `scripts/odte_*`, `scripts/sweep_o*`); `critic` =
+  adversarial verification of other tracks' claims and promotions; `eng` = platform engineering
+  (dashboard, execution quality, tests, data pipelines, docs). Stay inside your scope's files.
+- Journals: write to `research/journal_<track>.md` (create it; newest first). `research/journal.md`
+  is the `daily`/`iterate` history and the daily review's merge target.
+- `research/backlog.md`: edit only your own items with small targeted edits; never rewrite the
+  file; add new items under your track's prefix (F-, S-, O-, A-, X-, E-, C-, P-).
+- `research/experiments.jsonl` is append-only and safe to share. `research/champion.json` may be
+  changed only through `scripts/evaluate.py --promote` (daily track) or restored from git by the
+  critic with written evidence.
+- Shared code (`scripts/intraday_common.py`, `scripts/intraday_backtest.py`, `scripts/backtest.py`,
+  `scripts/evaluate.py`, the live runners): change it only when your task requires it, keep the
+  change backward compatible, run the affected replay/gate, and say so in the commit message.
+- Long backtests: pin windows, use `--no-record` for exploratory sweeps, and keep any single
+  command under 40 minutes so the job's cap is never the thing that ends an experiment.
+- Rate limits are expected to be hit. If a call fails with a rate-limit error, write the partial
+  result and the exact next command into your journal so the next run resumes, then stop.
 
 ## Data
 
