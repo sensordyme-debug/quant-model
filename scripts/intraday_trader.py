@@ -37,6 +37,8 @@ from intraday_common import (DAILY_LOSS_LIMIT, ET, EXIT_MINUTE, FLATTEN_MINUTE, 
 from intraday_common import notify as _notify  # noqa: E402
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
+if str(REPO) not in sys.path:            # so `quant_brain` resolves when run as a script
+    sys.path.insert(0, str(REPO))
 from base import features  # noqa: E402
 
 APPROVAL = LIVE / "APPROVED_PAPER.md"
@@ -69,6 +71,40 @@ def minute_index(t: pd.Timestamp) -> int:
     return int((t.hour - 9) * 60 + t.minute - 30)
 
 
+#: Minutes before the close at which the sleeve must be targeting flat. 390 - 368 = 22 on a
+#: regular session, which is the 15:38 the framework has always used; expressed as a distance
+#: from the close it is also correct on a 13:00 early close, where minute 368 does not exist.
+FLATTEN_BEFORE_CLOSE = 390 - FLATTEN_MINUTE
+EXIT_BEFORE_CLOSE = 390 - EXIT_MINUTE
+
+
+def flatten_minute_for(day) -> int:
+    """The bar index from the open at which to start flattening, for THIS session. AUD-07.
+
+    `FLATTEN_MINUTE = 368` is the 368th minute after 09:30. On a 13:00 early close the
+    session is 210 minutes long, so bar 368 never arrives: `step` returns on `t <= last_t`,
+    no flatten is ever sent, and the position is carried into the 15:45 daily rebalance as a
+    foreign holding. Falls back to the constant if the calendar cannot answer, which keeps a
+    calendar problem from becoming a trading outage.
+    """
+    try:
+        from quant_brain.markets.equity_us import CALENDAR
+        m = CALENDAR.minutes_before_close(day, FLATTEN_BEFORE_CLOSE)
+    except Exception:  # noqa: BLE001
+        return FLATTEN_MINUTE
+    return FLATTEN_MINUTE if m is None else int(m)
+
+
+def exit_minute_for(day) -> int:
+    """Bar index at which the live loop exits, for THIS session."""
+    try:
+        from quant_brain.markets.equity_us import CALENDAR
+        m = CALENDAR.minutes_before_close(day, EXIT_BEFORE_CLOSE)
+    except Exception:  # noqa: BLE001
+        return EXIT_MINUTE
+    return EXIT_MINUTE if m is None else int(m)
+
+
 # ----------------------------------------------------------------------------- book
 class Book:
     def __init__(self):
@@ -97,6 +133,99 @@ class Book:
         b.costs = float(d.get("costs", 0.0))
         b.trades = int(d.get("trades", 0))
         return b
+
+
+def reconcile_book(book: Book, account: dict[str, int], universe) -> list[tuple[str, int, int]]:
+    """Make the book agree with what the account actually holds. AUD-08.
+
+    Start-up and `--flatten` used to sell what the BOOK said, not what the ACCOUNT held. A
+    position closed by any other path - the daily runner's HALT branch, a manual close, an
+    order that filled after the loop exited - stayed in the book, so the next session's
+    flatten sold shares that were not there and opened an untracked short. The reverse case
+    is worse: a position the book does not know about is never flattened at all.
+
+    Only symbols in the sleeve's own universe are touched. The daily sleeve's holdings are
+    foreign; adopting them here would let the intraday flatten sell the daily book, which is
+    the mirror image of AUD-03.
+
+    Returns [(symbol, book_qty, account_qty)] for every discrepancy, so the caller can log
+    each one rather than silently converging.
+    """
+    universe = set(universe)
+    changes: list[tuple[str, int, int]] = []
+    for sym in sorted(universe | set(book.pos)):
+        if sym not in universe:
+            continue
+        held = int(account.get(sym, 0))
+        booked = int(book.pos.get(sym, 0))
+        if held == booked:
+            continue
+        changes.append((sym, booked, held))
+        if held:
+            book.pos[sym] = held
+        else:
+            book.pos.pop(sym, None)
+        # The cost basis for an adopted position is unknowable from a position snapshot.
+        # Dropping it means this symbol contributes only its mark to `pnl` until it closes,
+        # which understates or overstates the day by the unknown entry - but a wrong basis
+        # that LOOKS authoritative is worse than an absent one, and the daily loss limit is
+        # measured against nav_open rather than the book's own history.
+        book.cost.pop(sym, None)
+    return changes
+
+
+def expected_latest_bar(now: pd.Timestamp):
+    """The most recent 1-minute bar that should exist by `now`, or None if unknowable.
+
+    AUD-09: `--feed auto` measured IBKR's delay by comparing the newest bar it returned
+    against the wall clock. At the 09:25 launch the newest bar is the PREVIOUS session's
+    15:59, so the computed delay was ~1,046 minutes, the probe always failed, and the runner
+    silently never used the IB feed at all - the fallback was permanent rather than
+    conditional.
+
+    The comparison has to be against the last bar that could exist, which needs the exchange
+    calendar. Before the open that is the prior session's close; during the session it is
+    the previous minute; after the close it is today's close.
+    """
+    try:
+        from quant_brain.markets.equity_us import CALENDAR
+    except Exception:  # noqa: BLE001 - the probe must never be the thing that stops trading
+        return None
+    day = now.date()
+    sess = CALENDAR.session(day) if CALENDAR.is_trading_day(day) else None
+    if sess is not None:
+        open_t = pd.Timestamp.combine(day, sess.open_t).tz_localize(now.tz)
+        close_t = pd.Timestamp.combine(day, sess.close_t).tz_localize(now.tz)
+        if now >= close_t:
+            return close_t - pd.Timedelta(minutes=1)
+        if now > open_t:
+            return now - pd.Timedelta(minutes=1)
+    # Pre-open, or a non-trading day: the newest bar that can exist is the previous
+    # session's last minute. Ten days back clears any holiday-plus-weekend run.
+    cur = day
+    for _ in range(10):
+        cur = cur - dt.timedelta(days=1)
+        if not CALENDAR.is_trading_day(cur):
+            continue
+        ps = CALENDAR.session(cur)
+        if ps is None:
+            return None
+        return pd.Timestamp.combine(cur, ps.close_t).tz_localize(now.tz) - pd.Timedelta(minutes=1)
+    return None
+
+
+def startup_reconcile(book: Book, account_positions: dict[str, int], universe) -> list[tuple[str, int, int]]:
+    """Reconcile the book against the account, and log every discrepancy. AUD-08.
+
+    Called on EVERY start-up path - normal, --flatten and --flatten-from-account - so that
+    whatever the runner does next it is acting on what the account actually holds.
+    """
+    changes = reconcile_book(book, account_positions, universe)
+    for sym, was, now in changes:
+        log("reconcile", symbol=sym, book=was, account=now)
+    if changes:
+        log("reconciled", count=len(changes), book=dict(book.pos))
+    return changes
 
 
 def book_fill(book: Book, sym: str, qty: int, price: float, cost: float):
@@ -150,6 +279,10 @@ class SimExecutor:
     def submit(self, orders: dict[str, int], when):
         self.pending.update({s: self.pending.get(s, 0) + q for s, q in orders.items()})
 
+    def pending_qty(self) -> dict[str, int]:
+        """Signed quantity submitted but not yet booked. AUD-06."""
+        return {s: q for s, q in self.pending.items() if q}
+
     def settle(self, t) -> list[tuple[str, int, float, float]]:
         fills = []
         for s, q in list(self.pending.items()):
@@ -170,6 +303,20 @@ class LiveExecutor:
         self.open: list = []
 
     def submit(self, orders: dict[str, int], when):
+        # AUD-08/09: an order sent outside RTH has outsideRth=False, so IBKR queues it to the
+        # next open where nothing is tracking it and the sleeve re-sells it. Refuse and say so.
+        now_et = pd.Timestamp(dt.datetime.now(ET))
+        try:
+            from quant_brain.markets.equity_us import CALENDAR
+            sess = CALENDAR.session(now_et.date())
+        except Exception:  # noqa: BLE001
+            sess = None
+        if sess is not None and not (sess.open_t <= now_et.time() <= sess.close_t):
+            log("submit_refused_outside_rth", orders=orders, now=str(now_et),
+                session=f"{sess.open_t}-{sess.close_t}")
+            _notify(f"INTRADAY refused {len(orders)} order(s) outside RTH at "
+                    f"{now_et:%H:%M} (session {sess.open_t}-{sess.close_t})", LOG)
+            return
         for s, q in orders.items():
             o = self.MarketOrder("BUY" if q > 0 else "SELL", abs(q))
             o.orderRef = ORDER_REF
@@ -180,6 +327,25 @@ class LiveExecutor:
             # `t` is the decision bar; scripts/slippage_report.py joins on `id` and prices the
             # fill against the next bar's open, which is what the backtester assumes.
             log("order", symbol=s, qty=q, id=tr.order.orderId, t=str(when))
+
+    def pending_qty(self) -> dict[str, int]:
+        """Signed quantity still working at the broker, per symbol. AUD-06.
+
+        Remaining, not submitted: an order half filled has half its size outstanding, and
+        sizing must net only the part that is still on the wire. `tr.fills` is the same
+        source `settle` trusts, deliberately - IBKR's status flag lied on 2026-09-10 and the
+        two must not disagree about what is outstanding.
+        """
+        out: dict[str, int] = {}
+        for tr in self.open:
+            done = float(sum(f.execution.shares for f in tr.fills))
+            left = float(tr.order.totalQuantity) - done
+            if left <= 1e-9:
+                continue
+            sign = 1 if tr.order.action == "BUY" else -1
+            sym = tr.contract.symbol
+            out[sym] = out.get(sym, 0) + int(round(left)) * sign
+        return {s: q for s, q in out.items() if q}
 
     def settle(self, t) -> list[tuple[str, int, float, float]]:
         """Collect fills from orders sent earlier; returns (sym, signed_qty, avg_px, commission)."""
@@ -290,8 +456,12 @@ def make_feed(choice: str, ib, contracts):
     now = pd.Timestamp(dt.datetime.now(ET)).floor("min")
     probe = ibf.bars(now)
     latest = max((df.index[-1] for df in probe.values() if not df.empty), default=None)
-    delay = (now - latest).total_seconds() / 60.0 - 1.0 if latest is not None else 99.0
-    log("feed_probe", ib_delay_minutes=delay)
+    # AUD-09: compare against the newest bar that COULD exist, not against the wall clock.
+    # At the 09:25 launch the newest bar is the prior session's 15:59, so a wall-clock
+    # comparison reported ~1,046 minutes of delay and the IB feed was never once selected.
+    reference = expected_latest_bar(now) or (now - pd.Timedelta(minutes=1))
+    delay = (reference - latest).total_seconds() / 60.0 if latest is not None else 99.0
+    log("feed_probe", ib_delay_minutes=delay, reference=str(reference), latest=str(latest))
     if delay > 3:
         print(f"IBKR bars are {delay:.0f} min delayed (no market data subscription); using Yahoo feed")
         for bl in ibf.streams.values():
@@ -315,18 +485,82 @@ class Trader:
         self.last_report = None
         self.last_t = None
         self.decisions = 0
+        #: AUD-05. Last finite price seen per symbol, so a dropped bar marks at the last
+        #: known level instead of at zero. A stale mark is wrong by the size of one move;
+        #: a zero mark is wrong by the whole notional and reads as a total loss.
+        self.last_px: dict[str, float] = {}
+        #: AUD-09. Alerts are queued and flushed AFTER orders are on the wire. notify() can
+        #: block for up to 45 s on the OpenClaw CLI, and it used to run before the
+        #: loss-limit flatten was submitted, holding the book open across the alert.
+        self._pending_notes: list[str] = []
+        self.submit_before_notify = False
+
+    def pending_qty(self) -> dict[str, int]:
+        """In-flight signed quantity from the executor, or {} if it cannot report.
+
+        Tolerant on purpose: a replay executor that settles instantly has nothing pending,
+        and an executor without the method must degrade to the old behaviour rather than
+        crash the trading loop.
+        """
+        fn = getattr(self.ex, "pending_qty", None)
+        if not callable(fn):
+            return {}
+        try:
+            return {s: int(q) for s, q in (fn() or {}).items() if q}
+        except Exception:  # noqa: BLE001 - never let bookkeeping stop the loop
+            log("pending_qty_error", trace=traceback.format_exc()[-600:])
+            return {}
+
+    def marks(self, prices: dict[str, float]) -> tuple[dict[str, float], list[str]]:
+        """Usable marks for every open position, and the symbols that have none. AUD-05.
+
+        A price is usable only if it is finite and positive - `if not px` lets NaN through
+        (`not nan` is False), which is the same hole that made `math.floor` raise in sizing.
+        Symbols never seen at any price are returned separately so the caller can refuse to
+        act on a P&L that does not include them.
+        """
+        marks = dict(self.last_px)
+        for sym, px in (prices or {}).items():
+            try:
+                v = float(px)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(v) and v > 0:
+                marks[sym] = v
+                self.last_px[sym] = v
+        unmarked = [s for s, q in self.book.pos.items() if q and s not in marks]
+        return marks, unmarked
+
+    def _queue_note(self, text: str) -> None:
+        self._pending_notes.append(text)
+
+    def _flush_notes(self) -> None:
+        notes, self._pending_notes = self._pending_notes, []
+        for text in notes:
+            self.submit_before_notify = True
+            notify(text)
 
     def targets_to_orders(self, targets, prices, equity):
         orders = {}
         gross = sum(abs(w) for w in targets.values())
         scale = min(1.0, GROSS_HARD_CAP / gross) if gross > GROSS_HARD_CAP else 1.0
-        for sym in set(targets) | set(self.book.pos):
+        pending = self.pending_qty()
+        for sym in set(targets) | set(self.book.pos) | set(pending):
             px = prices.get(sym)
-            if not px or px <= 0:
+            # AUD-09: `not px or px <= 0` passes NaN, because `not nan` is False and
+            # `nan <= 0` is False. math.floor then raises and the exception skips the whole
+            # step - including the end-of-day flatten. isfinite is the actual guard.
+            try:
+                px = float(px)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(px) or px <= 0:
                 continue
             w = max(-PER_SYMBOL_HARD_CAP, min(PER_SYMBOL_HARD_CAP, float(targets.get(sym, 0.0)) * scale))
             tgt = int(math.copysign(math.floor(abs(w) * equity / px), w)) if w else 0
-            cur = self.book.pos.get(sym, 0)
+            # AUD-06: what we will hold once the wire clears, not what we hold now. Sizing
+            # against book.pos alone resends the same delta every minute until it books.
+            cur = self.book.pos.get(sym, 0) + pending.get(sym, 0)
             delta = tgt - cur
             if delta and (abs(delta) * px >= MIN_CHANGE * equity or tgt == 0):
                 orders[sym] = delta
@@ -334,7 +568,9 @@ class Trader:
 
     def step(self, t: pd.Timestamp, feats: dict[str, pd.DataFrame], prices: dict[str, float], nav: float):
         if self.last_t is not None and t <= self.last_t:
-            return self.book.pnl(prices)          # same bar seen again (feed not advanced): no new decision
+            # same bar seen again (feed not advanced): no new decision, but still mark
+            # against last-known prices rather than defaulting absent symbols to zero.
+            return self.book.pnl(self.marks(prices)[0])
         self.last_t = t
         if self.nav_open is None:
             self.nav_open = nav
@@ -342,19 +578,29 @@ class Trader:
         # 1) settle fills from the previous minute
         for sym, q, px, cost in self.ex.settle(t):
             book_fill(self.book, sym, q, px, cost)
-        pnl = self.book.pnl(prices)
+        # AUD-05: mark against last-known prices, and know which positions have no mark.
+        marks, unmarked = self.marks(prices)
+        pnl = self.book.pnl(marks)
         m = minute_index(t)
         # 2) risk gates
         halted = any(p.exists() for p in HALT_FILES)
-        if not self.stopped and (pnl <= -DAILY_LOSS_LIMIT * self.nav_open):
+        if unmarked:
+            # A P&L computed without these is not a P&L, it is a partial sum. Acting on it is
+            # exactly the AUD-05 defect: one dropped SMCI bar marked a $30k long at zero,
+            # breached the 2.5% limit and flattened the whole book. Report and do not stop.
+            log("unmarked_positions", symbols=sorted(unmarked), t=str(t), pnl_partial=pnl)
+            self._queue_note(
+                f"INTRADAY: no price for {', '.join(sorted(unmarked))} at {t:%H:%M}; "
+                f"daily loss limit not evaluated this bar.")
+        elif not self.stopped and (pnl <= -DAILY_LOSS_LIMIT * self.nav_open):
             self.stopped = True
             log("loss_limit", pnl=pnl, nav_open=self.nav_open)
-            notify(f"INTRADAY loss limit hit: sleeve P&L {pnl:,.0f} on NAV {self.nav_open:,.0f}. Flattening, done for the day.")
+            self._queue_note(f"INTRADAY loss limit hit: sleeve P&L {pnl:,.0f} on NAV {self.nav_open:,.0f}. Flattening, done for the day.")
         if halted and not self.stopped:
             self.stopped = True
             log("halt", files=[str(p) for p in HALT_FILES if p.exists()])
-            notify("INTRADAY halted by HALT file; flattening.")
-        flatten = self.stopped or m >= FLATTEN_MINUTE
+            self._queue_note("INTRADAY halted by HALT file; flattening.")
+        flatten = self.stopped or m >= flatten_minute_for(t.date())
         # 3) decide
         targets = {}
         if not flatten:
@@ -364,22 +610,35 @@ class Trader:
             except Exception as exc:  # noqa: BLE001
                 log("decide_error", error=str(exc)[:300], trace=traceback.format_exc()[-1500:])
                 targets = {}
-        orders = self.targets_to_orders(targets, prices, equity)
-        if flatten and self.book.pos:
-            orders = {s: -q for s, q in self.book.pos.items()}
+        orders = self.targets_to_orders(targets, marks, equity)
+        if flatten:
+            # AUD-06: net what is already on the wire. A sell sent at 15:38 that has not
+            # filled by 15:39 must not be sent again (a double sell), and must not be bought
+            # back at 15:40 when it finally books.
+            pend = self.pending_qty()
+            orders = {}
+            for sym in set(self.book.pos) | set(pend):
+                effective = self.book.pos.get(sym, 0) + pend.get(sym, 0)
+                if effective:
+                    orders[sym] = -effective
         if orders:
             log("decision", t=str(t), minute=m, targets=targets, orders=orders, pnl=pnl, equity=equity, mode=self.mode,
-                ref={s: round(float(prices[s]), 4) for s in orders if prices.get(s)})
+                ref={s: round(float(marks[s]), 4) for s in orders if marks.get(s)})
             if not self.dry_run:
                 self.ex.submit(orders, t)
+        # AUD-09: alerts go out only once the orders are on the wire. notify() can block for
+        # up to 45 s and previously ran inside the risk gate above, holding an open book
+        # across the call it was alerting about.
+        self._flush_notes()
         # 4) periodic report
         if self.last_report is None or (t - self.last_report) >= pd.Timedelta(minutes=30):
             self.last_report = t
-            gross_now = sum(abs(q) * prices.get(s, 0.0) for s, q in self.book.pos.items())
+            gross_now = sum(abs(q) * marks.get(s, 0.0) for s, q in self.book.pos.items())
             log("snapshot", t=str(t), pnl=pnl, trades=self.book.trades, costs=self.book.costs, gross=gross_now, positions=self.book.pos)
             if self.mode == "live":
                 notify(f"INTRADAY {t.strftime('%H:%M')}: P&L {pnl:+,.0f}, trades {self.book.trades}, gross {gross_now:,.0f}, "
-                       f"positions {len(self.book.pos)}{' (DRY RUN)' if self.dry_run else ''}")
+                       f"positions {len(self.book.pos)}{' (DRY RUN)' if self.dry_run else ''}"
+                       + (f" | UNMARKED: {', '.join(sorted(unmarked))}" if unmarked else ""))
         if self.persist:
             save_book(self.book)
         return pnl
@@ -400,7 +659,7 @@ def replay(strategy, params, day: dt.date, equity_frac: float, nav: float):
     pnl = 0.0
     for t in times:
         m = minute_index(t)
-        if m >= EXIT_MINUTE:
+        if m >= exit_minute_for(t.date()):
             break
         feats = {}
         prices = {}
@@ -438,6 +697,28 @@ def live(strategy, params, args):
     ib.qualifyContracts(*contracts.values())
     book = load_book()
     ex = LiveExecutor(ib, contracts)
+    # AUD-08. Two things, before any path decides what to send.
+    # 1) Cancel INTRADAY orders left working from a previous run. An order queued outside RTH
+    #    fills at the next open with nothing tracking it, and the sleeve then re-sells it.
+    stale = [o for o in ib.reqAllOpenOrders() if getattr(o.order, "orderRef", "") == ORDER_REF]
+    for o in stale:
+        try:
+            ib.cancelOrder(o.order)
+        except Exception as exc:  # noqa: BLE001
+            log("cancel_failed", id=getattr(o.order, "orderId", None), error=str(exc)[:200])
+    if stale:
+        ib.sleep(3)
+        log("cancelled_stale_orders", count=len(stale),
+            ids=[getattr(o.order, "orderId", None) for o in stale])
+    # 2) Make the book agree with the account. Every branch below - normal start, --flatten,
+    #    --flatten-from-account - then acts on what is actually held.
+    acct_now = {p.contract.symbol: int(p.position) for p in ib.positions(account)
+                if p.contract.symbol in set(UNIVERSE) and p.position}
+    drift = startup_reconcile(book, acct_now, UNIVERSE)
+    if drift:
+        notify("INTRADAY start-up: book disagreed with the account on "
+               + ", ".join(f"{s} book={b} account={a}" for s, b, a in drift)
+               + ". Adopted the account.")
     if args.flatten_from_account:
         # Safety net: close every account position in the intraday universe, whatever the book
         # says (the universe is disjoint from the daily sleeve's, so nothing else is touched).
@@ -492,7 +773,7 @@ def live(strategy, params, args):
         ib.sleep(1)
         now = dt.datetime.now(ET)
         m = minute_index(pd.Timestamp(now))
-        if m >= EXIT_MINUTE:
+        if m >= exit_minute_for(t.date()):
             break
         if now.second < 5 or now.minute == last_minute:
             continue
@@ -573,5 +854,32 @@ def main() -> int:
     return live(strategy, params, args)
 
 
+def guarded_main() -> int:
+    """Run `main`, and make sure an unhandled exception is never silent. AUD-09.
+
+    A yfinance outage raises `KeyError` deep in the feed, the process dies, and the only
+    evidence is a Task Scheduler exit code nobody reads - while a position sits open with no
+    loop left to flatten it. The traceback goes to the trading log and the alert channel, and
+    exit code 4 distinguishes "crashed" from the meaningful codes (2 halted, 3 refused).
+    """
+    try:
+        return main()
+    except SystemExit:
+        raise
+    except BaseException as exc:  # noqa: BLE001 - the whole point is to catch everything
+        trace = traceback.format_exc()
+        try:
+            log("crashed", error=f"{type(exc).__name__}: {exc}"[:300], trace=trace[-2000:])
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            _notify(f"INTRADAY CRASHED: {type(exc).__name__}: {str(exc)[:200]}. "
+                    f"Positions may be open - check the account.", LOG)
+        except Exception:  # noqa: BLE001
+            pass
+        print(trace, file=sys.stderr)
+        return 4
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(guarded_main())
