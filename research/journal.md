@@ -1,5 +1,119 @@
 # Research journal
 
+## 2026-09-12 - S-27: the leg that pays is not forecast by its own history - the champion's close-to-close score beats overnight momentum at predicting the overnight leg
+
+**Hypothesis.** S-25 and S-26 both asked what this sleeve should *hold*. Neither asked what it
+should *rank on*. The shipped signal is a blend of 20/60/120/252-day **close-to-close** returns,
+i.e. it scores nine ETFs on a quantity that is 94% composed of a leg the book is not paid for
+(S-25: +8.103 bps/day overnight at t +6.80 against +0.738 intraday at t +0.47; selection
+difference +3.087 at t +4.20 against -0.314 at t -0.37). If the overnight leg is a separate
+*persistent characteristic* rather than an accounting slice, a momentum blend built from
+**overnight returns only** should rank better in the leg that pays - and it is free: same nine
+names, same top-3, same vol target, same regime gate, same rebalance, same instruments, no new
+cost model and no owner consent. This is the one direction S-25 left open that needs nothing new.
+
+New `scripts/sweep_s27.py`; **12 ledger rows** under `daily/s27_rank`, every one DIAGNOSTIC.
+Three synthetic price indices per ticker from the same adjusted store - `cc` (the close series),
+`on` (compounded close[d-1]->open[d]) and `id` (compounded open[d]->close[d]), whose leg identity
+`(1+on)(1+id) = (1+cc)` holds to **2.22e-16** - and the champion's own blend computed on each,
+handed to the shipped algorithm through **F-3's `S1_ML_SCORES` hook in `ML_MODE="rank"`**, which
+replaces the ranking order and keeps the champion's absolute momentum floor as the entry gate.
+**No file the runner loads was modified.** Six clauses pre-registered in the docstring before the
+first number, including clause (5), which wrote the expected outcome down first, and clause (4),
+a placebo that could have withdrawn clause (3) even if it had passed.
+
+**(1) Clause 1, the identity, passes to the digit - and it is what caught a real defect in this
+iteration's own code.** The `cc` index pushed through the hook reproduces the deployed book at
+**CAR 22.192150% / 5,052 orders / end $1,880,257.37**, bit-identical to S-19/S-25/S-26's cell. The
+first attempt did **not**: it read 20.676% on 5,260 orders, because a naive `pct_change` blend
+silently omits **S-10's skip of 5 sessions on horizons of 120 or more** (`mom_skip=5`,
+`mom_skip_min_lookback=120`). An end-to-end identity clause catches a vectorized reimplementation
+of a shipped signal; inspecting the two formulas does not.
+
+**(2) The signal diagnostic, clause 2, is the finding, and it is a clean inversion of the
+hypothesis.** Cross-sectional rank IC of each score against each forward leg of session D+1, over
+3,689 sessions:
+
+| score | -> overnight | -> intraday | -> close-to-close |
+|---|---|---|---|
+| close-to-close (shipped) | **+0.0574 (t +7.25)** | +0.0141 (t +1.81) | +0.0299 (t +3.78) |
+| overnight only | **+0.0574 (t +7.32)** | -0.0024 (t -0.32) | +0.0132 (t +1.72) |
+| intraday only | +0.0205 (t +2.84) | +0.0093 (t +1.26) | +0.0144 (t +1.96) |
+
+The two scores have **the same rank IC on the overnight leg to four decimals**, so overnight
+momentum is not a worse *ordering*. Where they separate is the quantity the book actually
+collects - the **top-3-minus-equal-weight spread**, the champion's own selection size: the shipped
+score earns **+2.106 bps/day (t +3.24)** of overnight leg against the overnight-only score's
+**+1.311 (t +2.04)**, and the gap holds in both halves (IS +2.176 vs +0.947, OOS +2.021 vs
++1.740). **The leg that pays is better forecast by the whole trend than by its own history.**
+Nothing forecasts the intraday leg: the best cell in that column is the shipped score's
++0.0141 at t +1.81, and its spread is **negative** (-0.727, t -1.04).
+
+**(3) The primary screen is refused on every criterion, and it is not close.** Charged 2 bp of
+spread and IBKR Pro financing on the deployed convention, the overnight-ranked book earns
+**11.751% / Sharpe 0.656 / DD 35.210** against the deployed **19.640% / 1.047 / 24.037** - paired
+**-2.619 bps/day at t -2.41**, worse in both halves (IS 7.693 vs 14.317, OOS 16.582 vs 25.967),
+and its drawdown breaches `champion.json`'s absolute 35% limit outright. At 0 bp it is 14.188%
+against 22.192%. **(4) The placebo is refused too**, which is the outcome that keeps clause 3
+readable: intraday-ranked earns **13.167% / 0.778 / DD 27.591**, paired -2.270 at t -2.08. Neither
+reconstruction beats the shipped ranking, so this is not a case of any perturbation of the blend
+helping.
+
+**(5) The refusal is about selection, not about exposure, and the leg attribution proves it.**
+The obvious objection is that the overnight-ranked book is simply invested less or differently,
+but its mean gross is **1.24x against the deployed book's 1.25x** - and against the same-gross
+always-invested control the overnight excess is **+3.087 bps/day (t +4.20) for the shipped score,
++1.686 (t +1.86) for the overnight score and +1.183 (t +1.51) for the intraday score**. Matched
+exposure, same nine names, same gate: the shipped ranking is **1.8x** the overnight one at
+forecasting the only leg this sleeve is paid in. Its turnover is also *lower* (131x equity/yr
+against 240x), so it is not being refused for trading more.
+
+**(6) Clause 5's written-down expectation held, and for the reason written down.** The overnight
+leg carries 94% of the return but only +3.087 of the +8.662 bps/day is selection; the rest is beta
+the control collects too. An overnight-only index compounds roughly a third of the close-to-close
+variance into a 252-day window, so its momentum is a noisier estimate of the same trend - which is
+exactly what the table shows: the same ordering (identical IC) with a smaller top-end spread.
+
+**(7) One by-product, labelled post hoc and sign-stable in both halves**: the overnight-only score
+forecasts the next **intraday** leg **negatively** - top-3-minus-EW **-2.230 bps/day at t -3.30**
+(IS -2.182 at t -3.03, OOS -2.290 at t -1.89), the largest |t| in the diagnostic after the two
+overnight cells. Names that have been climbing overnight give some of it back during the session.
+It is recorded and **not pursued here**: the nine names are the daily champion's, so AGENTS.md's
+disjointness rule bars the intraday sleeve from them; the object is a daily round trip whose gross
+2.2 bps sits under any realistic entry-and-exit cost on this book; and F-5's rule already applies -
+the figure quoted is a spread over the equal-weight control, which is the right form, but a
+tradable version needs its own pre-registration and an instrument.
+
+**Nothing shipped, nothing promoted, no default changed.** `S1_ML_SCORES` stays unset in every
+deployed path, champion unchanged at S-18, `live/APPROVED_PAPER.md`, `live/HALT*`,
+`live/intraday_config.json` and all three scheduled tasks untouched, and **no file either runner
+loads was modified**, so AGENTS.md rule (a) owes no replay and the I-1 gate is unaffected (S-19's
+precedent). `champion.json` gains a `rank_note` and nothing else.
+
+**Standing jobs both ran first with no new input** (Saturday, no session since the last
+iteration): `slippage_report.py` 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90;
+`daily_fills.py` 10 fills / $2.37M / **+3.2 bps (se 4.5)**, `ref_price` the previous close 10 of 10.
+
+**Decision.** Refused. The overnight-ranked book fails the full period, both halves, the drawdown
+tolerance and the absolute drawdown limit; the placebo fails too.
+
+**What it changes for the loop.** S-25's split is an **attribution, not a signal recipe**, and
+that is the reusable rule: *knowing which leg a book is paid in does not tell you which leg to
+build the signal from* - the forecast horizon and the payment window are different objects, and a
+leg attribution may not be read as a feature-selection instruction without its own IC table. It
+also closes the direction S-25 left open by the only route that needed nothing new; what remains
+of that direction (a sleeve chosen for its overnight behaviour, or a holding period measured in
+nights) needs a different universe and a cost model that survives it, not another score on these
+nine names. One durable piece survives: `sweep_s27.score_frame` plus the three leg indices, which
+turn any leg-conditional ranking question into a table the shipped algorithm can run through the
+F-3 hook without being edited.
+
+**Next.** The unblocked research surface on the daily sleeve is now the same as it was before
+S-25: the binding constraints are the owner decisions in `BLOCKERS.md` (the pre-open task move at
++1.98 CAR points, the Reg-T buffer, the futures overlay S-26 priced, CME history for the index
+track). The standing measurements (A-5 part 2 at ~4.4 more sessions, `daily_fills.py`) keep
+accruing on their own.
+
 ## 2026-09-12 - S-26: the alpha-free intraday leg can be hedged for less than it is worth, and the book that does it is refused on drawdown
 
 **Hypothesis.** S-25 left exactly one direction open and named it: the overnight leg is the only
