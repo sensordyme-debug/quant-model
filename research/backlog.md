@@ -3263,4 +3263,4 @@ carry the owning track in brackets; record each fix in that track's journal and 
 - **AUD-22 [eng]** dashboard: open orders frozen at connect, unbounded `nav_history`, no TrustedHost, NAV-append failure drops the IB session, `/api/logs` unredacted.
 - **AUD-24 [data]** events/options caches marked complete when partial; `iv_regime` holiday-week holes; error-162 silence; `save_bars` lock.
 - **AUD-25 [daily]** `ML_MODE="rank"` gates on sign; `Params` window guard incomplete; `--history ib` clock convention.
-- **AUD-01 [ops]** DONE in the installers (battery flags); the operator must re-run `install_intraday_task.ps1` and `install_paper_task.ps1` once. **AUD-23 [ops]** DONE: gateway watchdog task.
+- **AUD-01 [ops]** DONE: installers carry the battery flags and both tasks were re-registered 2026-09-12 11:12 ET. **AUD-23 [ops]** DONE: gateway watchdog task.
