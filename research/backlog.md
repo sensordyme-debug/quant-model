@@ -17,6 +17,57 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-12 01:0x UTC (F-4): **the afternoon reversal is refused, and it is refused on SIGN
+rather than on cost - on 6,654,000 legs over 2,664 sessions the day's move extends, it does not
+fade, and the only gross statistics past |t| = 2 anywhere in the grid are momentum.** F-2a opened
+F-4 as the last item with a stated mechanism, on the strength of two by-products pointing the same
+way: X-1's **-0.69 bps at t -2.80** into 14:30 on 2,684 sessions of equities and F-2a's **-2.415 at
+t -2.56** into the close on 313 sessions of ES. New `scripts/sweep_f4.py`; store `data/minute_alpaca`,
+universe the **56 names the intraday sleeve may trade** (50 megacaps + PLTR/MSTR/COIN/SMCI/SOXL/SOXS,
+disjoint from the daily champion), 2016-01-04..2026-09-09; **seven clauses pre-registered in the
+docstring before the first number**, including clause (5) which wrote the expected outcome down
+first - *failure on cost, not on sign* - and clause (6) which put A-10's prior refusal of the
+deployed form (**-$468/day at t -7.38**) on the record rather than leaving it to be rediscovered.
+**(1) A clean refusal: 0 of 96 cells** (12 entry minutes x 2 books x 2 exits x 2 signs), with
+**all 96 net columns negative** - best raw momentum at 11:30, **-2.35 bps at t -2.74** against a
+pooled **4.59 bps** round trip (4.90 in 2016-2019 falling to 4.26 by 2024-2026, because per-share
+commission shrinks in bps as prices rise). **(2) Clause (5) is itself refused, and that is the
+finding.** The gross column is **positive at 12 of 12 entry minutes in the directional book and 10
+of 12 in the dollar-neutral one**; every gross statistic reaching |t| > 2 is **momentum** - neutral
+11:30 **+1.78 at t +3.54**, raw 11:30 +2.24 at +2.61, raw 15:00 +0.89 at +2.48, neutral 10:00 +1.56
+at +2.39 - and the largest single-regime cell in the file is **2020-2023 at 15:00, +2.18 at t +3.38
+(neutral +1.20 at +3.63): A-10's exact entry minute with the opposite sign.** The second screen -
+effect present but unaffordable? - returns **0 of 48**. **(3) Where the sign survives it is a
+whisper and only in the labelled diagnostic book**: neutral afternoons, 2024-2026 **-0.81 / -0.59 /
+-0.42 bps** at 14:00 / 14:30 / 15:00 (**t -1.11 / -0.98 / -0.85**), 2016-2019 -0.22 / -0.16, against
+2020-2023 at +0.87 / +0.24 - two of three regimes carrying the sign at a fifth to an eighth of cost
+and never past |t| = 1.2. **This does not contradict X-1, it fails to reach it**: X-1 ranked a
+15/30/60-minute lookback held 30-60 minutes, F-4's signal is the whole session's return held to the
+flatten, so they are different objects and the session-long one is not there. **(4) The
+counterfactual that corrects F-2a's own closing sentence**: hold the measured gross fixed, swap the
+cost column for **F-2a's 0.488 bps ES round trip**, and the same legs give **0 of 24** with **every
+cell still negative** (-0.37 neutral 14:30 to -2.73 raw 11:30). **A cost refusal is an argument for
+a cheaper instrument only when the gross column has the right sign at |t| > 2; when the sign is
+wrong, the cheap instrument buys a smaller loss rather than an edge.** F-2a's cost table stands - it
+is a property of the instrument - but the purchase case may not lean on F-4. **(5) Stage 2 was not
+run, on clause (7) rather than on convenience**: a framework run is earned by a stage-1 survivor and
+there is none on three screens; a confirmation year was started and abandoned at >30 minutes per
+year because it would have been fitting an already-refused book, and A-10 has run the deployed form
+on 2,686 sessions in any case. **No ledger rows**: `record` is reached only from stage 2, and a
+stage-1 event study measures bars rather than running a strategy. **Nothing shipped, nothing
+promoted, no default changed**: champion unchanged at S-18, `champion.json`, `live/*` and all three
+scheduled tasks untouched, `late_momo` still at alloc 0.0 and its module not edited, one new script
+only so rule (a) owes no replay. **Standing jobs both ran first**: A-5 part 2 unchanged at 66 fills
+/ +2.22 bps / se 0.80 / |diff|/se 0.90; `daily_fills.py` 10 fills / $2.37M / `ref_price` the
+previous close **10 of 10**, with the pooled execution number reading **+1.7 bps (se 5.3)** tonight
+against +3.2 this afternoon purely because the daily store has not yet published 2026-09-11's
+closes, so today's four fills score NaN - a benchmark-availability artifact, not an execution
+change. **What it changes for the loop**: F-4 closes the last open item with a stated mechanism, and
+on a stronger footing than F-1 or F-3, which found real forecasts and could not afford them. The
+only thing left genuinely open on this line is the object F-4 did **not** test and X-1 did - a
+**short** lookback reversal at a **short** horizon - which is a different mechanism needing its own
+pre-registration. The binding constraint remains the owner decisions in `BLOCKERS.md`.
+
 Status 2026-09-12 00:4x UTC (F-2a): **the futures blocker was never a permission problem - this
 account already fetches ES/NQ/MES/MNQ minute history with zero errors - and the one number that
 survives the thin sample is that an ES round trip costs 0.488 bps against the 4.70-8.20 bps every
@@ -1292,7 +1343,35 @@ not new rules on the same bars. Two tracks are opened below; the second needs th
   daily-reset decay; overnight session momentum into the cash open and the 15:30-16:00 futures
   flow are documented effects that the equity-only data cannot express. Prepare the harness
   (contract roll, tick value, CME fees) so the day the data arrives the tests run.
-- **F-4 (opened by F-2a): the afternoon reversal, on the store that can actually resolve it.**
+- **F-4 DONE 2026-09-11 (see journal): refused, and refused on SIGN rather than on cost - which
+  is the stronger refusal and the one clause (5) did not expect.** `scripts/sweep_f4.py`, 56
+  names disjoint from the daily sleeve, **2,664 sessions / 6,654,000 legs, 2016-01-04..2026-09-09**
+  - the largest sample this repository has put on one mechanism. **0 of 96 cells** pass the
+  pre-registered mark (12 entry minutes x 2 books x 2 exit conventions x 2 signs) and **all 96 net
+  columns are negative**, the best being raw momentum at 11:30, **-2.35 bps at t -2.74** against a
+  **4.59 bps** pooled round trip. **The gross column is positive at 12 of 12 entry minutes in the
+  directional book and 10 of 12 in the dollar-neutral one**: the day's move extends, it does not
+  fade, and every gross statistic in the grid reaching |t| > 2 is momentum - neutral 11:30 +1.78
+  (t +3.54), raw 11:30 +2.24 (t +2.61), raw 15:00 +0.89 (t +2.48), and the largest single-regime
+  cell is **2020-2023 at 15:00, +2.18 at t +3.38 - A-10's exact entry minute with the opposite
+  sign**. The second screen (is the effect there but unaffordable?) returns **0 of 48**. Where the
+  sign does survive it is a whisper in the diagnostic book only: neutral afternoons, 2024-2026
+  -0.81 / -0.59 / -0.42 bps at 14:00 / 14:30 / 15:00 (**t -1.11 / -0.98 / -0.85**) and 2016-2019
+  -0.22 / -0.16, i.e. two of three regimes at a fifth to an eighth of cost and never past |t| = 1.2.
+  **It does not contradict X-1, it fails to reach it**: X-1 ranked a 15/30/60-minute lookback held
+  30-60 minutes; F-4's signal is the whole session's return held to the flatten. **The cheap
+  instrument does not rescue it**: charged F-2a's 0.488 bps ES round trip the same legs give
+  **0 of 24** and every cell is still negative (-0.37 to -2.73). Stage 2 was not run, on clause (7)
+  - a framework run is earned by a stage-1 survivor and there is none - and no ledger rows are
+  written, because a stage-1 event study measures bars rather than running a strategy. **Do not
+  re-open as an entry-minute, universe, holding-period or magnitude-filter question.** One durable
+  rule survives it: **a cost refusal is an argument for a cheaper instrument only when the gross
+  column has the right sign at |t| > 2; when the sign is wrong the cheap instrument buys a smaller
+  loss, not an edge** - which corrects F-2a's own closing sentence. The only thing left genuinely
+  open is the object F-4 did not test and X-1 did: a SHORT lookback reversal at a SHORT horizon,
+  a different mechanism that would need its own pre-registration.
+- **F-4 (original text, kept for the pre-registration) the afternoon reversal, on the store that
+  can actually resolve it.**
   Two independent samples now point the same way - X-1 on 2,684 sessions of megacap equities
   (**-0.69 bps at t -2.80** into 14:30) and F-2a on 313 sessions of ES (**-2.415 bps at t -2.56**
   into the close) - and in both cases it was filed as a by-product rather than tested as a

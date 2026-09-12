@@ -1,5 +1,121 @@
 # Research journal
 
+## 2026-09-11 - F-4: the afternoon reversal does not exist at this construction, and the sign is what refuses it rather than the cost
+
+**Hypothesis.** F-4 was opened by F-2a as the last open item with a stated mechanism. Two
+independent samples had pointed the same way and in both cases the number was filed as a
+by-product rather than tested: **X-1** on 2,684 sessions of megacap equities (+0.63 bps
+entering at 10:30, **-0.69 at t -2.80** entering at 14:30) and **F-2a** on 313 sessions of
+front-month ES (day momentum into the last 30 minutes **-2.415 bps at t -2.56**, the only
+significant statistic in that table and with the premise's sign reversed). The backlog's
+instruction was to test it properly where the power is. New `scripts/sweep_f4.py`; the store is
+`data/minute_alpaca`, the universe is the **56 names the intraday sleeve may trade** (the 50
+megacaps plus PLTR/MSTR/COIN/SMCI/SOXL/SOXS, all disjoint from the daily champion's book),
+**2,664 sessions / 6,654,000 legs, 2016-01-04..2026-09-09**. No file either runner loads was
+modified - stage 2 would have run the **shipped** `late_momo` module through the shipped
+harness rather than a new one - so AGENTS.md rule (a) owes no replay and the I-1 gate is
+unaffected (S-19's precedent). Both standing jobs ran first.
+
+**Pre-registered in the script docstring before the first number was computed**, in seven
+clauses. The mechanism is the **sign of the session's return from the open to minute T**,
+entered at the open of bar T+1 and held to the framework's 15:38 flatten; the decision
+statistic is the per-session **sum** of the legs with the t over sessions (L-1's and X-1's
+rule, because legs inside a session overlap and share the market factor); the pass mark is the
+one every A-track and X-track candidate has faced - **net positive at t > 2 in at least two of
+the three regimes** (2016-2019, 2020-2023, 2024-2026). Two clauses matter for how this entry
+should be read. **Clause (4)**: the pre-registered book is the **directional** one the backlog
+specified (`raw`); the dollar-neutral version (`neutral`, signal and return both demeaned
+against the equal-weight basket) is carried as a **labelled diagnostic** and a pass on it alone
+is not a pass on F-4. **Clause (5) wrote the expected outcome down first**: failure on **cost,
+not on sign**, which is what X-1's own +0.36 bps against a 4.70 bps round trip predicts - and
+in that case F-4 would not be a strategy but the third measurement of an effect whose only
+viable instrument is the one F-2a priced at a 0.488 bps round trip. **Clause (6) put the prior
+on the record**: A-10 already killed the deployed form of this trade (`late_momo direction=-1`
+at 15:00, six names, a 60 bps magnitude filter) at **-$468/day, t -7.38** over 2,686 of these
+same sessions.
+
+**(1) The verdict is a clean refusal on the pre-registered rule: 0 of 96 cells** (12 entry
+minutes x 2 books x 2 exit conventions x 2 signs). **Every one of the 96 net columns is
+negative**, the best being raw momentum entering at 11:30 at **-2.35 bps, t -2.74**, against a
+pooled round-trip cost of **4.59 bps per leg** (4.90 in 2016-2019 falling to 4.26 in 2024-2026,
+because the per-share commission shrinks in basis points as prices rise).
+
+**(2) But clause (5) is itself refused, and that is the finding.** The failure is not on cost -
+it is on **sign**. Over the pooled sample the gross column is **positive at 12 of 12 entry
+minutes in the raw book and 10 of 12 in the neutral book**: the day's move *extends*, it does
+not fade. Every gross statistic in the whole grid that reaches |t| > 2 is **momentum**:
+
+| book | entry | gross bps | t |
+| --- | --- | --- | --- |
+| neutral | 11:30 | +1.78 | **+3.54** |
+| raw | 11:30 | +2.24 | **+2.61** |
+| raw | 15:00 | +0.89 | **+2.48** |
+| neutral | 10:00 | +1.56 | **+2.39** |
+| raw, 2020-2023 | 15:00 | +2.18 | **+3.38** |
+| neutral, 2020-2023 | 15:00 | +1.20 | **+3.63** |
+
+The largest single-regime statistic in the file is **A-10's exact entry minute with the
+opposite sign**. The second pre-registered screen - is the effect present but merely
+unaffordable? - returns **0 of 48**: the gross reversal never reaches t < -2 in two of three
+regimes anywhere.
+
+**(3) Where the effect does survive, it survives as a whisper, and only in the diagnostic
+book.** Neutral, afternoon entries, by regime: 2024-2026 **-0.81 / -0.59 / -0.42 bps** at
+14:00 / 14:30 / 15:00 (**t -1.11 / -0.98 / -0.85**) and 2016-2019 -0.22 / -0.16 (t -0.68 /
+-0.62), against 2020-2023 at +0.87 / +0.24. So the sign X-1 reported is carried in **two of
+three regimes** in the afternoon of a dollar-neutral book - and never past **|t| = 1.2**, at
+one fifth to one eighth of its own cost. F-4 does not reproduce X-1 and it is worth being
+exact about why rather than calling it a contradiction: **X-1 ranked a 15/30/60-minute lookback
+and held 30-60 minutes; F-4's signal is the whole session's return held to the flatten.** They
+are different objects. What F-4 establishes is that the *session-long* version of the effect -
+the one the backlog pre-registered and the one F-2a measured on ES - is not there.
+
+**(4) The counterfactual that prices F-2a's own conclusion, and corrects it.** F-2a closed by
+arguing that an effect refused on cost is an argument for buying CME history, because the
+instrument is 10x-17x cheaper. That is testable without any new data: hold the measured gross
+column fixed and swap the cost column. Charged **F-2a's 0.488 bps ES round trip** instead of
+the equity sleeve's 4.59, the same legs give **0 of 24 cells** reaching the pass mark - and
+**every cell is still negative**, from -0.37 bps (neutral, 14:30) to -2.73 (raw, 11:30). A
+cheaper instrument does not rescue this mechanism; it only makes it lose less. (Upper bound
+only, and labelled as one in the script: one future cannot carry a 56-name cross-section.)
+**The reusable rule is the correction: a cost refusal is an argument for a cheaper instrument
+only when the gross column has the right sign at |t| > 2. When the gross sign is wrong, the
+cheap instrument buys a smaller loss, not an edge.** F-2a's cost table stands on its own - it
+is a property of the instrument - but the purchase case may not lean on F-4.
+
+**(5) Stage 2 was not run, on the pre-registered rule rather than on convenience.** Clause (7)
+earns a framework run only for a stage-1 survivor, and there is none on three separate screens
+(net 0/96, gross 0/48, cheap-instrument 0/24). A single confirmation year was started anyway
+and abandoned after >30 minutes of wall clock for one year x one entry minute; the honest
+reading is that it would have been fitting a book the pre-registration had already refused, and
+A-10 has in any case already run this trade's deployed form through the shipped harness over
+2,686 sessions. **No ledger rows are written by this iteration** - `intraday_backtest.record`
+is only reached from stage 2, and a stage-1 event study is a measurement of bars, not a run of
+a strategy.
+
+**Nothing shipped, nothing promoted, no default changed.** Champion unchanged at S-18,
+`champion.json`, `live/APPROVED_PAPER.md`, `live/HALT*`, `live/intraday_config.json` and all
+three scheduled tasks untouched; `late_momo` keeps `alloc 0.0` from A-10 and its module was not
+edited; one new script only, so rule (a) owes no replay.
+
+**Standing jobs both ran.** `slippage_report.py` unchanged at **66 fills / +2.22 bps / se 0.80
+/ |diff|/se 0.90** (~4.4 sessions to settle), so `SLIPPAGE_BPS` stays 1.5. `daily_fills.py`:
+10 fills / $2,373,115 over three sessions, `ref_price` the previous close in **10 of 10** (a
+fifth confirmation of the S-19 clock) - but note the pooled execution number reads **+1.7 bps
+(se 5.3)** tonight against **+3.2 (se 4.5)** this afternoon, because the daily store has not yet
+published 2026-09-11's closes and today's four fills therefore score NaN rather than entering
+the pool. That is a benchmark-availability artifact at 20:4x ET, not a change in execution.
+
+**What it changes for the loop.** F-4 closes the last open item with a stated mechanism, and it
+closes it on sign rather than on arithmetic - which is a stronger refusal than F-1's or F-3's,
+because those two found a real forecast and could not afford it. **Do not re-open F-4 as an
+entry-minute, universe, holding-period or magnitude-filter question**: 6.65M legs over 2,664
+sessions is the largest sample this repository has ever put on one mechanism, the grid is
+already twelve entry times x two books x two exits, and the pooled sign is the wrong one. The
+one thing it leaves genuinely open is the object F-4 did *not* test and X-1 did - a **short**
+lookback reversal at a **short** horizon - which is a different mechanism and would have to be
+pre-registered as one. The binding constraint remains the owner decisions in `BLOCKERS.md`.
+
 ## 2026-09-11 - F-2a: the futures blocker was never a permission problem, and the instrument's round trip is a tenth of anything this repository has refused
 
 **Hypothesis.** The backlog has carried F-2 (the index-futures track) since 2026-09-10 as

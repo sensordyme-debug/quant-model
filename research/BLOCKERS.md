@@ -490,6 +490,20 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   positive cell is a post-hoc sign flip that this repository's own rules do not let it act on.
   Nothing is blocked today and nothing has been deployed.
 
+  **Amendment (F-4, 2026-09-11) - one leg of the case above is withdrawn, and the cost table is
+  not.** F-2a closed by arguing that an effect refused on cost becomes tradable on a 10x-17x
+  cheaper instrument. F-4 tested that on the one effect it was offered for - the afternoon
+  reversal - by holding the measured gross column fixed over **6,654,000 legs / 2,664 sessions**
+  and swapping in ES's 0.488 bps round trip. **0 of 24 cells reach the pass mark and every one is
+  still negative** (-0.37 to -2.73 bps), because on that sample the gross sign is **momentum, not
+  reversal**: the directional book is positive at 12 of 12 entry minutes and the only gross
+  statistics past |t| = 2 anywhere in the grid extend the day's move. So **a cheaper instrument
+  rescues a mechanism only when the gross sign is right at |t| > 2** - otherwise it buys a smaller
+  loss. What still stands, and is what the ask rests on: the **cost table itself** (a property of
+  the contract), the **0.62% gross sd per contract** against your 3-10%/day mandate, and F-1's
+  forecast, which was real at t +4.74 and would clear the ES floor by 60%. Read the request as
+  "buy the instrument's economics", not "buy it to rescue the afternoon reversal".
+
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
 - **The intraday sleeve cannot be validated by backtest, at any sample size we can reach
