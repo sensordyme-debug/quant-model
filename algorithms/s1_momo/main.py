@@ -188,6 +188,15 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         )
 
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)
+        # INERT ON THIS ALGORITHM'S PATH, and kept only because removing it would owe a LEAN
+        # rerun to prove `OrderListHash` unchanged for zero gain (S-36 / AUD-25). The engine
+        # reads this setting in `PortfolioTarget.Percent`, `ImmediateExecutionModel` and
+        # `BuyingPowerModel.GetMaximumOrderQuantityFor{Target,Delta}` - 17 call sites across
+        # `Common/` and `Algorithm/`, and S-36 confirmed that NONE of them is on the
+        # `MarketOrder` path. `submit_targets` sends `market_order(symbol, shares)` with an
+        # explicit share count, so the band that actually filters a rebalancing delta here is
+        # `self.min_order_value` (0.01 of equity, S-32 re-priced and kept it) and this line
+        # filters nothing. Do not read it as a second execution control.
         self.settings.minimum_order_margin_portfolio_percentage = 0.002
 
         # S-17, two execution assumptions this algorithm has never charged for. Both default

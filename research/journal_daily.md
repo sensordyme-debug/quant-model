@@ -4,6 +4,132 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-12 - S-36 (AUD-25): the guard that exists to stop a silent 0% CAR covers one parameter out of eleven, and the audit named the smaller half of the defect
+
+**What this iteration is.** S-35 named **AUD-25** as the last `daily`-owned audit item that
+needs no trading day, and it is the reason no earlier iteration took it: it is six separate
+claims filed as one bullet, with no single number that decides it. So this one priced each on
+its own pre-registered threshold and shipped only what earned it. Two are material, one has the
+wrong **sign** in the audit, two are documentation, and one belongs to another track.
+
+Both standing measurement jobs ran first, as on every iteration since S-31, and it being a
+Saturday neither has new input: `daily_fills.py` still reads **10 fills / $2,373,115 /
++3.2 bps** against the auction the runner aims at (per-fill sd 14.1, se 4.5), `ref_price` the
+previous close 10 of 10.
+
+**Provenance and scope.** New `scripts/sweep_s36.py` (seven clauses pre-registered before the
+first number; console output in `results/s36_stage_{a,b,c}.txt`), patches to
+`algorithms/s1_momo/signals.py`, `algorithms/s1_momo/main.py` (comment only) and
+`scripts/sweep_s3.py`, and `tests/test_signals_windows.py` (14 tests). **No LEAN run, no ledger
+row, no strategy parameter changed**, and `research/champion.json` was not touched. `signals.py`
+IS loaded by the paper runner, so unlike S-32..S-35 the deploy gate is owed here and was run.
+
+**(1) Identity, and the deployed book stands outside four of the six.** The offline book
+reproduces the cell seven previous iterations agree on **exactly** - 22.192150170492255% /
+5,052 orders, delta 0.00e+00 - both before and after the patch. `S1_ML_SCORES` is unset,
+`trend_window` is 0, the paper task runs `--history yfinance`, and `blended_momentum` is on no
+deployed path, so **(a), (b), (c) and (e) are all unreachable from the account**. Only (d) is
+executed on every LEAN run, and it is inert. So this is a preventive report about the
+*research machinery*, and that is what makes clause 3 the item rather than clause 2.
+
+**(2) The window guard, which is the real finding, and the audit named its smaller half.**
+`Params.__post_init__` says in its own docstring that it exists so "the horizon is what is
+being tested", and it computed `need` from `mom_lookbacks`, `mom_skip` and `rank_persist` only.
+Enumerating all eleven integer windows and probing each with its companion switch ON gives
+**7 of 11 outside the guard, in TWO failure modes**:
+
+| class | count | fields |
+|---|---|---|
+| SILENT-ZERO | 2 | `trend_window`, `regime_vol_window` |
+| SILENT-TRUNCATE | 5 | `alloc_vol_window`, `regime_median_window`, `vol_est_window`, `mom_vol_window`, `trail_window` |
+| SAFE | 4 | `iv_scale_window`, `mom_skip`, `rank_persist`, `mom_lookbacks` |
+
+The audit named the SILENT-ZERO half (its example is `trend_window`). **SILENT-TRUNCATE is the
+worse one and it is not in the audit.** `.iloc[-N:]` quietly yields fewer than N bars, so two
+different values of the parameter are the *same cell*: all five produce **byte-identical
+weights** at `history_bars + 100` and at `+ 500`. A zero CAR is visible in any table. A grid
+that reports a flat shelf because its cells are the same run is not - and S-33 established on
+this very sleeve that **a shelf is the only parameter result worth reporting**, so this defect
+manufactures exactly the artefact this track treats as its strongest evidence.
+
+Fixed by making `need` the max over every price window, each carrying its own prerequisite (a
+window over `pct_change` needs one extra row; the regime median runs on a series a rolling std
+has already shortened by `regime_vol_window`). **`iv_scale_window` is deliberately excluded**
+and the exclusion is pinned with its reason: it reads the IV store, not `prices`, so
+`history_bars` does not bound it and it already fails loudly with `iv_scale_reason="uncovered"`.
+That exclusion was earned, not assumed - the first pass of the probe classified it
+SILENT-TRUNCATE because `iv_scale_power=0` made the whole function return early, i.e. it was
+measuring the feature's default rather than the field. Re-probing with the switch on, and then
+classifying on the collapse test itself rather than on a reason string, moved it to SAFE.
+
+**(3) The ML rank gate: the audit is right about the code and the fix is the prose.**
+`ML_MODE="rank"` adds the momentum floor to `eligible`, then overwrites `score` with the
+forecast, after which the caller's own `scores[t] > floor` applies `min_momentum` to the
+*forecast* as well - two positive numbers where the docstring promised one. On the real export
+(`data/f3/ml_scores.csv`, 3,690 sessions) the second gate removes a funded name on **398 of
+them (10.79%)**, **525 name-days of 8,086**. It reaches a lot of sessions and it is worth
+**+0.286 CAR points** - 11.086% / 0.699 shipped against 10.800% / 0.686 as documented - i.e.
+**the undocumented gate helps**, and by less than S-33's 0.5-point "cosmetic" bar. Per the
+pre-registration ("a gate that has been measured and works is not changed to match prose") the
+code stands and the docstring is corrected. **The consequence for S-27 is worth stating: its
+twelve ranked rows were run WITH this gate, so they are flattered by ~0.3 points, not
+penalised by it** - which is the opposite of what "gated on two signs" reads like.
+
+**(4) The S-3 harness gap, where the audit's SIGN is wrong.** `sweep_s3.simulate` earns
+`close[i] -> close[i+1]` on a decision made at close[i]; LEAN fills at the next open, so the
+`close[i] -> open[i+1]` segment is credited to a position that did not exist. The overnight gap
+is **49.9% of the average close-to-close step** on that 59-name universe, so the exposure is
+large. But "credits the gap" implies the harness is flattered, and it is **penalised**: zero
+cost, full period, **c2c 2.559% CAR / 0.268 Sharpe against o2o 5.851% / 0.516** - the shipped
+convention costs the S-3 book **3.291 CAR points**. A reversal signal is on the losing side of
+the overnight segment (the gap continues the move; the reversal is intraday), so crediting it
+the gap is a charge, not a gift. **It does not revive S-3**: at the harness's own 5 bps both
+conventions are deeply negative (**-8.967% / -0.732** against **-4.811% / -0.330**), so the
+refusal stands for the reason it was given, which was cost. What changes is that the published
+margin was never as wide as the table said. Fixed with a default-inert `step_mode` argument
+(the S-26/S-30/S-32 precedent) so every earlier row stays bit-identical.
+
+**(5) and (6), the two that are documentation.**
+`minimum_order_margin_portfolio_percentage = 0.002` at `main.py:191` is **inert**: the engine
+reads it at 17 call sites across `Common/` and `Algorithm/` - `PortfolioTarget.Percent`,
+`ImmediateExecutionModel`, `BuyingPowerModel.GetMaximumOrderQuantityFor{Target,Delta}` - and
+**none is on the `MarketOrder` path**, which is the only path `submit_targets` uses. The band
+that actually binds is the repository's own `min_order_value` (0.01, S-32 re-priced and kept
+it). The line is **labelled rather than removed**, because removing it would owe a LEAN rerun
+to prove `OrderListHash` unchanged for zero measured gain - the same trade S-35 made on
+`paper_trade.py:196`. `blended_momentum` has **zero call sites and zero load references** by
+AST over all 158 python files, so the audit's arithmetic is right - but it is **not
+unreferenced**: `sweep_f3.py:432` names it as the spec its own momentum rebuild must match,
+which is how the F-3 forecast and the champion's score are held comparable. Deleting it would
+turn that comparison's only written definition into a prose claim, and `sweep_f3.py` is the
+`ml` track's. Kept and documented.
+
+**(7) `--history ib`, which is PREVENTIVE and not this track's to fix.** `fetch_history_yf`
+drops today's unfinished session explicitly; `fetch_history_ib` passes `endDateTime=""` and
+does not, so it would rank on a partial bar. **The shipped scheduled task uses the yfinance
+default**, so the deployed runner cannot reach it. The fix is a two-line edit to a live runner
+and belongs to `eng` with a `--replay`; filed as **AUD-25b** rather than made here.
+
+**Withdrawal condition, which was backward compatibility as in S-34 and S-35, and it holds.**
+Identity re-run after the patch: **exact, delta 0.00e+00**, `history_bars` still 307 and
+`DEFAULTS == Params()`. `scripts/compare_orders.py`: **3,689/3,689 dates, LEAN 5,021 / runner
+5,021, +0, PASS**. `sweep_s3` at its default `step_mode="c2c"`: **2.559% / 0.268 / 36.034**,
+unchanged. Full suite **615 pass** (601 + this item's 14), 0 fail.
+
+*(Note on the suite: under `py -3.11` four `test_qb_*` tests fail on a missing `pyarrow` in
+that interpreter - a pre-existing environment gap unrelated to this diff, since none of them
+imports anything S-36 touched. The suite is green on the interpreter that has `pyarrow`.)*
+
+**Adds no research item and closes one audit item** - the last `daily`-owned one. It files one
+new audit item, **AUD-25b** (`eng`), for the half of (c) that needs a live-runner edit.
+
+**Reusable rule.** *A silent failure that produces a WRONG number is easier to catch than one
+that produces the SAME number twice.* Every guard in this repository was written against the
+first kind (S-9's 0% CAR, AUD-16's truncated day, AUD-10's stale column) because a wrong number
+shows up in a table. The five fields S-36 found collapse two grid cells into one identical run,
+which renders as a clean flat shelf - and a shelf is precisely what S-33 taught this track to
+trust. **So before quoting a shelf, check that its cells are different runs.**
+
 ## 2026-09-12 - S-35 (AUD-12): one row in the ledger passes the gate today and would put a strategy on the paper account that the runner cannot trade - it claims +1.914 CAR points and delivers 0.000 of them
 
 **What this iteration is.** S-34 named **AUD-12** as the next daily audit item that needs no

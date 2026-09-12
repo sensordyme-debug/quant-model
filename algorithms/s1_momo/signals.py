@@ -393,7 +393,43 @@ class Params:
         # the entire sample, and the sweep prints a tidy 0.0% CAR that looks like a result.
         # S-9 lost a grid cell to exactly this (a 300-day horizon against the 300-bar
         # default). Widen the window instead, so the horizon is what is being tested.
-        need = max(self.mom_lookbacks) + self.mom_skip + max(0, self.rank_persist - 1) + 50
+        #
+        # S-36 (AUD-25): until then this guard covered the momentum window and nothing
+        # else, and it measured the surface it was leaving open - 7 of the 11 integer
+        # windows on this class, in TWO failure modes rather than one:
+        #
+        #   SILENT-ZERO      `trend_window`, `regime_vol_window`. Longer than the history
+        #                    and `risk_on` returns False forever, so the book sits in the
+        #                    off-state for the whole sample. This is S-9's failure exactly,
+        #                    and it is the one the audit named.
+        #   SILENT-TRUNCATE  `alloc_vol_window`, `regime_median_window`, `vol_est_window`,
+        #                    `mom_vol_window`, `trail_window`. `.iloc[-N:]` quietly yields
+        #                    fewer than N bars, so two DIFFERENT values of the parameter
+        #                    become the SAME CELL - S-36 proved each of the five produces
+        #                    byte-identical weights at `history_bars + 100` and at
+        #                    `+ 500`. A zero CAR is visible in any table; a grid that
+        #                    reports a flat shelf because its cells are the same run is
+        #                    not, and on this sleeve S-33 established that a shelf is the
+        #                    only parameter result worth reporting. That is the worse
+        #                    half of this defect and the audit did not name it.
+        #
+        # `iv_scale_window` is deliberately NOT here: it is read off the IV store, not off
+        # `prices`, so `history_bars` does not bound it and it already fails loudly with
+        # `iv_scale_reason="uncovered"`. Widening the price window for it would be cargo.
+        #
+        # Every term below is in PRICE BARS and carries its own prerequisite: a window over
+        # `pct_change` needs one extra row, and the regime median runs on a series a rolling
+        # std has already shortened by `regime_vol_window`. On the shipped defaults the
+        # momentum term still binds at 307, so this widening is inert for the champion.
+        need = max(
+            max(self.mom_lookbacks) + self.mom_skip + 50,     # the momentum window (S-9)
+            self.trend_window,                                # risk_on's trend filter
+            self.regime_vol_window + self.regime_median_window,   # regime_level -> median
+            self.alloc_vol_window + 1,                        # pct_change
+            self.vol_est_window + 1,                          # pct_change
+            self.mom_vol_window + 1,                          # pct_change
+            self.trail_window,                                # trailing high
+        ) + max(0, self.rank_persist - 1)
         if self.history_bars < need:
             object.__setattr__(self, "history_bars", need)
         if self.mom_weights and len(self.mom_weights) != len(self.mom_lookbacks):
@@ -573,7 +609,17 @@ def blend(per_horizon: pd.DataFrame, p: "Params") -> pd.Series:
 
 
 def blended_momentum(prices: pd.DataFrame, lookbacks) -> pd.Series:
-    """Mean of the trailing total returns over each lookback, per column."""
+    """Mean of the trailing total returns over each lookback, per column.
+
+    S-36 (AUD-25) confirmed by AST over all 158 python files in the repository that this has
+    zero call sites and zero load references - the audit's "dead code" is arithmetically
+    right. It is kept anyway, because it is not unreferenced: `scripts/sweep_f3.py:432`
+    names it as the SPEC its own momentum rebuild must match ("rebuilt here exactly as
+    `signals.blended_momentum` computes it"), which is how the F-3 forecast and the
+    champion's score are held comparable. Deleting it would turn that comparison's only
+    written definition into a prose claim, and `sweep_f3.py` belongs to the `ml` track.
+    It is unused by every deployed path, so it costs nothing to keep.
+    """
     per_horizon = horizon_returns(prices, lookbacks)
     if per_horizon.empty:
         return pd.Series(dtype=float)
@@ -584,8 +630,19 @@ def blended_momentum(prices: pd.DataFrame, lookbacks) -> pd.Series:
 #: written by `scripts/sweep_f3.py --export`. Empty (the default) means the champion's momentum
 #: blend decides the ranking and nothing below runs.
 ML_SCORES_PATH = os.environ.get("S1_ML_SCORES", "")
-#: "rank" (the researched cell) replaces only the *ranking*, keeping the absolute momentum floor
-#: as the entry gate; "pure" hands both the ranking and the gate to the forecast.
+#: "rank" (the researched cell) keeps the absolute momentum floor as an entry gate and hands the
+#: ranking to the forecast; "pure" hands both the ranking and the gate to the forecast.
+#:
+#: S-36 (AUD-25) corrected this line, which used to claim "rank" replaces ONLY the ranking. It
+#: does not, and never has: `momentum_scores` adds the momentum floor to `eligible` and then
+#: overwrites `score` with the forecast, after which `entry_floor`/`passes` apply
+#: `min_momentum` to the FORECAST as well. A name needs two positive numbers, not one.
+#: Measured on `data/f3/ml_scores.csv` over 3,690 sessions: the second gate removes a funded
+#: name on 398 of them (10.79%), 525 name-days of 8,086 - and it is worth +0.286 CAR points,
+#: i.e. the undocumented gate HELPS. The code is therefore left alone and the prose fixed, per
+#: S-36's pre-registration ("a gate that has been measured and works is not changed to match
+#: prose"). The consequence for S-27's twelve ranked rows is that they were run WITH this gate,
+#: so they are flattered by ~0.3 CAR points rather than penalised by it.
 ML_MODE = os.environ.get("S1_ML_MODE", "rank")
 
 _ML_TABLE: "pd.DataFrame | None" = None
@@ -666,7 +723,11 @@ def momentum_scores(prices: pd.DataFrame, p: Params) -> tuple[pd.Series, pd.Seri
     if ml is not None:
         if ML_MODE == "rank":
             # Keep the champion's entry discipline - a name must still clear the absolute
-            # momentum floor to be fundable - and change only the *order* of the survivors.
+            # momentum floor to be fundable. Note that `score` is overwritten on the next
+            # line, so the caller's own `scores[t] > floor` test then applies `min_momentum`
+            # to the FORECAST too: "rank" funds a name only if BOTH numbers are positive.
+            # That is deliberate as of S-36, which measured it at +0.286 CAR points against
+            # the single-gate alternative; see the `ML_MODE` docstring above.
             eligible &= (score > p.min_momentum)
         score = ml
     return score, eligible

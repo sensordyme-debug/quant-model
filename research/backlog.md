@@ -1847,6 +1847,29 @@ part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everythi
 owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
 and no delivery, both of which are barred to the loop.
 
+- **S-36 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-25 closed - the
+  guard that exists to stop a silent 0% CAR covers one parameter out of eleven, and the audit
+  named the smaller half of what it leaves open.** Full detail under **AUD-25** in the audit
+  section below. Headline: **7 of the 11** integer windows on `Params` sit outside
+  `__post_init__`, in **two** failure modes, and only the first is in the audit - SILENT-ZERO
+  (2 fields, a whole sample in cash) and **SILENT-TRUNCATE** (5 fields, all five proven to give
+  **byte-identical weights** at `history_bars + 100` and at `+ 500`, i.e. two grid cells that
+  are one run). The truncation mode manufactures a flat parameter **shelf**, which is the exact
+  artefact S-33 established as this sleeve's only reportable parameter result, so it corrupts
+  the evidence standard rather than just a number. Of the other five claims the `ML_MODE="rank"`
+  double gate is real on **10.79% of sessions** and worth **+0.286 CAR points in the code's
+  favour** (prose fixed, code kept; S-27's rows are flattered by it), the **S-3 harness claim's
+  sign is wrong** (the shipped convention *costs* that book **3.291 CAR points**, though at its
+  own 5 bps both conventions are deeply negative so the cost refusal stands), and the remaining
+  two are dead-code labels. Identity exact before and after, `compare_orders` **3,689/3,689**,
+  suite **615**. **Adds no research item, closes the last `daily`-owned audit item, files one
+  `eng` item (AUD-25b: `--history ib` reads the in-progress bar, unreachable from the deployed
+  task).** **There is now no `daily` audit item that needs no trading day.** What remains for
+  this track is S-17 part 2 and the two standing measurement jobs, all of which need a trading
+  day, plus the owner pile in `BLOCKERS.md` - so the pattern S-31/S-32 established (re-price an
+  open owner decision on the honest scale rather than open a new research track) is again the
+  only thing that can advance without one.
+
 - **S-35 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-12 fixed and
   priced - one row in the ledger passed the promotion gate today and would have put a strategy
   on the paper account that the runner cannot trade, claiming +1.914 CAR points and delivering
@@ -3743,7 +3766,10 @@ carry the owning track in brackets; record each fix in that track's journal and 
 - **AUD-11 [daily] (original text)** the "OOS 2020-2026" label is a sub-period of full-period parameter selection; relabel or re-select on 2012-2019.
 - **AUD-12 [daily+eng] DONE 2026-09-12 by S-35** (`scripts/sweep_s35.py`, 7 clauses,
   `tests/test_evaluate_param_env.py`, `research/journal_daily.md`; no LEAN run, no ledger row,
-  no live-runner edit, `champion.json` untouched). **MATERIAL on its pre-registered threshold,
+  no live-runner edit, `champion.json` untouched).
+  <!-- S-36 closed AUD-25 later the same day; with it the `daily` track has no audit item left
+       that needs no trading day. The pointer below names AUD-25 and is history. -->
+  **MATERIAL on its pre-registered threshold,
   and live: one row in the ledger passed `verdict()` before the patch.** `20260911T184723Z`
   (S-20's defensive off-state TLT/IEF/GLD at 2 bp) returned `(True, [])` - CAR 24.982% over the
   champion's 23.068%, Sharpe and drawdown both inside their tolerances - and promoting it would
@@ -3832,5 +3858,49 @@ carry the owning track in brackets; record each fix in that track's journal and 
 - **AUD-21 [iterate] (original text)** harness: missing-bar fills at the decision close, loss-limit base mismatch vs live, bar-0 true range includes the overnight gap.
 - **AUD-22 [eng]** dashboard: open orders frozen at connect, unbounded `nav_history`, no TrustedHost, NAV-append failure drops the IB session, `/api/logs` unredacted.
 - **AUD-24 [data]** events/options caches marked complete when partial; `iv_regime` holiday-week holes; error-162 silence; `save_bars` lock.
-- **AUD-25 [daily]** `ML_MODE="rank"` gates on sign; `Params` window guard incomplete; `--history ib` clock convention.
+- **AUD-25 [daily] DONE 2026-09-12 by S-36** (`scripts/sweep_s36.py`, 7 clauses,
+  `tests/test_signals_windows.py`, `research/journal_daily.md`; no LEAN run, no ledger row,
+  `champion.json` untouched, `compare_orders.py` 3,689/3,689). **Six claims, priced one at a
+  time: two material, one with the audit's SIGN reversed, two documentation, one refiled.**
+  Headline: the `Params` window guard is the item. Its docstring says it exists so "the horizon
+  is what is being tested" and it covered **1 of the 11** integer windows; enumerating them with
+  each field's companion switch ON gives **7 outside the guard in TWO modes** - **SILENT-ZERO**
+  (`trend_window`, `regime_vol_window`: risk-off for the whole sample, a tidy 0% CAR, the
+  audit's own example) and **SILENT-TRUNCATE** (`alloc_vol_window`, `regime_median_window`,
+  `vol_est_window`, `mom_vol_window`, `trail_window`: `.iloc[-N:]` yields fewer than N bars, so
+  two different values are the SAME CELL - all five give **byte-identical weights** at
+  `history_bars + 100` and at `+ 500`). **The second mode is not in the audit and is the worse
+  one**, because it manufactures a flat parameter **shelf**, which is precisely what S-33
+  established as this sleeve's only reportable parameter result. Fixed by taking `need` over
+  every price window with each one's own prerequisite; **`iv_scale_window` excluded with its
+  reason** (it reads the IV store, not `prices`, and already fails loudly) - an exclusion that
+  was earned, since the first probe misclassified it by measuring `iv_scale_power=0` rather than
+  the field. The other five: **`ML_MODE="rank"` really does gate on two signs**, on **398 of
+  3,690 sessions (10.79%)**, 525 name-days of 8,086 - and it is worth **+0.286 CAR points**
+  (11.086% vs 10.800%), i.e. **the undocumented gate helps**, so the code stands and the prose
+  was fixed, and **S-27's twelve ranked rows are flattered by ~0.3 points rather than penalised**.
+  **The S-3 harness claim has the wrong sign**: the close-to-close convention *costs* that book
+  **3.291 CAR points** (2.559% / 0.268 against 5.851% / 0.516 at zero cost) because a reversal
+  signal is on the losing side of the overnight gap, which is 49.9% of the average step - but at
+  the harness's own 5 bps both are deeply negative (**-8.967%** vs **-4.811%**), so **S-3's
+  refusal on cost stands** and only the published margin was overstated; fixed with a
+  default-inert `step_mode` (S-26/S-30/S-32 precedent). `minimum_order_margin_portfolio_percentage`
+  is **inert** on the `market_order` path (17 LEAN call sites, none of them it; the real band is
+  `min_order_value`) and **labelled rather than removed**, because removal owes a LEAN rerun to
+  prove `OrderListHash` for zero gain - S-35's trade on `paper_trade.py:196`. `blended_momentum`
+  has **zero AST references** but is the written spec `sweep_f3.py:432` points at, so it is kept
+  and documented. Identity exact before and after (22.192150170492255% / 5,052, `history_bars`
+  still 307), suite **615 pass**. **Adds no research item, closes the last `daily`-owned audit
+  item, and files one `eng` item (AUD-25b).** Reusable rule: **a silent failure that produces a
+  WRONG number is easier to catch than one that produces the SAME number twice** - every guard
+  here was built against the first kind, so **before quoting a shelf, check that its cells are
+  different runs**.
+- **AUD-25b [eng]** `scripts/paper_trade.py:234` `fetch_history_ib` passes `endDateTime=""` and,
+  unlike `fetch_history_yf`, does not drop today's unfinished session, so `--history ib` ranks on
+  a partial daily bar - a third clock convention. **PREVENTIVE**: S-36 confirmed the shipped
+  scheduled task uses the `yfinance` default, so the deployed runner cannot reach it. The fix is
+  two lines in a live runner and owes a `compare_orders.py` run, which is why the `daily` track
+  filed it instead of making it.
+
+- **AUD-25 [daily] (original text)** `ML_MODE="rank"` gates on sign; `Params` window guard incomplete; `--history ib` clock convention.
 - **AUD-01 [ops]** DONE: installers carry the battery flags and both tasks were re-registered 2026-09-12 11:12 ET. **AUD-23 [ops]** DONE: gateway watchdog task.

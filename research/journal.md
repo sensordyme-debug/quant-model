@@ -4,6 +4,34 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-12 - S-36 / AUD-25 (`daily` track; full entry in `research/journal_daily.md`)
+
+**The guard whose docstring says it exists so "the horizon is what is being tested" covers one
+parameter out of eleven, and the audit named the smaller half of what it leaves open.** Seven
+of the eleven integer windows on `Params` are outside `__post_init__`, in two modes:
+**SILENT-ZERO** (`trend_window`, `regime_vol_window` - the book sits risk-off for the whole
+sample and prints a tidy 0% CAR, which is the audit's example) and **SILENT-TRUNCATE**
+(`alloc_vol_window`, `regime_median_window`, `vol_est_window`, `mom_vol_window`, `trail_window`
+- `.iloc[-N:]` yields fewer than N bars, so two different values are the *same cell*; all five
+produce byte-identical weights at `history_bars + 100` and at `+ 500`). The second mode is not
+in the audit and is the worse one, because it manufactures a flat parameter **shelf**, which is
+exactly the artefact S-33 taught this track to treat as its strongest evidence. Fixed by taking
+`need` over every price window; `iv_scale_window` is excluded with its reason (it reads the IV
+store, not `prices`, and already fails loudly). Of the other five claims: the `ML_MODE="rank"`
+double gate is real, reaches **10.79% of sessions**, and is worth **+0.286 CAR points** - it
+*helps*, so the docstring was fixed and the code kept, and S-27's twelve ranked rows are
+flattered by it rather than penalised; the **S-3 harness claim has the wrong sign** (the
+close-to-close convention *costs* that book **3.291 CAR points**, 2.559% against 5.851% at zero
+cost, because a reversal signal is on the losing side of the overnight gap - though at the
+harness's own 5 bps both conventions are deeply negative, so S-3's refusal on cost stands);
+`minimum_order_margin_portfolio_percentage` is confirmed **inert** on the `market_order` path
+(17 LEAN call sites, none of them it) and labelled rather than removed; `blended_momentum` has
+zero AST references but is the written spec `sweep_f3.py:432` points at, so it is kept; and
+`--history ib` is **unreachable from the deployed task**, so it is filed as **AUD-25b** for
+`eng` rather than fixed here. Identity exact (22.192150170492255% / 5,052), `compare_orders`
+**3,689/3,689 PASS**, suite **615**. Adds no research item, closes the last `daily`-owned audit
+item, files one `eng` item.
+
 ## 2026-09-12 - D-4 / AUD-16 (`iterate` track)
 
 **The IBKR minute store had not advanced since 2026-09-11 12:35 ET and could not, because the

@@ -41,13 +41,42 @@ OOS_START = "2020-01-01"
 START = "2012-01-03"
 
 
-def simulate(prices, volumes, params, signal=None, start=START, end=None, cost_bps=None):
-    """Daily walk-forward. Weights decided on bar i are earned over bar i+1."""
+def simulate(prices, volumes, params, signal=None, start=START, end=None, cost_bps=None,
+             opens=None, step_mode="c2c"):
+    """Daily walk-forward. Weights decided on bar i are earned over bar i+1.
+
+    S-36 (AUD-25) adds two default-inert arguments - the S-26/S-30/S-32 precedent on the
+    daily harnesses - so every row this script has ever published stays bit-identical while
+    the convention it uses becomes selectable and, more to the point, measurable.
+
+    `step_mode="c2c"` (the shipped default) earns `close[i] -> close[i+1]` on weights decided
+    at the close of bar i. LEAN fills that decision at the NEXT OPEN, so the segment
+    `close[i] -> open[i+1]` is credited to a position that did not yet exist.
+    `step_mode="o2o"` (needs `opens`) earns `open[i+1] -> open[i+2]` instead, which is what a
+    next-open fill actually holds, on exactly the same decisions.
+
+    S-36 PRICED THE DIFFERENCE AND THE AUDIT'S SIGN IS WRONG. On this book, full period,
+    zero cost: c2c 2.559% CAR / 0.268 Sharpe against o2o 5.851% / 0.516. The shipped
+    convention does not FLATTER the S-3 book by crediting it the gap - it PENALISES it by
+    3.291 CAR points, because a reversal signal is on the losing side of the overnight
+    segment (the gap continues the move; the reversal is an intraday phenomenon) while the
+    gap is 49.9% of the average close-to-close step on this universe.
+
+    It does not revive S-3. At this harness's own 5 bps per unit of turnover both
+    conventions are deeply negative - c2c -8.967% / -0.732, o2o -4.811% / -0.330 - so the
+    refusal that stands in the journal stands for the reason it was given, which was cost.
+    What changes is that the margin was never as wide as the published table said.
+    """
+    if step_mode not in ("c2c", "o2o"):
+        raise ValueError(f"step_mode must be 'c2c' or 'o2o', got {step_mode!r}")
+    if step_mode == "o2o" and opens is None:
+        raise ValueError("step_mode='o2o' needs an `opens` frame to fill against")
     signal = signal or sig.target_weights
     cost_bps = COST_BPS if cost_bps is None else cost_bps
     index = prices.index
     i0 = index.searchsorted(pd.Timestamp(start))
-    i1 = len(index) - 1 if end is None else min(index.searchsorted(pd.Timestamp(end)), len(index) - 1)
+    last = len(index) - (2 if step_mode == "o2o" else 1)   # o2o needs open[i+2]
+    i1 = last if end is None else min(index.searchsorted(pd.Timestamp(end)), last)
     equity, dates = [100_000.0], []
     state, prev = {}, {}
     grosses, turnovers, invested = [], [], 0
@@ -65,8 +94,10 @@ def simulate(prices, volumes, params, signal=None, start=START, end=None, cost_b
         turnover = sum(abs(weights.get(t, 0.0) - prev.get(t, 0.0))
                        for t in set(weights) | set(prev))
         turnovers.append(turnover)
-        step = prices.iloc[i + 1] / prices.iloc[i] - 1.0
-        gain = sum(w * step[t] for t, w in weights.items() if np.isfinite(step[t]))
+        step = (prices.iloc[i + 1] / prices.iloc[i] - 1.0 if step_mode == "c2c"
+                else opens.iloc[i + 2] / opens.iloc[i + 1] - 1.0)
+        gain = sum(w * step[t] for t, w in weights.items()
+                   if t in step.index and np.isfinite(step[t]))
         equity.append(equity[-1] * (1.0 + gain) - equity[-1] * turnover * cost_bps / 1e4)
         dates.append(index[i + 1])
         prev = weights
