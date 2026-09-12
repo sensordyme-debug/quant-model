@@ -1,5 +1,160 @@
 # Research journal
 
+## 2026-09-12 - S-30: the leg split's equity route is priced and refused on COST, and the delta book it was built on does not exist
+
+**Hypothesis.** The backlog's top item, and the last untried route in the leg-split program.
+S-25 measured that 94% of the deployed daily book's return and all of its measurable alpha is
+earned overnight (+8.103 bps/day at t +6.80 against +0.738 intraday at t +0.47; same-gross
+selection excess +3.087 at t +4.20 against -0.314 at t -0.37) while 61% of its variance sits in
+the intraday leg that pays nothing. S-26 tried to remove that leg with a futures overlay and was
+refused on **drawdown** at a breakeven 2.3x above its instrument's cost; S-28 tried to re-measure
+it and was refused by 0.027 CAR points. S-30 asks the one question left: shed the intraday leg in
+the **equity book** - sell a fraction `h` of the carried position at the open, hold none of it
+through the session, let the deployed close rebalance buy it back - and relever the freed
+variance. If it paid it would be the only construction on file delivering S-26's risk reduction
+with **no futures, no owner consent and no Reg-T decision**, i.e. it would move a refused-on-risk
+result into the loop's own authority.
+
+New `scripts/sweep_s30.py`; **18 ledger rows** under `daily/s30_delta`, every one DIAGNOSTIC;
+**seven clauses pre-registered**, no post-hoc column. The mechanism is a fourth default-inert
+argument on the research harness - `flat_frac` on `sweep_s25.legs_simulate`, S-26's `hedge=` /
+`scale=` and S-28's `diag_out=` precedent - read only when `mode="both"` and ignored at 0.0. **No
+shipped or runner-loaded file was touched**, so no deploy gate is owed: the edit is confined to
+`scripts/sweep_s25.py`, which nothing in `live/` or `algorithms/` imports.
+
+**(1) Clause 1, two identities, both exact.** `flat_frac=0.0` reproduces the deployed cell to
+the digit - **CAR 22.192150% / 5,052 orders**, the figure S-25 through S-29 each landed on - with
+the leg+cost residual at **5.33e-16 of equity**. And `flat_frac=1.0` reproduces
+`mode="overnight"`'s overnight leg on **3,689 of 3,689 sessions at a maximum absolute difference
+of exactly 0.000e+00**.
+
+**(2) Clause 4 first, because that second identity refutes the premise the item was built on.**
+The backlog item's case for re-opening S-25's refusal was that S-25 had priced an overnight-only
+book as *a full round trip on every name every session*, and that a "delta" version routed
+through the deployed rebalance would be cheaper. **It is not cheaper. It is the same book, to the
+cent.** A book that holds **nothing** through the session has no delta at the **open** - the
+whole carried position must go, there is nothing to net it against - and at the **close** the
+reload *is* the rebalance, so there is nothing to net there either:
+
+| book | CAR% | Sharpe | MaxDD% | turn x/yr |
+|---|---|---|---|---|
+| S-25 `mode="overnight"` (liquidate and reload) | 14.432 | 1.234 | 19.972 | 630.4 |
+| S-30 `flat_frac=1.0` (through the rebalance) | 14.432 | 1.234 | 19.972 | 630.4 |
+
+The delta routing saves **0.0x equity/yr, 0.0%**, against the pre-registered 10% threshold.
+Clause 4's premise is **REFUTED** and written down as refuted. One correction does survive it:
+S-25's printed **1,248x** was not growth-normalized (S-26's defect), and the same book normalized
+turns over **630.4x**, exactly 2 x the book's 1.2496x gross - a factor of 2.0x.
+
+**(3) Clause 3, what is sold before what is bought - and at zero cost the construction does
+exactly what S-25 and S-26 say it should.** It sells a drift it cannot measure (+0.738 bps/day at
+t +0.47) and buys a variance reduction it can (leg vol 0.115 overnight against 0.151 intraday,
+0.188 total). Charged **nothing**, the family is a clean monotone risk improvement and a third
+independent confirmation of the leg split:
+
+| h | CAR% | Sharpe | MaxDD% | std | turn x/yr |
+|---|---|---|---|---|---|
+| 0.00 (deployed) | 22.192 | 1.159 | 23.860 | 0.188 | 49.4 |
+| 0.25 | 20.503 | 1.246 | 21.467 | 0.160 | 188.0 |
+| 0.50 | 18.626 | **1.321** | **19.051** | 0.136 | 335.2 |
+| 0.75 | 16.583 | **1.337** | 19.113 | 0.120 | 482.8 |
+| 1.00 | 14.432 | 1.234 | 19.972 | 0.115 | 630.4 |
+
+Sharpe rises from 1.159 to 1.337 and drawdown falls 4.8 points. **The risk reduction is real.**
+
+**(4) Clause 2, the pre-registered arithmetic, and it refuses the idea before any book is
+judged.** The raw edge is **negative at every h** (-0.749 / -1.512 / -2.285 / -3.050 bps/day at
+t -1.92 / -1.93 / -1.95 / -1.95), so the whole case is the relever. Vol-matching to the deployed
+0.188 permits 1.177x / 1.380x / 1.566x / 1.643x, and the breakeven one-way cost is the levered
+edge divided by the extra turnover it pays it on:
+
+| h | relever | levered edge bps/day | extra turn/day (x equity) | breakeven bp one way |
+|---|---|---|---|---|
+| 0.25 | 1.177 | +1.328 | 0.682 | **1.948** |
+| 0.50 | 1.380 | +2.837 | 1.640 | 1.730 |
+| 0.75 | 1.566 | +4.133 | 2.805 | 1.474 |
+| 1.00 | 1.643 | +4.483 | 3.914 | 1.145 |
+
+**Under the 2 bp every other daily row here is charged, at every h**, best 1.948 at h=0.25.
+Note the shape: the breakeven is **highest where the construction does least** and falls
+monotonically as it does more. There is no interior optimum, which is the signature of a pure
+cost problem rather than a tuning one. The pre-registered expectation was "refused, and by
+roughly 1.5x rather than by a factor, c* ~= 1.3-1.5 bp" - the measurement is 1.145-1.948, so the
+expectation was right in sign, in magnitude and in mechanism.
+
+**(5) Clause 5, the refusal quoted as a book rather than as an inequality - because 1.948
+against 2.000 is 2.6% from the line and too narrow to leave as arithmetic.** Charged 2 bp of
+one-way spread and IBKR Pro financing on the deployed convention:
+
+| cell | CAR% | Sharpe | MaxDD% | turn x/yr | paired vs deployed |
+|---|---|---|---|---|---|
+| deployed (costed) | **19.640** | **1.047** | **24.037** | 49.4 | - |
+| flat 0.25 | 14.689 | 0.937 | 21.909 | 188.0 | -1.875 (t **-4.79**) |
+| flat 0.50 | 9.593 | 0.741 | 24.161 | 335.1 | -3.819 (t **-4.88**) |
+| flat 0.75 | 4.497 | 0.427 | 29.405 | 482.5 | -5.792 (t **-4.93**) |
+| flat 1.00 | -0.555 | 0.009 | 50.206 | 629.7 | -7.785 (t **-4.97**) |
+
+Read the two columns together: at **zero** cost nothing in this family is distinguishable from
+the deployed book (|t| <= 1.95); at **2 bp** every cell is refused at **|t| between 4.79 and
+4.97**, the most significant refusal in the daily file. The difference between those two columns
+*is* the spread, and it is the whole result.
+
+**(6) And the exact vol-matched books are WORSE than the first-order arithmetic that refused
+them**, which is worth stating because it means clause 2's breakeven was a *generous* bound:
+
+| vol-matched | scale | CAR% | Sharpe | MaxDD% | gross mean / max | turn x/yr |
+|---|---|---|---|---|---|---|
+| h=0.50 | 1.381 | 11.896 | 0.691 | 32.930 | 1.73 / **2.18** | 463.0 |
+| h=1.00 | 1.646 | -3.470 | -0.093 | **71.825** | 2.06 / **2.68** | 1036.5 |
+
+Both breach **Reg-T's 2.0x** on peak gross as well as every return and risk criterion, so even a
+breakeven that cleared the spread would have run into the margin limit. The reason first order
+over-promises is mechanical: levering the book levers the spread bill **linearly** while the edge
+it buys is sublinear once financing on the larger debit is charged. Halves agree - IS 2012-2019
+h=0.50 **3.294** (DD 24.2) against the deployed 14.317 (20.9), OOS 2020-2026 **17.589** (19.8)
+against 25.967 (24.0) - so it fails in both, not on one episode.
+
+**(7) Clause 6, the placebo, passes and confirms the split a third time.** The mirror
+construction - flat **overnight**, holding the session, i.e. shedding the leg that pays - costs
+**-15.395 bps/day at t -12.19** (-18.269% CAR, DD 95.121%) against flat-all-session's -7.785 at
+t -4.97. Shedding the leg with the alpha is **twice** as expensive as shedding the leg without
+it, on identical turnover (624.3x against 629.7x). Nothing here is a statement about leverage.
+
+**Decision: REFUSED, on cost, at every h - and the backlog item's premise refuted separately.**
+Nothing shipped, nothing promoted, no default changed. `flat_frac` is unset in every deployed
+path and the deployed book holds around the clock as it always has. `live/*` and all three
+scheduled tasks are untouched. `champion.json` gains a `delta_note` only.
+
+**What it changes for the loop.** The reusable rule is that **when one construction can be
+expressed in two instruments, the refusal mode identifies the instrument, not the idea.** S-26
+and S-30 are the *same* mechanism - remove the intraday leg, relever the freed variance - and
+they fail in opposite ways: the futures version cleared its instrument's cost by **2.3x** and
+died on **drawdown**; the equity version dies on **cost**, at a breakeven **2.0x below** its
+instrument's round trip, and the ratio between the two verdicts is just the ratio of the two
+round trips (ES 0.488 bps against an equity 4.0 bps, ~8x). So S-26's "refused on risk" was a
+statement about the book and S-30's "refused on cost" is a statement about the equity market;
+the leg split itself has now been confirmed by three independent routes and monetized by none.
+Second, and procedural: **a premise quoted from a prior iteration's printed number owes an
+identity check before it is built on.** The entire case for re-opening S-25 was that its
+overnight book had been priced with the wrong convention, and one identity run - two minutes -
+showed the two conventions are the same book to the cent. That check belonged at the top of the
+script, and it is where it went.
+
+**Standing jobs, both run first, no new input (Saturday, no session since 2026-09-11).**
+`slippage_report.py`: 66 fills, **+2.22 bps** notional-weighted, se 0.80,
+|measured - shipped| / se = **0.90**, still not distinguishable at 2 se from the shipped 1.50;
+the power note is unchanged at ~145 fills (~4.4 sessions). `daily_fills.py`: 10 fills, $2.37M,
+**+3.2 bps** against the auction the runner aimed at (se 4.5), `ref_price` the previous close
+**10 of 10**. One ops fact worth recording so the next session does not lose a cycle to it:
+`slippage_report.py` reads the parquet minute store and **only Python 3.14 has `pyarrow`
+installed** on this machine - under `py -3.11` it dies with `ImportError: Unable to find a usable
+engine`. Run it as `py -3.14`.
+
+**Reproduce.** `py -3.14 scripts/sweep_s30.py --stage a` for the identity and the arithmetic that
+refuses it (~4 min); `--stage all --force-stage-b` for the costed grid, the vol-matched columns
+and the placebo (~12 min).
+
+
 ## 2026-09-12 - S-29: a strictly better volatility forecast makes a strictly worse crisis switch, and the sessions VIX removes are the best in the sample
 
 **Hypothesis.** Volatility enters this book in exactly two places. S-28 priced the first, the

@@ -104,7 +104,7 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
                   slippage_bps: float = 0.0, financing: dict | None = None,
                   lag: int = 0, divs: pd.DataFrame | None = None,
                   hedge: dict | None = None, scale: float = 1.0,
-                  diag_out: list | None = None) -> pd.DataFrame:
+                  diag_out: list | None = None, flat_frac: float = 0.0) -> pd.DataFrame:
     """S-19's deployed book with the day's P&L split into its two legs.
 
     `mode="both"` is the deployed convention exactly: decide on the closes through i-1, fill
@@ -131,6 +131,18 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
     round trip. The hedge P&L and its cost are booked to cash, never to `pnl_on`/`pnl_id`,
     so the leg columns stay a measurement of the equity book and the regression that sizes
     the next hedge is not fed its own output.
+
+    S-30 adds one more default-inert argument, same precedent. `flat_frac` (only read when
+    `mode="both"`, ignored at 0.0) sells that fraction of every position at the open and
+    leaves the close-side rebalance to buy it back, so the day's target is re-established in
+    ONE trade rather than in a liquidation followed by a reload. Intermediate values are the
+    equity-book analogue of S-26's futures overlay: the book holds `1 - flat_frac` of its
+    targets through the session and all of them overnight.
+
+    `flat_frac=1.0` is an overnight-only book reached through the deployed rebalance, and
+    S-30 measured that it is BIT-IDENTICAL to `mode="overnight"` - once nothing is held
+    through the session the reload IS the rebalance, so there is no netting to save. That is
+    a result, not a defect: see the `delta_note` in `research/champion.json`.
     """
     closes, opens = frames["close"], frames["open"]
     tickers = [t for t in sig.traded_universe(params) if t in closes.columns]
@@ -243,6 +255,13 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
         # --- what trades at the open, if anything
         if mode == "overnight":
             trade({t: -n for t, n in positions.items() if n}, open_row)   # flat for the day
+        elif mode == "both" and flat_frac > 0.0:
+            # S-30: shed `flat_frac` of the carried book for the session only. No no-trade
+            # band: this is a risk action on an existing position, not a rebalance, and at
+            # the book's concentration every leg clears the 0.01x band by an order of
+            # magnitude anyway.
+            trade({t: -int(round(flat_frac * n)) for t, n in positions.items()
+                   if n and int(round(flat_frac * n))}, open_row)
         elif mode in ("intraday", "preopen"):
             trade(plan(), open_row)                    # on for the session / the pre-open MOO
         elif mode != "both":

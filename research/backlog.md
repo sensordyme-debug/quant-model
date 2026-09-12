@@ -1606,40 +1606,68 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
-**Reprioritized at the 2026-09-12 daily review.** Twenty-one iterations closed in the previous 24
-hours (S-15..S-29, F-1..F-6), one promotion (S-18), and **both** tracks are now out of mechanisms
-with a stated premise and a permitted instrument. The four genuinely open research items are below;
-everything under them is a closed record. The binding constraint on this repository is **six owner
-decisions in `BLOCKERS.md`**, three of which are now priced to the basis point and two of which
-cost nothing to take.
+**Reprioritized at the 2026-09-12 daily review, and again after S-30 closed it the same day.**
+Twenty-two iterations closed in the previous 24 hours (S-15..S-30, F-1..F-6), one promotion (S-18),
+and **both** tracks are now out of mechanisms with a stated premise and a permitted instrument.
+S-30 was the last research item with one; what is below it is **two standing measurement jobs and
+one ops job**, and the binding constraint on this repository is now unambiguously the **six owner
+decisions in `BLOCKERS.md`**, three of which are priced to the basis point and two of which cost
+nothing to take. **The Current objective's own instruction applies: say so rather than find a
+twelfth lever.**
 
-- **S-30 (NEW, top of the list) - the overnight-only book done properly, as a DELTA book.** Every
-  result of 2026-09-12 points at the same lever and nobody has pulled it: 94% of this book's return
-  and all of its measurable alpha is overnight (S-25), 61% of its variance is the intraday leg that
-  pays nothing, S-26 tried to remove that leg with futures (refused on drawdown, needs owner
-  consent) and S-28 tried to re-measure it (refused by 0.027 CAR). The untried route is **not
-  holding the intraday leg at all**: in the market close-to-open, flat during the session, sized up
-  to the deployed book's own realized volatility.
-  **Why it is not already refused.** S-25 priced an overnight-only book at **1,248x equity of
-  annual turnover and negative before a cent of cost** - but that was a *full round trip on every
-  name every session*. The version worth pricing holds the same targets overnight and trades only
-  the **delta** at the open and the close, which is a different turnover figure entirely (the
-  deployed book turns over ~196x/yr in total).
-  **Pre-register the arithmetic FIRST, before any book is run**: compute the delta-book turnover
-  from the shipped target series, multiply by the round trip, and compare it to the +3.087 bps/day
-  same-gross overnight excess. **If the breakeven is past 2 bp, refuse it on the spot and write
-  that down** - that is a one-hour result and it is worth having either way. Only if it clears does
-  a book get run, on `sweep_s25.legs_simulate` with the identity cell quoted (22.192150% / 5,052
-  orders) and both deploy gates unchanged. Charge 2 bp + IBKR Pro financing; judge on the deployed
-  19.640% / 1.047 / DD 24.037 and the 35% absolute limit.
-  **What would make it interesting rather than merely positive**: it is the only construction on
-  file that could deliver S-26's risk reduction **without** futures, owner consent or a Reg-T
-  decision - i.e. it would move a refused-on-risk result into the loop's own authority.
+- **S-30 DONE 2026-09-12 (see journal): refused on COST at every h - and the 'delta book' the
+  item was built on does not exist, which one identity run settled in two minutes.**
+  `scripts/sweep_s30.py`, 18 DIAGNOSTIC ledger rows under `daily/s30_delta`, seven clauses
+  pre-registered and no post-hoc column. A fourth default-inert argument on the research harness
+  (`flat_frac` on `sweep_s25.legs_simulate`, S-26/S-28's precedent); **no shipped or runner-loaded
+  file was touched, so no deploy gate is owed**, and both identities are exact (`flat_frac=0.0`
+  -> 22.192150% / 5,052 orders / residual 5.33e-16; `flat_frac=1.0` matches `mode="overnight"` on
+  **3,689/3,689 sessions at max |difference| 0.000e+00**). **THE PREMISE IS REFUTED BY THAT SECOND
+  IDENTITY**: the delta routing saves **0.0x equity/yr, 0.0%** against the pre-registered 10%
+  threshold, because a book holding *nothing* through the session has no delta at the open (the
+  whole position must go) and none at the close (the reload IS the rebalance) - S-25's overnight
+  book and S-30's are the same book to the cent. The item's "~196x/yr" and "1,248x" were both
+  un-normalized; growth-normalized the deployed book turns over **49.4x** and the overnight book
+  **630.4x**, exactly 2 x its 1.2496x gross. **At zero cost the construction works and confirms
+  S-25 a third time** - Sharpe 1.159 -> 1.246 / 1.321 / 1.337 and drawdown 23.860 -> 21.467 /
+  19.051 / 19.113 at h = 0.25 / 0.50 / 0.75 - but the raw edge is **negative at every h** (-0.749
+  to -3.050 bps/day, t -1.92 to -1.95), so the whole case is the relever, and **the pre-registered
+  breakeven refuses it before any book is judged: 1.948 / 1.730 / 1.474 / 1.145 bps ONE WAY**
+  against the 2 bp charged everywhere else, **highest where the construction does least** - no
+  interior optimum, the signature of a cost problem rather than a tuning one. Quoted as books at
+  2 bp + IBKR Pro financing (1.948 against 2.000 is 2.6% from the line, too narrow to leave as
+  arithmetic): **14.689 / 0.937 / 21.909, 9.593 / 0.741 / 24.161, 4.497 / 0.427 / 29.405, -0.555 /
+  0.009 / 50.206** against the deployed 19.640 / 1.047 / 24.037, **paired -1.875 / -3.819 / -5.792
+  / -7.785 bps/day at t -4.79 / -4.88 / -4.93 / -4.97** - the most significant refusal in the
+  daily file, and the contrast with the zero-cost column (|t| <= 1.95) *is* the spread. The exact
+  vol-matched books are **worse** than the arithmetic that refused them (h=0.50 at scale 1.381
+  earns 11.896 / 0.691 / DD 32.930, h=1.00 at 1.646 earns -3.470 / -0.093 / DD 71.825, **both
+  breaching Reg-T** at 2.18x and 2.68x peak gross, both failing both halves), because levering the
+  book levers the spread bill linearly while the edge is sublinear once the larger financed debit
+  is charged. **Placebo passes**: shedding the leg that PAYS costs -15.395 bps/day at t -12.19
+  against -7.785 at t -4.97, twice as expensive on identical turnover. **Do not re-open as an h,
+  relever, netting or no-trade-band question** - the grid spans h from 0.25 to 1.00 and the
+  breakeven is monotone in the wrong direction, the netting is measured at exactly zero, and the
+  flatten legs clear the 0.01x band by an order of magnitude so a band cannot save it. Nothing is
+  filed in `BLOCKERS.md` either, because **a refusal on cost is not an owner option**. Two durable
+  pieces survive it: the **`flat_frac` argument** (any partial-flatten or intraday-exposure
+  question now runs on the deployed book without editing it) and the rule that **when one
+  construction can be expressed in two instruments, the refusal mode identifies the instrument
+  rather than the idea** - S-26's futures version cleared its instrument's cost by 2.3x and died on
+  *risk*, this equity version dies on *cost* at 2.0x below its instrument's round trip, and the
+  ratio between the two verdicts is just ES's 0.488 bps against an equity 4.0 bps round trip. **It
+  closes the leg-split program for good: hold (S-26), rank (S-27), size (S-28), shed (S-30) - the
+  split is confirmed by three independent routes and monetized by none.**
 
 - **A-5 part 2 (STANDING, and now has an end condition that is close).** Measured intraday fill
-  slippage against the harness's 1.50 bps assumption and the sleeve's **2.52 bps** breakeven. As of
-  2026-09-10: **32 fills, +2.89 bps, se 1.33**. 2026-09-11 added **34 fills** that have not been
-  folded in. **Re-quote the mean and standard error every session.** When the constant is pinned to
+  slippage against the harness's 1.50 bps assumption and the sleeve's **2.52 bps** breakeven.
+  Re-quoted 2026-09-12 (Saturday, so unchanged from 2026-09-11's close): **66 fills over 2
+  sessions, +2.22 bps notional-weighted, se 0.80, |measured - shipped| / se = 0.90** - the harness
+  is optimistic by 0.72 bps but the two are **not yet distinguishable at 2 se**, which needs ~145
+  fills, i.e. ~4.4 more sessions at the 33 fills/session seen so far.
+  **Run it as `py -3.14`**: it reads the parquet minute store and only 3.14 has `pyarrow` installed
+  on this machine (`py -3.11` dies with `ImportError: Unable to find a usable engine`).
+  **Re-quote the mean and standard error every session.** When the constant is pinned to
   within two standard errors there is no further information the intraday sleeve can produce, and
   `BLOCKERS.md` item 6 ((a) keep at reduced size / (b) retire to `equity_frac` 0.0) becomes
   answerable. **Say so when it is, rather than finding a twelfth lever** - that is the Current
@@ -1664,8 +1692,12 @@ cost nothing to take.
 **Explicitly NOT to be re-opened** (each carries a do-not-re-open clause in its own entry, and each
 was refused on a grid that spans the obvious knobs): S-27 as a ranking/score question, S-28 as an
 estimator/window/level-match/leg question, S-29 as a threshold/staleness/instrument/implied-series
-question, F-4/F-5/F-6 as an entry-minute/lookback/selection/exit/book question, and any daily
-candidate that spends turnover on what the book holds between the open and the close (S-25's rule).
+question, S-30 as an h/relever/netting/no-trade-band question, F-4/F-5/F-6 as an
+entry-minute/lookback/selection/exit/book question, and any daily candidate that spends turnover on
+what the book holds between the open and the close (S-25's rule). **The whole leg-split program is
+closed** - hold (S-26), rank (S-27), size (S-28), shed (S-30) - and the one remaining way to
+monetize the split would be an instrument whose round trip is an order of magnitude under the
+equity spread, which is the futures decision already in `BLOCKERS.md`.
 
 - **S-29 DONE 2026-09-12 (see journal): refused - and it is the first refusal here where the
   input was IMPROVED on its own terms and the book got worse. A risk switch is not a
