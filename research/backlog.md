@@ -1761,6 +1761,52 @@ and no delivery, both of which are barred to the loop.
   and the rule that **a cost correction measured on the champion does not transfer to a decision
   about the champion's size**, because none of the three costs is independent of leverage.
 
+- **F-7 DONE 2026-09-12 (see `research/journal_ml.md`): the lower-turnover expression F-1 named is
+  real - 8.53x gross per dollar turned on a quarter of the turnover - and it dies on POWER, not on
+  cost. Refused; nothing shipped.** `scripts/ml_f7.py`, **29 DIAGNOSTIC ledger rows** under
+  `intraday/f7_turnover`, eight clauses pre-registered. Identity exact against F-1's row
+  `20260911T155155Z` (gross 1,102.352 / net -2,206.101 / turnover 13,831,037.037 / 0.797 bps /
+  IC +0.01133). **Clause 2 pre-registered the wrong answer and that is the keeper**: IC(h) does not
+  decay, it *rises* to **+0.02115 at h=10 (5 hours)**, cumulative multiple **15.966** against the
+  3.00x needed - so the 30-minute horizon F-1 trains on is the worst horizon its own forecast has.
+  **Clause 3 delivers what clause 2 promised**: `band 0.10/0.40 + conv 2.0x` earns **6.797 gross bps
+  per dollar (8.53x F-1)** on **$3.44M/day** instead of $13.83M, **+$1,001/day, positive 3/3 test
+  years - and t +1.33, so 0 of 19 cells pass the pre-registered t > 2.** **Clause 8 settles it**: the
+  same cells at the same parameters on a **2019-2026 walk-forward, 1,933 sessions, nothing
+  re-tuned**, where pooled IC *improves* to **+0.01392 at t +9.84** - the best cell's gross halves
+  to **3.495 bps** and its net goes **+1,001 -> -$56/day at t -0.15, positive 4/8 years**. The 3/3
+  was the 675-session sample. **Controls are clean on gross** (|t| <= 1.33 short, <= 0.21 extended,
+  so the lift is the forecast) **and dirty on cost**: the conviction gate prices at 3.88-4.09 bps
+  against the scrambled book's 2.13-2.19, because it selects the low-priced, reverse-split
+  leveraged names - **1.7 of the 2.4 bps of extra cost is selection and no turnover cut removes it.**
+  Feature importance is stably *ranked* between retrains (Spearman 0.665 / 0.699 / 0.767, VWAP
+  displacement and relative volume on top) over **sign-flipping magnitudes**, which is what a weak
+  true signal read through noise looks like. **Do not re-open as a dwell, band, EWMA,
+  conviction-threshold or decile question** - the grid spans dwell 1-11, bands 0.04/0.20 to
+  0.10/0.40, lambda 0.25/0.50, conviction 0.5x-2.0x, deciles 0.04-0.34 and the stacked cells, and the
+  best of nineteen dies on 2.5x the window. Two durable pieces: the **persistence table**
+  (`data/f1/f7_persistence.csv`; IC(h) on the demeaned cumulative return prices any forecast's
+  natural holding period before a simulator exists) and a **reproducibility hazard now guarded in
+  `ml_f7.py`** - every F-track script must run with **`INTRADAY_DATA_DIR=data/minute_alpaca`**,
+  because `_splits.json` lives only in that store and without it `share_scale()` is 1.0, the
+  commission is charged on split-adjusted share counts and **the cost line is understated by 0.28 bps
+  of turnover (2.110 vs 2.392, 12%)** while gross, turnover and IC still match to the cent.
+
+- **F-8 (open, the only axis F-7 left, and it is a new forecast rather than a new book).** F-7's
+  clause 2 measured that this feature set's IC **peaks at h = 7-10 intervals (3.5-5 hours), not at
+  the 30 minutes F-1 trains on** (+0.01133 -> +0.02064 at h=7, +0.02115 at h=10). Every F-7
+  construction harvests that persistence with a model fitted to the *wrong* label; F-8 fits the
+  label directly - same panel, same walk-forward, same 38 features, label = the demeaned cumulative
+  forward return over h intervals, h in {4, 7, 10}, one position per name per session held to the
+  15:30 flatten. **Pre-register before running**, and inherit F-7's arithmetic rather than
+  rediscovering it: the honest hurdle is **~3.7 bps per dollar turned** (the conviction book's own
+  measured cost, not the 2.392 headline), the window is **2019-2026 from the start** (675 sessions
+  cannot resolve a t of 1.3), and the scrambled-prediction control and the cost column of that
+  control are both mandatory. **State the prior in the pre-registration**: three refusals at IC
+  ~+0.011 to +0.014 say the likely outcome is a forecast worth ~3.5 bps against a 3.7 bps line, and
+  F-8 should be the last item on this track unless it clears the hurdle outright. Run it as
+  `py -3.14` with `INTRADAY_DATA_DIR=data/minute_alpaca`.
+
 - **A-5 part 2 (STANDING, and now has an end condition that is close).** Measured intraday fill
   slippage against the harness's 1.50 bps assumption and the sleeve's **2.52 bps** breakeven.
   Re-quoted 2026-09-12 (Saturday, so unchanged from 2026-09-11's close): **66 fills over 2
