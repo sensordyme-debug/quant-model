@@ -131,6 +131,30 @@ def set_slippage(bps: float | None) -> float | None:
     return float(bps)
 
 
+def warn_loss_limit_base() -> str:
+    """AUD-21: say out loud when the run's loss limit is tighter than the deployed sleeve's.
+
+    `DAILY_LOSS_LIMIT` is 2.5% of ACCOUNT NAV (intraday_trader.py:596), and the sleeve is only
+    `equity_frac` of that account, so the live rule lets the sleeve lose 2.5%/`equity_frac` of its
+    OWN equity. A harness run at the default `nav_frac` of 1.0 stops the book 1/`equity_frac`
+    earlier than the live trader would - A-13 measured 30 such stop-outs in 674 sessions, worth
+    +$205/day and 5.6 points of drawdown. Silence here is how that went unnoticed for two days.
+    """
+    frac = RISK["nav_frac"]
+    try:
+        deployed = float(json.loads((REPO / "live" / "intraday_config.json")
+                                    .read_text(encoding="utf-8"))["equity_frac"])
+    except Exception:  # noqa: BLE001 - a research run must not depend on the live config
+        return ""
+    if abs(frac - deployed) < 1e-9 or deployed >= 1.0:
+        return ""
+    msg = (f"AUD-21 note: loss limit charged against sleeve equity / {frac:g}; the deployed sleeve "
+           f"runs at equity_frac {deployed:g}, so live is {frac / deployed:.1f}x looser. "
+           f"Pass --nav-frac {deployed:g} to model the live rule.")
+    print(msg)
+    return msg
+
+
 def set_risk(overrides: dict | None) -> dict:
     """Apply research overrides to RISK; returns the ones that actually differ from the shipped constants."""
     changed = {}
@@ -483,6 +507,11 @@ def main() -> int:
     ap.add_argument("--risk", help='JSON overrides for the framework risk limits, research only, e.g. '
                                    '\'{"daily_loss_limit":0.02,"per_symbol_hard_cap":0.25}\'')
     ap.add_argument("--slippage-bps", type=float, help="override intraday_common.SLIPPAGE_BPS, research only")
+    ap.add_argument("--nav-frac", type=float,
+                    help="AUD-21: sleeve equity as a fraction of ACCOUNT NAV, so the daily loss "
+                         "limit is charged against the same base the live trader uses. Pass the "
+                         "deployed live/intraday_config.json equity_frac to model the live rule; "
+                         "the default of 1.0 is the (tighter) limit every pre-2026-09-12 row ran on.")
     ap.add_argument("--legacy-fills", action="store_true",
                     help="AUD-21: restore the pre-2026-09-12 fill model (a missing bar filled at the "
                          "decision bar's own close). Only for reproducing an existing ledger row.")
@@ -501,9 +530,13 @@ def main() -> int:
         print("AUD-21: legacy atr14 (bar-0 true range spans the overnight gap), reproduction only")
     strategy = load_strategy(args.strategy)
     params = {**strategy.PARAMS, **(json.loads(args.params) if args.params else {})}
-    changed = set_risk(json.loads(args.risk) if args.risk else None)
+    overrides = json.loads(args.risk) if args.risk else {}
+    if args.nav_frac is not None:
+        overrides["nav_frac"] = args.nav_frac
+    changed = set_risk(overrides)
     if changed:
         print(f"risk overrides (backtest only): {changed}")
+    warn_loss_limit_base()
     if set_slippage(args.slippage_bps) is not None:
         print(f"slippage override (backtest only): {intraday_common.SLIPPAGE_BPS} bps (shipped {SLIPPAGE_BPS})")
     start = dt.date.fromisoformat(args.start) if args.start else None

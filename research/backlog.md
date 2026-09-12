@@ -1749,6 +1749,19 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
      the loop's own numbers rather than waiting on one. The standing jobs remain the only open
      work; both still need a trading day. -->
 
+- **A-13 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): AUD-21 closed - the harness
+  is corrected, the sleeve's eleven-year verdict is not, and the owner has been shown a tail
+  $12,551 too small.** Full detail under **AUD-21** in the audit section below. Headline:
+  -$344.9/day t -1.41 -> **-$309.6/day t -1.24** on 2,686 sessions (+$35.3 paired, t +0.69, sign
+  flipping across all three regimes), 92 backtest stop-outs the live trader would never have taken
+  removed, and the worst day widening from -$34,300 to **-$46,850**. Adds no research item and
+  closes one audit item. **Next `iterate` audit item that needs no trading day: AUD-16** [data] -
+  `scripts/intraday_data.py` cannot extend the store and truncates the current session (all 16
+  symbols hold a 170-bar 2026-09-11), which is the thing keeping the execution-matched store from
+  reaching A-5 part 2's end condition. **AUD-15** [data] (the IBKR store treated as raw when it is
+  split-adjusted, per-share commission understated up to 100x) is the same shape and the larger
+  number, but it needs `data/minute/_splits.json` written first.
+
 - **C-2 (critic): adversarially verify S-24, the pre-open MOO claim.** S-24 says the store's open is
   not the opening cross and that the pre-open move is worth **+1.98 CAR at the real MOO fill**. It is
   the highest-value unchecked claim of the last 24 hours because it proposes a change to the
@@ -3669,7 +3682,27 @@ carry the owning track in brackets; record each fix in that track's journal and 
 - **AUD-18 [ml]** F-3's IC t-stat is naive on overlapping 5-day labels (NW t ~1.2, not 2.17); no embargo.
 - **AUD-19 [ml]** F-7 draft: persistence table is a composition artifact; best cell chosen on the test window; report 2019-23 separately.
 - **AUD-20 [ml]** F-1 row-based shifts on an irregular 5-min grid (SOXS 16.6% of sessions affected).
-- **AUD-21 [iterate]** harness: missing-bar fills at the decision close, loss-limit base mismatch vs live, bar-0 true range includes the overnight gap.
+- **AUD-21 [iterate] DONE 2026-09-12 by A-13** (`scripts/sweep_a13.py`, 7 clauses, 7 DIAGNOSTIC
+  rows, `tests/test_intraday_harness_bias.py`, `research/journal.md`). **All six fixed; worth
+  +$35.3/day (t +0.69) in the mean and 37% in the tail, and the audit's "all in its own favour" is
+  wrong for the largest of them.** Priced on the deployed ORB book, Alpaca SIP, 2,686 sessions:
+  control **-$344.9/day t -1.41** -> corrected **-$309.6/day t -1.24**, so the eleven-year answer
+  in `BLOCKERS.md` is unchanged (A-10 published -$289) and no config moved. The paired difference
+  **flips sign by regime** (+34.1 / -76.4 / +204.0 at t +3.12 / -1.00 / +1.22) - it is not a
+  directional bias in the P&L column. What it IS is a tail: the harness charged the daily loss
+  limit against **sleeve equity** where the live trader charges it against **account NAV**, so at
+  `equity_frac` 0.25 it stopped the book **4x early** on **92 of 2,686 sessions**, and removing
+  those stops widens the worst day in every regime (-26,826 -> -33,445, -30,902 -> -46,850,
+  -34,300 -> -45,283). Filed to `BLOCKERS.md` as an addendum, not fixed: the live limit is a
+  risk-posture setting. `atr14`'s overnight gap is **real and provably inert** - `orb` reads it
+  only from minute 15 and `rolling(14)` there excludes bar 0 unless the open is sparse, which is
+  **0 of 10,784** pairs on 2024-2026 and **0 of 4,208** on the whole IBKR store (7.47% over the
+  full eleven years); the isolated cell moves the book 1.9e-11 $/day at a paired **t of +1.93**.
+  Deploy gate passed: `base.py` is live-loaded, and replaying 2026-09-10 old-vs-new gives the
+  identical session (P&L -3,920, 45 trades, 368 decisions, flat at close); suite **473 pass**.
+  Reusable rule: **a harness bias can be conservative in the P&L column and reckless in the risk
+  column at the same time** - read both before believing an audit's sign.
+- **AUD-21 [iterate] (original text)** harness: missing-bar fills at the decision close, loss-limit base mismatch vs live, bar-0 true range includes the overnight gap.
 - **AUD-22 [eng]** dashboard: open orders frozen at connect, unbounded `nav_history`, no TrustedHost, NAV-append failure drops the IB session, `/api/logs` unredacted.
 - **AUD-24 [data]** events/options caches marked complete when partial; `iv_regime` holiday-week holes; error-162 silence; `save_bars` lock.
 - **AUD-25 [daily]** `ML_MODE="rank"` gates on sign; `Params` window guard incomplete; `--history ib` clock convention.

@@ -14,7 +14,16 @@ import pandas as pd
 OR_MINUTES = 15          # opening range = first 15 one-minute bars (09:30-09:44)
 
 
-def features(df: pd.DataFrame) -> pd.DataFrame:
+def features(df: pd.DataFrame, gap_true_range: bool = False) -> pd.DataFrame:
+    """Causal feature frame. `gap_true_range` reproduces the pre-2026-09-12 `atr14` (AUD-21).
+
+    The true range of bar 0 of a session used an ungrouped `close.shift(1)`, i.e. the PREVIOUS
+    SESSION's last close, so every overnight gap was booked as one minute of range. `atr14` is a
+    within-session `rolling(14, min_periods=5)`, so that single inflated bar contaminated minutes
+    4-13 of every session - exactly the window `orb`'s disaster stop is armed in. The default is
+    now the corrected version (bar 0's true range is its own high-low); pass True only to
+    reproduce a row already in research/experiments.jsonl.
+    """
     if df.empty:
         return df.copy()
     f = pd.DataFrame(index=df.index)
@@ -47,7 +56,8 @@ def features(df: pd.DataFrame) -> pd.DataFrame:
     f["ret30"] = c.groupby(day).pct_change(30)
     f["vol30"] = f["ret1"].groupby(day).transform(lambda s: s.rolling(30, min_periods=10).std())
     f["vol_ratio"] = df["v"] / df["v"].groupby(day).transform(lambda s: s.rolling(20, min_periods=5).mean())
-    tr = pd.concat([df["h"] - df["l"], (df["h"] - c.shift(1)).abs(), (df["l"] - c.shift(1)).abs()], axis=1).max(axis=1)
+    prev_c = c.shift(1) if gap_true_range else c.groupby(day).shift(1)
+    tr = pd.concat([df["h"] - df["l"], (df["h"] - prev_c).abs(), (df["l"] - prev_c).abs()], axis=1).max(axis=1)
     f["atr14"] = tr.groupby(day).transform(lambda s: s.rolling(14, min_periods=5).mean())
     f["day_ret"] = c / f["sess_open"] - 1.0
     return f

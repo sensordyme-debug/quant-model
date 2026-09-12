@@ -594,6 +594,48 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   being settled (2026-09-10: 32 fills, +2.89 bps, se 1.33, against a shipped 1.50 and a 2.52 bps
   breakeven). `equity_frac` is still 0.5 and nothing was shipped.
 
+  **Update 2026-09-12 (A-13 / AUD-21): the answer above survives a corrected harness, and the
+  drawdown you were shown does not. There is one new thing for you to decide, and it is about the
+  stop, not the size.** The operator audit found six biases in the research harness every A-track
+  number here was measured through. All six are fixed (`scripts/sweep_a13.py`, seven clauses,
+  `research/journal.md`); the deployed ORB book re-priced on the same 2,686 Alpaca sessions:
+
+  | | control (the harness A-10 ran) | corrected | paired difference |
+  | --- | --- | --- | --- |
+  | 2016-2019, 1,006 sessions | -$303.4/day, t -1.25 | -$269.3/day, t -1.11 | +$34.1, t +3.12 |
+  | 2020-2023, 1,006 sessions | -$528.6/day, t -1.19 | -$605.0/day, t -1.34 | -$76.4, t -1.00 |
+  | 2024-2026, 674 sessions | -$132.5/day, t -0.22 | +$71.4/day, t +0.11 | +$204.0, t +1.22 |
+  | **all, 2,686 sessions** | **-$344.9/day, t -1.41** | **-$309.6/day, t -1.24** | **+$35.3, t +0.69** |
+
+  (The control is worse than the -$289/day published above because two commits landed after A-10
+  ran: the sell-side regulatory fees A-5 part 2 measured that afternoon, -$45/day, and AUD-07's
+  calendar-aware flatten, -$20.8/day. Neither is an AUD-21 defect and both are correct.)
+
+  **Nothing in the decision changes.** The correction is worth +$35/day pooled at t +0.69 and its
+  sign flips across all three regimes, so it is noise in the P&L column; ORB alone is still a
+  losing book that cannot be rejected at two sigma, and the loop has not touched `equity_frac`,
+  which remains at the 0.25 set on 2026-09-11.
+
+  **What does change is the tail, and this is the part you have not been shown.**
+  `DAILY_LOSS_LIMIT` is **-2.5% of ACCOUNT NAV** (`intraday_trader.py:596`), while the sleeve is
+  only `equity_frac` of that account - so the live rule lets the sleeve lose **2.5% / 0.25 = 10% of
+  its own equity** in a day before it flattens. The harness charged the limit against sleeve equity,
+  i.e. **four times tighter**, and stopped the book out on **92 of 2,686 sessions the live trader
+  would have traded straight through**. With the live rule in force the worst day widens in every
+  regime - **-$26,826 -> -$33,445, -$30,902 -> -$46,850, -$34,300 -> -$45,283** on a $1,000,000
+  book - and the eleven-year worst day is **-$46,850, or 4.7% of the account in one session**,
+  against the -$34,300 in the tables above.
+
+  **The decision, and it is yours because it changes risk posture:** leave `DAILY_LOSS_LIMIT` as
+  -2.5% of account NAV (the sleeve's own stop is then -10% of sleeve equity, which is what is
+  running on paper now), or charge it against **sleeve equity**, which is what every backtest of
+  this sleeve has assumed and which caps a bad day at about a quarter of the current exposure. The
+  loop will not change it either way: it is a live risk constant in `scripts/intraday_common.py`
+  that the trader imports, and moving it needs a replay and your sign-off, not a research result.
+  At `equity_frac` 0.25 the practical cost of the tighter setting on eleven years of history is
+  **-$35/day of measured P&L, well inside one standard error** - so this is a preference about the
+  worst day, not a trade-off between return and risk.
+
 ## Open requests to the owner (2026-09-10, the 3-10%/day mandate)
 
 - **Options permission and data - now answered on the research side, and the answer is "not yet"

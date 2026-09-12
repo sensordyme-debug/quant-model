@@ -4,6 +4,111 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-12 - A-13 / AUD-21 (`iterate` track)
+
+**All six harness biases fixed, and priced on the book the owner is deciding about: they are worth
++$35/day in the mean (t +0.69, sign-inconsistent across regimes) and 37% in the tail. The audit's
+"all in its own favour" is wrong for the biggest of them - the harness was stopping the sleeve out
+on 92 of 2,686 sessions the live trader would have traded through, and hiding a worst day $12,551
+larger than any A-track table has ever shown.**
+
+`scripts/sweep_a13.py`, seven clauses pre-registered in its docstring, **7 DIAGNOSTIC ledger rows**
+under `intraday/active`, `tests/test_intraday_harness_bias.py` (12 tests), suite **473 pass**.
+Nothing under `live/` touched; `live/intraday_config.json` unchanged.
+
+**What was broken.** AUD-21 filed six defects in `scripts/intraday_backtest.py` and
+`algorithms/intraday/base.py`. Three can move a P&L and three are reporting:
+
+| # | defect | fixed to |
+| --- | --- | --- |
+| 1 | a pending order whose symbol printed no bar at the fill minute was booked at the **decision bar's own close** - zero latency, at a price that minute never showed - or dropped in silence if the symbol had not printed at all yet | held on the wire until the symbol prints, filled at that bar's open; sizing nets pending exactly as `intraday_trader.py:562` does (AUD-06's live rule, which the harness never had) |
+| 2 | the live loss limit is -2.5% of **account NAV**, the harness charged it against **sleeve equity**, so at the deployed `equity_frac` 0.25 the harness stopped the book **4x earlier than live** | `RISK["nav_frac"]` / `--nav-frac`; default 1.0 keeps every earlier row exact, and the harness now **prints a warning** whenever the run's base is tighter than the deployed sleeve's |
+| 3 | turnover divided by the equity the book started with | divided by mean equity over the run |
+| 4 | drawdown was end-of-day marks only | `max_drawdown_intraday_pct` on the full bar path, reported and recorded alongside the unchanged EOD figure |
+| 5 | `--split` recorded `end` on the in-sample row, a window it never ran | `split - 1 day` |
+| 6 | bar 0's true range used the **previous session's** close, so every overnight gap was one minute of range and `atr14` was inflated for minutes 4-13 | `close.groupby(day).shift(1)`; `features(df, gap_true_range=True)` reproduces the old one |
+
+**The price, on the deployed ORB book, Alpaca SIP, yearly-reset $1M, shipped costs** (`control` =
+the pre-fix harness, `all` = all three money defects fixed at the deployed `nav_frac` 0.25):
+
+| window | n | control $/day | t | corrected $/day | t | paired $/day | t | control worst day | corrected worst day |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2016-2019 | 1,006 | -303.4 | -1.25 | -269.3 | -1.11 | **+34.1** | +3.12 | -26,826 | **-33,445** |
+| 2020-2023 | 1,006 | -528.6 | -1.19 | -605.0 | -1.34 | **-76.4** | -1.00 | -30,902 | **-46,850** |
+| 2024-2026 | 674 | -132.5 | -0.22 | +71.4 | +0.11 | **+204.0** | +1.22 | -34,300 | **-45,283** |
+| **ALL** | **2,686** | **-344.9** | **-1.41** | **-309.6** | **-1.24** | **+35.3** | **+0.69** | **-34,300** | **-46,850** |
+
+**Clause by clause.**
+
+1. **Identity: PASS, and it reconciles to the cent-ish.** The `control` cell is the pre-fix harness
+   and should land on A-10's published `orb` row (-$65/day, 674 sessions, 39.1 tr/day, 30 stops,
+   $996 costs/day) rather than on the -$132.53 it prints. Sessions (674), trades/day (39.07 vs
+   39.1) and stop-outs (30 vs 30) match exactly; the $/day does not, and the gap is entirely two
+   commits made **after** A-10 ran (its row is stamped `20260910T084825Z`):
+   the sell-side regulatory fees added by `babee70` at 12:02 ET the same day (costs/day 996 ->
+   1,041 = **-$45/day**) and AUD-07's calendar-aware flatten `1311586`, isolated by
+   `scripts/_a13_flatten_check.py` at **-$20.76/day**. -65 - 45 - 21 = **-131.8 against -132.5**,
+   a residual of $0.77/day. Nothing in AUD-21 is responsible for any of it.
+2. **Direction: the audit is right about two defects and WRONG about the one that matters.** Fixing
+   the fill model costs the book -$1.19/day (paired t -0.82) and fixing `atr14` costs it
+   1.9e-11 $/day, both in the harness's favour as filed. Fixing the loss-limit base **improves**
+   the measured P&L by +$205.15/day on 2024-2026 and +$35.32/day pooled, because the harness was
+   *more* conservative than the live trader, not less. What the defect actually hid is the tail:
+   the worst day gets worse in **every one of the three regimes**, by $6,619 / $15,948 / $10,983.
+3. **Materiality: one of three.** Against the pre-registered 10%-of-|control| and 0.25-of-t
+   thresholds - **fill** 0.9% and Δt 0.002, **not material**; **atr** zero, **not material**;
+   **nav** 155% of |control| and Δt 0.330 on 2024-2026, **material**, and on the full history 10.2%
+   and Δt 0.170, material on one leg only.
+4. **The `atr14` prediction: PASS, and it is the cheapest result here.** `orb` reads `atr14` only
+   from minute 15, and a `rolling(14)` at positional index >= 14 no longer contains bar 0 - so the
+   defect can only bite where bars are MISSING at the open. Counted directly rather than inferred:
+   **0 of 10,784** (symbol, session) pairs on Alpaca 2024-2026 and **0 of 4,208** on the whole IBKR
+   store have their opening-range bar at positional index < 14, against **2,992 of 40,078 = 7.47%**
+   over the full eleven years, where the store thins out badly before 2020. Under the 10% clause.
+   The isolated `atr` cell confirms it: **0 of 674 sessions differ by as much as a cent**, mean
+   1.9e-11 $/day - at a paired **t of +1.93**, which is the sleeve's cleanest demonstration that a
+   t-statistic without a magnitude beside it is worth nothing.
+5. **nav direction: PASS.** Stop-outs 92 -> 0 over the full history (30 -> 0 on 2024-2026) and the
+   worst day is not improved anywhere.
+6. **Deploy gate: PASS.** `base.py` is loaded by the live trader, so the `atr14` fix is a live
+   change. `scripts/intraday_launch.py --preflight-only` passes, and replaying **2026-09-10**
+   through `intraday_trader.py` with the old and the new `features` gives the identical session -
+   *P&L -3,920 on 250,000, 45 trades, 368 decisions, flat at close* - which clause 4 predicts,
+   because the IBKR store has no sparse opening range anywhere in it.
+7. **Withdrawal: not triggered.** `--legacy-fills` / `--legacy-atr` / `nav_frac 1.0` reproduce the
+   old harness; the two fill models agree to the cent on any complete session, which is pinned in
+   `tests/test_intraday_harness_bias.py`.
+
+**Decision: all six fixes shipped, no research verdict overturned, one owner-facing number
+corrected.** The eleven-year answer for the deployed ORB book moves from A-10's published
+-$289/day to **-$310/day at t -1.24** - the same answer, still short of two sigma, so the open
+request in `BLOCKERS.md` is unchanged and no config was touched. The addendum filed there is the
+tail: **the live sleeve's real intraday stop is -10% of its own equity, not the -2.5% every A-track
+backtest enforced**, and on the eleven-year sample that is worth a worst day of **-$46,850 against
+the -$34,300 the owner has been shown**, on a $1M book. Whether the live limit should be charged
+against sleeve equity instead is a risk-posture change and therefore the owner's.
+
+**Two reusable rules.** (a) *When an audit says a defect favours the harness, that is a claim about
+sign and it has to be measured* - here the largest of the six ran the other way, and the reason is
+that a harness bias can be conservative in the P&L column while being reckless in the risk column;
+read both. (b) *A defect that is real can still be provably inert*, and the cheapest way to find
+out is to count how often its mechanism can reach the code that consumes it - one 40,078-row count
+settled `atr14` before any backtest ran, and told us why the answer is 0% on the store the sleeve
+trades and 7.47% on the store it is judged on.
+
+**One process note, because it will happen again.** Most of this iteration's harness hunks are not
+in this commit: a concurrent `eng` job ran `git add scripts/intraday_backtest.py` mid-iteration and
+swept them into **`25d30db` ("a standing data-validation gate...", AUD-13)**, along with 5 of the 7
+A-13 ledger rows. Nothing was lost and nothing is wrong in the code - it is now covered by
+`tests/test_intraday_harness_bias.py` and the suite is green - but git attributes the AUD-21 fix to
+an AUD-13 commit. AGENTS.md's "commit ONLY the files you touched" is not sufficient protection when
+two tracks hold edits in the same file at the same time; the rule that would have prevented it is
+**stage by path only after checking `git diff --stat` for hunks you did not write**.
+
+**Next:** AUD-16 [data, `iterate` scope] - `scripts/intraday_data.py` cannot extend the store and
+truncates the current session (all 16 symbols hold a 170-bar 2026-09-11), which is what keeps the
+execution-matched store from reaching A-5 part 2's end condition.
+
 ## 2026-09-12 - S-35 / AUD-12 (pointer; full entry in `research/journal_daily.md`)
 
 **One row in the ledger passes the promotion gate today and would put a strategy on the paper
