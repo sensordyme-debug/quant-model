@@ -6,6 +6,157 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-12 - F-11: rank on alpha net of the name's own round trip. The cost saving is real to five decimal places, the gross it buys back is pure noise, and the improvement in t is therefore not an improvement at all. Refused. The cost axis closes.
+
+**Hypothesis.** F-8 and F-10 both tried to make the numerator bigger - a better label, then more
+breadth. Neither touched the other side of the subtraction, and that is where most of the money
+is: **F-8 pays away 64% of its gross as cost** (4.256 bps per dollar turned against 2.724). The
+cost is not a constant of the book. IBKR charges $0.005 per **share**, so a round trip costs
+`2*1.5 + 2*50/price + 0.206 + 1.98/price` bps of the position, and on this universe that runs
+**3.40 bps (TMO at $516) to 11.08 bps (SOXS at $13)** - a 7.7 bps spread against a gross of ~8.5
+bps of position. **One name's round trip can eat the entire edge and another's costs nothing.**
+
+And a plain decile walks into it: ranking on predicted alpha alone buys the widest predicted
+moves, which here are the low-priced leveraged and reverse-split names. F-7 measured the premium
+from the other side ("1.7 bps of the 2.4 bps of extra cost is selection, not construction") and
+its conviction gate made it worse **by design**; the inverse has never been tried. F-11 changes
+the ranking and nothing else - `long = pred - lambda*c_i`, `short = -pred - lambda*c_i`, with
+**lambda = 1 the economically correct value** (both terms are basis points of the same position,
+so lambda = 1 is literally "rank on net alpha") and therefore the primary cell, fixed before any
+number was read.
+
+`scripts/ml_f11.py`, **13 DIAGNOSTIC ledger rows** under `intraday/f11_costaware` (the 12 control
+cells are in `data/f1/f11_costaware.csv`). Nine clauses pre-registered in the module docstring,
+including clause 0, the prior, written before a number was read: *"a partial win - cost down ~0.4
+bps, gross down ~0.3 bps, edge up ~0.1 bps, t landing near 1.6, better and still under the
+hurdle."* **Nothing is re-fitted**: F-8's frozen walk-forward predictions are re-read and only the
+*ranking* changes. **No shipped or runner-loaded file was touched**, so no deploy gate and no
+`--replay` is owed. Run with `INTRADAY_DATA_DIR=data/minute_alpaca`, `_splits.json` confirmed
+present.
+
+**(1) Clause 1 identity is exact.** lambda = 0 reproduces F-8 to the printed digit: gross
+**4.256**, cost **2.724**, net **$305.7/day**, t **+1.474** on 1,933 sessions.
+
+**(2) The lever does what it was built to do, and the ladder has a genuine interior optimum.**
+1,933 out-of-sample sessions, 2019-2026, turnover held at $1,995,861/day at every rung:
+
+| lambda | gross bps | cost bps | edge bps | net $/day | t | sd $/day |
+|---|---|---|---|---|---|---|
+| 0 (= F-8) | 4.256 | 2.724 | 1.532 | 306 | +1.47 | 9,118 |
+| 0.25 | 4.349 | 2.520 | 1.829 | 365 | +1.79 | 8,985 |
+| 0.5 | 4.309 | 2.398 | 1.911 | 381 | +1.93 | 8,690 |
+| **1 (primary)** | **4.063** | **2.250** | **1.813** | **362** | **+1.88** | 8,457 |
+| 2 | 4.178 | 2.090 | 2.089 | 417 | +2.26 | 8,101 |
+| 4 | 3.557 | 1.942 | 1.616 | 322 | +1.89 | 7,513 |
+| 8 | 3.080 | 1.841 | 1.238 | 247 | +1.57 | 6,934 |
+
+Cost falls **monotonically, 2.724 to 1.841** - and 1.5 bps of that is slippage, a shipped
+constant, so the ~1.22 bps commission-and-fees term is cut by **72%**. The mechanism is exactly
+the one claimed: name-days held move **SOXS -634, PLTR -325, INTC -210, UBER -206** and **NOW
++413, COST +410, AVGO +338, LLY +285**, i.e. the book stops renting the most expensive names.
+Clause 0's prior was close to right and if anything pessimistic (cost -0.47, gross -0.19, edge
++0.28, t 1.88).
+
+**(3) And it is refused, on the clause fixed before the run.** Clause 5 reads **lambda = 1 only**:
+**t +1.881 against a hurdle of 2.0**, 5/8 years positive against a hurdle of 5. **REFUSE.** The
+best cell on the test set is lambda = 2 at **t +2.26**, and clause 5 forbids reading it - it is
+selected on the same sessions it is scored on, and section (4) says why that matters more than
+usual here.
+
+**(4) The finding is the paired test, and it deflates everything above.** Comparing two separately
+noisy t's (+1.47 against +1.88) is the wrong statistic when both books trade the same sessions.
+Paired per session, lambda = 1 minus lambda = 0:
+
+| component | mean $/day | paired t |
+|---|---|---|
+| cost saved | **+95** | **+41.67** |
+| gross given up | -39 | -0.48 |
+| **net** | **+56** | **+0.70** |
+
+**The cost saving is deterministic - t +41.67, it is arithmetic on a known price - and the gross
+it costs is indistinguishable from noise.** The net improvement is therefore **+$56/day at t
++0.70, positive on only 45% of sessions**: the median session is *worse* and the mean is carried
+by a right tail. So "t 1.47 -> 1.88" is **not a measured improvement**; it is one draw of a
+difference this data cannot resolve, and the same sentence disposes of the lambda = 2 cell's
++2.26. Split in half by time the paired delta is **+$42 (t +0.35)** on 2019-01..2022-10 and
+**+$71 (t +0.67)** on 2022-11..2026-09 - same sign, same non-significance, in both halves.
+
+**(5) Clause 4's control passes on both limbs, and coded as a gate this time.** (F-10's post-run
+defect (i) was a clause written as a gate and coded as a remark.) Per-timestamp scrambled
+predictions, 3 seeds per cell: the zero-forecast book's **gross stays at zero under cost-aware
+ranking at every lambda** (mean gross t **-0.90 / -0.20 / -0.34 / -1.39**), so the lever is not a
+static short-the-leveraged-sleeve tilt dressed up as a forecast. And the control's cost falls too,
+2.236 to 1.998 - **50% of the real book's 0.475 bps drop** - which passes clause 4(ii) and also
+explains the other half: the real book started at 2.724 against the control's 2.236, i.e. it was
+carrying F-7's **+0.488 bps selection premium**, and lambda removes the premium *and* part of the
+base. That is the mechanism claimed, measured from the null side.
+
+**(6) Clause 6's decomposition says the change is a mean effect, which is the good direction.**
+mean x1.184, sd x0.928, t x1.276 - 72% of the t change is the mean channel. Unlike F-10's breadth
+curve, this is not a smoothing artifact. It is simply too small to resolve.
+
+**(7) The blunt version is worse, and non-monotonically so.** Hard price floors at lambda = 0:
+$25 -> net $286 (t +1.56), **$50 -> net $62 (t +0.39)**, $100 -> net $256 (t +1.56). A floor
+throws the name out of the *universe*; lambda only makes it pay for its place, so a floor
+destroys gross (2.25 bps at $50) that lambda keeps. **A continuous cost penalty strictly dominates
+an eligibility filter** - the one clean, reusable result in this file.
+
+**(8) The gate is the cell a live desk would actually want, and it still does not pass.** Trading
+only names whose own net score is positive holds **4.5 names instead of 11.4** and turns
+**$790k/day instead of $1.996M** - **40% of the turnover for 95% of the net** ($289/day, t +1.85),
+at **6.214 bps gross per dollar turned**, the highest gross-per-dollar anywhere on this track
+except F-7's conviction cell. If any F-track construction is ever revived for an execution-limited
+book, this is the one; it is not revived here, because its t is 1.85.
+
+**(9) Regimes, which the brief asks for explicitly.** The cost cut helps everywhere and does not
+rescue the dead regime: low vol goes **-$69/day (t -0.22) to +$22/day (t +0.08)**, mid vol $452 ->
+$464, high vol **$534 (t +1.28) -> $601 (t +1.60)**. F-8's and F-10's volatility finding stands -
+low vol is flat at best - and the improvement is broad rather than concentrated in one third.
+
+**(10) Feature-importance stability, the brief's second criterion.** Over F-8's 8 test years and
+38 features: mean pairwise Spearman of the yearly rankings **+0.434** (min +0.147, max +0.798),
+mean top-10 overlap between year pairs **44%**, and **no feature is in the top 10 of every year**.
+The volatility family is what persists (`vol_rel6` rank mean 6.8, `m_rvol_ratio` 7.5,
+`rvol_ratio` 7.9, `cs_rvol_ratio` 10.1) but each swings by 20-30 ranks across years. **The model
+re-selects its inputs substantially at every retrain**, which is consistent with a forecast whose
+IC is +0.02 and whose book cannot reach t = 2: there is a persistent volatility signal underneath
+and a lot of year-specific noise on top.
+
+**(11) Two defects in this file's own first cut, declared separately from the pre-registration.**
+**(i) The units were wrong.** `sweep_f1.fit_predict` trains on `y * 1e4`, so **`pred` is already
+in basis points**; the first cut multiplied it by 1e4 again, making lambda = 1 behave as
+lambda = 1e-4 and flattening the whole ladder to within $14/day. **Clause 1 caught it** - the
+identity check failed, the run was declared void by its own rule, and nothing was read. That is
+the second time a clause written before the numbers has stopped a wrong result on this track.
+**(ii) The greedy selection broke exact prediction ties in the opposite direction from F-8's
+`argsort`**, which the tree emits often (identical leaf values); it moved the base cell by $5/day
+and 0.03 of t on 316 of 1,933 sessions. lambda = 0 now delegates to F-8's own `_decile` so the
+identity is exact by construction, and a `lambda 0 (greedy)` rung is reported beside it so the
+ladder's first step is not read as a cost effect.
+
+**Decision.** **REFUSE.** The cost axis is now closed, and it closes with a bound rather than a
+verdict: cost is floored by slippage at 1.5 bps of turnover, lambda = 8 already removes 72% of
+everything above that floor, and the book still reaches only t +1.57. **Removing the entire
+commission dispersion cannot clear the hurdle, so nothing on this axis can.** Nothing deployed,
+nothing promoted, `champion.json` untouched.
+
+**What it changes for the loop.** The reusable rule is a paired one, and it is the twin of F-10's:
+**an improvement that is a certainty on one side of a subtraction and noise on the other must be
+tested paired on the shared sessions, not by comparing the two books' t's.** Here a cost saving
+with t = +41.67 bought a net improvement with t = +0.70, because the gross it sacrificed has a
+standard error twenty times its mean - and a side-by-side reading of 1.47 against 1.88 shows none
+of that. The secondary rule is (7): **a continuous cost penalty dominates an eligibility filter**,
+which applies to every sleeve in this repository that has ever considered a price or liquidity
+floor.
+
+**Next.** Nothing open on the ML track. F-1/F-3 priced the method, F-7 the book, F-8 the label and
+horizon, F-10 the breadth, and F-11 the cost. All five axes of F-1's forecast are now measured and
+the forecast clears its cost line by +1.8 bps per dollar turned and cannot reach t = 2 on the data
+that exists. Reopening the supervised class needs a **new mechanism** - a different instrument, a
+different frequency, or a different label family - not another construction on this one.
+
+---
+
 ## 2026-09-12 - F-10: breadth does not buy the power F-9 assumed. 57% of the curve is a channel a zero-forecast book gets too, 43% is a channel clause 5 says reverses, and the only correctly-specified ceiling is 2.34. F-9 refused; the D track does not build a 500-name store on this rationale.
 
 **Hypothesis.** F-8 closed the F track with a positive edge column (+1.532 bps per dollar turned)

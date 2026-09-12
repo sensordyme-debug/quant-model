@@ -2004,6 +2004,40 @@ and no delivery, both of which are barred to the loop.
   bug in `scripts/ml_f7.py` `vol_regime()` (date vs string keys) that made F-7's clause-6 regime
   table silently return "n/a" for every session.
 
+- **F-11 DONE 2026-09-12 (REFUSED; see `research/journal_ml.md`): the cost axis is closed, and the
+  paired test is the finding.** F-8 pays away 64% of its gross as cost, and cost is a property of
+  the *names chosen*: IBKR's $0.005 per share makes a round trip run 3.40 bps (TMO at $516) to
+  11.08 bps (SOXS at $13) of position, and a plain decile buys the widest predicted moves, which
+  are the cheap leveraged names. F-11 ranks on alpha net of each name's own round trip
+  (`long = pred - lambda*c_i`, `short = -pred - lambda*c_i`; lambda = 1 is the economically correct
+  value and the pre-registered primary cell), nothing re-fitted. `scripts/ml_f11.py`, 13 DIAGNOSTIC
+  rows under `intraday/f11_costaware`, clause 1 identity exact at gross 4.256 / cost 2.724 / t
+  +1.474. **The lever works**: cost falls monotonically 2.724 -> 1.841 bps (72% of the addressable
+  commission term), SOXS -634 name-days and NOW +413, and lambda = 1 reads net $362/day at **t
+  +1.881** against F-8's $306 at +1.474. **REFUSED on clause 5** (hurdle t > 2). **The paired test
+  is why that is not close**: per session, the cost saved is **+$95/day at t +41.67** - arithmetic
+  on a known price - while the gross given up is **-$39/day at t -0.48**, so the net improvement is
+  **+$56/day at t +0.70, positive on only 45% of sessions**, same sign and same non-significance in
+  both halves of the window. Comparing 1.47 with 1.88 side by side shows none of that, and the same
+  sentence disposes of the lambda = 2 cell's t +2.26 (selected on the test set). Controls pass as a
+  gate on both limbs: zero-forecast gross stays flat at every lambda (t -0.90/-0.20/-0.34/-1.39) and
+  the control's cost drop is 50% of the real one, which is F-7's +0.488 bps selection premium being
+  removed. **The refusal is a bound, not a verdict**: slippage floors cost at 1.5 bps of turnover,
+  lambda = 8 already removes 72% of everything above it, and the book still reaches only t +1.57 -
+  so nothing on the cost axis can clear the hurdle. Reusable rules: (a) **an improvement that is
+  certain on one side of a subtraction and noise on the other must be tested paired on the shared
+  sessions, never by comparing the two books' t's**; (b) **a continuous cost penalty strictly
+  dominates an eligibility filter** - hard price floors at $25/$50/$100 give net $286/$62/$256
+  (non-monotone) because a floor destroys gross that lambda keeps. By-product for any
+  execution-limited book: the net-score gate holds 4.5 names instead of 11.4 and turns $790k/day
+  instead of $2.0M - **40% of the turnover for 95% of the net**, at 6.214 bps gross per dollar
+  turned. Feature-importance stability over 8 test years: mean pairwise Spearman **+0.434**, top-10
+  overlap 44%, **no feature in the top 10 of every year**; the volatility family persists
+  (`vol_rel6`, `m_rvol_ratio`, `rvol_ratio`) but swings 20-30 ranks. All five axes of F-1's forecast
+  are now priced (method, book, label/horizon, breadth, cost). **The ML track has nothing open;
+  reopening the supervised class needs a new mechanism - a different instrument, frequency or label
+  family - not another construction on this forecast.**
+
 - **F-9 (REFUSED 2026-09-12 by F-10 - do not build the store on this rationale).** F-10 priced
   F-9's premise on the 56 names already on disk, with F-8's predictions frozen and only the book's
   universe subsampled (`scripts/ml_f10.py`, 9 DIAGNOSTIC rows under `intraday/f10_breadth`, clause 1
