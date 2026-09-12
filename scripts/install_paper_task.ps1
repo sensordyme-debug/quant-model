@@ -21,7 +21,7 @@ $python = (& python -c "import sys; print(sys.executable)").Trim()
 if (-not (Test-Path $python)) { throw "could not resolve the python executable (got '$python')" }
 $action = New-ScheduledTaskAction -Execute $python -Argument "`"$repo\scripts\paper_trade.py`"" -WorkingDirectory $repo
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At 15:45
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 20) -StartWhenAvailable
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 20) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings `
     -Description "Rebalance the IBKR paper account with the champion strategy (scripts/paper_trade.py)" -Force | Out-Null
 Write-Host "registered '$taskName': $python $repo\scripts\paper_trade.py at 15:45 Mon-Fri"

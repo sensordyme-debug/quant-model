@@ -3233,3 +3233,34 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   enforces the min-trades and drawdown rules and promotes only on a pass. Verified on the
   D-1 run, which it correctly refused (14 orders < 30, drawdown 72.7% > 35%). Parameter
   sweeps split out to E-2.
+
+## Audit 2026-09-12 (operator) - fix through the normal gates, one item per iteration
+
+Full findings with file:line, failure scenario and fix: `research/audit_2026-09-12.md`. Items
+carry the owning track in brackets; record each fix in that track's journal and keep the
+`--replay`, `compare_orders.py` and `tests/` gates green. Order is by what it can cost.
+
+- **AUD-02 [eng]** `paper_trade.py:411` no floor on `net_liq`; an empty account summary liquidates the book. Exit 3 + notify on `<= 0` or a >50% move vs `last_run.json`.
+- **AUD-03 [eng]** `paper_trade.py:493-497` the foreign filter drops legacy holdings whenever an intraday position exists; use `s not in _INTRADAY_UNIVERSE`. Add a test.
+- **AUD-04 [eng]** `paper_trade.py:506-522` mock/dry runs overwrite `live/state/last_run.json` (it holds `equity 100000` now); `held_age` counts runs not sessions.
+- **AUD-05 [eng]** `intraday_trader.py:85` a symbol without a bar this minute is marked at $0 and can trip the loss limit; keep `last_px`, exclude unmarked names, alert.
+- **AUD-06 [eng]** `intraday_trader.py:319-333` in-flight orders are invisible to sizing and the flatten (duplicate sends every minute); net pending qty from the executor; lazy `FakeExecutor` in tests.
+- **AUD-07 [eng+iterate]** no exchange calendar: half-days never flatten live (`FLATTEN_MINUTE` unreachable, RTH feed stops at 12:59), the harness closes silently at 12:59, the Alpaca store keeps after-hours bars on 21 early closes; holidays fire both tasks. Next early close 2026-11-27.
+- **AUD-08 [eng]** start-up/`--flatten` sell the book not the account; daily HALT path sells intraday names; outside-RTH submits queue to the next open. Reconcile against `ib.positions()`, cancel open INTRADAY orders at start-up, refuse outside RTH.
+- **AUD-09 [eng]** `--feed auto` always Yahoo (09:25 probe), no IB re-subscribe on reconnect, uncaught crashes leave no alert, `notify()` before the loss-limit submit, NaN price skips the step.
+- **AUD-10 [daily+critic]** `evaluate.py --promote` leaves `stats_by_spread` stale so the next candidate is judged against the old champion.
+- **AUD-11 [daily]** the "OOS 2020-2026" label is a sub-period of full-period parameter selection; relabel or re-select on 2012-2019.
+- **AUD-12 [daily+eng]** runner and gate always trade `Params()`; a promotion carrying `S1_*` env would pass the gate and trade something else.
+- **AUD-13 [daily+eng]** no data-completeness gate in the runner: a missing SPY column flattens the whole book.
+- **AUD-14 [eng+critic]** no track guard in `evaluate.py`; intraday rows carry `commit ""`; `OrderListHash` not captured into the ledger.
+- **AUD-15 [data]** the IBKR minute store is split-adjusted but treated as raw: SOXS/NFLX per-share commission understated up to 100x in IBKR-store backtests; write `data/minute/_splits.json`.
+- **AUD-16 [data]** `intraday_data.py` cannot extend the store and truncates today's session (all 16 symbols hold a 170-bar 2026-09-11).
+- **AUD-17 [data]** LEAN daily store writes adjusted prices as raw with split factor 1; per-share fees charged on adjusted share counts.
+- **AUD-18 [ml]** F-3's IC t-stat is naive on overlapping 5-day labels (NW t ~1.2, not 2.17); no embargo.
+- **AUD-19 [ml]** F-7 draft: persistence table is a composition artifact; best cell chosen on the test window; report 2019-23 separately.
+- **AUD-20 [ml]** F-1 row-based shifts on an irregular 5-min grid (SOXS 16.6% of sessions affected).
+- **AUD-21 [iterate]** harness: missing-bar fills at the decision close, loss-limit base mismatch vs live, bar-0 true range includes the overnight gap.
+- **AUD-22 [eng]** dashboard: open orders frozen at connect, unbounded `nav_history`, no TrustedHost, NAV-append failure drops the IB session, `/api/logs` unredacted.
+- **AUD-24 [data]** events/options caches marked complete when partial; `iv_regime` holiday-week holes; error-162 silence; `save_bars` lock.
+- **AUD-25 [daily]** `ML_MODE="rank"` gates on sign; `Params` window guard incomplete; `--history ib` clock convention.
+- **AUD-01 [ops]** DONE in the installers (battery flags); the operator must re-run `install_intraday_task.ps1` and `install_paper_task.ps1` once. **AUD-23 [ops]** DONE: gateway watchdog task.
