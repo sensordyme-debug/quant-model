@@ -17,6 +17,57 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-12 07:0x UTC (F-6): **the overnight gap does not reverse during the session on the
+56 names this sleeve may trade - the effect is ABSENT, not unaffordable, and S-27's by-product
+does not transport.** S-27 filed one number post hoc and explicitly did not pursue it: on the
+daily champion's nine ETFs an overnight-momentum score forecasts the next *intraday* leg at
+**-2.230 bps/day, t -3.30**, sign-stable in both halves, parked because those nine names are
+barred to the intraday sleeve by AGENTS.md's disjointness rule and because a tradable version
+needs its own pre-registration and an instrument. F-6 supplies all three: the same shape at its
+shortest horizon (the single overnight gap `open[d]/close[d-1]-1` fading during session `d`), on
+the **56 permitted names**, on `data/minute_alpaca`. New `scripts/sweep_f6.py` on X-1's
+primitives unchanged (`_panel_job`, `_cost_bps`, `_cluster_t`), so X-1, F-4 and F-6 span identical
+calendars leg for leg; **2,647 sessions, 2016-01-05..2026-09-09, 14,510,968 legs**; nine clauses
+pre-registered, one of them (9) labelled as a post-hoc extension and counted as one.
+**(1) 0 of 336 net** (3 lookbacks x 7 entry minutes x 2 exits x 2 books x 2 selections, both
+signs) and **0 of 168** on the second screen - *effect present but unaffordable?* - with **0 of
+504 regime-cells** reaching t < -2 in the fade direction. **(2) Clause (6)'s written-down sign is
+REFUTED, and that is the finding**: **156 of 168 pooled gross columns are POSITIVE** (the gap
+extends, it does not fade) and **the largest |t| anywhere is 2.08**, 1.86 on the tradable
+`flatten` exit. The pre-registered primary (dollar-neutral, all names, lookback 1) reads +0.10 /
++1.04 / **+1.29** / +1.02 / +0.06 bps at t +0.10 / +1.34 / **+1.86** / +1.83 / +0.16 entering
+09:31 / 10:01 / 10:31 / 11:31 / 13:31, hit rate 49.5-50.1%, breadth -0.027. **(3) So this is NOT a
+cost refusal, which separates it from most of the file**: L-1, X-1, F-1 and F-3 found something
+and could not afford it; F-6 finds nothing to afford. Strongest pooled *fade* anywhere **-0.32 bps
+at t -0.43**, a breakeven of **0.32 bps** against this store's **4.59** - **even F-2a's 0.488 ES
+contract would not clear it**, and one future cannot carry a 56-name cross-section, so F-4's rule
+applies a third time: a cheap instrument cannot buy a gross column that is the wrong sign and
+insignificant. **(4) The post-hoc extension, run because the lookback-1 table does not close the
+question S-27 posed** (its object is a 20/60/120/252-day blend, not one gap): the same grid at the
+**compounded overnight return of the last 5 and 20 sessions**, with L=1 reproducing the first
+table bit-for-bit as the identity check. 56 cells become 168, so ~15 chance passes would be
+expected at t > 2 and the actual count is **zero**; pooled neutral/all best cells are **+0.94
+(t +1.39)** at L=5 and **+0.36 (t +0.50)** at L=20. **S-27's by-product does not transport.**
+**(5) The raw book fails F-5's control**: reversal-minus-always-long is negative at all 42 pooled
+cells (best t -2.03) while the always-long drift over the same windows is +0.6 to +3.1 bps - a
+small long-the-market bet with no forecasting content, exactly F-5's diagnosis on the indices.
+**(6) Two contaminants stated in advance rather than assumed away**, both of which would have
+*inflated* a fade: the store is split-adjusted but **dividend-raw** (ex-dates print spurious down
+gaps on ~1% of name-days) and earnings gaps cannot be excluded historically (FMP basic serves only
+a window around today), which is why `all` and `q20` were reported side by side. **Nothing
+shipped, nothing promoted, no default changed**: champion unchanged at S-18, `champion.json`,
+`live/*` and all three scheduled tasks untouched, `late_momo` still at alloc 0.0, one new script
+only so rule (a) owes no replay and the I-1 gate is unaffected. **No ledger rows**, on F-4's and
+F-5's precedent. **Standing jobs both ran first with no new input** (Saturday):
+`slippage_report.py` 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90; `daily_fills.py` 10 fills /
+$2.37M / **+3.2 bps (se 4.5)**, `ref_price` the previous close 10 of 10. **What it changes for the
+loop**: the reusable rule is that **a post-hoc result measured on nine correlated ETFs is a
+hypothesis about that universe, not about the mechanism** - a by-product filed from the daily
+sleeve owes a transport test before it is treated as a lead for the intraday sleeve, and F-6 is
+the cheapest form of that test. It also removes the last intraday item with a stated mechanism and
+a permitted instrument, so the current objective's own instruction now applies: say so rather than
+find a twelfth lever.
+
 Status 2026-09-12 06:0x UTC (S-27): **the leg that pays is not forecast by its own history - the
 champion's close-to-close score beats overnight momentum at predicting the overnight leg, so
 S-25's split is an attribution and not a signal recipe.** S-25 and S-26 both asked what this
@@ -1448,6 +1499,36 @@ ranking. A sweep rejection is therefore grounds for one LEAN confirmation run, n
 an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
+
+- **F-6 DONE 2026-09-12 (see journal): refused, 0 of 336 - and refused on ABSENCE rather than on
+  cost, which is a mode this file has produced only three times.** F-6 took the one number S-27
+  filed post hoc and did not pursue (an overnight-momentum score forecasting the next *intraday*
+  leg at -2.230 bps/day, t -3.30, on the daily champion's nine ETFs) and gave it the three things
+  it was missing: a **permitted universe** (the 56 names disjoint from the daily sleeve), an
+  **instrument this sleeve already owns**, and its own pre-registration.
+  `scripts/sweep_f6.py` on X-1's primitives unchanged; **2,647 sessions / 14,510,968 legs,
+  2016-01-05..2026-09-09**; nine clauses, one labelled post hoc and counted as one.
+  **0 of 336 net** and **0 of 168** on the effect-present-but-unaffordable screen, with **0 of 504
+  regime-cells** reaching t < -2 in the fade direction. **Clause (6)'s written-down sign is
+  refuted**: **156 of 168** pooled gross columns are POSITIVE (the gap extends), and **the largest
+  |t| anywhere is 2.08** - nothing reaches significance in either direction before a cent of cost.
+  Primary (neutral, all names, single gap): +0.10 / +1.04 / **+1.29** / +1.02 / +0.06 bps at
+  t +0.10 / +1.34 / **+1.86** / +1.83 / +0.16 entering 09:31 / 10:01 / 10:31 / 11:31 / 13:31, hit
+  rate 49.5-50.1%. **Not a cost refusal**: the best pooled fade is -0.32 bps (t -0.43), a
+  **0.32 bps breakeven** against this store's 4.59 - **even F-2a's 0.488 ES contract would not
+  clear it**, and one future cannot carry a 56-name cross-section. **S-27's by-product does not
+  transport**: the same grid at the compounded overnight return of the last 5 and 20 sessions
+  (L=1 reproducing the first table bit-for-bit as the identity check) gives zero passes where ~15
+  would be expected by chance, best cells +0.94 (t +1.39) and +0.36 (t +0.50). **The raw book
+  fails F-5's always-long control** at all 42 pooled cells (best t -2.03). **Do not re-open as an
+  entry-minute, lookback, selection, exit or book question** - the grid spans all five on 2.6M
+  sessions-worth of legs and the gross column is the wrong sign at every one of them. One durable
+  piece survives: the rule that **a post-hoc result measured on nine correlated ETFs is a
+  hypothesis about that universe, not about the mechanism**, so a by-product filed from the daily
+  sleeve owes a transport test before it becomes an intraday lead - and `sweep_f6.py` is that test
+  in its cheapest form. **It also removes the last intraday item with a stated mechanism and a
+  permitted instrument**, so the Current objective's own instruction applies from here: say so
+  rather than find a twelfth lever.
 
 - **S-27 DONE 2026-09-12 (see journal): refused - the overnight leg is not forecast by its own
   history, so S-25's split is an attribution and not a signal recipe.** `scripts/sweep_s27.py`,
