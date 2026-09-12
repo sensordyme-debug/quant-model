@@ -63,7 +63,7 @@ class ResourceSnapshot:
     commit_limit: int
     commit_avail: int
     cpu_count: int
-    ts: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
+    ts: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.UTC))
 
     @property
     def used_phys(self) -> int:
@@ -212,13 +212,13 @@ class WorkerRecord:
     experiment_id: str
     purpose: str
     pid: int
-    started: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
+    started: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.UTC))
     rss_mb: float = 0.0
     cpu_pct: float = 0.0
 
     @property
     def age_s(self) -> float:
-        return (dt.datetime.now(dt.timezone.utc) - self.started).total_seconds()
+        return (dt.datetime.now(dt.UTC) - self.started).total_seconds()
 
     def alive(self) -> bool:
         """Whether the PID still exists.

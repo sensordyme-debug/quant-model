@@ -1,0 +1,111 @@
+# Ruff configuration for quant-model.
+#
+# CALIBRATION, NOT ASPIRATION
+# ---------------------------
+# Measured before writing this file: the full ruleset below reports 1,428 findings across
+# scripts/ and algorithms/ (32k lines written over five days by six concurrent tracks) and
+# 64 across quant_brain/ and tests/. A gate that fails on 1,428 findings on day one is a
+# gate that gets switched off in week one, so this config is deliberately two-tier:
+#
+#   quant_brain/, tests/     full ruleset, enforced, must stay clean
+#   scripts/, algorithms/    high-signal bug rules only; style and modernisation are
+#                            advisory (see scripts/qb_check.py --advisory)
+#
+# The legacy tier tightens by deleting lines from `per-file-ignores`, one rule family at a
+# time, each with its own commit and test run. It is not meant to stay this loose.
+#
+# WHY py311 AND NOT py314
+# -----------------------
+# This repository runs two interpreters: LEAN is hosted by pythonnet on 3.11, and everything
+# touching parquet runs on 3.14 (3.11 has no pyarrow). Targeting the LOWER version means
+# ruff never suggests a modernisation that would break the LEAN-side import. See
+# quant_brain/core/provenance.py for the environment-drift problem this is part of.
+
+target-version = "py311"
+line-length = 100
+
+extend-exclude = ["results", "data", "__pycache__", ".pytest_cache", "live/log", "live/state"]
+
+[lint]
+select = [
+    "E",     # pycodestyle
+    "F",     # pyflakes - the real-bug family
+    "I",     # import sorting
+    "UP",    # pyupgrade
+    "B",     # bugbear
+    "DTZ",   # naive datetime - this system is tz-critical and AUD-07 is exactly this class
+    "PD",    # pandas-vet - flags idioms whose semantics moved between pandas 2.2 and 3.0
+    "NPY",   # numpy deprecations, with two numpy minors in play
+]
+
+ignore = [
+    # A bare `except Exception` around a notify/log path is deliberate throughout the
+    # runners: a failed alert must never take down a trading loop.
+    "B008",
+    # Assert is the test suite's whole vocabulary.
+    "S101",
+    # UP042 wants `enum.StrEnum` instead of `class X(str, enum.Enum)`. Declined: the two
+    # differ in `__str__` (StrEnum returns the bare value, the mixin returns "Class.MEMBER"),
+    # and prop-firm profiles and provenance records are JSON files that round-trip through
+    # these enums. Changing the string form would silently alter every serialised profile
+    # already on disk. The mixin is the deliberate choice, not a legacy one.
+    "UP042",
+]
+
+[lint.per-file-ignores]
+# ---- legacy research and runner code -------------------------------------------------
+# Everything NOT in this list is enforced on scripts/ and algorithms/ too. What remains
+# enforced there is the part that catches real defects: F811 redefinition, F401/F841 dead
+# names, F63/F7 comparison and syntax mistakes, E9 syntax errors, and NPY.
+#
+# F821 is ignored here for a specific, verified reason: it fires on `scripts/ml_f7.py:295`
+# (`last_px`, `last_syms`) where the names are loop-carried - assigned at line 333, read on
+# the next iteration - and the first-iteration path is guarded by `if prev_w:`, which is
+# empty then. Ruff cannot prove the guard implies binding. Verified by hand; not a bug.
+# Re-enable this rule the moment that pattern is refactored.
+#
+# I001 is ignored here because its FIX IS DANGEROUS in this tree, not because the finding is
+# uninteresting. These modules do `sys.path.insert(...)` and then import sibling scripts by
+# bare name - that is why they carry `# noqa: E402`. Sorting their import block can hoist
+# `from lean_prices import load_ohlcv` above the path setup that makes it importable, which
+# turns a lint autofix into an ImportError in a sweep or, worse, in a runner. Any import
+# tidying in scripts/ must be done by hand, by the owning track, with the suite run after.
+#
+# F401 / F841 (3 unused imports, 9 unused variables) are real dead-code findings and are
+# suppressed only so the BLOCKING gate can be green today; `scripts/qb_check.py --advisory`
+# still reports them. They belong to the tracks that own those files, not to eng.
+"scripts/**" = ["E501", "E741", "E702", "B905", "B007", "B023", "UP", "PD", "DTZ", "F403", "F405", "F541", "F821", "I001", "F401", "F841"]
+"algorithms/**" = ["E501", "E741", "E702", "B905", "B007", "B023", "UP", "PD", "DTZ", "F403", "F405", "F541", "F821", "I001", "F401", "F841"]
+
+# ---- tests ----------------------------------------------------------------------------
+# E501: long parametrize tables and deliberate edge-case values read better unwrapped.
+# DTZ: a test fixture that constructs a naive datetime is usually constructing the exact
+# thing under test - `tests/test_paper_sizing.py` builds naive MOO clock times on purpose to
+# exercise the runner's own tz handling. Requiring tzinfo there would test the fixture, not
+# the runner. DTZ stays enforced on quant_brain/, which is where a naive datetime is a bug.
+"tests/**" = ["E501", "DTZ001", "DTZ011", "DTZ007"]
+
+# ---- the futures contract table ----------------------------------------------------------
+# CONTRACTS is a column-aligned table of contract terms. Wrapping those rows to 100 columns
+# would break the alignment that makes a wrong multiplier visible at a glance, which is the
+# whole reason the table is formatted that way.
+"quant_brain/markets/futures_cme/instruments.py" = ["E501"]
+
+# ---- the sweep archive ------------------------------------------------------------------
+# sweep_*.py are one-shot experiments, kept as the executable record of a result rather than
+# as maintained code. Holding them to import hygiene would mean editing finished experiments,
+# which changes what the ledger's rows refer to.
+"scripts/sweep_*.py" = ["E501", "E741", "E702", "B905", "B007", "B023", "UP", "PD", "DTZ",
+                        "F403", "F405", "F541", "F821", "F401", "I001"]
+"scripts/_*.py" = ["E501", "E741", "E702", "B905", "B007", "B023", "UP", "PD", "DTZ",
+                   "F403", "F405", "F541", "F821", "F401", "I001"]
+
+[lint.isort]
+known-first-party = ["quant_brain"]
+
+[format]
+# `ruff format` is NOT wired into the gate. Six agent tracks edit this working tree
+# concurrently; a repo-wide reformat would produce merge chaos in every in-flight branch.
+# Run it deliberately on a quiet day, on one directory at a time.
+quote-style = "double"
+indent-style = "space"

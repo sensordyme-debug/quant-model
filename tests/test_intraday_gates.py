@@ -6,10 +6,9 @@ executor so a refactor of the loop cannot silently disarm one.
 """
 from __future__ import annotations
 
+import intraday_trader as it
 import pandas as pd
 import pytest
-
-import intraday_trader as it
 from intraday_common import DAILY_LOSS_LIMIT, FLATTEN_MINUTE
 
 NAV = 1_000_000.0
@@ -210,7 +209,9 @@ def test_a_strategy_exception_while_holding_exits_the_position(sink):
 
 def test_a_strategy_returning_none_is_treated_as_flat():
     strat = FakeStrategy()
-    strat.decide = lambda *a, **k: None
+    # setattr rather than direct assignment: `decide` is defined on the class, and a type
+    # checker reads an instance-attribute assignment as shadowing a method it cannot verify.
+    setattr(strat, "decide", lambda *a, **k: None)  # noqa: B010
     t, ex = make(strat, pos={"NVDA": 500}, cost={"NVDA": -50_000.0})
     t.step(bar(10, 0), {}, {"NVDA": 100.0}, NAV)
     assert ex.submitted == [{"NVDA": -500}]

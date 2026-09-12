@@ -9,11 +9,9 @@ that makes it true, in a second and without LEAN.
 from __future__ import annotations
 
 import datetime as dt
-import math
-
-import pytest
 
 import paper_trade as pt
+import pytest
 
 
 # --------------------------------------------------------------------------- the no-trade band
@@ -177,7 +175,7 @@ def test_call_signal_passes_only_the_arguments_the_signal_declares():
 
     sig = type("S", (), {"target_weights": staticmethod(target_weights), "PARAMS": {"k": 1}})
     state = {"signal_state": {"prev": 3}}
-    w, diag = pt.call_signal(sig, closes=None, as_of="2026-09-11", state=state)
+    w, _diag = pt.call_signal(sig, closes=None, as_of="2026-09-11", state=state)
     assert w == {"SPY": 1.0}
     assert seen == {"as_of": "2026-09-11", "params": {"k": 1}, "state": {"prev": 3}}
 

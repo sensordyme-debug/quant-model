@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import datetime as dt
 import enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from quant_brain.core.instruments import InstrumentSpec
 
@@ -33,7 +33,7 @@ class Side(str, enum.Enum):
         return 1 if self is Side.BUY else -1
 
     @classmethod
-    def of(cls, quantity: float) -> "Side":
+    def of(cls, quantity: float) -> Side:
         """The side that a signed quantity implies."""
         return cls.BUY if quantity >= 0 else cls.SELL
 
@@ -84,7 +84,7 @@ class OrderIntent:
     def is_flatten(self) -> bool:
         return self.order_type is OrderType.FLATTEN
 
-    def with_quantity(self, quantity: float) -> "OrderIntent":
+    def with_quantity(self, quantity: float) -> OrderIntent:
         """A copy at a new size. How the risk layer reduces an order without mutating it.
 
         Frozen dataclass plus explicit copy means a risk engine cannot accidentally change an

@@ -152,7 +152,7 @@ class PropFirmProfile:
         return json.dumps(d, indent=2, sort_keys=True)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "PropFirmProfile":
+    def from_dict(cls, d: dict) -> PropFirmProfile:
         d = dict(d)
         d["trailing_mode"] = TrailingMode(d.get("trailing_mode", "eod"))
         d["blackout_windows"] = tuple(
@@ -169,7 +169,7 @@ class PropFirmProfile:
         return cls(**{k: v for k, v in d.items() if k in known})
 
     @classmethod
-    def load(cls, path: str | Path) -> "PropFirmProfile":
+    def load(cls, path: str | Path) -> PropFirmProfile:
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
@@ -544,7 +544,8 @@ def evaluate(profile: PropFirmProfile, paths: list[list[SessionPnL]]) -> Evaluat
         failure_rates={k: v / n for k, v in counts.items()},
         median_days_to_resolve=statistics.median([r.days for r in results]) if results else 0.0,
         expected_capital=capital / n,
-        mean_max_drawdown=statistics.fmean([r.max_drawdown_seen for r in results]) if results else 0.0,
+        mean_max_drawdown=(statistics.fmean([r.max_drawdown_seen for r in results])
+                           if results else 0.0),
         p05_min_buffer=(sorted(r.min_buffer for r in results)[max(0, int(0.05 * n) - 1)]
                         if results else 0.0),
     )

@@ -1,0 +1,71 @@
+{
+  "//": [
+    "Type checking for quant-model.",
+    "",
+    "WHY py3.11 AND NOT py3.14: this repository runs two interpreters. LEAN is hosted by",
+    "pythonnet on 3.11; anything touching parquet runs on 3.14 because 3.11 has no pyarrow.",
+    "Checking against the LOWER version means the core stays importable by the LEAN side.",
+    "See quant_brain/core/provenance.py for the drift problem this belongs to.",
+    "",
+    "WHY quant_brain AND tests ONLY: 673 of 1,042 function definitions across the repository",
+    "already carry return annotations and 87 of 97 files open with `from __future__ import",
+    "annotations` - the codebase is written as if it were type-checked and never has been.",
+    "That makes adoption cheap, but pointing a checker at 32k lines of five-day-old research",
+    "code produces a wall of findings nobody will action. Same two-tier reasoning as ruff.toml:",
+    "enforce on the shared core, leave the research surface to be brought in one module at a",
+    "time. `scripts/` is listed in `exclude`, not deleted, so widening the scope is a one-line",
+    "change when a module is ready.",
+    "",
+    "WHY basic AND NOT strict: strict demands annotations on every parameter including test",
+    "fixtures, which buys very little on a codebase whose risk is wrong arithmetic rather than",
+    "wrong types. basic catches the class that actually bites here - Optional flowing into",
+    "code that assumes a value, and signature drift between the runners and shared modules,",
+    "which is precisely the 'trader/common drift gap' that commit ce7eb81 found by mutation",
+    "testing rather than by types."
+  ],
+
+  "include": ["quant_brain", "tests"],
+
+  "exclude": [
+    "**/__pycache__",
+    "results",
+    "data",
+    "live/log",
+    "live/state",
+    "scripts",
+    "algorithms",
+    ".pytest_cache"
+  ],
+
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Windows",
+  "typeCheckingMode": "basic",
+
+  "reportMissingImports": "warning",
+  "//reportMissingImports": [
+    "warning, not error: tests import the runners as top-level modules (conftest.py puts",
+    "scripts/ on sys.path deliberately, so the import graph under test matches the one that",
+    "runs live). pyright cannot see that path manipulation, and making it an error would",
+    "report every runner import as broken when it is not."
+  ],
+
+  "reportMissingModuleSource": "none",
+  "reportPrivateImportUsage": "none",
+
+  "reportUnusedImport": "error",
+  "reportUnusedVariable": "error",
+  "reportDuplicateImport": "error",
+  "reportUntypedFunctionDecorator": "none",
+  "reportUnnecessaryIsInstance": "none",
+
+  "reportOptionalMemberAccess": "error",
+  "reportOptionalSubscript": "error",
+  "reportOptionalOperand": "error",
+  "//reportOptional": [
+    "These three are the reason pyright is here at all. AUD-02 (net_liq with no floor) and",
+    "AUD-05 (prices.get(s, 0.0) marking a position at zero) are value-domain bugs that types",
+    "would NOT have caught - stated plainly so this config is not oversold. What types DO",
+    "catch is the adjacent family: a None returned by a lookup flowing into arithmetic that",
+    "assumes a number."
+  ]
+}

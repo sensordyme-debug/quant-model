@@ -168,7 +168,7 @@ class Provenance:
         strategy_version: str = "",
         random_seed: int | None = None,
         notes: str = "",
-    ) -> "Provenance":
+    ) -> Provenance:
         """Gather everything obtainable from the running process. Never raises."""
         repo = repo or Path(__file__).resolve().parents[2]
         commit = _git("rev-parse", "HEAD", repo=repo)
@@ -177,7 +177,7 @@ class Provenance:
         deps = {name: v for name in NUMERIC_STACK if (v := _module_version(name))}
         return cls(
             experiment_id=experiment_id,
-            ts=dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+            ts=dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ"),
             git_commit=commit,
             # Untracked-only changes still count: a sweep script that exists but is not
             # committed is exactly the state most of this repository's experiments run in,

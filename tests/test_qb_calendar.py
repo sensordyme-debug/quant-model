@@ -37,9 +37,14 @@ def test_flatten_offset_lands_inside_the_session_on_both_day_types():
     """`minutes_before_close(22)` is the shape AUD-07 asks for: 15:38 / 12:38."""
     regular = CALENDAR.minutes_before_close(D(2026, 9, 11), 22)
     early = CALENDAR.minutes_before_close(D(2026, 11, 27), 22)
+    total_early = CALENDAR.session_minutes(D(2026, 11, 27))
+    # Both accessors return None on a closed day. Asserting they are not None before
+    # comparing is the point rather than noise: an unguarded `early < total_early` raises
+    # TypeError instead of failing, which is how an Optional turns a red test into a crash.
+    assert regular is not None and early is not None and total_early is not None
     assert regular == 368                      # unchanged behaviour on a normal day
     assert early == 188                        # 210 - 22, i.e. 12:38 ET
-    assert early < CALENDAR.session_minutes(D(2026, 11, 27))
+    assert early < total_early
 
 
 def test_minutes_before_close_clamps_rather_than_going_negative():

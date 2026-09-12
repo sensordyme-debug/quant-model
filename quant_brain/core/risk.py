@@ -42,20 +42,20 @@ class RiskDecision:
     binding: tuple[str, ...] = ()
 
     @classmethod
-    def allow(cls, quantity: float) -> "RiskDecision":
+    def allow(cls, quantity: float) -> RiskDecision:
         return cls(True, quantity)
 
     @classmethod
-    def reduce(cls, quantity: float, reason: str, rule: str) -> "RiskDecision":
+    def reduce(cls, quantity: float, reason: str, rule: str) -> RiskDecision:
         if quantity <= 0:
             return cls.deny(reason, rule)
         return cls(True, quantity, (reason,), (rule,))
 
     @classmethod
-    def deny(cls, reason: str, rule: str) -> "RiskDecision":
+    def deny(cls, reason: str, rule: str) -> RiskDecision:
         return cls(False, 0.0, (reason,), (rule,))
 
-    def merge(self, other: "RiskDecision") -> "RiskDecision":
+    def merge(self, other: RiskDecision) -> RiskDecision:
         """Combine two verdicts, taking the more restrictive of the pair.
 
         Denial wins over reduction; a smaller quantity wins over a larger one. Reasons
@@ -106,6 +106,6 @@ class RiskChain(RiskEngine):
                 break
         return decision
 
-    def add(self, engine: RiskEngine) -> "RiskChain":
+    def add(self, engine: RiskEngine) -> RiskChain:
         self.engines.append(engine)
         return self
