@@ -5,6 +5,140 @@ Newest first. The `options` scope: the Theta store, `scripts/odte_*`, `scripts/t
 
 ---
 
+## 2026-09-12 - O-5: the cost wall is not an options-market phenomenon. Moved the same chain signal into the underlying, cut the round trip 68x, and the edge shrank to match it. Refused; nothing shipped.
+
+**Why this item, when O-4 said the track should not be scheduled.** O-4's conclusion was that no
+item can advance *from the Theta feed* - correct, and re-confirmed live at the top of this run:
+`theta_data.py --check` returns `listening True serving True` with `history/quote` at **HTTP 403,
+"you only have a FREE subscription"**. SPXW is still one `fetch_day` behind that 403. But O-4's
+survey of remaining questions was of *options trades*, and every refusal this track has produced -
+O-2 on cost, O-3 on the ceiling of selection, O-4 on the blind estimator - is about the cost of
+**transacting in options**. None is about the **information content of the chain**. An
+options-derived signal does not have to be harvested in options. That is the one lever never
+pulled, it needs nothing but disk, and it is what O-5 tests.
+
+**Hypothesis.** The SPY 0DTE chain's risk-neutral state at a fixed intraday clock carries a
+*directional* forecast of the rest of the session's move in SPY, big enough to pay an **equity**
+round trip - 3.41 bps of notional on this repository's own cost model, against the ~230 bps of
+risked capital that killed O-2. A factor of **68**. If the chain knows anything about direction,
+this is the cheapest possible way to collect it.
+
+**Why this is not O-1 re-opened.** O-1 refused an IV gate and its negative was "the payoff
+regressor is a volatility *surprise*, so no forecast can reach it" - measured on *prior-day,
+end-of-day, 1-week* IV against **|P&L|**. Two things differ. (a) The observation is
+**same-session and intraday**: the 0DTE chain at 12:00 prices the move that has not happened yet,
+conditional on everything that has, so it is a nowcast of the residual session, not a forecast of
+the whole day. (b) The target is the **sign**, which O-1 never tested - its own words were
+"implied vol forecasts how big a day will be and not which way". O-1's single |t| > 2 against P&L
+was `skew25_1w` at t = -2.81, a *direction* reading it left unexamined.
+
+**Design, pre-registered in `scripts/sweep_o5.py`'s docstring before any run.** Four features x
+five clocks {10:00, 11:00, 12:00, 13:00, 14:00}, exit 15:50, **1,890 sessions / 9,445 cells**,
+2016-01-08..2026-09-10. Features are read from the chain bar at the clock; the SPY position is
+entered at the **open of the minute bar one full minute later** and exited at the open of the
+15:50 bar, priced on **real consolidated SPY minute bars** (`data/minute_alpaca/SPY.parquet`), not
+on the synthetic parity spot. Every Stage-B threshold is a trailing 60-session median, shifted one
+session. Directions were declared up front and the gate is **two-sided**, so it can find either
+sign and a pass against the declaration is reported as such.
+
+| feature | definition, at the clock | declared |
+|---|---|---|
+| `rn_skew` | `p_put(S(1-0.005)) - p_call(S(1+0.005))` off the chain's own `dP/dK` (O-3's) | high -> negative |
+| `rn_tail` | the same read at 2.0% of spot - crash-premium tilt, not near-body tilt | high -> negative |
+| `rn_drift` | `(K_med - S)/S`, `K_med` = strike where the put's prob-ITM crosses 0.5 | above spot -> positive |
+| `d_rn_skew` | `rn_skew(clock) - rn_skew(09:35)` - the intraday *repricing*, O-1's surprise | steepening -> negative |
+| `rn_half` | **control, not traded**: half the risk-neutral interquartile span | must predict \|move\| |
+
+**Gate 0 passed, and it is what makes the rest readable.** The chain's put-call-parity spot agrees
+with the real tape at **median 0.23 bps, p99 2.19 bps**, so the join and the parity spot are sound.
+The control is emphatic: **corr(`rn_half`, |forward move|) = +0.540 at t = +60.0**. The chain
+forecasts *magnitude* extremely well on this very sample - which is precisely why a null on
+direction is a statement about direction and not about broken feature extraction.
+
+**Two pre-registration errors, both found before any forward return was looked at, both stated
+rather than quietly patched.** (1) I declared `rn_skew` would be *identical* to
+`sweep_o3.features`. It is not: relaxing O-3's both-rights-two-sided mask to a per-right one also
+moves `np.interp`'s bracketing neighbours, so **3 of 8,777 cells differ** (worst 5.01e-01, exact on
+**99.97%**, Spearman 0.9993). The check was replaced with an agreement criterion *after* it failed;
+no forward return enters it either way, it compares two features with each other. The looser mask
+is kept as primary for a reason worth recording: **O-3's mask does not drop cells at random - it
+drops the calm ones**, mean |move| **13.3 bps where it drops out against 38.7 bps where it
+survives**, because the far wings go no-bid on quiet days. Stage A is reported on **both** masks
+and the answer does not move. (2) `rn_tail` is **degenerate**: 28% of cells are exactly zero
+overall, **42% by 14:00**, because a 2%-of-spot move prices to zero on *both* wings as the session
+decays. Terciles collapse; the groups are reported with their realized sizes rather than presented
+as equal thirds.
+
+**Stage A - is there a directional signal at all? 3 of 20 cells reach nominal |t| > 2, 0 of 20
+survive Bonferroni (|t| > 3.02 at 20 tests, where ~0.7 nominal passes are expected by chance).**
+
+| clock | feature | T1 / T2 / T3 (bps) | t(T3-T1) | monotone? |
+|---|---|---|---|---|
+| 10:00 | `rn_skew` | +10.16 / -4.76 / -0.72 | **-2.449** | no - T2 is the lowest |
+| 10:00 | `rn_drift` | -3.63 / +1.25 / +7.07 | **+2.375** | **yes** |
+| 13:00 | `rn_drift` | -2.67 / +0.73 / +4.34 | **+2.187** | **yes** |
+| 10:00 | `o3_rn_skew` (robustness, O-3's mask) | +10.85 / -5.33 / -1.20 | **-2.662** | no |
+
+All three nominal passes carry the **declared** sign, and the 10:00 `rn_skew` reading is *stronger*
+on O-3's stricter mask, so it is not an artifact of the mask choice. `rn_drift` is the honest
+survivor: monotone at two clocks, in the declared direction. It is also **not a stale chain
+re-reading the tape** - corr(`rn_drift`, the SPY move already made that session) is **+0.02 to
+-0.05**, and corr with the parity-vs-tape gap is **<= 0.10**. It is real chain information.
+
+**Stage B - does it survive equity costs? 0 of 20 cells clear two-of-three. The best cell is a
+coin flip sitting exactly on the cost line.**
+
+| | best cell |
+|---|---|
+| rule | `rn_drift` @ 10:00, causal long/short on the trailing-60 median, held to 15:50 |
+| gross | **+3.28 bps** |
+| round trip | **-3.41 bps** |
+| net | **-0.13 bps at t = -0.07**, n 1,829, long fraction 0.488 |
+
+The long fraction near 0.49 everywhere is the median split doing its job: these are balanced
+long/short books, not a buy-and-hold in disguise (buy-and-hold over the same 10:00->15:50 window
+is +1.35 bps). And the regime pattern is decisive against the signal rather than merely
+inconclusive: **2016-2019 is negative in nearly every cell** (t -2.4 to -2.9 across `rn_drift`,
+`rn_skew` and their clocks), while 2020-2023 is mixed and 2024-2026 negative. Nothing here is
+stable across the three regimes in the direction it was declared.
+
+**The result that generalises, and the reason this closes the axis rather than one feature.**
+Printed as the `BOUND` block and labelled post-hoc, deliberately in O-3's units:
+
+- `cover` = gross / round trip. **Best of 20 cells, chosen with full hindsight: 0.963.**
+  **Zero cells have cover > 1** - not one construction's gross edge covers even the equity cost,
+  before any question of significance.
+- O-3's cover on the options version of the same chain was **0.319 / 0.765**. O-5 cut the cost by
+  **68x** by moving the trade into the underlying, and cover moved to **0.963** - still under one.
+  The edge shrank almost exactly as fast as the cost.
+
+**Decision: refused, and the "trade the chain's information somewhere cheaper" escape is closed.**
+Nothing shipped, nothing promoted, no config touched, no owner risk posture changed. The durable
+finding is the one that took three iterations to see and is now visible in one line: **three
+independent constructions on this chain - a credit spread (O-2), a selected credit spread (O-3),
+and a directional equity trade (O-5) - all land at cover ~= 1.** The cost wall was never a property
+of the options market's spreads; it is a property of how much this chain actually knows. It
+forecasts *magnitude* superbly (+0.540 at t +60) and *direction* at the level of the transaction
+cost of whatever instrument you use to collect it. **Do not re-open as a feature, clock, horizon or
+instrument question** - a fourth construction on the same chain will find cover ~= 1 again.
+
+**Ledger**: 40 DIAGNOSTIC rows under `options/odte_o5_direction` (20 Stage A, 20 Stage B). Feature
+cache at `results/options/o5_features.parquet` (gitignored); `python scripts/sweep_o5.py` rebuilds
+it in ~3 minutes and reruns every number here from cache in seconds. `sweep_o2.py` and
+`sweep_o3.py` were **imported, not modified**; no shipped or runner-loaded file was touched, so no
+deploy gate is owed.
+
+**Operational**: `py -3.11` still has no pyarrow - run `sweep_o*` on the default `python`.
+
+**Next step.** With O-5 closed, every question this store can answer has been answered and the
+remaining one - **cash-settled European SPXW**, where O-2's fatal exit assumption becomes a fact
+and commission per unit of risk falls ~10x - is unchanged behind the **VALUE-tier 403** already in
+`BLOCKERS.md`. O-4's advice stands and O-5 does not weaken it: **this track should not be scheduled
+again until VALUE is restored.** The one thing O-5 adds to the ask is that it is now the *only*
+open item, so the scheduler is otherwise idle on this scope.
+
+---
+
 ## 2026-09-12 - O-4: the free options feed cannot refuse a bad trade. Trade prints disqualified; the track is blocked on the human. Also: half of O-3's blocker diagnosis was wrong and this repository caused it.
 
 **Housekeeping first, because it changes how this entry should be read.** O-4 was designed, run

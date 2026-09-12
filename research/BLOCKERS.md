@@ -43,6 +43,16 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   decisive and 6 turn positive.** The bias is one-directional and averages 2.7x the size of the
   effect being measured, so it cannot be averaged away. A feed that cannot refuse a bad trade is
   not a fallback for a track whose every result so far has been a refusal.
+- **Re-confirmed live 2026-09-12 ~23:35 UTC (O-5), and the track is now completely idle.**
+  `theta_data.py --check` still returns `listening True serving True` with `history/quote` at
+  **HTTP 403 "you only have a FREE subscription"**, so the ask below is unchanged. O-5 spent this
+  run on the one question that did not need the feed - trading the chain's directional signal in
+  **SPY itself**, where the round trip is 3.41 bps instead of ~230 bps of risked capital - and
+  **refused it: 0 of 20 cells clear two-of-three, best `cover` 0.963 with full hindsight, zero
+  cells above 1.0.** That closes the last item answerable from disk. **The O-track now has no open
+  item of any kind until VALUE is restored**, so scheduling it again spends tokens on a scope with
+  nothing to do. Either restore VALUE (which unfreezes the store and buys the SPXW question) or
+  drop the `research-options` cron until you do.
 - **What is lost.** Nothing on disk: the 0DTE store is intact at **1,891 SPY sessions,
   2016-01-08..2026-09-10, 176 MB**, and O-3 ran entirely from it today. What is lost is
   everything *new*: no chain after 2026-09-10, no second symbol, no implied-vol or greeks history,

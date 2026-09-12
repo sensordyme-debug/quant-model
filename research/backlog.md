@@ -3052,6 +3052,36 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
   the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
   test: the 50 megacaps from D-1 are now fetchable at minute resolution.
+- **O-5 DONE 2026-09-12 (see `research/journal_options.md`): the cost wall is NOT an options-market
+  phenomenon. The same chain signal traded in the UNDERLYING is 68x cheaper and the edge shrank to
+  match. Refused; nothing shipped.** `scripts/sweep_o5.py`, 40 DIAGNOSTIC rows under
+  `options/odte_o5_direction`. Every prior refusal on this track (O-2 cost, O-3 selection ceiling,
+  O-4 blind estimator) is about the cost of **transacting in options**, none about the chain's
+  **information content** - so trade the chain's forecast in SPY itself, where the round trip is
+  **3.41 bps of notional** (repository cost model) against O-2's ~230 bps of risked capital.
+  Four causal chain features (`rn_skew`, `rn_tail` at 2%, `rn_drift` = the risk-neutral median vs
+  spot, `d_rn_skew` = the intraday repricing) x five clocks, exit 15:50, **1,890 sessions / 9,445
+  cells**, entered one full minute after the chain bar on **real consolidated SPY minute bars**.
+  **Gate 0 passed and makes the null readable**: parity spot vs the tape median **0.23 bps**, and
+  the control **corr(rn_half, |move|) = +0.540 at t = +60.0** - the chain forecasts MAGNITUDE
+  superbly on this very sample, so a null on direction is about direction. **Stage A: 3 of 20 cells
+  at nominal |t| > 2, 0 of 20 at Bonferroni |t| > 3.02**; all three carry the declared sign, and
+  `rn_drift` is monotone at 10:00 (t +2.375) and 13:00 (t +2.187) and is **not** a stale chain
+  (corr with the move already made +0.02..-0.05). **Stage B: 0 of 20 clear two-of-three**; best is
+  `rn_drift` @ 10:00, gross **+3.28 bps** against the **3.41 bps** round trip = net **-0.13 bps at
+  t -0.07**, long fraction 0.488, and **2016-2019 is negative in nearly every cell** (t -2.4..-2.9).
+  **The bound that closes it: best `cover` = gross/round-trip over 20 cells with full hindsight is
+  0.963, and ZERO cells exceed 1.** O-3's cover on the options version was 0.319/0.765; cutting the
+  cost 68x moved it to 0.963 - still under one. **Three independent constructions on this chain all
+  land at cover ~= 1**, so the wall is not the options spread, it is how much the chain knows: it
+  prices magnitude superbly and direction at roughly the transaction cost of whatever instrument
+  collects it. **Do not re-open as a feature, clock, horizon or instrument question.** Two
+  pre-registration errors are recorded in the journal rather than patched away (a declared identity
+  vs `sweep_o3.features` that failed on 3 of 8,777 cells, and `rn_tail` being 28-42% exact zeros);
+  Stage A is reported on both masks and the answer does not move. `sweep_o2/o3.py` imported, **not
+  modified**; no shipped file touched, no deploy gate owed. **Does not change O-4's advice**: the
+  Theta 403 was re-confirmed live this run, SPXW is still the only live question, and with O-5 shut
+  this track now has **no open item at all** until VALUE is restored.
 - **O-4 DONE 2026-09-12 (see `research/journal_options.md`): trade-print options data cannot
   refuse a bad trade. The free fallback is disqualified and the O-track is BLOCKED on the human.**
   `scripts/sweep_o4.py`, 60 DIAGNOSTIC rows under `options/odte_o4_feed`. The Theta plan lapsed
