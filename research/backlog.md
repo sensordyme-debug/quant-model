@@ -1951,7 +1951,31 @@ and no delivery, both of which are barred to the loop.
   bug in `scripts/ml_f7.py` `vol_regime()` (date vs string keys) that made F-7's clause-6 regime
   table silently return "n/a" for every session.
 
-- **F-9 (PARKED, needs the D track first - not an ML item).** The only honest way to reopen the
+- **F-9 (REFUSED 2026-09-12 by F-10 - do not build the store on this rationale).** F-10 priced
+  F-9's premise on the 56 names already on disk, with F-8's predictions frozen and only the book's
+  universe subsampled (`scripts/ml_f10.py`, 9 DIAGNOSTIC rows under `intraday/f10_breadth`, clause 1
+  identity exact at gross 4.256 / t +1.474). The breadth curve does rise - log-log slope **+0.776**,
+  *above* F-9's assumed 0.500, extrapolating to t = 8.94 at 500 names - and it is **not usable**.
+  **(a) Clause 4's pre-registered control fails**: the same curve on a scrambled prediction runs
+  -1.54 to -4.05 with |t| slope **+0.408**, so a book with **no forecast at all** buys 57% of the
+  real curve's slope, matching the real book's own sd channel of 0.441. **(b) The other 43% is the
+  mean** (+0.334; net $150/day at N=8 against $306 at N=56, gross bps slope +0.106) - a selection
+  effect that clause 5 pre-registered as **reversing** on extension, since names 57-500 are less
+  liquid and weaker than the sleeve's chosen 56. **(c) The estimators span the boundary and the
+  quantity is not identified**: the saturating fit pins rho at its 0.00000 boundary (ceiling 191.7,
+  a misspecification signature - beta +0.776 exceeds the model's structural max of 0.5), and the
+  same object fits rho 0.999 / 0.0119 / 0.0000 across the vol terciles, i.e. t(500) of -0.20 / 1.95
+  / 3.37. The only correctly-specified finite estimator is the direct one: sub-book rho +0.1406
+  de-aggregated to a per-name **0.01155**, giving **t(500) = 2.166 and a ceiling of 2.344**. **A
+  ~500-name build chasing t = 2.0 against a theoretical maximum of 2.34 - an upper bound by clause
+  5 - does not repay itself.** Fixed two defects in F-10's own first cut (clause 4 coded as a remark
+  rather than a gate; estimator (C) using basket correlation as per-name correlation, which had
+  understated the ceiling by 10x - the correction made the refusal *harder* and was applied in full).
+  Reusable rule: **split a breadth or sample-size curve into its mean and variance channels and run
+  the variance channel against a zero-forecast control before extrapolating it.** The ML track has
+  nothing open; reopening the supervised class needs a new mechanism, not more cross-section.
+
+- **F-9 (original text, kept for the pre-registration).** The only honest way to reopen the
   supervised class after four refusals is **more independent cross-section, not more history**: the
   pooled t is a breadth statistic as much as a length one, and the panel is 56 names. F-8's best
   cell needs 3,558 sessions at 56 names; ~4x the breadth would reach the same t on the ~1,900

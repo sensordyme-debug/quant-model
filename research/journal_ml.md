@@ -6,6 +6,131 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-12 - F-10: breadth does not buy the power F-9 assumed. 57% of the curve is a channel a zero-forecast book gets too, 43% is a channel clause 5 says reverses, and the only correctly-specified ceiling is 2.34. F-9 refused; the D track does not build a 500-name store on this rationale.
+
+**Hypothesis.** F-8 closed the F track with a positive edge column (+1.532 bps per dollar turned)
+and a refusal on power - t +1.47 where clause 7 asked for t > 2 - and parked its only reopening as
+**F-9**: *"the pooled t is a breadth statistic as much as a length one... ~4x the breadth would
+reach the same t on the ~1,900 sessions that exist. That is a request for a ~500-name Alpaca SIP
+minute universe."* That sentence contains an untested assumption and it is the whole of F-9's case:
+"4x the breadth reaches the same t" is the claim t ~ sqrt(N), which holds only for *independent*
+contributors. A dollar-neutral decile book over the most liquid US equities shares a market, a
+handful of sectors and, in the leveraged sleeve, literally the same underlying index. F-10 measures
+the breadth curve on the 56 names **already on disk**, before the D track spends weeks paging a
+500-name store out of Alpaca.
+
+**Resumed, not started.** `scripts/ml_f10.py` was written in a prior run that was cut off with
+114 of 129 simulations cached and no ledger rows or journal entry. This run finished the remaining
+15 (the N=56 control and the 12 partition sub-books), found two defects in the file's own first
+cut, fixed them, and recorded. **9 DIAGNOSTIC ledger rows** under `intraday/f10_breadth`. Nothing
+is re-fitted and nothing is re-tuned: F-8's frozen walk-forward predictions are re-read and only
+the *book's* universe is subsampled, so this measures the **diversification** channel of breadth
+and not the training channel (clause 2/6a). **No shipped or runner-loaded file was touched**, so no
+deploy gate and no `--replay` is owed. Run with `INTRADAY_DATA_DIR=data/minute_alpaca`, `_splits.json`
+confirmed present.
+
+**(1) Clause 1 identity is exact.** The full-universe cell reproduces F-8 to the printed digit:
+gross **4.256**, cost **2.724**, net **$306/day**, t **+1.474** on 1,933 sessions. The run is valid.
+
+**(2) The curve rises, and that is not the finding - what it is made of is.** 12 seeded subsets per
+width, 1,933 out-of-sample sessions, 2019-2026:
+
+| N | runs | gross bps | cost bps | net $/day | t mean | t sd |
+|---|---|---|---|---|---|---|
+| 8 | 12 | 3.591 | 2.835 | 150 | +0.267 | 0.642 |
+| 12 | 12 | 3.361 | 2.367 | 197 | +0.588 | 0.892 |
+| 16 | 12 | 4.271 | 2.772 | 298 | +0.872 | 0.950 |
+| 24 | 12 | 3.456 | 2.407 | 209 | +0.765 | 0.734 |
+| 32 | 12 | 4.049 | 2.716 | 266 | +1.051 | 0.350 |
+| 40 | 12 | 3.993 | 2.601 | 278 | +1.218 | 0.328 |
+| 48 | 12 | 4.539 | 2.778 | 351 | +1.519 | 0.254 |
+| **56** | 1 | **4.256** | **2.724** | **306** | **+1.474** | - |
+
+Fitted log-log slope **beta = +0.776**, which is *above* F-9's assumed 0.500 and would extrapolate
+to **t = 8.94 at N = 500**. Taken at face value that funds F-9 outright. It should not be taken at
+face value.
+
+**(3) The decomposition is the iteration. t = mean / sd, and only one of those is breadth.**
+
+| channel | log-log slope | share of the curve |
+|---|---|---|
+| t | +0.776 | 100% |
+| mean (net $/day) | +0.334 | **43%** |
+| sd (implied) | -0.441 | **57%** |
+
+**43% of the curve is the book's mean improving with N** - $150/day at 8 names against $306 at 56,
+with gross bps per dollar turned sloping +0.106 (clause 6a). That is not diversification; it is the
+book selecting better out of a deeper cross-section. And it is precisely the channel **clause 5
+pre-registered as running the wrong way on extension**: names 57-500 are less liquid, cost more per
+dollar turned and carry weaker signal than the sleeve's deliberately-chosen 56. So the larger half
+of the extrapolation rests on a channel that clause 5 says reverses.
+
+**(4) Clause 4 fails, and it fails against the other 57%.** The pre-registered control - the same
+curve on a per-timestamp scrambled prediction - was required to be "flat and indistinguishable from
+zero at **every** N", on pain of "no extrapolation of it means anything". It is neither: it runs
+**-1.54 at N=8 to -4.05 at N=48**, log-log slope of |t| **+0.408**. A book with **no forecast at
+all** buys 0.408 of the real curve's 0.776 - and 0.408 sits right on top of the real book's sd
+channel of 0.441. The two measurements agree, and together they say the smoothing half of the curve
+is a property of the *construction*, not of the forecast. Both sub-tests fail: max |control t| =
+4.05 against a threshold of 2, and the control slope is 0.408 against 0.25 x 0.776 = 0.194.
+
+**(5) So the three estimators span the decision boundary and the quantity is not identified.**
+
+| estimator | t(500) | ceiling t(inf) | status |
+|---|---|---|---|
+| (A) naive power law | 8.94 | none by construction | no ceiling exists in the form |
+| (B) saturating fit | 4.285 | **191.7** | rho pinned at the 0.00000 boundary |
+| (C) direct rho, as first shipped | 1.543 | 1.552 | **aggregation bug** |
+| **(C) direct rho, corrected** | **2.166** | **2.344** | the only finite, correctly-specified one |
+
+(B)'s rho = 0 is a **misspecification signature, not a measurement**: a saturating model is bounded
+above by sqrt(N), the observed beta is +0.776, so the fit returns the least-saturating value it
+owns. Its "ceiling" of 191.7 is the claim that 56 leveraged-and-liquid US equities have literally
+zero common P&L factor, which (C) measures directly at **+0.1406 between disjoint sub-books**. The
+regime table makes the non-identification plain: the same object fits rho **0.999 / 0.0119 / 0.0000**
+across the causal SPY vol terciles, extrapolating to t(500) of **-0.20 / 1.95 / 3.37**. An estimator
+that swings from -0.2 to 3.4 depending on which third of the sessions it is fed is not measuring a
+structural constant. (Low vol is flat-to-negative at every width, which is F-8's volatility finding
+again.)
+
+**(6) Two defects in this file's own first cut, declared separately from the pre-registration.**
+**(i) Clause 4 was written as a gate and coded as a remark** - the first cut printed the control
+slope and then let clause 7 read (B) regardless. Applying a clause pre-registered before any number
+was read is not a retro-fit; failing to apply it was the error. **(ii) Estimator (C) conflated
+basket correlation with per-name correlation.** The partitions measure the correlation between two
+*14-name sub-books*; the saturating model is parameterised on the correlation between two *names*.
+Under equicorrelation corr(basket) = m*rho/(1+(m-1)*rho), so the per-name figure is **0.01155**, not
+0.1406, and the first cut understated the ceiling by ~10x. **The correction moves (C) from 1.55 to
+2.34 - from one side of the hurdle to the other, in the direction that makes the refusal harder**,
+which is the direction an author's own correction should cut. It is applied in full.
+
+**(7) The refusal, and it does not need the estimator dispute settled.** Clause 7 may not be
+executed on (B), so it is applied to (C) corrected: **t(500) = 2.166, ceiling t(inf) = 2.344**. Even
+the most favourable correctly-specified estimator caps the **entire program at t = 2.34 at infinite
+breadth** - and by clause 5 every number here is an **upper bound**, because subsampling down from
+56 measures a curve whose mean channel extension will degrade. A multi-week 500-name data build,
+chasing a t = 2.0 hurdle, against a theoretical maximum of 2.34 before the haircut, does not repay
+itself. **REFUSE F-9.** Consistency check on the same estimator: it over-predicts the small-N end
+badly (model 0.685 at N=8 against an observed 0.267), so even (C) cannot reproduce the curve it sits
+beside - one more reason not to spend weeks on its extrapolation.
+
+**Decision.** F-9 is **refused and retired from the backlog**, not parked. The F track stays closed
+on clause 8's terms. Nothing deployed, nothing promoted, `champion.json` untouched.
+
+**What it changes for the loop.** This is the first item in the repository to refuse a *data
+purchase* rather than a strategy, and the reusable rule is the decomposition: **a breadth or
+sample-size curve must be split into its mean and its variance channel before it is extrapolated,
+and the variance channel must be run against a zero-forecast control.** Here 57% of a curve that
+looked like t ~ N^0.78 was available to a book with no forecast, and 43% was a selection effect
+pointing the wrong way for the extension being argued for. Any future "more data would fix the t"
+argument on this repository - and F-8's own power arithmetic was one - owes the same two columns.
+
+**Next.** Nothing open on the ML track. If the supervised class is ever reopened it needs a new
+mechanism, not more cross-section and not more history: F-1/F-3 priced the method, F-7 the book,
+F-8 the label and horizon, and F-10 now prices the only scaling argument that was left.
+
+---
+
 ## 2026-09-12 - F-8: fit the label the forecast actually has. The right label is worth 2.84x on gross per dollar turned and flips the book positive, and it still fails - not on cost this time, but on a power requirement this data set cannot meet. Refused. The track closes.
 
 **Hypothesis.** F-7 closed every construction axis on F-1's forecast and left exactly one open, and
