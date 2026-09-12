@@ -907,6 +907,31 @@ file from any automated job.
   baseline I-1's pre-deploy comparison is built on. Say "keep 0.01" and this is closed; name a
   wider band and the loop will re-run that cell, re-verify the runner against it and rebaseline
   the hash before deploy. Nothing is blocked today - the champion and I-1 are unaffected.
+
+  **Addendum 2026-09-12 (S-32), which answers the conditional this item was closed on.** The
+  2026-09-09 answer was "keep 0.01 ... revisit with measured paper slippage after two weeks of
+  fills; if the measured spread cost per order is material, widen to 0.03 and rebaseline the
+  hash." Both halves of that are now measurable. **The measured cost is +3.2 bps with se 4.5**
+  (`daily_fills.py`, 10 fills, $2.37M, against the closing auction the runner aims at) - not yet
+  distinguishable from zero. And **the prize is small and now priced**: on the deployed 15:45
+  convention charged 2 bp of spread plus IBKR Pro financing, the band's *mechanism* - the part
+  that moves when the spread charged moves, which is the only part a band can be responsible for -
+  is worth **+0.045 / +0.058 / +0.095 / +0.139 / +0.286 CAR points** at bands 0.020 / 0.030 /
+  0.050 / 0.080 / 0.120, and the arithmetic ceiling on it from turnover removed x 3.2 bps is
+  **0.035% / 0.067% / 0.108% / 0.155% / 0.213% of equity a year**. The larger numbers in the CAR
+  column (band 0.080's +0.544) are path difference, not saving: a placebo that removes the same
+  67.5% of orders at random returns -0.176 mean with **sd 0.791** and one seed of five beats the
+  band outright, and the full-period paired t never reaches 2 (+1.96 at 0.080, **+0.12 at the
+  0.03 this item names**). **The loop's read: the conditional resolves to "not material" and 0.01
+  stands**; the order list stays on `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3` and
+  `compare_orders.py` keeps its baseline. Two things would reopen it, neither of them a sweep:
+  (i) `daily_fills.py` settling materially above +3.2 bps as fills accumulate - the prize is
+  linear in the spread paid, ~0.048% of equity a year per basis point at band 0.080, so the same
+  table re-answers it with no new run; (ii) an **operational** preference for fewer orders - 112
+  a year at band 0.080 against 345 at 0.01 - in which case the evidence favours **0.08, not
+  0.03**, on every column S-32 produced. (ii) is the owner's call and the loop will not make it.
+  Full working: `research/journal_daily.md`, 2026-09-12 S-32; 55 DIAGNOSTIC ledger rows under
+  `daily/s32_band`.
 - **RESOLVED 2026-09-09 ~14:30 UTC: IB Gateway API is up.** The human accepted the paper
   disclaimer; `paper_trade.py --check` returns account `DUT091359`, net liquidation
   $1,000,344, margin enabled (buying power $4M), no positions. I-1's remaining step is the

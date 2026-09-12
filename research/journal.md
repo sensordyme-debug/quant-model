@@ -1,5 +1,32 @@
 # Research journal
 
+From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.md, "Parallel
+tracks"); this file keeps the pre-split history and the daily review's merge target, and each
+entry there leaves a pointer here.
+
+## 2026-09-12 - S-32 (pointer; full entry in `research/journal_daily.md`)
+
+**The no-trade band, re-priced on the honest book: keep 0.01, and the 2026-09-09 conditional
+resolves to "not material".** S-31's rule applied to the second open owner decision - both
+standing jobs ran first and, it being a Saturday, neither has new input (`daily_fills.py`: 10
+fills / $2.37M / **+3.2 bps**, se 4.5). `scripts/sweep_s32.py`, seven clauses pre-registered, 55
+DIAGNOSTIC rows under `daily/s32_band`, **no shipped or runner-loaded file touched** so no deploy
+gate and no replay owed; identity exact at **22.192150% / 5,052** and **19.640168% / 1.047 / DD
+24.037**. The pre-registered premise - a band buys back spread, so its gain must grow with the
+spread charged - **holds** for the winning band 0.080 (+0.380 / +0.391 / +0.450 / **+0.519** at
+0 / 1 / 2 / 3.2 bp), and by `champion.json`'s own criteria five bands pass the decision cell
+including the owner's 0.03. It is still refused, on three numbers that all say the CAR column is
+measuring the path and not the mechanism: the **spread-attributable** part of band 0.080's +0.544
+is **+0.139** (monotone in the band across the whole grid, unlike the gain itself, which zig-zags
++0.090 / +0.013 / +0.313 / +0.544 / +0.206); the **arithmetic ceiling** on the prize at the
+measured 3.2 bps is **0.155% of equity a year**, so the claim is 3.5x larger than the mechanism
+can produce, and it agrees with the +0.139 to 0.016 points; and the **placebo** - the same 67.5%
+of orders removed at random - returns -0.176 mean with **sd 0.791**, one seed of five beating the
+band outright (permutation p = 0.33) while swinging drawdown 20.26-28.10%. Paired t +1.96 full
+period, +1.35 IS / +1.74 OOS. The owner's named 0.03 is the local worst of the five passing bands
+(+0.013, t +0.12, worth **0.067%/yr**). `BLOCKERS.md` item 4 gets a priced addendum; the live
+order list stays on `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`.
+
 ## 2026-09-12 - S-31: the owner's size decision was priced on a book that does not exist - half the gain is not there, and the Sharpe argument for it reverses
 
 **Why this iteration exists, given that the backlog says to stop finding levers.** It does not add

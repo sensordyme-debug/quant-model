@@ -27,6 +27,33 @@ leg-split program (hold / rank / size) closed with S-28, and S-29 closed the reg
 one untried construction is **S-30** below. (3) The honest deployed expectation of the daily
 champion is **~20% CAR, not 24.4%** - see `champion.json`'s `deployed_expectation_note`.
 
+Status 2026-09-12 15:4x UTC (S-32, `daily` track - journal now `research/journal_daily.md`):
+**the second open owner decision re-priced, and this one closes on its own conditional. The
+no-trade band stays at 0.01.** Same rule as S-31 and for the same reason - both standing jobs ran
+first and, Saturday, neither has new input (`daily_fills.py` 10 fills / $2.37M / **+3.2 bps**, se
+4.5). `scripts/sweep_s32.py`, seven clauses pre-registered, 55 DIAGNOSTIC rows under
+`daily/s32_band`, **no shipped or runner-loaded file touched** (`band=`/`skip=` added to the
+research harness `sweep_s25.legs_simulate`, inert at their defaults, every earlier row
+bit-identical) so **no deploy gate and no replay is owed**. Identity exact: **22.192150% / 5,052**
+and **19.640168% / 1.047 / DD 24.037**. **The pre-registered premise HOLDS** - band 0.080 gains
++0.380 / +0.391 / +0.450 / **+0.519** at 0 / 1 / 2 / 3.2 bp - and **five bands pass the decision
+cell on `champion.json`'s own criteria**, including the owner's 0.03, so this is the rare item
+refused *after* its clauses passed. Three numbers do it: the **spread-attributable** part of band
+0.080's +0.544 is **+0.139** and is the only column monotone across the whole grid (+0.045 /
++0.058 / +0.095 / +0.139 / +0.286) while the gain itself zig-zags (+0.090 / +0.013 / +0.313 /
++0.544 / +0.206); the **arithmetic ceiling** from turnover removed x the measured 3.2 bps is
+**0.155% of equity a year**, so the CAR claim is **3.5x larger than the mechanism can produce**
+and agrees with the +0.139 to 0.016 points; and the **placebo** - the same 67.5% of orders removed
+at random - returns **-0.176 mean, sd 0.791**, with one seed of five beating the band outright
+(permutation p 0.33) and drawdown swinging 20.26-28.10%. Paired t **+1.96** full period, +1.35 IS
+/ +1.74 OOS; the owner's 0.03 is the local worst of the passing five (+0.013, **t +0.12**,
+0.067%/yr). `BLOCKERS.md` item 4 gains the priced addendum and the conditional it was closed on
+("widen to 0.03 if the measured spread cost is material") **resolves to "not material"**. **What
+it changes for the loop**: a criteria pass is not a result - `champion.json`'s rules were designed
+to compare *signals*, and against an *execution* change whose ceiling is 0.155%/yr they are
+passed by path noise measuring sd 0.79. Any future execution-setting question needs its
+arithmetic ceiling quoted before its CAR column.
+
 Status 2026-09-12 13:1x UTC (S-31): **the owner's size decision - the largest of the six - was
 priced on a book that does not exist. About half the advertised gain is not there, the Sharpe
 argument for it reverses once the borrowing is charged, and option (c) is now answered in
@@ -1685,6 +1712,11 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
      of work left that does not need a trading day or an answer from the owner. When the standing
      jobs cannot advance, THAT is the pattern to repeat: re-price an open owner decision on the
      honest scale rather than open a new research track. -->
+<!-- amended after S-32 closed, 2026-09-12: the pattern repeated and paid - S-32 re-priced the
+     no-trade band and CLOSED it on its own 2026-09-09 conditional ("not material"), so the owner
+     pile is one item lighter without an owner turn. Two of the six decisions are now answered by
+     the loop's own numbers rather than waiting on one. The standing jobs remain the only open
+     work; both still need a trading day. -->
 
 - **C-2 (critic): adversarially verify S-24, the pre-open MOO claim.** S-24 says the store's open is
   not the opening cross and that the pre-open move is worth **+1.98 CAR at the real MOO fill**. It is
@@ -1705,6 +1737,29 @@ from settling the intraday sleeve's slippage constant and thereby BLOCKERS.md it
 part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everything else is the
 owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
 and no delivery, both of which are barred to the loop.
+
+- **S-32 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): the execution no-trade
+  band stays at 0.01 - refused after its clauses PASSED, because the CAR column is 3.5x larger
+  than the mechanism can produce.** `scripts/sweep_s32.py`, seven clauses pre-registered, **55
+  DIAGNOSTIC rows** under `daily/s32_band`; `band=`/`skip=` added to `sweep_s25.legs_simulate`
+  (S-26/S-28/S-30's precedent, default-inert, every earlier row bit-identical), **no shipped or
+  runner-loaded file touched**, so no deploy gate and no replay owed. Identity exact (22.192150% /
+  5,052; 19.640168% / 1.047 / DD 24.037). **Premise HOLDS** (band 0.080 gains +0.380 / +0.391 /
+  +0.450 / **+0.519** at 0 / 1 / 2 / 3.2 bp) and **five bands pass cell C on `champion.json`'s own
+  criteria** including the owner's 0.03 - then: spread-attributable part **+0.139** (the only
+  monotone column: +0.045 / +0.058 / +0.095 / +0.139 / +0.286, against a gain column that
+  zig-zags +0.090 / +0.013 / +0.313 / +0.544 / +0.206); **arithmetic ceiling 0.155% of equity a
+  year** at the measured 3.2 bps, agreeing with the +0.139 to 0.016 points; **placebo** at the
+  same 67.5% skip rate **-0.176 mean, sd 0.791**, one seed of five beating the band outright.
+  Paired t **+1.96** full / +1.35 IS / +1.74 OOS; the owner's 0.03 is the local worst of the five
+  (+0.013, t **+0.12**, 0.067%/yr). **The 2026-09-09 conditional resolves to "not material"**
+  (measured cost +3.2 bps, se 4.5); `BLOCKERS.md` item 4 gains the priced addendum and the order
+  list stays on `a6d6224ce9c70091e5bfa8e96f046bf3`. **Adds no item and closes one owner
+  decision.** The reusable rule: `champion.json`'s criteria were written to compare *signals*;
+  against an *execution* setting whose arithmetic ceiling is 0.155%/yr they are passed by path
+  noise measuring sd 0.79, so **quote the ceiling before the CAR column** next time. The one
+  thing that reopens it is `daily_fills.py` settling well above +3.2 bps - the prize is linear in
+  the spread paid (~0.048%/yr per bp at band 0.080) and needs no new run.
 
 - **S-30 DONE 2026-09-12 (see journal): refused on COST at every h - and the 'delta book' the
   item was built on does not exist, which one identity run settled in two minutes.**

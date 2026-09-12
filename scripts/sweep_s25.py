@@ -104,7 +104,8 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
                   slippage_bps: float = 0.0, financing: dict | None = None,
                   lag: int = 0, divs: pd.DataFrame | None = None,
                   hedge: dict | None = None, scale: float = 1.0,
-                  diag_out: list | None = None, flat_frac: float = 0.0) -> pd.DataFrame:
+                  diag_out: list | None = None, flat_frac: float = 0.0,
+                  band: float | None = None, skip: dict | None = None) -> pd.DataFrame:
     """S-19's deployed book with the day's P&L split into its two legs.
 
     `mode="both"` is the deployed convention exactly: decide on the closes through i-1, fill
@@ -143,6 +144,15 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
     S-30 measured that it is BIT-IDENTICAL to `mode="overnight"` - once nothing is held
     through the session the reload IS the rebalance, so there is no netting to save. That is
     a result, not a defect: see the `delta_note` in `research/champion.json`.
+
+    S-32 adds two more default-inert arguments, same precedent, for the execution no-trade
+    band the owner has had open since 2026-09-09. `band` replaces `MIN_ORDER_VALUE` in the
+    rebalance plan - the fraction of equity below which a rebalancing delta is skipped - and
+    `None` leaves the shipped 0.01 and every earlier row bit-identical. `skip` is
+    `{"p": float, "seed": int}` and drops each candidate order at random with probability
+    `p`; it is S-32's placebo, which holds the NUMBER of skipped orders fixed and changes
+    only WHICH ones, so "the band buys something" can be separated from "the book trades
+    less". Both act on the rebalance plan only, never on a liquidation leg.
     """
     closes, opens = frames["close"], frames["open"]
     tickers = [t for t in sig.traded_universe(params) if t in closes.columns]
@@ -173,6 +183,11 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
         bench_id = (bc / bo - 1.0).to_numpy()
     hist_book: list[float] = []
     hist_bench: list[float] = []
+
+    # --- S-32: the no-trade band and its placebo. Both inert at their defaults.
+    band_x = MIN_ORDER_VALUE if band is None else float(band)
+    skip_p = float((skip or {}).get("p", 0.0))
+    rng = np.random.default_rng(int((skip or {}).get("seed", 0)))
 
     for i in range(i0, i1):
         interest, prev_mark = 0.0, equity
@@ -248,7 +263,9 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
                 p = ref.get(t, 0.0)
                 held = int(positions.get(t, 0))
                 target = 0 if p <= 0 else int(targets.get(t, 0.0) * scale * equity / p)
-                if abs(target - held) * max(p, 0.01) >= MIN_ORDER_VALUE * equity:
+                if abs(target - held) * max(p, 0.01) >= band_x * equity:
+                    if skip_p > 0.0 and rng.random() < skip_p:
+                        continue                      # S-32's placebo, drawn per candidate
                     out[t] = target - held
             return out
 
