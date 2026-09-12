@@ -2,15 +2,47 @@
 
 Items the agent cannot resolve alone. Remove an item when it is resolved and note the date.
 
-## Open data item for the human (2026-09-12, the Theta options subscription has lapsed - O-3)
+## Open data item for the human (2026-09-12, the Theta options subscription has lapsed - O-3, **re-diagnosed and priced by O-4**)
 
-- **Theta Data options dropped from STANDARD to FREE and every options endpoint now returns HTTP
-  478.** The terminal's own log carries both lines: `[09-10-2026 02:24:41] Subscriptions: Stock:
-  FREE Options: STANDARD Index: FREE` and `[09-12-2026 10:32:18] Subscriptions: Stock: FREE
-  Options: FREE Index: FREE`. It is not a terminal fault - the process authenticates and starts
-  normally; it is the entitlement. Even the cheapest call fails
-  (`theta_data.expirations('SPY')` -> 478), and `odte_data.fetch_day('SPY','2026-09-11')` returns
-  `error HTTP Error 478: 478`, so the 2026-09-11 chain is already missing.
+- **Correction first: half of O-3's diagnosis was wrong, and the loop caused that half.** O-3
+  reported "every options endpoint returns HTTP 478" and read it as the entitlement. 478 was
+  never the entitlement. The body says `Invalid session ID. This can occur if more than one
+  terminal is running`, and more than one terminal was running because of a bug in this
+  repository: `theta_data.alive()` treated *any* HTTP error as "terminal is dead", so
+  `start_terminal()` launched a second instance at 10:32 on 2026-09-12. That instance could not
+  bind the port (`ERROR: Failed to start Theta Terminal server. Address 127.0.0.1:25503 already
+  in use`, in `terminal.out`) but its login still invalidated the running instance's session ID,
+  and from then on every call - including `expirations('SPY')` - returned 478. Stopping both
+  processes and starting exactly one restored the listing endpoints immediately (2,125 SPY
+  expirations). **Fixed today** in `scripts/theta_data.py`: `listening()` now distinguishes
+  "nothing on the port" from "answering with an error", `start_terminal()` refuses to start a
+  duplicate, and `--check` reports terminal and entitlement state in one call. Nothing needs
+  doing by you for this half.
+- **The other half stands, and is yours: the subscription really has lapsed.** Confirmed on a
+  clean single instance at `[09-12-2026 13:32:43] Subscriptions: Stock: FREE Options: FREE Index:
+  FREE Rate: FREE`, with `Max concurrent requests: 1` against `4` on `[09-10-2026 02:24:41]
+  ... Options: STANDARD`. Probed endpoint by endpoint on FREE: only `/v3/option/list/*` answers;
+  `history/quote`, `history/ohlc`, `history/open_interest` and `snapshot/quote` return *"requires
+  a **value** subscription"*, and `history/greeks/eod` and `history/greeks/implied_volatility`
+  return *"requires a **standard** subscription"*. So `odte_data.fetch_day('SPY','2026-09-11')`
+  still fails and the 2026-09-11 chain is still missing.
+- **The ask is cheaper than O-3 implied, and this is the new information.** The 0DTE store is
+  built by `scripts/odte_data.py`, which calls exactly one endpoint - `td.quotes()` ->
+  `/v3/option/history/quote`. That endpoint needs **VALUE**, not STANDARD. **VALUE is enough to
+  unfreeze the store, catch up the missing sessions and fetch SPXW.** STANDARD is needed by
+  exactly one other file, `scripts/iv_regime.py` (`greeks/eod` and `greeks/implied_volatility`),
+  which builds the `iv_regime.parquet` used by O-1/O-2/O-3/S-29 - and that file is already built
+  and on disk. If the goal is to let this track finish its one remaining question, VALUE buys it;
+  STANDARD only buys the ability to *rebuild* a regime file that already exists.
+- **There is no free substitute, and that is now measured rather than assumed (O-4).** Alpaca was
+  probed live on the existing key: it serves `/v1beta1/options/bars` and `/v1beta1/options/trades`
+  back to roughly 2024-02, but **no historical option quotes** (`/v1beta1/options/quotes` is 404),
+  only a *current* bid/ask snapshot. Trade prints cannot see the spread, which is the term both
+  O-2 and O-3 turned on. Re-pricing 60 O-2 cells over all 1,891 stored sessions two ways: **56 of
+  60 cells are decisively refused on quotes (t < -2); on trade prints 33 of those 56 stop being
+  decisive and 6 turn positive.** The bias is one-directional and averages 2.7x the size of the
+  effect being measured, so it cannot be averaged away. A feed that cannot refuse a bad trade is
+  not a fallback for a track whose every result so far has been a refusal.
 - **What is lost.** Nothing on disk: the 0DTE store is intact at **1,891 SPY sessions,
   2016-01-08..2026-09-10, 176 MB**, and O-3 ran entirely from it today. What is lost is
   everything *new*: no chain after 2026-09-10, no second symbol, no implied-vol or greeks history,

@@ -2875,6 +2875,34 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
   the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
   test: the 50 megacaps from D-1 are now fetchable at minute resolution.
+- **O-4 DONE 2026-09-12 (see `research/journal_options.md`): trade-print options data cannot
+  refuse a bad trade. The free fallback is disqualified and the O-track is BLOCKED on the human.**
+  `scripts/sweep_o4.py`, 60 DIAGNOSTIC rows under `options/odte_o4_feed`. The Theta plan lapsed
+  STANDARD -> FREE on 2026-09-12, so before porting this track to the only reachable free options
+  source, measure what porting would do to its verdicts. O-2's own 60-cell grid, all 1,891 stored
+  sessions, priced two ways from the same `run_session` columns (`sweep_o2.py` imported, **not
+  modified**; no shipped file touched, no deploy gate owed): `NET_QUOTE = pnl/risk` (bid/ask, the
+  truth) against `NET_PRINT = (pnl_gross - fees)/risk` (every fill at the mid, which is *generous*
+  to the fallback). **The pre-registered headline came back 0 and had no power** - no cell reaches
+  t > +2 under either estimator, so a statistic that only catches an invented *pass* is zero by
+  degeneracy; this is stated in the output rather than reported as "usable". **The direction with
+  power, declared post-hoc: 56 of 60 cells are decisively refused on quotes (t < -2); on prints 33
+  of those 56 stop being decisive (59%) and 6 turn positive.** Best print cell put 0.35/1.50%/14:00
+  reads +0.356% (t +1.28) and is really **-0.477% (t -1.54)**. Spread cost is non-negative by
+  construction, so the error is a **one-directional bias averaging 2.72x the effect being
+  measured** - Spearman(quote, print) = 0.776 is the trap: the ordering survives, the level does
+  not. Identity exact: `quote% - print%` = the blind term at max |difference| 1.78e-15.
+  **Also fixed here**: O-3's "every endpoint returns 478" diagnosis was half wrong and self-
+  inflicted - `alive()` read any HTTP error as "terminal dead" and started a duplicate terminal
+  whose login invalidated the live session. `theta_data.py` now separates `listening()` from
+  `alive()`, refuses duplicate starts, and reports entitlement via `--check`. **The remaining ask
+  is VALUE tier, not STANDARD** (`odte_data` calls only `/v3/option/history/quote`); STANDARD only
+  rebuilds an `iv_regime.parquet` already on disk. **Do not schedule this track until VALUE is
+  restored** - O-2 closed delta/width/entry/structure/stop, O-3 closed selection at net zero, O-4
+  closed the free-substitute escape hatch, and the one live question (cash-settled **SPXW**, where
+  O-2's fatal exit assumption becomes a fact and commission per unit of risk falls ~10x) is one
+  `fetch_day` away behind the 403. Operational: `py -3.11` has no pyarrow; run `sweep_o*` on the
+  default `python`.
 - **O-3 DONE 2026-09-12 (see `research/journal_options.md`): the 0DTE variance risk premium is
   NOT conditional, and the ceiling on session selection is net zero. Refused; nothing shipped.**
   `scripts/sweep_o3.py`, 14 DIAGNOSTIC ledger rows under `options/odte_o3_select`, two features

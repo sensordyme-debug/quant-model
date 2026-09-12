@@ -5,6 +5,126 @@ Newest first. The `options` scope: the Theta store, `scripts/odte_*`, `scripts/t
 
 ---
 
+## 2026-09-12 - O-4: the free options feed cannot refuse a bad trade. Trade prints disqualified; the track is blocked on the human. Also: half of O-3's blocker diagnosis was wrong and this repository caused it.
+
+**Housekeeping first, because it changes how this entry should be read.** O-4 was designed, run
+and recorded by the previous run on this track at 17:56 UTC (60 DIAGNOSTIC rows under
+`options/odte_o4_feed`), which then ended without journaling or committing anything. This entry
+lands that work, and it does not take it on trust. Before writing a word of it:
+
+- the full 60-cell grid was **rerun from scratch over all 1,891 stored sessions** (141 s) and
+  reproduces the recorded numbers exactly - sign flips 10, decision flips 0, 56 decisive refusals,
+  33 lost, 6 turned positive, blind term 1.610, Spearman 0.776;
+- the load-bearing *external* claim was **re-probed live on the Alpaca key**:
+  `/v1beta1/options/quotes` is **HTTP 404**, while `/bars` and `/trades` return 200 on the same
+  contract and `/snapshots/SPY` returns only a *current* bid/ask;
+- the Theta entitlement was **re-checked live** with the new `--check`: `listening True serving
+  True`, `history/quote` is **HTTP 403 "requires a value subscription ... you only have a FREE
+  subscription"**. The blocker is still open as of 20:4x UTC today.
+
+**Correction to O-3, and the loop caused the error.** O-3 reported "every options endpoint returns
+HTTP 478" and read 478 as the lapsed entitlement. It never was. The body says *Invalid session ID.
+This can occur if more than one terminal is running* - and more than one was running because
+`theta_data.alive()` treated **any** HTTP error as "terminal is dead", so `start_terminal()`
+launched a second instance at 10:32. It could not bind the port (`Address 127.0.0.1:25503 already
+in use`, in `terminal.out`) but its login invalidated the live instance's session, turning a
+recoverable 403 into a dead data path. Stopping both and starting exactly one restored the listing
+endpoints immediately. Fixed in `scripts/theta_data.py`: `listening()` now separates "nothing bound
+to the port" from "bound and answering with an error", `alive()` no longer reads an HTTP error as
+death, `start_terminal()` **refuses** to start a duplicate, and `--check` reports terminal state and
+entitlement in one call. **The other half of O-3's diagnosis stands**: the subscription really did
+lapse, STANDARD -> FREE between 2026-09-10 02:24 and 2026-09-12 13:32.
+
+**The ask is cheaper than O-3 implied.** The 0DTE store is built by `odte_data.py`, which calls
+exactly one endpoint, `/v3/option/history/quote`, and that needs **VALUE**, not STANDARD. VALUE
+unfreezes the store, catches up the missing sessions and buys SPXW. STANDARD is needed only by
+`scripts/iv_regime.py`, whose output is already on disk. Recorded in `BLOCKERS.md`.
+
+**Hypothesis.** Before this track spends an iteration porting itself to the only reachable free
+options source, measure what porting would do to its verdicts. O-2 refused the SPY 0DTE credit
+spread on **cost**, not edge, and the decisive term was the spread crossed on every fill (-1.363%
+of the position's own max loss against gross +0.783%). A trade-print dataset cannot see that term.
+So: **re-price the same trades two ways and count the decisions that change.**
+
+**Design, pre-registered in `scripts/sweep_o4.py`'s docstring before any run.** Same sessions, same
+trades, same columns out of `sweep_o2.run_session` - `sweep_o2.py` is imported, **not modified**,
+and no shipped or runner-loaded file was touched, so no deploy gate is owed.
+
+| estimator | definition | what it represents |
+|---|---|---|
+| `NET_QUOTE` | `pnl / risk` - short leg sold at the bid, long bought at the ask, reversed on exit, plus commission | O-2's method, and the truth |
+| `NET_PRINT` | `(pnl_gross - fees) / risk` - every fill at the mid, plus commission | the best a trade-print dataset can do |
+
+`NET_PRINT` is deliberately **generous**: real prints sit nearer the far touch on a marketable
+order, so an honest Alpaca backtest is at least this wrong. Every number below is an upper bound on
+the fallback's accuracy. Grid is O-2's own axes unchanged, so no new tuning enters:
+`{put, call} x target {0.05, 0.10, 0.16, 0.25, 0.35} x width {0.30%, 0.75%, 1.50%} x entry
+{10:00, 14:00}`, exit 15:50, fee $0.75 = **60 cells x 1,891 sessions**. Verdict rule is O-2's,
+applied identically to both: mean > 0 at t > 2 in >= 2 of 3 regimes.
+
+**Result on the pre-registered statistics - and the headline had no power.**
+
+| statistic | value |
+|---|---|
+| cells evaluated | 60 |
+| 1. SIGN FLIP (print > 0 >= quote) | **10** (16.7% of the grid) |
+| 2. DECISION FLIP (passes on print, fails on quote) | **0** <- the declared headline |
+| 3. FALSE NEGATIVE | 0 |
+| 4. BLIND TERM `spread_cost / risk` | mean **1.610** points of max loss (min 0.335, max 8.313) |
+
+Statistic (2) is zero for a degenerate reason, not a reassuring one: **no cell reaches t > +2 under
+either estimator**, so a test that only detects a fallback *inventing a pass* is identically zero
+here whatever the fallback does. Stating that plainly rather than reporting "0 false positives, the
+feed is usable" is the whole point. The identity holds exactly - `quote% - print%` equals the blind
+term by construction at max |difference| **1.78e-15** - which is the arithmetic check that the two
+estimators differ in the spread and in nothing else.
+
+**The direction that does have power, declared post-hoc and labelled post-hoc in the output.**
+Every O-item to date has ended in a refusal, so the question this track actually depends on is the
+mirror image: **can the fallback still refuse?**
+
+| | |
+|---|---|
+| cells decisively refused on quotes (t < -2) | **56 of 60** |
+| of those, no longer decisive on prints (t > -2) | **33 (59% of the refusals lost)** |
+| of those, prints report a **positive** mean | **6** |
+| bias / effect: mean blind term vs mean \|print%\| | **2.72x** |
+| Spearman(quote%, print%) across the grid | 0.776 |
+
+The single cell a trade-print study would have picked as its best is
+**put 0.35, 1.50% wide, entry 14:00: print +0.356% (t +1.28)** - which at the quote is
+**-0.477% (t -1.54)**. The fallback's error is not noise that averages out over 1,891 sessions: the
+spread cost is non-negative by construction, so it is a **one-directional bias**, and it is 2.7x
+the size of the effect being measured. Rank correlation of 0.776 is the trap - the ordering mostly
+survives, so the fallback *looks* usable, while the level that every verdict on this track turns on
+is displaced by more than the verdict.
+
+**Decision: trade-print data is disqualified for cost-sensitive options research on this track, and
+the track is blocked on the human.** Nothing shipped, nothing promoted, no owner risk posture
+changed. This is a negative result about a *data source*, not about a strategy, and it closes the
+"can we work around the lapsed subscription for free?" question that would otherwise have consumed
+several iterations. A feed that cannot refuse a bad trade is not a fallback for a track whose every
+result so far has been a refusal.
+
+**Ledger**: 60 DIAGNOSTIC rows under `options/odte_o4_feed` (already appended by the run that
+produced them; this entry adds none). Grid CSV at `results/options/o4_feed_grid.csv` (gitignored).
+
+**Operational note for the next run on this track**: `py -3.11` has **no pyarrow**, so every
+`sweep_o*` script that touches the parquet store must be run with the default `python` (3.14).
+`py -3.11 scripts/sweep_o4.py` dies in `pd.read_parquet` before doing any work.
+
+**Next step, and there is only one that is not the owner's.** The store is intact and frozen at
+1,891 SPY sessions (2016-01-08..2026-09-10, 176 MB) and every question it can answer has been
+answered: O-2 closed delta, width, entry time, structure and stop; O-3 closed selection and bounded
+it at net zero; O-4 closed the free-substitute escape hatch. The one remaining question -
+**price the same premium in cash-settled European SPXW**, where O-2's fatal exit assumption becomes
+a fact and commission per unit of risk falls roughly tenfold - is one `fetch_day('SPXW', ...)` away
+and is blocked precisely by the 403. **VALUE tier on Theta is the whole ask**; it is in
+`BLOCKERS.md` with the endpoint-by-endpoint evidence. Until it is answered this track should not be
+scheduled - it has no item that can advance from disk.
+
+---
+
 ## 2026-09-12 - O-3: the 0DTE variance risk premium is not conditional, and the ceiling on selection is net zero. Refused. Nothing shipped.
 
 **Hypothesis.** O-2 refused the SPY 0DTE credit spread on COST, not on edge: it measured a real,
