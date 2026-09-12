@@ -315,3 +315,32 @@ def test_non_shipped_risk_overrides_are_flagged_on_the_row(tmp_path, monkeypatch
     import json
     row = json.loads(ledger.read_text(encoding="utf-8").strip())
     assert row["risk"]["gross_hard_cap"] == 99.0
+
+
+# ============================================ AUD-07: the harness must agree with the runner
+
+def test_the_harness_flatten_minute_matches_the_live_trader_on_a_regular_day():
+    import intraday_trader as it
+    day = D(2026, 9, 11)
+    assert ib.flatten_minute_for(day) == it.flatten_minute_for(day) == 368
+
+
+def test_the_harness_flatten_minute_matches_the_live_trader_on_an_early_close():
+    """The whole point of AUD-07: on 2026-11-27 the session is 210 minutes, so a harness
+    still using 368 would model a flatten that the live path cannot perform - and the two
+    would disagree on exactly the days the live path used to break."""
+    import intraday_trader as it
+    day = D(2026, 11, 27)
+    assert ib.flatten_minute_for(day) == it.flatten_minute_for(day) == 188
+
+
+def test_a_deliberate_risk_override_is_not_silently_moved_by_the_calendar(monkeypatch):
+    """An override is a stated experiment. The calendar may correct the SHIPPED value only."""
+    monkeypatch.setitem(ib.RISK, "flatten_minute", 300)
+    assert ib.flatten_minute_for(D(2026, 11, 27)) == 300
+    assert ib.flatten_minute_for(D(2026, 9, 11)) == 300
+
+
+def test_the_shipped_flatten_minute_is_unchanged_on_a_normal_session():
+    """Behaviour on a regular day must be byte-identical to before the change."""
+    assert ib.flatten_minute_for(D(2026, 9, 11)) == ib.SHIPPED_RISK["flatten_minute"]

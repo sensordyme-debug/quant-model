@@ -37,7 +37,28 @@ from intraday_common import (DAILY_LOSS_LIMIT, FLATTEN_MINUTE, GROSS_HARD_CAP, M
                              load_universe, sessions, share_scale, slippage, volume_limits)
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
 from base import features  # noqa: E402
+
+
+def flatten_minute_for(day) -> int:
+    """The bar index at which to start flattening on THIS session. AUD-07.
+
+    Must agree with `intraday_trader.flatten_minute_for`, or the harness and the live path
+    disagree on exactly the days the live path used to break. `RISK["flatten_minute"]` is
+    still honoured when a research run overrides it deliberately; only the SHIPPED value is
+    made calendar-aware, because an override is a stated experiment and must not be silently
+    moved.
+    """
+    if RISK["flatten_minute"] != SHIPPED_RISK["flatten_minute"]:
+        return int(RISK["flatten_minute"])
+    try:
+        from quant_brain.markets.equity_us import CALENDAR
+        m = CALENDAR.minutes_before_close(day, 390 - FLATTEN_MINUTE)
+    except Exception:  # noqa: BLE001
+        return int(RISK["flatten_minute"])
+    return int(RISK["flatten_minute"]) if m is None else int(m)
 
 EXPERIMENTS = REPO / "research" / "experiments.jsonl"
 
@@ -181,6 +202,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
     forced_eod = {"orders": 0, "notional": 0.0}
     t0 = time.time()
     for day in days:
+        flat_minute = flatten_minute_for(day)
         # per-session slices (positional views for speed)
         fd = {s: f[f["day"] == day] for s, f in feats_all.items()}
         fd = {s: f for s, f in fd.items() if len(f) >= 30}
@@ -228,7 +250,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
                 stop_minute = minute
                 if verbose:
                     print(f"{day} {t.time()} daily loss limit hit: {equity - eq_open:,.0f}")
-            if stopped or minute >= RISK["flatten_minute"]:
+            if stopped or minute >= flat_minute:
                 targets = {}
             else:
                 view = {s: fd[s].iloc[:j] for s, j in cur_rows.items()}
@@ -237,7 +259,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             caps = ({s: part_cap * float(r.get(minute + 1, float("nan")))
                      for s, r in vrow.items()} if vrow is not None else None)
             pending = targets_to_orders(targets, book, closes, equity, day, caps, clipped)
-            if minute >= RISK["flatten_minute"] and book.pos and not pending:
+            if minute >= flat_minute and book.pos and not pending:
                 pending = {s: -q for s, q in book.pos.items()}
                 if caps is not None:   # the flatten is worked too: 22 bars exist between 15:38 and the close
                     for s in list(pending):
