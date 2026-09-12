@@ -626,6 +626,19 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   book - and the eleven-year worst day is **-$46,850, or 4.7% of the account in one session**,
   against the -$34,300 in the tables above.
 
+  > **Correction, 2026-09-12 (C-2, `critic` track; see `research/journal_critic.md`).** Everything
+  > in the paragraph above reproduces exactly - the table, the 92 stop-outs, the -$35/day, the
+  > regime-by-regime widening - **except the last clause, which is wrong by 4x and in the direction
+  > that overstates your risk.** The $1,000,000 book those worst days are measured on is the
+  > **sleeve**, not the account: the cell is run at `nav_frac = 0.25`, which is the statement that
+  > the account behind it is $4,000,000. So -$46,850 is **4.7% of the sleeve and 1.17% of the
+  > account**. The paragraph's own rule proves it: -2.5% of a $4M NAV is a $100,000 stop, so a day
+  > costing 4.7% of the account (-$187,400 of sleeve P&L) could not happen, and the corrected cell
+  > duly records **0 stop-outs in 2,686 sessions**. On the real paper account (NAV $986,287 logged
+  > today, sleeve $246,572) the eleven-year worst day is **-$11,552, or 1.17% of the account**. The
+  > decision below is unchanged and is still yours; the number you are deciding about is four times
+  > smaller than the sentence above says.
+
   **The decision, and it is yours because it changes risk posture:** leave `DAILY_LOSS_LIMIT` as
   -2.5% of account NAV (the sleeve's own stop is then -10% of sleeve equity, which is what is
   running on paper now), or charge it against **sleeve equity**, which is what every backtest of

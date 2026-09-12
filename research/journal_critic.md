@@ -7,6 +7,199 @@ nothing and it ships nothing.
 
 ---
 
+## 2026-09-12 - C-2: A-13 survives five attacks and reproduces on committed code. Two things it did not survive are units and the gate: the owner-facing tail is 4.7% of the SLEEVE, not of the account, and the deployed sleeve's 09:25 launch gate is failing right now for a reason that has nothing to do with trading
+
+**Target, and why this one rather than the S-24 that C-1 queued.** C-1 left `C-2` pointed at S-24
+(the pre-open MOO claim). A-13 (`f1c9968`, 17:32 ET) landed **after** C-1 was written and outranks
+it on all three things this track weighs: it is the newest claim; it changes
+`algorithms/intraday/base.py`, which the **live trader loads**, plus the shared harness
+`scripts/intraday_backtest.py` that every A-track verdict is measured through; and it rewrote an
+**owner-facing risk paragraph** in `BLOCKERS.md`, which is the one place a wrong number turns into
+a wrong decision. S-24 stays queued as C-3. No promotion is contested here: `research/champion.json`
+is byte-identical to `9197bd4` (`git diff` empty) and A-13 never touched it.
+
+**Attack 0 - does it reproduce on the code that is actually committed? YES.** The A-13 rows were
+recorded at `b7e87ad` with `git_dirty: true`, and the entry itself admits most harness hunks were
+swept into a concurrent `eng` commit. So the first question is whether HEAD (`d290f62`) still
+produces them. Re-ran `python scripts/sweep_a13.py --workers 6 --years 2024 2025 2026 --cells
+control all` from a clean checkout state:
+
+| | A-13 recorded | C-2 re-run at HEAD | |
+| --- | --- | --- | --- |
+| control $/day, 674 sessions | -132.53 | **-132.532** | = |
+| control t / worst day / stops | -0.22 / -34,300 / 30 | **-0.216 / -34,299.609 / 30** | = |
+| control trades/day, costs/day | 39.1 / 1,041 | **39.07 / 1,041.09** | = |
+| corrected (`all`) $/day / t | +71.4 / +0.11 | **+71.427 / +0.112** | = |
+| corrected worst day / stops | -45,283 / 0 | **-45,283.268 / 0** | = |
+| paired difference / t | +204.0 / +1.22 | **+203.96 / +1.22** | = |
+| clause 4 sparse pairs | 0 of 10,784 | **0 of 10,784 (0.00%)** | = |
+
+The 11-year run's 2024-2026 slice and this standalone 3-year run agree to **1.5e-9 $/day** (not
+bit-exact: a longer feature frame changes the accumulation order inside pandas' rolling mean). That
+same dust is the whole of the `atr` cell, and it explains the one number I could not reproduce at
+first: A-13's atr paired **t +1.93** is against the *standalone* control (I get **+1.98**, 2e-11
+$/day), not against the 11-year slice (**+0.96**). Both are t-statistics on floating-point noise
+and A-13 says so itself, in the one sentence of it I would keep above all others: *a t-statistic
+without a magnitude beside it is worth nothing.*
+
+**Attack 1 - re-derive the entire headline table from the stored daily series with my own code.
+EXACT, all 24 cells.** `results/a13/daily_{control,all}.csv`, my own mean/se/t/min, not
+`sweep_a13.stats`:
+
+| window | n | ctrl $/day | t | corr $/day | t | paired | t | ctrl worst | corr worst | ctrl stops |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2016-2019 | 1,006 | -303.4 | -1.25 | -269.3 | -1.11 | +34.07 | +3.12 | -26,826 | -33,445 | 5 |
+| 2020-2023 | 1,006 | -528.6 | -1.19 | -605.0 | -1.34 | -76.41 | -1.00 | -30,902 | -46,850 | 57 |
+| 2024-2026 | 674 | -132.5 | -0.22 | +71.4 | +0.11 | +203.96 | +1.22 | -34,300 | -45,283 | 30 |
+| **ALL** | **2,686** | **-344.9** | **-1.41** | **-309.6** | **-1.24** | **+35.32** | **+0.69** | **-34,300** | **-46,850** | **92** |
+
+Every figure in the journal and in `BLOCKERS.md` matches, and 5 + 57 + 30 = **92** stop-outs is the
+claimed count. The isolated 2024-2026 cells reproduce too: `fill` **-1.1861** $/day at t -0.82
+(claimed -$1.19 / -0.82), `nav` **+205.1505** (claimed +205.15), `atr` **0 of 674 sessions differ by
+as much as a cent**.
+
+**Attack 2 - clause 4 recounted on the store the sleeve actually trades. EXACT.** Independently of
+`sweep_a13`, over the whole IBKR store: **0 of 4,208** (symbol, session) pairs have their
+opening-range bar at a within-session positional index below 14, so `rolling(14, min_periods=5)`
+there can never still contain bar 0. Claim reproduced. The mechanism is sound as well as the count:
+`orb` refuses to compute the range until `len(f) >= range_minutes + 1` **and** `minute >= 15`, and
+`fd` is sliced per session, so the range bar's positional index is >= 15 by construction on any
+session with no missing opening bars.
+
+**Attack 3 - look-ahead in the new fill model. NONE FOUND.** The decision view is
+`fd[s].iloc[:j]` where `j` is the count of bars with index `<= t`, so the strategy sees the decision
+bar and nothing after it; the order it places is held in `pending` and filled at the *next* printed
+bar's **open**. That is strictly more conservative than the model it replaces, which booked an
+unfilled order at a price from a bar that had already closed. Marks use last-printed closes. The one
+forward-looking expression in the loop is A-11's participation cap, `vrow[s][minute + 1]`, and it is
+a **trailing median over strictly prior sessions** (`volume_limits`), not next-minute actual volume -
+and `part_cap` is 0.0 in every A-13 cell, so `vrow` is `None` throughout.
+
+**Attack 4 - is the `nav_frac` translation faithful to the live rule? YES, and I checked the live
+side rather than the comment.** `intraday_trader.py:595` stops on `pnl <= -DAILY_LOSS_LIMIT *
+self.nav_open` with `nav_open` the **account** NAV and `equity = nav * equity_frac`. The harness
+(`intraday_backtest.py:336`) stops on `equity - eq_open <= -daily_loss_limit * eq_open / nav_frac`.
+Substituting `eq_open = equity_frac * NAV` makes the two identical **iff `nav_frac == equity_frac`**,
+which is what the `nav` and `all` cells set (0.25). The default 1.0 reproduces every earlier row.
+Correct, and the direction claim follows: a 4x looser stop can only remove stop-outs, and the data
+show 92 -> 0 with the worst day never improving.
+
+---
+
+### Finding 1 (A-13, owner-facing): the tail is **4.7% of the sleeve**, not "4.7% of the account" - and under the rule that sentence is describing, 4.7% of the account is impossible
+
+`BLOCKERS.md:626` tells the owner the eleven-year worst day is **"-$46,850, or 4.7% of the account
+in one session"**. The paragraph's own arithmetic refutes it. The `all` cell is run with
+`nav_frac = 0.25`, which is exactly the statement *"the $1,000,000 book is the SLEEVE, and the
+account behind it is $4,000,000"* - that is the only substitution under which the harness's stop
+equals the live one. So:
+
+| | value |
+| --- | --- |
+| worst day, eleven years | -$46,850 |
+| as a fraction of the **$1M sleeve** | **-4.69%** |
+| as a fraction of the **implied $4M account** | **-1.17%** |
+| the live stop being described (-2.5% of NAV) | **-$100,000 of sleeve P&L** |
+
+A day that lost 4.7% of the account would be a **-$187,400 sleeve loss**, nearly twice the stop the
+same paragraph says is in force. The internal check is that the corrected cell records **0
+stop-outs in 2,686 sessions**: the worst day never came within a factor of two of the limit, which
+is only consistent with the sleeve reading. On the real paper account (NAV **$986,287**, logged
+today, sleeve $246,572) the same worst day scales to **-$11,552, or 1.17% of the account**.
+
+This is the same unit confusion as AUD-21 itself, surfacing one layer up in the sentence that asks
+the owner to make a risk decision, and it overstates the thing being decided by **4x**. Everything
+else in that paragraph - the table, the -$35/day cost of the tighter setting, the 92 sessions, the
+regime-by-regime widening, the "this is a preference about the worst day" framing - is correct and
+reproduced above. Corrected in place at `BLOCKERS.md` with a dated critic note; the A-13 author's
+text is left standing beneath it, because deleting the wrong number would delete the evidence that
+it was ever shown.
+
+### Finding 2 (outside A-13, and larger): the intraday sleeve's 09:25 launch gate is failing **now**, because a unit test reads the machine's free memory
+
+This is the deploy-gate half of the brief, and the answer for the intraday sleeve is **the gate does
+not pass**. On the interpreter the Windows task actually runs - `Get-ScheduledTask 'Quant Intraday
+Sleeve'` executes `pythoncore-3.14-64\python.exe scripts\intraday_launch.py`, no flags:
+
+```
+INTRADAY preflight FAILED: unit suite failed, not trading.    AssertionError: assert 1 == 2
+     +  where 1 = resolve_workers(2, 'futures', verbose=False)
+FAILED tests/test_qb_scheduler.py::test_resolve_workers_respects_a_smaller_request
+1 failed, 614 passed in 60.79s
+```
+
+E-5 made `pytest` exit 1 **the one outcome that refuses the launch** (`intraday_launch.py:126`:
+*"the only refusal: real assertion failures"*), and every other outcome a warning. So this stops the
+sleeve from trading.
+
+The test is not wrong about anything in the code; it is **non-deterministic by construction**.
+`resolve_workers` clamps through `workers_for -> allocate -> plan_workers`, which reads *current*
+commit charge and free RAM. The test asserts `resolve_workers(2, "futures") == 2`, i.e. that the
+docstring's promise - *"A researcher who asks for 2 gets 2"* - holds. It does not: the
+implementation is `out = max(1, min(want, allowed))`, so when the machine is loaded enough that
+`allowed == 1`, a request for 2 returns 1 and the promise breaks. Demonstrated both ways within
+twenty minutes, same commit, same interpreter, no code change:
+
+| machine state | `plan_workers(600).workers` | `resolve_workers(2, "futures")` | `pytest tests/test_qb_scheduler.py` |
+| --- | --- | --- | --- |
+| a 12-worker sweep running | 1 | **1** | **FAILED** |
+| idle | 7 (`limited_by=commit`) | 2 | 21 passed |
+
+The operational shape of this is bad in a specific way: AGENTS.md has several cron tracks running
+this repository **concurrently by design**, and the 09:25 ET launch is exactly when an overnight
+sweep is most likely to still be holding memory. The sleeve can therefore refuse to trade *because
+research was running*, and the log line will say "unit suite failed", which points the reader at
+trading code that is fine. It arrived today in `9d67bef` (eng, Parts 1/5/6), so it has not yet met
+a trading morning. Filed as **C-3** for the `eng` track - the fix belongs to whoever owns
+`quant_brain/` and is a one-line choice between pinning the budget in the test and dropping the
+environment-dependent assertion; **the critic ships nothing**, so I have not made it.
+
+### What I could not settle, and the exact command that would
+
+A-13 clause 2 says *"fixing the loss-limit base improves the measured P&L by +$205.15/day on
+2024-2026 and +$35.32/day pooled"*. The first is measured; **the second is an attribution, not a
+measurement**. +$35.32 is the `all` cell (fill + atr + nav together) over eleven years, while the
+only isolated `fill` cell ever run is 2024-2026, where clause 4 shows the Alpaca store has **no**
+sparse opening ranges at all. A-13's own count says the store is much thinner before 2020 (7.47% of
+pairs over the full history), so the fill defect's contribution on 2016-2019 could be materially
+larger than the -$1.19/day it costs on 2024-2026, in either direction. That does not change any
+decision - the pooled t is +0.69 either way and nothing was promoted on it - but the sentence
+credits nav with a number it did not earn alone. The decomposition run was launched here and did
+not finish inside this job's window; resume with:
+
+    python scripts/sweep_a13.py --workers 12 --years 2016 2017 2018 2019 --cells control fill nav all
+
+(back up `results/a13/*.csv` first, the script overwrites them; C-2's copies are in
+`results/c2_critic/`.)
+
+### Two smaller things, neither a refutation
+
+- **Clause 1's reconciliation does not close at the precision it is printed.** -65 (A-10) - 45
+  (regulatory fees) - 20.76 (AUD-07 flatten) = **-130.76**, not the **-131.8** stated, and the
+  residual against -132.53 is then **$1.77/day**, not $0.77. The claimed pair is self-consistent if
+  the unrounded components were used, but the ledger stores A-10's figure as the integer `-65`, so
+  it cannot be checked. The reconciliation is right to about 1% of a -$132/day number either way,
+  which is all clause 1 needs; the arithmetic as displayed simply does not add up.
+- **`forced_eod` is invisible at the settings A-13 ran.** `summarize` only reports
+  `forced_eod_orders` when `part_cap` is non-zero, and every A-13 cell has `part_cap = 0.0`. Under
+  `next_bar` an order placed on the final bar cannot fill, so positions closed at the last bar's
+  close are not counted anywhere in these runs. The flatten begins at minute 368 with ~22 bars of
+  runway so this is very probably zero, but "probably zero" is not what the counter is for.
+
+**Decision: A-13 stands. Nothing restored, no ledger row tagged not promotable, no research verdict
+overturned.** The harness fixes reproduce on committed code, the fill model is causal, the
+`nav_frac` translation matches the live trader line for line, clause 4's inertness claim is exact on
+both stores, and the eleven-year answer for the deployed ORB book is still -$310/day at t -1.24 -
+not proven to lose, not proven to earn. What changed is one owner-facing percentage (4x too large,
+corrected) and one thing nobody was looking at: the live launch gate is red.
+
+**Reusable rule.** *A gate that runs the whole unit suite inherits every non-determinism in it.*
+E-5's design is right - the suite should stop the launch - but that makes every test a live-path
+dependency, so a test is allowed to read the clock, the network or the machine's free memory only if
+somebody has decided that the sleeve should not trade when those change. Nobody decided that here.
+
+---
+
 ## 2026-09-12 - C-1: S-31 survives four attacks, and the one clause that recommends an action is refused - a 25% drawdown cap does NOT ask the owner to shrink
 
 **Target, and why this one.** The latest promotion is S-18's champion (`promoted_at`

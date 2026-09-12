@@ -1726,6 +1726,38 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
+- **C-3 (found by `critic`, fix belongs to `eng`): the intraday sleeve's 09:25 launch gate is red,
+  and the cause is a unit test that reads the machine's free memory.** On the interpreter the
+  Windows task actually runs (`pythoncore-3.14-64\python.exe scripts\intraday_launch.py`),
+  `--preflight-only` today returns *"INTRADAY preflight FAILED: unit suite failed, not trading"*,
+  `1 failed, 614 passed`, and the single failure is
+  `tests/test_qb_scheduler.py::test_resolve_workers_respects_a_smaller_request`
+  (`assert 1 == 2`, from `9d67bef`). `resolve_workers` clamps through `plan_workers`, which reads
+  current commit charge, so the assertion holds only on an idle machine: with a 12-worker sweep
+  running it returns 1, idle it returns 2, same commit and interpreter twenty minutes apart. E-5
+  made `pytest` exit 1 the one outcome that refuses the launch, and AGENTS.md runs several tracks
+  concurrently by design, so an overnight sweep still holding memory at 09:25 ET stops the sleeve
+  from trading and logs a reason that points at trading code that is fine. The fix is a one-line
+  choice - pin the budget the test asserts against, or drop the environment-dependent assertion -
+  plus the general rule that a test which reads the clock, the network or free memory must not sit
+  inside a gate that decides whether the account trades. Evidence in `research/journal_critic.md`
+  (C-2). **The critic ships nothing, so this is not fixed.**
+  <!-- added by C-2, 2026-09-12 (critic). -->
+
+- **C-4 (critic): adversarially verify S-24, the pre-open MOO claim** - inherited unchanged from
+  C-1's queue, deferred once because A-13 landed after C-1 was written and touched a live-loaded
+  file and an owner-facing risk paragraph. Same gate as before: reproduce the control, re-run at a
+  pinned window, and require `scripts/compare_orders.py` to still agree on 3,689/3,689 dates.
+  Second target after it: **S-29**'s +36.56 bps VIX-removal attribution. Third: finish C-2's
+  unsettled item, the 2016-2019 decomposition of A-13's pooled +$35.32/day
+  (`python scripts/sweep_a13.py --workers 12 --years 2016 2017 2018 2019 --cells control fill nav all`,
+  back up `results/a13/*.csv` first).
+  <!-- added by C-2, 2026-09-12 (critic). C-2 itself: A-13 survives five attacks and reproduces on
+       committed code; its owner-facing "4.7% of the account" is 4.7% of the SLEEVE and 1.17% of
+       the account, corrected in BLOCKERS.md. No promotion contested, champion.json byte-identical
+       to 9197bd4. Reusable rule: a gate that runs the whole unit suite inherits every
+       non-determinism in it. -->
+
 **Reprioritized at the 2026-09-12 daily review, and again after S-30 closed it the same day.**
 Twenty-two iterations closed in the previous 24 hours (S-15..S-30, F-1..F-6), one promotion (S-18),
 and **both** tracks are now out of mechanisms with a stated premise and a permitted instrument.
@@ -1784,7 +1816,13 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
        the D-4 bullet and names AUD-15. -->
 
 
-- **C-2 (critic): adversarially verify S-24, the pre-open MOO claim.** S-24 says the store's open is
+- **C-2 DONE 2026-09-12 - the slot was spent on A-13, not on S-24; S-24 is re-listed as C-4 at the
+  top of this section.** A-13 landed after C-1 wrote this item and outranked it: newest claim,
+  changes a live-loaded file, and rewrote an owner-facing risk paragraph. Result: A-13 survives,
+  one owner-facing number corrected (4x), and the intraday launch gate found red (C-3). The
+  original text of this item follows and is now C-4.
+
+- **C-4 (was C-2) (critic): adversarially verify S-24, the pre-open MOO claim.** S-24 says the store's open is
   not the opening cross and that the pre-open move is worth **+1.98 CAR at the real MOO fill**. It is
   the highest-value unchecked claim of the last 24 hours because it proposes a change to the
   **execution clock** of the deployed book, so unlike a signal claim it has a hard gate:
