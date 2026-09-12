@@ -17,6 +17,52 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-12 03:0x UTC (S-25): **the daily champion is paid while the market is shut - 94% of
+its return and all of its measurable alpha is the overnight leg - and that re-prices both ops
+routes the owner is holding.** With the intraday tracks closed by F-4/F-5 and the daily instrument
+audit closed by S-22, this iteration measured the one thing about the deployed book nobody had ever
+separated: a book that holds nine ETFs around the clock is paid twice a day, and every figure in
+this repository is a close-to-close number. New `scripts/sweep_s25.py`, built on S-19's validated
+share-level harness (corr 0.99650 against LEAN's own equity curve); 3,689 sessions 2012-2026;
+**6 ledger rows** under `daily/s25_legs`, all tagged DIAGNOSTIC; five clauses pre-registered.
+**(1) Identity passes to the digit**: the attributing book reproduces `sweep_s19`'s deployed cell
+at 22.192150% / 5,052 orders, the leg residual is 5.33e-16 of equity on every session, and the
+costed cell lands on S-22's independently-derived **19.640%**. **(2) The split**: +8.662 bps/day
+total = **+8.103 overnight (t +6.80, 94%)** and **+0.738 intraday (t +0.47, 9%)**, with annualized
+leg vol 0.115 / 0.151 against 0.188 total - **the leg paying 94% of the return carries 61% of the
+risk**. **(3) The control is the finding**: against an always-invested book scaled daily to the
+champion's own 1.25x gross, the selection difference is **+3.087 bps/day at t +4.20 overnight**
+(SPY control +3.081, t +3.79) and **-0.314 at t -0.37 intraday**, with both halves agreeing
+(+2.993 t +3.62 IS, +3.200 t +2.51 OOS). **Fourteen years find no intraday content in this
+ranking at all.** **(4) Two artifacts ruled out**: the ex-date credit is +0.683 bps/day for the
+book against +0.826 for the control, so price-only the excess is *larger* (+3.231, t +4.36); and
+on S-24's official opening crosses the overnight leg reads +8.864 against the store's +8.887
+(2,683 sessions), so it is not Yahoo's print convention. **(5) The strategy screen is refused and
+the breakeven is negative**: overnight-only earns 13.113% at 0 bp (Sharpe 1.133 at 0.115 vol) and
+**-0.555% at 2 bp**, intraday-only -3.032% and -18.269%, against the deployed 20.853% / 19.640%,
+paired -7.785 (t -4.97) and -15.395 (t -12.19), failing in both halves - they lose **at zero cost**
+(breakeven -0.751 and -9.988 bps one-way), so this is S-15/S-20's lesson again: a smaller book, not
+a better one. **(6) Post hoc, labelled: the pre-open MOO move's entire payoff is intraday**
+(+0.604 bps/day at t +1.43; overnight -0.006), which is structurally forced - both conventions hold
+identical targets overnight - so **the owner's recommended move buys the leg where this strategy
+has never shown an edge**, at a statistic that has never reached |t| = 2. The recommendation stands
+(the defect is certain, the payoff is not) but the framing is sharper. **(7) The other route is
+dead**: the in-place fix, priced as an upper bound (decide on close[D], fill at close[D]), earns
+**22.374% against 22.192% - +0.18 CAR points** - because it buys the same intraday leg (+0.616) and
+**gives it back overnight (-0.572, t -1.79)**. Feeding today's close into the signal makes the
+overnight leg worse, which is S-9/S-10's skip lever rediscovered from the opposite side, and it
+means **the paid real-time data subscription can no longer be justified by that fix**. **Nothing
+shipped, nothing promoted, no default changed**: champion unchanged at S-18, `live/*` and all three
+scheduled tasks untouched, one new script only so rule (a) owes no replay; `champion.json` gains a
+`leg_note` and nothing else. **Standing jobs both ran first**: `daily_fills.py` 10 fills / $2.37M /
+**+3.2 bps (se 4.5)**, `ref_price` the previous close 10 of 10 (2026-09-11's closes have published,
+so F-4/F-5's +1.7 is confirmed as the benchmark-availability artifact); `slippage_report.py`
+unchanged at 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90. **What it changes for the loop**:
+the reusable rule is the daily twin of F-5's always-long control - **a daily-sleeve return
+statement must say which leg it lives in and be quoted against an always-invested control at the
+same gross in that leg** - and any future candidate that spends turnover on what the book holds
+*between* the open and the close is spending it where the evidence is zero.
+
 Status 2026-09-12 02:0x UTC (F-5): **F-4's momentum column is about a third drift and the rest does
 not reach significance, and the published market-intraday-momentum effect is not in this store at
 all.** F-4 refused the afternoon reversal on sign and left one piece of arithmetic unfollowed: it
@@ -1296,6 +1342,27 @@ ranking. A sweep rejection is therefore grounds for one LEAN confirmation run, n
 an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
+
+- **S-25 DONE 2026-09-12 (see journal): measured, not judged - the champion's alpha is an
+  overnight object, and the two ops routes in `BLOCKERS.md` are an order of magnitude apart.**
+  `scripts/sweep_s25.py` on S-19's validated harness, 3,689 sessions, 6 DIAGNOSTIC ledger rows,
+  five clauses pre-registered. **+8.103 bps/day overnight (t +6.80, 94% of the return) against
+  +0.738 intraday (t +0.47)**; against an always-invested control at the book's own gross the
+  selection difference is **+3.087 (t +4.20) overnight and -0.314 (t -0.37) intraday**, in both
+  halves. Not a dividend artifact (price-only +3.231, t +4.36) and not a print artifact (official
+  crosses +8.864 vs +8.887). Both conditional books **refused at negative breakeven** - they lose
+  at zero cost. Post hoc: the pre-open MOO move is **100% intraday** (+0.604, t +1.43; overnight
+  -0.006) and the in-place alternative is worth **+0.18 CAR points** because its overnight leg is
+  -0.572 (t -1.79). **Do not re-open as a leg-timing strategy question** - the two variants turn
+  the book over 1,248x and 444x equity a year and are behind before a cent of cost is charged.
+  Two durable pieces survive it: the leg attribution itself (`legs_simulate`, which reproduces the
+  deployed book exactly and can split any convention this harness can run) and the rule that a
+  daily-sleeve return statement must name its leg and carry the same-gross always-invested control.
+  **What it leaves genuinely open**: the overnight leg is the only place this sleeve has ever shown
+  alpha and it has never been *targeted* - a candidate that trades the overnight leg without paying
+  for a daily round trip (holding period measured in nights, not sessions; or a sleeve chosen for
+  its overnight behaviour) is the one direction this result points to, and it needs its own
+  pre-registration and a cost model that survives 1,248x turnover, which nothing here does.
 
 Owner-side status 2026-09-11 09:40 ET: the daily review says the backlog is out of cheap
 mechanisms - ten refusals in 24 hours, every intraday candidate negative on 2,686 sessions,

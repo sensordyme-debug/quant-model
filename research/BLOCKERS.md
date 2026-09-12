@@ -160,6 +160,36 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
     "just send a market order at the open instead" is not a shortcut worth taking.
   - **The ask is unchanged and still one line**: move "Quant Paper Rebalance" to a weekday time
     before 09:28 ET and append `--order-type MOO`. Nothing has been changed.
+- **Update 2026-09-12 (S-25): the ask is unchanged, the recommendation is unchanged, and two things
+  about it are now known that were not. The move buys the half of the day where this strategy has
+  never demonstrated an edge - and the alternative below it is dead.** The deployed book's daily
+  return has been split into its two legs for the first time (`scripts/sweep_s25.py`, 3,689
+  sessions, on the S-19 harness that reproduces the deployed book to the digit).
+  - **Where the champion is actually paid**: **+8.103 bps/day while the market is shut (t +6.80),
+    94% of the total**, against **+0.738 bps/day while it is open (t +0.47)**. Quoted against an
+    always-invested book scaled to the same gross - the control that separates a forecast from
+    simply being long - the ranking adds **+3.087 bps/day overnight at t +4.20** (both halves) and
+    **-0.314 intraday at t -0.37**. It is not a dividend effect (price-only the overnight excess is
+    larger, +3.231 at t +4.36) and not an artifact of Yahoo's open (on S-24's official crosses the
+    leg reads +8.864 against +8.887).
+  - **What that means for this decision.** The deployed runner and the pre-open runner hold the
+    *same* targets overnight; they differ only in what they hold between the open and the close of
+    the session they trade in. So the whole +1.98 is intraday by construction, and the measurement
+    confirms it: **intraday +0.604 bps/day (t +1.43), overnight -0.006 (t -1.34)**. The move is
+    still worth making - the staleness defect is certain, the drawdown does not worsen, and the
+    point estimate has been positive in four independent harnesses - but it is buying a leg with no
+    demonstrated edge, at a statistic that has never reached |t| = 2 in any of them. **Read the
+    +1.98 as the best estimate of something genuinely uncertain, not as found money.**
+  - **The "smaller in-place alternative" three items above is now priced, and it is dead.** Feeding
+    the 15:45 price into the signal so it reads through day D and still filling at D's close is
+    worth **+0.18 CAR points** (22.374% against the deployed 22.192%), priced as an *upper* bound
+    that assumes a decision can be executed at the very close it is made on. Leg by leg it buys the
+    same intraday improvement (+0.616, t +1.45) and **hands almost all of it back overnight
+    (-0.572, t -1.79)**, because putting today's close into the signal fights the one-day reversal
+    the champion's own week-skip momentum windows were built to avoid. **Consequence for a purchase
+    you may have been considering: the real-time market-data subscription cannot be justified by
+    this fix.** It may still be worth buying for the intraday sleeve or for order safety - that is
+    a separate question - but not for the daily runner's clock.
 
 ## Open ops item for the human (2026-09-11, live alerting is dead)
 
