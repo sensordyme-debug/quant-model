@@ -2972,6 +2972,19 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   touching the champion.
 - **E-2b Generalize `sweep_s1.py` off S-1.** Explicitly deferred when E-2 shipped; the second
   designated offline item. Needed before any second sleeve can be swept the same way.
+- **E-5 Wire the unit suite into `intraday_launch.py`'s preflight.** E-4 shipped `tests/` but
+  nothing runs it automatically, so it protects only the tracks that remember to. The launcher
+  already replays the last stored session before letting the trader start, which is the right
+  place - but it gates the 09:25 live start, so the failure mode has to be designed, not assumed:
+  run `python -m pytest -q`, log the result to the launch log, refuse to trade **only** on a real
+  test failure, and treat "pytest not importable" as a pass with a warning so a missing dev
+  dependency can never stop trading. Needs `--replay <date>` plus a forced-failure run to verify
+  both branches before it ships. Deliberately left out of E-4 for this reason.
+- **E-6 Store-completeness checker.** No automated check says whether `data/minute`,
+  `data/minute_alpaca` and the 0DTE store are whole: truncated sessions (a fetch that died
+  mid-day leaves a partial session that silently shortens a backtest), missing trading days,
+  duplicate bars, and Theta Terminal liveness. The intraday harness reads these stores on every
+  run and would rather fail loudly than quietly average over a half session.
 
 ## Done
 

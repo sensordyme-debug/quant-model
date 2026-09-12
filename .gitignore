@@ -4,6 +4,7 @@ results/
 log.txt
 __pycache__/
 *.pyc
+.pytest_cache/
 .venv/
 # secrets
 .env

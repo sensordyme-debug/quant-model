@@ -52,6 +52,24 @@ openclaw automations disable <job-id>           # pause the loop
 Get-Content research\journal.md -TotalCount 40  # what the agent learned
 ```
 
+## Tests
+
+`tests/` holds a fast unit suite over the two live runners' money paths: order sizing and the
+no-trade band, the margin ceiling and the MOO clock gate (`scripts/paper_trade.py`), the sleeve's
+gross / per-symbol / min-change caps, the daily loss limit, the HALT files and the 15:38 flatten
+(`scripts/intraday_trader.py`), the book's P&L accounting and the `live/state/intraday_book.json`
+rollover rules, and the commission / slippage / split-scale cost model
+(`scripts/intraday_common.py`). No network, no IB connection, no LEAN; under a second.
+
+```powershell
+python -m pytest -q            # 107 tests
+```
+
+`tests/conftest.py` redirects every `live/` side effect (the book file, the JSONL logs, the chat
+alerts, the HALT and approval files) into the test's tmp dir, so running the suite can never
+disturb the deployed sleeve's state. Run it after touching a runner, in addition to the
+`--replay` / `compare_orders.py` checks AGENTS.md requires.
+
 ## Dashboard
 
 `scripts/dashboard.py` serves a local single-page monitor: the IBKR paper account (NAV, cash,
