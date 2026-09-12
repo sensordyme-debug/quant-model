@@ -789,6 +789,82 @@ def vol_returns(prices: pd.DataFrame, instruments: list, p: "Params") -> pd.Data
     return out
 
 
+#: S-29. Path to a CSV of ONE column, `date` rows, holding the level the crisis switch in
+#: `risk_on` compares to its own trailing median. Empty (the default) means the level is the
+#: trailing realized volatility of `REGIME_TICKER` this book has always used, and nothing
+#: below runs. It exists because the switch is the only place volatility decides the book's
+#: *direction* rather than its size, and a realized estimate is a backward-looking forecast
+#: of a forward-looking thing; an option-implied level (VIX) is the market's own. Same
+#: pattern as F-3's `S1_ML_SCORES` and S-28's `S1_VOL_RETURNS`.
+#:
+#: The comparison is `level >= regime_threshold * median(level)`, so only the series' own
+#: shape matters and its units cancel: a VIX quoted in percentage points and a realized vol
+#: quoted as a fraction produce the same gate.
+REGIME_SERIES_PATH = os.environ.get("S1_REGIME_SERIES", "")
+
+_REGIME_TABLE: "pd.Series | None" = None
+_REGIME_LOADED = False
+
+
+def regime_table() -> "pd.Series | None":
+    """The crisis-switch level file, read once. Returns None when the feature is off."""
+    global _REGIME_TABLE, _REGIME_LOADED
+    if not _REGIME_LOADED:
+        _REGIME_LOADED = True
+        if REGIME_SERIES_PATH:
+            path = Path(REGIME_SERIES_PATH)
+            if not path.is_absolute():
+                path = Path(__file__).resolve().parents[2] / REGIME_SERIES_PATH
+            frame = pd.read_csv(path, index_col=0)
+            if frame.shape[1] != 1:
+                raise ValueError(f"S1_REGIME_SERIES must have exactly one value column, "
+                                 f"got {list(frame.columns)}")
+            frame.index = pd.to_datetime(frame.index).normalize()
+            _REGIME_TABLE = frame.iloc[:, 0].sort_index()
+    return _REGIME_TABLE
+
+
+def set_regime_series(series: "pd.Series | None") -> None:
+    """Research hook: install (or clear) the crisis-switch level in this process.
+
+    A sweep that prices several regime inputs in one run cannot do it through the
+    environment, because the file is read once at first use. `None` restores the shipped
+    realized-volatility level.
+    """
+    global _REGIME_TABLE, _REGIME_LOADED
+    _REGIME_TABLE = None if series is None else series.sort_index()
+    _REGIME_LOADED = True
+
+
+def regime_level(prices: pd.DataFrame, p: "Params") -> pd.Series:
+    """The series the crisis switch compares to its own trailing median.
+
+    Shipped: annualized realized volatility of `REGIME_TICKER` over `regime_vol_window`
+    sessions, which is what the champion has always used. When an override series is
+    installed it supplies the same quantity on the same dates instead, so only the
+    *definition* of "how volatile is it right now" changes and the threshold, the median
+    window and everything downstream are untouched. Dates outside the override's own range
+    fall back to the shipped level (a run wider than the override is still well defined); a
+    date missing *inside* its range fails loudly rather than silently mixing the two, which
+    is the rule `ml_scores` and `vol_returns` already follow.
+    """
+    base = (prices[REGIME_TICKER].pct_change().rolling(p.regime_vol_window).std(ddof=1)
+            * np.sqrt(TRADING_DAYS))
+    table = regime_table()
+    if table is None:
+        return base
+    window = pd.DatetimeIndex(base.index).normalize()
+    if window[0] < table.index[0] or window[-1] > table.index[-1]:
+        return base
+    missing = window.difference(table.index)
+    if len(missing):
+        raise KeyError(f"S1_REGIME_SERIES has no row for {missing[0].date()} inside its own "
+                       f"range ({table.index[0].date()}..{table.index[-1].date()})")
+    out = table.loc[window].copy()
+    out.index = base.index
+    return out
+
+
 def risk_on(prices: pd.DataFrame, p: Params) -> tuple[bool, dict]:
     """Regime switch: risk-off only in a genuine volatility crisis.
 
@@ -819,7 +895,7 @@ def risk_on(prices: pd.DataFrame, p: Params) -> tuple[bool, dict]:
             diag["regime_reason"] = "below trend"
             return False, diag
 
-    vol_series = spy.pct_change().rolling(p.regime_vol_window).std(ddof=1) * np.sqrt(TRADING_DAYS)
+    vol_series = regime_level(prices, p)
     vol_now = vol_series.iloc[-1]
     median = vol_series.iloc[-p.regime_median_window:].median()
     if not np.isfinite(vol_now) or not np.isfinite(median) or median <= 0:

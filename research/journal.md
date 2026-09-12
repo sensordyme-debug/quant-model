@@ -1,5 +1,153 @@
 # Research journal
 
+## 2026-09-12 - S-29: a strictly better volatility forecast makes a strictly worse crisis switch, and the sessions VIX removes are the best in the sample
+
+**Hypothesis.** Volatility enters this book in exactly two places. S-28 priced the first, the
+vol target `target_vol / sigma`, which decides SIZE and which binds on only 2.8% of sessions
+because the flat margin budget pins the book at ~1.50x gross the rest of the time. The second
+is `risk_on`, the crisis switch, which decides DIRECTION: when SPY's trailing 20-session
+**realized** volatility exceeds 1.5x its own one-year median the book holds nothing at all,
+and it has been off on 590 of 3,689 sessions (16.0%) since S-1. A realized estimate is a
+backward-looking measurement of a forward-looking quantity, and there is a market that quotes
+the forward-looking one directly. S-25 sharpens the motive: 94% of this book's return and all
+of its measurable alpha is earned overnight, in the leg that carries gap risk, which is
+precisely the risk an option prices. This is also the first input tried on the daily sleeve
+that is **new information** rather than a new rule on the same bars, which is what the
+owner-side note of 2026-09-11 asked the next program to bring.
+
+New `scripts/sweep_s29.py` and `scripts/regime_data.py`; **30 ledger rows** under
+`daily/s29_regime`, every one DIAGNOSTIC; **six clauses pre-registered**, no post-hoc column.
+The mechanism is a third default-inert hook in the shipped `signals.py` - `S1_REGIME_SERIES` /
+`set_regime_series()`, F-3's `S1_ML_SCORES` and S-28's `S1_VOL_RETURNS` pattern - that supplies
+the LEVEL the switch compares to its own trailing median and nothing else. The gate is
+scale-free (`level >= threshold * median(level)`), so a VIX in percentage points and a realized
+vol as a fraction produce identical arithmetic and **no constant is re-tuned**. The environment
+variable is unset in every deployed path. **Both deploy gates were re-run after the edit**:
+`scripts/compare_orders.py` 3,689/3,689 dates and 5,021 orders on both sides, and a full LEAN
+control run reproducing `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3` at 5,128 orders /
+24.403% / 0.994 / 23.700% / $27,199.76 (run `20260912T093609Z`).
+
+**(1) Clause 1, two identities, both to the digit.** The shipped realized level pushed
+*through the hook* reproduces the deployed cell exactly - **CAR 22.192150% / 5,052 orders /
+end $1,880,257.37**, the figure S-25 through S-28 each landed on - and an independently
+computed gate series reproduces the book's own risk-off days on **3,689 of 3,689** sessions,
+which is what makes every off-rate below readable.
+
+**(2) Clause 2, the diagnostic, passes - and passes loudly.** Correlation of log level with
+the log realized volatility of the **next 21 sessions**, on the identical 3,669 sessions:
+
+| level | corr | obs |
+|---|---|---|
+| trailing 20-session realized (**shipped**) | 0.4985 | 3,669 |
+| **VIX** | **0.6361** | 3,669 |
+| VIX made stale by 5 sessions | 0.5326 | 3,669 |
+| SPY 1-month ATM implied (Theta, 2017-) | **0.6857** | 2,411 |
+
+The market's forecast is **a quarter better than the book's own**, and the ordering is the one
+the variance-risk-premium literature predicts. At the same 1.5x-of-median threshold VIX is off
+on **9.3%** of sessions against realized's 16.0%, they disagree on 9.9%, and clause 6's written
+expectation (a smoother, more persistent series fires less often) held.
+
+**(3) And the better forecast is a worse switch, which is the result.** A gate's job is not to
+forecast volatility, it is to remove sessions worth removing, so the decisive column is what an
+**ungated** version of this book (threshold 99, so the gate runs and never fires - asking what
+the *deployed* book earned on its own off days is circular) earns on the sessions each gate
+removes:
+
+| sessions | bps/day | t | n |
+|---|---|---|---|
+| every session | +10.01 | +4.38 | 3,689 |
+| the realized gate removes them | +8.72 | +1.16 | 590 |
+| **VIX removes them** | **+20.07** | +1.86 | 343 |
+| SPY ATM implied removes them | +13.15 | +1.12 | 328 |
+| **realized off, VIX on** | +1.48 | +0.17 | 307 |
+| **VIX off, realized on** | **+36.56** | **+2.01** | 60 |
+
+**VIX removes sessions worth twice the average session**, and the sixty it removes that
+realized does not are worth **three and a half times** the average at the only |t| > 2 in the
+diagnostic. The shipped gate removes sessions worth +8.72 against +10.01, i.e. it barely earns
+its return cost - it is bought for drawdown, not for return, and the reference row below prices
+that.
+
+**(4) Clauses 3, 5 and 6, the books, charged 2 bp of one-way spread and IBKR Pro financing on
+the deployed convention. Everything is refused.**
+
+| cell | CAR% | Sharpe | MaxDD% | std | gross | off% | turn x/yr | paired vs shipped |
+|---|---|---|---|---|---|---|---|---|
+| **shipped (realized @1.50)** | **19.640** | **1.047** | **24.037** | 0.188 | 1.25 | 16.0 | 196 | - |
+| VIX @1.50 (**primary**) | 15.901 | 0.842 | **37.758** | 0.199 | 1.35 | 9.3 | 196 | -1.177, t -1.46 |
+| VIX stale 5d (**placebo**) | 16.666 | 0.858 | 35.795 | 0.204 | 1.35 | 9.3 | 216 | -0.875, t -0.99 |
+| VIX @1.27 (**off-matched**) | 12.188 | 0.729 | 31.540 | 0.180 | 1.23 | 17.3 | 131 | **-2.612, t -3.06** |
+| no gate at all (*reference*) | 22.317 | 1.026 | 36.892 | 0.220 | 1.48 | 0.0 | 295 | +1.139, t +0.96 |
+
+The primary fails **every** criterion in the full period and in **both** halves (IS 13.251 vs
+14.317 at DD 27.290 vs 20.936; OOS 18.763 vs 25.967 at DD 37.802 vs 24.040) and breaches the
+35% absolute drawdown limit. **The off-matched column is the one that matters** and it was
+pre-registered rather than reached for: its threshold (1.2688) was solved on the in-sample half
+alone so the VIX gate steps aside on the same 14.3% of sessions the shipped gate does, which
+removes the "it is only more exposure" explanation - and it is the **worst** book in the table,
+**-2.612 bps/day at t -3.06**, the only significant statistic anywhere in this iteration and it
+is *against* the switch. So the loss is in the **timing**, not in the exposure.
+
+**(5) The placebo triggers clause 5's withdrawal condition, and the primary was already
+refused.** Making VIX five sessions **stale** - deliberately destroying a third of the forecast
+advantage, 0.6361 down to 0.5326 - makes the book **better**, 16.666% against 15.901% full
+period and 15.911% against 13.251% in-sample. Nothing here is paying for forecast quality.
+
+**(6) Clause 4, the shelf: there is no threshold that rescues it.** Six thresholds on each
+input, full period, same cost model:
+
+| threshold | 1.25 | 1.40 | 1.50 | 1.60 | 1.75 | 2.00 |
+|---|---|---|---|---|---|---|
+| realized CAR% | 17.138 | 18.251 | **19.640** | 19.279 | 19.004 | 20.010 |
+| realized MaxDD% | 20.790 | 24.044 | 24.037 | 24.038 | 25.885 | 38.901 |
+| VIX CAR% | 13.399 | 14.144 | 15.901 | 15.842 | 18.497 | 19.464 |
+| VIX MaxDD% | 32.990 | 34.475 | 37.758 | 41.253 | 36.894 | 36.893 |
+
+**The VIX gate is worse than the realized gate at every one of the six**, its drawdown is
+33-41% at every one of the six, and it only approaches the shipped book by turning itself off
+(2.5% off-rate at 2.00). The shipped 1.50 is simultaneously confirmed as a **shelf, not a
+spike**: it is the Sharpe maximum of the realized row (1.047 against 0.996 / 1.001 / 1.011 /
+0.988 / 0.999) and its two neighbours sit within 1.4 CAR points.
+
+**(7) Not a VIX-construction artifact.** The second implied series is a different instrument
+computed by a different vendor from actual SPY option quotes, and it is the **best** forecaster
+in clause 2's table (0.6857). On its own 2018-2026 window it agrees in sign: **15.926% / 0.791
+/ DD 35.193** against the shipped book's 21.219% / 1.036 / 24.040 on the same sessions, with
+VIX at 13.753 / 0.693 / 37.811 between them.
+
+**(8) One number this iteration produced that was not being asked for.** The reference row
+prices the switch itself on today's book for the first time - S-15 (b) measured it on the
+retired 3x champion at zero spread (22.383% / DD 31.4). Honestly costed on the unlevered
+champion, **removing the crisis switch entirely earns +2.68 CAR points (22.317 vs 19.640) for
++12.9 points of drawdown (36.892 vs 24.037)**, paired +1.139 bps/day at t +0.96. That is
+**refused on the spot** rather than filed as an owner option, because 36.9% is past the 35%
+absolute limit in `champion.json` - the one constraint in this repository that is not a
+preference. The switch is expensive and it is the only thing keeping this book inside its own
+risk mandate.
+
+**Decision: refused on every clause, nothing promoted, nothing shipped, no default changed.**
+`S1_REGIME_SERIES` is unset in every deployed path, `champion.json` gains a `regime_note` only,
+`live/*` and all three scheduled tasks are untouched, and the champion stands at S-18.
+
+**What it changes for the loop.** The reusable rule is that **a risk switch is not a
+forecasting problem**. Every previous refusal on this sleeve was a cost refusal (L-1, X-1, F-1,
+F-3), a sign refusal (F-4, F-6) or a risk refusal (S-26); this one is new: the input was
+*improved* on its own stated terms, by a quarter, measured on 3,669 sessions, and the book got
+**2.6 bps a day worse at t -3.06 with the exposure held fixed**. The mechanism is written in
+the shipped docstring already and S-1 found it in 2026-09-08: vol peaks coincide with the
+sharpest rebounds, so the value of a realized-vol switch is precisely that it is **late** - it
+is a trailing stop denominated in volatility, acting on damage already done. A forward-looking
+input converts it back into the anti-predictive "risk-off above the median" filter the original
+S-1 write-up asked for and the data refused, and the 60 sessions in clause 3 are those rebounds
+being sold. The second reusable piece is procedural and cuts the other way from usual: **the
+diagnostic passed and the book still failed**, so a clause-2 pass is a licence to read the book,
+never a substitute for it. Three durable artifacts survive: the `S1_REGIME_SERIES` hook (any
+future regime input - a credit spread, a breadth measure, a term structure - is now priced
+through the shipped algorithm without editing it), `scripts/regime_data.py` (VIX 2005-2026 and
+the SPY ATM implied series on disk as plain level files), and the standalone `gate_series`
+identity, which means an off-rate can be quoted without running a book.
+
 ## 2026-09-12 - S-28: the risk model is the one place the leg split does change the book - same return, 2.1 points less drawdown, and it is refused by a return-first rule
 
 **Hypothesis.** S-25 measured that 94% of this book's return and all of its measurable alpha

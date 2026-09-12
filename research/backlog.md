@@ -17,6 +17,57 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-12 09:4x UTC (S-29): **the market's volatility forecast is a quarter better than
+the book's own and makes a measurably worse crisis switch - the sessions VIX removes are worth
+twice the average session, and with the exposure held fixed the swap costs 2.6 bps a day at
+t -3.06.** Volatility enters this book twice: S-28 priced the vol target (SIZE, binds on 2.8% of
+sessions) and left the other one untouched - `risk_on`, the crisis switch, which decides
+DIRECTION and has held the book in cash on 590 of 3,689 sessions since S-1 on a **trailing
+20-session realized** estimate. S-29 swaps its input for the forward-looking one the market
+quotes. New `scripts/sweep_s29.py` and `scripts/regime_data.py`; **30 DIAGNOSTIC ledger rows**
+under `daily/s29_regime`; six clauses pre-registered and **no post-hoc column**; a third
+default-inert hook in the shipped `signals.py` (`S1_REGIME_SERIES` / `set_regime_series`, F-3's
+pattern) supplying the level the switch compares to its own median - the gate is scale-free, so
+**no constant is re-tuned**. **Both deploy gates re-run after the edit**: `compare_orders.py`
+3,689/3,689 at 5,021 orders, and a full LEAN control reproducing `OrderListHash
+a6d6224ce9c70091e5bfa8e96f046bf3` (5,128 orders / 24.403% / 0.994 / 23.700%, run
+`20260912T093609Z`). **(1) Two identities to the digit**: the shipped level through the hook
+reproduces the deployed cell at **22.192150% / 5,052 orders**, and a standalone gate series
+reproduces the book's own risk-off days **3,689/3,689**. **(2) The premise is not empty, it is
+emphatic**: against the realized volatility of the next 21 sessions, log-log correlation
+**0.4985 shipped, 0.6361 VIX, 0.5326 stale VIX, 0.6857 SPY 1-month ATM implied** on identical
+samples. **(3) And the better forecast is the worse switch.** On an **ungated** version of this
+book (the only non-circular reference), every session earns +10.01 bps; the sessions the
+realized gate removes earn **+8.72**; the sessions **VIX removes earn +20.07**; and the **60
+sessions VIX removes that realized does not earn +36.56 at t +2.01**, the only |t| > 2 in the
+diagnostic - VIX sells the rebounds. **(4) Every book refused** at 2 bp + IBKR Pro financing:
+primary **15.901% / 0.842 / DD 37.758** against the deployed **19.640 / 1.047 / 24.037**,
+failing every criterion in the full period and **both** halves and breaching the 35% absolute
+limit; the **pre-registered off-matched column** (threshold 1.2688 solved on the IS half alone
+so the off-rate matches, which removes the exposure explanation) is the **worst** book at
+**12.188% / 0.729 / 31.540, paired -2.612 bps/day at t -3.06** - the loss is in the TIMING.
+**(5) The placebo triggers**: VIX made **stale by 5 sessions**, deliberately destroying a third
+of its forecast advantage, makes the book **better** (16.666 full, 15.911 IS against 15.901 and
+13.251) - nothing is paying for forecast quality. **(6) No threshold rescues it**: across
+1.25/1.40/1.50/1.60/1.75/2.00 the VIX gate is worse than the realized gate at **every one** and
+draws down 33-41% at every one, while the shipped 1.50 is confirmed a **shelf** (Sharpe maximum
+of the realized row at 1.047). **(7) Not a VIX artifact**: the independent SPY ATM implied series
+agrees in sign on 2018-2026 (15.926 / 0.791 / DD 35.193 against 21.219 / 1.036 / 24.040).
+**(8) One number nobody asked for**: removing the switch entirely is worth **+2.68 CAR for +12.9
+points of drawdown** (22.317 / DD 36.892) - **refused on the spot**, not filed as an owner
+option, because 36.9% is past the 35% absolute limit. **Nothing shipped, nothing promoted, no
+default changed**: `S1_REGIME_SERIES` unset everywhere, champion unchanged at S-18, `live/*` and
+all three scheduled tasks untouched, `champion.json` gains a `regime_note` only. **Standing jobs
+both ran first with no new input** (Saturday): `slippage_report.py` 66 fills / +2.22 bps / se
+0.80 / |diff|/se 0.90; `daily_fills.py` 10 fills / $2.37M / **+3.2 bps (se 4.5)**, `ref_price`
+the previous close 10 of 10. **What it changes for the loop**: the reusable rule is that **a risk
+switch is not a forecasting problem** - this is the first refusal here where the input was
+*improved* on its own terms and the book got worse with exposure held fixed, and the reason is
+in the shipped docstring already (vol peaks coincide with the sharpest rebounds, so a realized
+switch is valuable *because it is late* - a trailing stop denominated in volatility). Second, and
+procedural: **the clause-2 diagnostic passed and the book still failed**, so a diagnostic pass is
+a licence to read the book, never a substitute for it.
+
 Status 2026-09-12 08:0x UTC (S-28): **the risk model is the one place the leg split changes the
 book - the same return for 2.1 points less drawdown, refused by a return-first rule, and handed
 to the owner as the cheapest of the three priced options.** S-25 found the alpha is an overnight
@@ -1544,6 +1595,43 @@ ranking. A sweep rejection is therefore grounds for one LEAN confirmation run, n
 an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
+
+- **S-29 DONE 2026-09-12 (see journal): refused - and it is the first refusal here where the
+  input was IMPROVED on its own terms and the book got worse. A risk switch is not a
+  forecasting problem.** `scripts/sweep_s29.py` + `scripts/regime_data.py`, 30 DIAGNOSTIC
+  ledger rows under `daily/s29_regime`, six clauses pre-registered and no post-hoc column.
+  The question S-28 left: volatility decides this book's SIZE through the vol target (priced,
+  binds on 2.8% of sessions) and its DIRECTION through `risk_on`, which flattens the book on
+  **trailing realized** vol and has done so on 590 of 3,689 sessions since S-1. Third
+  default-inert hook in the shipped `signals.py` (`S1_REGIME_SERIES` / `set_regime_series`),
+  scale-free so no constant is re-tuned; **`compare_orders.py` 3,689/3,689 AND a full LEAN
+  control reproducing `OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3`**. **Two identities to
+  the digit** (22.192150% / 5,052 orders; the standalone gate reproduces the book's own
+  risk-off days 3,689/3,689). **The premise passes emphatically**: forecasting the next 21
+  sessions' realized vol, log-log corr **0.4985 shipped / 0.6361 VIX / 0.5326 stale VIX /
+  0.6857 SPY ATM implied**. **The book says the opposite**: on an ungated reference book every
+  session earns +10.01 bps, the realized gate removes sessions worth +8.72, **VIX removes
+  sessions worth +20.07**, and the **60 sessions VIX removes that realized does not are worth
+  +36.56 at t +2.01** - it sells the rebounds. Primary **15.901 / 0.842 / DD 37.758** against
+  **19.640 / 1.047 / 24.037**, failing every criterion in the full period and both halves and
+  breaching the 35% limit; the **pre-registered off-matched column** (threshold solved on the
+  IS half so the off-rates are equal, which kills the exposure explanation) is the **worst
+  book at 12.188 / 0.729 / 31.540, paired -2.612 bps/day at t -3.06**. **Placebo triggers**:
+  a VIX made 5 sessions STALE does *better* (16.666 vs 15.901 full, 15.911 vs 13.251 IS).
+  **Do not re-open as a threshold, staleness, instrument or implied-series question** - the
+  shelf spans 1.25 to 2.00 and the VIX gate loses at every one of the six while drawing down
+  33-41%, the independent SPY ATM implied series agrees in sign on its own window (15.926 /
+  0.791 / DD 35.193 against 21.219 / 1.036 / 24.040), and a *worse* forecast is a *better*
+  gate, which is a sign fact rather than a tuning one. Two things it settles in passing: the
+  shipped 1.50 threshold is a **shelf, not a spike** (Sharpe maximum of the realized row at
+  1.047, neighbours within 1.4 CAR points), and **removing the switch entirely is worth +2.68
+  CAR for +12.9 points of drawdown** (22.317 / DD 36.892) - refused on the spot rather than
+  filed for the owner, because 36.9% is past the 35% absolute limit, so the switch is the one
+  thing keeping this book inside its own risk mandate. Three durable pieces survive it: the
+  **`S1_REGIME_SERIES` hook** (a credit spread, a breadth measure or a term structure is now
+  priced through the shipped algorithm unedited), **`scripts/regime_data.py`** (VIX 2005-2026
+  and SPY ATM implied on disk as plain level files), and the **standalone `gate_series`
+  identity**, which lets an off-rate be quoted without running a book.
 
 - **S-28 DONE 2026-09-12 (see journal): refused - but it is the first place the leg split
   changes the book at all, and it costs 0.027 CAR points to buy 2.1 points of drawdown.**
