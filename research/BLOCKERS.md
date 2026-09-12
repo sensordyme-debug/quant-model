@@ -585,6 +585,37 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
     sessions** on this book's $100k -> $899k path, so the practical instrument is **MES** at
     0.744 bps, which still clears the 1.108 breakeven.
 
+  **Amendment (S-28, 2026-09-12) - the same trade, a third of the size, and with none of the
+  requirements above. DECISION 3, and it is the cheapest thing in this file.** S-26 above buys
+  drawdown with futures and Reg-T; S-28 buys it by changing **which returns the vol target is
+  measured on** and nothing else. The book is sized `target_vol / sigma` and `sigma` has always
+  been a close-to-close estimate, although `leg_note`/`risk_note` in `champion.json` show 94% of
+  the return is overnight and 61% of the variance is the intraday leg that pays nothing. Measured
+  on 59,662 name-observations, **every leg forecasts its own next-21-session volatility better
+  than the pooled estimate does** (overnight->overnight 0.6764 against close-to-close->overnight
+  0.6608), so the premise is real rather than rhetorical.
+  - **The offer, at matched risk and the same 2 bp + IBKR Pro financing cost model**: the book
+    sized on a causally level-matched **overnight** vol estimate earns **19.613% / Sharpe 1.046 /
+    DD 21.93%** against the deployed **19.640% / 1.047 / DD 24.04%**. That is **the same return -
+    paired -0.009 bps/day at t -0.08, a dead heat - for 2.1 points less drawdown**, on the same
+    nine names, the same signal, the same turnover (196.8x against 195.6x equity a year) and the
+    same gross. **It was refused by 0.027 CAR points**, which is the return-first rule you set on
+    2026-09-09 doing exactly what you asked it to.
+  - **Why it is cheaper than DECISION 1 and 2**: no futures, no instrument permission, no extra
+    leverage, no change to your Reg-T buffer, and nothing new in the account - the deployed runner
+    already reads the daily opens it needs. It is a one-line default in `signals.py`
+    (`S1_VOL_RETURNS`, already built and gated by the I-1 order-list check, 3,689/3,689 PASS).
+  - **What to read before saying yes, because the loop will not push this either**: the vol target
+    rather than the margin budget sizes this book on only **2.8% of sessions** (4.7% under the new
+    estimator), so the whole difference is a handful of crises - **-3.8 points on the 2022 drawdown
+    against +0.7 points on the 2015-16 one** - and nothing in the comparison reaches |t| = 2. It
+    **passes every criterion out of sample** (2020-2026: 26.007% vs 25.967%, DD 20.67 vs 24.04) and
+    **fails in sample** (2012-2019: 14.254% vs 14.317%, DD 21.72 vs 20.94).
+  - **The decision, in one sentence**: say whether "the same return at 2.1 points less drawdown"
+    is worth 0.027 CAR points to you - that is the identical argument S-18 was promoted on, and
+    under a return-first rule it is yours and not the loop's. Reproduce with
+    `python scripts/sweep_s28.py`.
+
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
 - **The intraday sleeve cannot be validated by backtest, at any sample size we can reach

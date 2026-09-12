@@ -17,6 +17,51 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-12 08:0x UTC (S-28): **the risk model is the one place the leg split changes the
+book - the same return for 2.1 points less drawdown, refused by a return-first rule, and handed
+to the owner as the cheapest of the three priced options.** S-25 found the alpha is an overnight
+object; S-26 asked what to hold and S-27 what to rank on, both refused. S-28 asks the third and
+last question, the one the sizing machinery poses: `target_vol / sigma` measures `sigma`
+**close to close**, on a quantity 61% of whose variance is the leg the book is not paid for.
+New `scripts/sweep_s28.py`; **18 DIAGNOSTIC ledger rows** under `daily/s28_volest`; six clauses
+pre-registered plus one column labelled post hoc; a new **default-inert hook in the shipped
+`signals.py`** (`S1_VOL_RETURNS` / `set_vol_returns`, F-3's `S1_ML_SCORES` pattern) that supplies
+the vol target's return window and touches nothing else, with the **I-1 gate re-run after the
+edit (3,689/3,689 dates, 5,021 orders both sides, PASS)**. **(1) Identity to the digit**:
+`(1+on)(1+id)=(1+cc)` holds to **2.220e-16** and the close-to-close frame *through the hook*
+reproduces the deployed cell at **22.192150% / 5,052 orders / $1,880,257.37**. **(2) The premise
+is not empty**: pooled over the nine names on 59,662 observations, **every leg forecasts its own
+next-21-session vol better than the pooled estimate does** - cc->cc 0.7260, **on->on 0.6764
+against cc->on 0.6608**, id->id 0.7492 - while the two estimators sit 0.9029 correlated in log
+level with `sigma_on/sigma_cc` = 0.5888, which is clause 6's written-down expectation.
+**(3) All four books refused** at 2 bp + IBKR Pro financing: the **raw** legs are leverage and
+nothing else (scale at its cap on **86.3%** of sessions, `on` 20.333% for **DD 32.031**, `id`
+20.084 for 30.196 - they delete the crisis de-risking S-16 and O-1b already priced); the
+**level-matched primary** `on_k` reads **19.400 / Sharpe 1.049 / DD 21.622** against the deployed
+**19.640 / 1.047 / 24.037**, refused on CAR, paired **-0.100 bps/day at t -0.92**. **(4) The
+placebo separates cleanly**: the identical construction on the leg the book is *not* paid in
+moves it the **opposite way** (`id_k` +0.16 CAR for +1.43 DD against `on_k` -0.24 CAR for -2.42
+DD), same machinery, same turnover to 4% - so this is the leg that pays, not any perturbation of
+the estimator. **(5) The shortfall is a residual level effect, and the post-hoc column removes
+it**: the causal match equalizes the average *name's* vol, not the portfolio's (mean estimate
+0.2584 against 0.2380), so re-levered to the shipped book's own 0.1883 the primary earns
+**19.613% / 1.046 / DD 21.931 - a dead heat in return (paired -0.009 bps/day, t -0.08) for 2.1
+points less drawdown**, still **refused by 0.027 CAR points**, **passing OOS on every criterion
+(26.007 vs 25.967, DD 20.67 vs 24.04) and failing IS (14.254 vs 14.317)**. **(6) Two episodes,
+pointing opposite ways, and it is stated rather than hidden**: the vol target sizes the book on
+**2.8%** of sessions (4.7% under `on_k`), nothing reaches |t| = 2, and the difference is 3.8
+points off the 2022 drawdown against 0.7 points added to the 2015-16 one. **Nothing shipped,
+nothing promoted, no default changed**: `S1_VOL_RETURNS` unset in every deployed path, champion
+unchanged at S-18, `live/*` and all three scheduled tasks untouched, `champion.json` gains a
+`risk_note` only. **Standing jobs both ran first with no new input** (Saturday):
+`slippage_report.py` 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90; `daily_fills.py` 10 fills /
+$2.37M / **+3.2 bps (se 4.5)**, `ref_price` the previous close 10 of 10. **What it changes for
+the loop**: the reusable rule is that **a leg attribution is a statement about the risk model
+before it is a statement about the signal** - S-27 showed the split does not tell you what to
+rank on, S-28 shows it does change what to size on, by little in return and measurably in
+drawdown. It closes the leg-split program and leaves the owner a third priced option, the
+cheapest on file: no futures permission, no Reg-T decision, only a change of default.
+
 Status 2026-09-12 07:0x UTC (F-6): **the overnight gap does not reverse during the session on the
 56 names this sleeve may trade - the effect is ABSENT, not unaffordable, and S-27's by-product
 does not transport.** S-27 filed one number post hoc and explicitly did not pursue it: on the
@@ -1499,6 +1544,39 @@ ranking. A sweep rejection is therefore grounds for one LEAN confirmation run, n
 an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
+
+- **S-28 DONE 2026-09-12 (see journal): refused - but it is the first place the leg split
+  changes the book at all, and it costs 0.027 CAR points to buy 2.1 points of drawdown.**
+  `scripts/sweep_s28.py`, 18 DIAGNOSTIC ledger rows under `daily/s28_volest`, six clauses
+  pre-registered plus one column labelled post hoc. The question S-26 and S-27 left: the book
+  is sized by `target_vol / sigma` and `sigma` is a **close-to-close** estimate of a quantity
+  61% of whose variance is the leg the book is not paid for. New default-inert hook in the
+  shipped `signals.py` (`S1_VOL_RETURNS` / `set_vol_returns`, F-3's pattern) supplies the vol
+  target's return window and nothing else; **I-1 gate re-run, 3,689/3,689, PASS**, and
+  `diag_out=` added to `sweep_s25.legs_simulate` leaves every S-25/S-26/S-27 row bit-identical.
+  **Identity passes to the digit** (22.192150% / 5,052 orders; leg identity 2.220e-16).
+  **The diagnostic is real**: every leg forecasts its own next-21-session vol better than the
+  pooled estimate does (cc->cc 0.7260, on->on 0.6764 against cc->on 0.6608, id->id 0.7492 on
+  59,662 observations), with the two estimators 0.9029 correlated in log level and
+  `sigma_on/sigma_cc` 0.5888. **All four books refused** at 2 bp + IBKR Pro financing:
+  raw `on` 20.333% / DD **32.031** and raw `id` 20.084 / 30.196 are pure leverage (scale at cap
+  on 86.3% of sessions - they delete the crisis de-risking); the level-matched primary `on_k`
+  is 19.400 / **1.049** / **21.622** against 19.640 / 1.047 / 24.037, refused on CAR, paired
+  -0.100 bps/day at t -0.92. **The placebo separates**: `id_k` moves the book the opposite way
+  (+0.16 CAR for +1.43 DD) while `on_k` moves it -0.24 CAR for -2.42 DD, same machinery and
+  same turnover - so it is the leg that pays, not any alternative estimator. **Post hoc, at
+  matched risk** (scale 1.015): **19.613 / 1.046 / 21.931, a dead heat in return (t -0.08) for
+  2.1 points less drawdown**, refused by 0.027 CAR points, **passing OOS on every criterion
+  (26.007 vs 25.967, DD 20.67 vs 24.04) and failing IS**. **Do not re-open as an estimator,
+  window, level-match or leg question** - the grid spans both legs raw and matched, the primary
+  already wins on risk and loses on return, and nothing here reaches |t| = 2 because the vol
+  target sizes the book on only 2.8% of sessions (4.7% under `on_k`), i.e. two crisis episodes
+  that point opposite ways (2022 -3.8 points, 2015-16 +0.7). Two durable pieces survive it: the
+  **`S1_VOL_RETURNS` hook** (any future risk-model input priced through the shipped algorithm
+  without editing it) and **`diag_out=`** (when the vol target rather than the margin budget
+  sets the book's size is now one column). It closes the leg-split program - hold (S-26), rank
+  (S-27), size (S-28) - and adds the **third priced owner option** in `BLOCKERS.md`, the
+  cheapest of the three: no futures permission, no Reg-T decision, only a change of default.
 
 - **F-6 DONE 2026-09-12 (see journal): refused, 0 of 336 - and refused on ABSENCE rather than on
   cost, which is a mode this file has produced only three times.** F-6 took the one number S-27

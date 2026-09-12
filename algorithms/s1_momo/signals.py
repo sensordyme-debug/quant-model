@@ -722,6 +722,73 @@ def realized_vol(returns: pd.Series, window: int) -> float:
     return float(tail.std(ddof=1) * np.sqrt(TRADING_DAYS))
 
 
+#: S-28. Path to a CSV of per-instrument daily returns, `date` rows by ticker columns, used
+#: **only** for the vol-target estimate in `_size`. Empty (the default) means the estimate is
+#: the close-to-close `pct_change` this book has always used and nothing below runs. It exists
+#: because S-25 showed the book is paid in the overnight leg while its risk model is measured
+#: close to close; F-3's `S1_ML_SCORES` is the same pattern for the ranking.
+VOL_RETURNS_PATH = os.environ.get("S1_VOL_RETURNS", "")
+
+_VOL_TABLE: "pd.DataFrame | None" = None
+_VOL_LOADED = False
+
+
+def vol_table() -> "pd.DataFrame | None":
+    """The vol-estimate return file, read once. Returns None when the feature is off."""
+    global _VOL_TABLE, _VOL_LOADED
+    if not _VOL_LOADED:
+        _VOL_LOADED = True
+        if VOL_RETURNS_PATH:
+            path = Path(VOL_RETURNS_PATH)
+            if not path.is_absolute():
+                path = Path(__file__).resolve().parents[2] / VOL_RETURNS_PATH
+            frame = pd.read_csv(path, index_col=0)
+            frame.index = pd.to_datetime(frame.index).normalize()
+            _VOL_TABLE = frame.sort_index()
+    return _VOL_TABLE
+
+
+def set_vol_returns(frame: "pd.DataFrame | None") -> None:
+    """Research hook: install (or clear) the vol-estimate frame in this process.
+
+    A sweep that prices several estimators in one run cannot do it through the environment,
+    because the file is read once at first use. `None` restores the shipped estimate.
+    """
+    global _VOL_TABLE, _VOL_LOADED
+    _VOL_TABLE = None if frame is None else frame.sort_index()
+    _VOL_LOADED = True
+
+
+def vol_returns(prices: pd.DataFrame, instruments: list, p: "Params") -> pd.DataFrame:
+    """The return window the vol target is measured on.
+
+    Close-to-close on the instruments actually held, which is what the champion ships. When
+    an override frame is installed it supplies the same window instead, on the same dates and
+    in the same units, so only the *definition* of a daily return changes and every other
+    piece of sizing is untouched. Dates outside the frame's own range fall back to the shipped
+    estimate (a run wider than the override is still well defined); a date or an instrument
+    missing *inside* its range fails loudly rather than silently mixing the two, which is the
+    rule `ml_scores` already follows.
+    """
+    base = prices[instruments].pct_change().iloc[-p.vol_est_window:]
+    table = vol_table()
+    if table is None:
+        return base
+    window = pd.DatetimeIndex(base.index).normalize()
+    if window[0] < table.index[0] or window[-1] > table.index[-1]:
+        return base
+    missing = window.difference(table.index)
+    if len(missing):
+        raise KeyError(f"S1_VOL_RETURNS has no row for {missing[0].date()} inside its own "
+                       f"range ({table.index[0].date()}..{table.index[-1].date()})")
+    absent = [t for t in instruments if t not in table.columns]
+    if absent:
+        raise KeyError(f"S1_VOL_RETURNS has no column for {absent}")
+    out = table.loc[window, list(instruments)].copy()
+    out.index = base.index
+    return out
+
+
 def risk_on(prices: pd.DataFrame, p: Params) -> tuple[bool, dict]:
     """Regime switch: risk-off only in a genuine volatility crisis.
 
@@ -999,7 +1066,8 @@ def _size(prices, winners, scores, p: Params, dd_mult, diag, state, prev_ages,
         leverage[instrument] = mult
 
     # Vol target on the instruments actually held, not on their unlevered cousins.
-    returns = prices[list(raw)].pct_change().iloc[-p.vol_est_window:]
+    # S-28: `vol_returns` is the shipped close-to-close window unless an override is installed.
+    returns = vol_returns(prices, list(raw), p)
     port_ret = (returns * pd.Series(raw)).sum(axis=1)
     sigma = realized_vol(port_ret, p.vol_est_window)
     unbounded = p.scale_cap if not np.isfinite(sigma) or sigma <= 0 else p.target_vol / sigma

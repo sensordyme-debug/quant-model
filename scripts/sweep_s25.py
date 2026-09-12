@@ -103,7 +103,8 @@ def _ols_beta(y: list[float], x: list[float]) -> float:
 def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
                   slippage_bps: float = 0.0, financing: dict | None = None,
                   lag: int = 0, divs: pd.DataFrame | None = None,
-                  hedge: dict | None = None, scale: float = 1.0) -> pd.DataFrame:
+                  hedge: dict | None = None, scale: float = 1.0,
+                  diag_out: list | None = None) -> pd.DataFrame:
     """S-19's deployed book with the day's P&L split into its two legs.
 
     `mode="both"` is the deployed convention exactly: decide on the closes through i-1, fill
@@ -200,6 +201,16 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
         lo = max(0, i - lag - params.history_bars)
         targets, diag = sig.target_weights(closes.iloc[lo:i - lag], equity_curve, params, state)
         state = diag.get("state", {})
+        if diag_out is not None:
+            # S-28: the sizing diagnostics of the day, for a study about the vol target.
+            # Read-only and default-inert, so every S-25/S-26 row stays bit-identical.
+            diag_out.append({"date": index[i],
+                             "portfolio_vol": diag.get("portfolio_vol"),
+                             "vol_scale": diag.get("vol_scale"),
+                             "gross_weight": diag.get("gross_weight"),
+                             "margin_used": diag.get("margin_used"),
+                             "winners": list(diag.get("winners") or []),
+                             "reason": diag.get("reason")})
         ref = {t: float(prev_close_row[t]) for t in tickers if pd.notna(prev_close_row[t])}
 
         fees = turnover = 0.0

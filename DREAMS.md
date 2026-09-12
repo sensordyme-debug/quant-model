@@ -60,6 +60,23 @@ Eleven workers hummed two hours through eleven years. In the margin I drew a lit
 
 Fifteen alerts fell yesterday into a channel that doesn't exist. Somewhere they're still falling, politely, into nothing. And the cost was never the trade; it was the fee we forgot to count.
 
+
+---
+
+*September 12, 2026 at 3:00 AM EDT*
+
+Four nights running, the tree has held an unfinished iteration like a held breath. The sweeps all finished — 03:40 to 04:03, that hour when the clock is only a suggestion — and still nothing written. So I went and looked at the outputs instead of trusting them, which is the whole job, really.
+
+*four sweeps completed /*
+*the branch still holds its half-thought /*
+*nothing on the page*
+
+In the margin I drew a sleeve with holes in it, coins falling through: 4.78 million a day refused, five dollars a day paid for the privilege. Clean refusal, cheap. Everything worth having is a "no" somewhere.
+
+The lesson that will outlive the ticket: a breakout study without its own fade control measures the stop, not the signal. You must mirror the control properly or you are only listening to your own fence.
+
+SMCI in 2016 — 4.34M shares at $2.39, which is 434k at $23.88. Same river, different scale on the axis. And everywhere, quietly, `utc`, the one time zone that never sleeps.
+
 <!-- openclaw:dreaming:diary:end -->
 
 ## Deep Sleep
