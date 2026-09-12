@@ -1769,6 +1769,21 @@ part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everythi
 owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
 and no delivery, both of which are barred to the loop.
 
+- **S-34 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-10 fixed and
+  priced - the promotion gate handed the next candidate 4.2 points of drawdown slack and 15
+  ledger rows would have taken it.** Full detail under **AUD-10** in the audit section below.
+  Headline: the defect is invisible in the CAR column (-0.001 at 0 bp) and 4.2x the drawdown
+  tolerance in the risk column, because what S-18 promoted was risk rather than return; 15 of 167
+  `s1_momo` rows flip and all 15 the dangerous way; fixed writer-side (`promoted_columns()`) and
+  reader-side (`stale_note()`), with the 11 research notes in `stats_by_spread` preserved
+  byte-identical against the audit's "delete the others"; 167 verdicts compared and **0 changed**,
+  suite 241 pass, `champion.json` untouched. **Adds no research item and closes one audit item**,
+  and corrects AUD-11's filed remedy: `--promote` has never written `note`, so no promotion can
+  carry the relabel. **Next daily audit item that needs no trading day: AUD-12** (`daily+eng`) -
+  the runner and the gate both trade `Params()` while `--promote` stores no `env`, so a run
+  promoted with an `S1_*` override would pass the deploy gate and paper trade something else.
+  Same shape as this one: a promotion that does not carry everything the champion is.
+
 - **S-33 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-11 priced - the
   "OOS 2020-2026" label is wrong and the number is not, and the audit's own re-select remedy is
   refused at t -2.18.** `scripts/sweep_s33.py`, seven clauses pre-registered, **60 DIAGNOSTIC
@@ -3456,7 +3471,30 @@ carry the owning track in brackets; record each fix in that track's journal and 
 - **AUD-07 [eng+iterate]** no exchange calendar: half-days never flatten live (`FLATTEN_MINUTE` unreachable, RTH feed stops at 12:59), the harness closes silently at 12:59, the Alpaca store keeps after-hours bars on 21 early closes; holidays fire both tasks. Next early close 2026-11-27.
 - **AUD-08 [eng]** start-up/`--flatten` sell the book not the account; daily HALT path sells intraday names; outside-RTH submits queue to the next open. Reconcile against `ib.positions()`, cancel open INTRADAY orders at start-up, refuse outside RTH.
 - **AUD-09 [eng]** `--feed auto` always Yahoo (09:25 probe), no IB re-subscribe on reconnect, uncaught crashes leave no alert, `notify()` before the loss-limit submit, NaN price skips the step.
-- **AUD-10 [daily+critic]** `evaluate.py --promote` leaves `stats_by_spread` stale so the next candidate is judged against the old champion.
+- **AUD-10 [daily+critic] DONE 2026-09-12 by S-34** (`scripts/sweep_s34.py`, 7 clauses,
+  `tests/test_evaluate_promote.py`, `research/journal_daily.md`; no LEAN run, no ledger row,
+  `champion.json` untouched). **MATERIAL on its pre-registered threshold, and not where the
+  audit implied.** Priced on the real S-12 -> S-18 promotion: the CAR gap is **-0.001 at 0 bp**
+  (the dead heat S-18 itself reported) and the whole damage is in risk - the retired column hands
+  a candidate **+1.400 / +4.200 points of drawdown headroom** at 0 / 2 bp against a
+  `drawdown_tolerance_points` of **1.0**, i.e. 4.2x the width of the rule it is added to, because
+  what S-18 bought was risk rather than return. **15 of the 167 `s1_momo` ledger rows flip, all
+  15 in the dangerous direction**, including five S-16 budget-0.80 cells (`20260911T120010Z`:
+  26.474% / 1.012 / DD 25.700%) that clear the retired ceiling and breach the champion's - live
+  candidates, since S-31 re-priced that budget the same day. Fixed in two halves that do not
+  depend on each other: `promoted_columns()` (writer - the promoted run becomes the only cost
+  column) and `stale_note()` (reader - refuse every comparison when no column carries the
+  champion's own `run_dir`, catching a bad file however it got there, including a hand-edit or an
+  interrupted promotion). Deliberately NOT "every column must be the champion's run": S-18's 2 bp
+  column is a different run of the same book at the same commit and that is correct. **The
+  audit's one-line fix was wrong in one place**: "delete the others" destroys the **11 dated
+  `*_note` keys** sharing `stats_by_spread` (the S-21..S-33 record, 47 KB), so columns and notes
+  are now separated by `cost_columns()` and the notes are preserved byte-identical - they were
+  also being listed as cost models in the "not comparable" message, which is fixed. Backward
+  compatibility was the withdrawal condition and holds: **167 verdicts compared, 0 changed**,
+  table output byte-for-byte identical, full suite **241 pass**. Reusable rule: **when pricing a
+  gate defect, read the column the gate's TOLERANCE lives in, not the column its `must_beat`
+  lives in** - here the two disagree by a factor of 4,200.
 - **AUD-11 [daily] PRICED AND HALF-CLOSED 2026-09-12 by S-33** (`scripts/sweep_s33.py`, 60
   DIAGNOSTIC rows `daily/s33_oos`, `research/journal_daily.md`). The finding stands; its two
   remedies do not fare the same. **Re-select on 2012-2019: REFUSED on evidence.** It moves exactly
@@ -3479,9 +3517,19 @@ carry the owning track in brackets; record each fix in that track's journal and 
   - **STILL OPEN, and it is a one-sentence edit the daily track may not make.** The wrong label
     lives in `champion.json`'s `note`; AGENTS.md reserves that file to `scripts/evaluate.py
     --promote`, and re-running `--promote` for a wording fix would rewrite the record and trip
-    **AUD-10** on the way. **Fix AUD-10 first, then have the next promotion carry this
-    replacement** for the sentence beginning "So the return difference is out-of-sample
-    weighted...": *"The 2020-2026 half is NOT out-of-sample: every shipped parameter was chosen on
+    **AUD-10** on the way. ~~**Fix AUD-10 first, then have the next promotion carry this
+    replacement**~~ **CORRECTED 2026-09-12 by S-34: AUD-10 is fixed and this plan still does not
+    work.** `--promote` updates `algorithm`, `class`, `run_dir`, `stats`, `commit`, `tag`,
+    `stats_by_spread` and `promoted_at` - it has **never written `note`**, and `note` is exactly
+    where the wrong label is (3,415 chars of S-18's promotion write-up, which survives every
+    future promotion untouched). So no promotion can carry this replacement, and the relabel is a
+    **manual edit to a reserved file**: it needs the owner or the critic's restore-with-evidence
+    path, not the next candidate. It is the same defect class as AUD-10 - a promotion that leaves
+    the retired champion's content in place - in prose rather than in numbers, and S-34
+    deliberately did not patch it, because having `--promote` delete or rewrite `note` would
+    destroy the promotion record to fix a wording bug. The replacement text, unchanged, for the
+    sentence beginning "So the return difference is out-of-sample weighted...": *"The 2020-2026
+    half is NOT out-of-sample: every shipped parameter was chosen on
     full-period tables, so it is a sub-period check of the chosen set (AUD-11). S-33 priced the
     contamination on the three documented axes at ~+0.5 CAR points at 0 bp (78th percentile of 18
     cells, 0.53 sd above the grid mean) and measured the selection premium at -0.049, so the

@@ -4,6 +4,30 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-12 - S-34 / AUD-10 (pointer; full entry in `research/journal_daily.md`)
+
+**The promotion gate hands the next candidate 4.2 points of drawdown slack, and 15 rows already in
+the ledger would take it.** `evaluate.py --promote` wrote `stats` and never touched
+`stats_by_spread`, which `champion_stats()` prefers - so the first candidate judged after any
+promotion was compared against the book that had just lost. `scripts/sweep_s34.py`, seven clauses
+pre-registered, prices it on the real S-12 -> S-18 promotion: the CAR gap is **-0.001 at 0 bp**
+(harmless, the dead heat S-18 reported) and the damage is entirely in risk - **+1.400 and +4.200
+points of drawdown headroom** at 0 and 2 bp, against a `drawdown_tolerance_points` of **1.0**.
+Replaying all 167 `s1_momo` rows, **15 flip and all 15 in the dangerous direction**, including
+five S-16 budget-0.80 cells (`20260911T120010Z`: 26.474% / 1.012 / DD 25.700%) that clear the
+retired ceiling and breach the champion's - live candidates, since S-31 re-priced that budget the
+same day. Fixed in two independent halves: `promoted_columns()` makes the promoted run the only
+cost column, and `stale_note()` refuses every comparison when no column carries the champion's own
+`run_dir`, catching a bad file however it got there. The audit's one-line fix ("delete the others")
+would have destroyed the **11 dated `*_note` keys** that share that dict - the S-21..S-33 research
+record - so columns and notes are now separated by `cost_columns()`; notes are preserved
+byte-identical. Backward compatibility was the pre-registered withdrawal condition and holds:
+**167 verdicts compared, 0 changed**, table output byte-for-byte identical, suite **241 pass**,
+`champion.json` untouched. One finding beyond the audit: `--promote` never writes `note` either,
+which is where AUD-11's wrong OOS label lives, so **AUD-11's filed remedy ("have the next
+promotion carry this replacement") cannot work** and is corrected in the backlog. Next: AUD-12,
+the same shape - a promotion that does not carry the `env` the champion was run with.
+
 ## 2026-09-12 - S-33 / AUD-11 (pointer; full entry in `research/journal_daily.md`)
 
 **The champion's "OOS 2020-2026" label is wrong and its number is not - and the audit's own first

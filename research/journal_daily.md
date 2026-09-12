@@ -4,6 +4,146 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-12 - S-34 (AUD-10): the promotion gate hands the next candidate 4.2 points of drawdown slack, 15 rows already in the ledger would take it, and the fix moves no existing verdict
+
+**What this iteration is.** S-33 closed by naming its own blocker: the AUD-11 relabel "is a
+one-sentence edit the daily track may not make" until **AUD-10** is fixed, because re-running
+`--promote` for a wording fix would trip AUD-10 on the way. So AUD-10 is the highest-value open
+daily item and the only one that can advance on a Saturday. The finding: `evaluate.py --promote`
+writes `stats`, `run_dir`, `commit` and `tag` and **never touches `stats_by_spread`**, while
+`champion_stats()` *prefers* that dict - so the first candidate judged after any promotion is
+compared against the book that just lost. It has never bitten because the file was hand-edited
+after each of this repository's two promotions, which is a habit and not a gate.
+
+This is a tooling fix, and this track does not ship one whose size it has not measured. The
+question that decides whether AUD-10 is cosmetic or material is a number: **how much slack does a
+retired column hand a candidate**, and does anything on the record actually take it.
+
+Both standing measurement jobs ran first, as on every iteration since S-31, and it being a
+Saturday neither has new input: `daily_fills.py` still reads **10 fills / $2,373,115 / +3.2 bps**
+against the auction the runner aims at (per-fill sd 14.1, se 4.5), `ref_price` the previous close
+10 of 10.
+
+**Provenance and scope.** New `scripts/sweep_s34.py` (seven clauses pre-registered before the
+first number; console output in `results/s34_run.txt`), a patch to `scripts/evaluate.py`, and
+`tests/test_evaluate_promote.py` (13 tests). **No LEAN run, no ledger row, no strategy parameter
+and no runner-loaded file** - `evaluate.py` is shared code but nothing in `live/` imports it, so
+no `--replay` is owed; the gate it *does* owe is backward compatibility, which is clause 5.
+`research/champion.json` was **not** modified: `git diff` on it is empty, and the end-to-end
+promotion test writes to `tmp_path`.
+
+**(1) Identity.** Today's champion file is self-consistent: 2 cost columns and **11 research
+notes**, column `0.0` carries the champion's own `run_dir` and agrees with `champion["stats"]` on
+every shared key. The defect is therefore preventive rather than already-bitten - which is the
+answer to "has the shipped champion ever been judged against the wrong column": no.
+
+**(2) The defect reproduces.** Promote the real run `20260911T150558Z` (the S-18 candidate at
+2 bp) through the old code path, then ask `champion_stats()` for a 2 bp candidate: it returns
+**22.926% from `20260911T125421Z`**, the *retired* S-12 book, **0.142 CAR points** from the run
+that was just promoted.
+
+**(3) The blast radius, and it is not the CAR column.** On the real S-12 -> S-18 promotion, the
+slack a later candidate is handed:
+
+| column | stale CAR | true CAR | dCAR | stale Sharpe | true Sharpe | dSharpe | stale DD | true DD | **dDD** |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 bp | 24.404% | 24.403% | -0.001 | 0.921 | 0.994 | +0.073 | 25.100% | 23.700% | **+1.400** |
+| 2 bp | 22.926% | 23.068% | +0.142 | 0.865 | 0.938 | +0.073 | 29.200% | 25.000% | **+4.200** |
+
+**The return column is harmless and the risk column is not.** At 0 bp the two books are the dead
+heat S-18 already reported (-0.001 CAR), so anyone reading only `must_beat` would call this
+cosmetic. The damage is in `drawdown_tolerance_points`, which is **1.0**: the retired column hands
+a candidate **4.2 points** of drawdown headroom at 2 bp, i.e. **4.2x the entire width of the risk
+rule it is added to**, and 1.4x at 0 bp. That is the whole point of S-18 - it promoted a book that
+carried the *same* return with *less* risk, so every part of the difference it bought sits in
+precisely the column the stale comparison gives back.
+
+**(4) Fifteen rows on the record would take it.** Replaying all **167** `s1_momo` ledger rows
+through `verdict()` against the true post-S-18 champion and against the columns the old
+`--promote` would have left: **15 rows flip, and all 15 flip in the dangerous direction** (the
+stale column says BEATS where the true champion says no). They are not contrived - they include
+`20260911T120010Z` (S-16, budget 0.80: **26.474% / 1.012 / DD 25.700%**), which clears the retired
+book's 25.100 + 1.0 ceiling and breaches the champion's 23.700 + 1.0, and four more S-16
+budget-0.80 cells of the same shape. Those are live candidates: S-31 re-priced that exact budget
+question six hours ago. **Zero rows flip the harmless way.**
+
+One correction to this clause, because the first version of it measured the patch instead of the
+bug: with the new guard installed, the stale champion is refused outright, which turned every row
+into "no" and reported 12 flips that were the fix working. The stale arm has to be judged with the
+*old* semantics (`stale_note` bypassed for that arm alone) or the number is meaningless. 15, not
+12, and the direction reverses.
+
+**(5) Backward compatibility - the fix's own identity.** Pre-registered as the withdrawal
+condition, because a promotion gate that silently moves an existing judgment is a worse defect
+than the one being repaired. **167 rows compared, 0 verdicts changed**, and
+`evaluate.py --algorithm s1_momo --last 200` is **byte-for-byte identical** before and after the
+patch (`diff` clean).
+
+**(6) and (7) The fix, in two halves that do not depend on each other.** *Writer:*
+`promoted_columns()` makes the promoted run the only cost column, keyed at its own spread and
+pointing at its own `run_dir`. *Reader:* `stale_note()` refuses every comparison when **no**
+column carries the champion's `run_dir`, which catches a bad file however it got that way -
+hand-edit, interrupted promotion, or a future writer. Deliberately **not** "every column must be
+the champion's run", because S-18's 2 bp column is a different run of the same book
+(`20260911T150558Z` against `20260911T145705Z`, same commit `d41aefe`) and that is correct.
+
+Two things the audit's one-line fix ("write the run's column and delete the others") would have
+got wrong and this does not. **`stats_by_spread` is not a dict of books** - it holds 2 columns and
+**11 dated `*_note` keys**, the S-21..S-33 research record, 47 KB of it. "Delete the others" as
+written destroys all eleven. They are preserved byte-identical (clause 6 asserts it), and the
+reader now goes through `cost_columns()` so a note can never be quoted as a comparison basis -
+which it previously was, in the "not comparable" message, which listed all thirteen keys as if
+`leg_note` were a cost model. Second: after a promotion a candidate at a spread the new champion
+has not been re-run at is **refused as not comparable** rather than judged, which is S-18's own
+rule rather than a new one; the remedy is one re-run of the new champion at that spread, exactly
+what S-18 did by hand.
+
+**(8) A finding that was not in the audit, and it corrects AUD-11's filed plan.** Checking which
+top-level keys `--promote` leaves alone turned up **`note`** - 3,415 characters of prose
+describing the S-18 promotion, which survives every future promotion untouched. **That is where
+AUD-11's wrong "OOS 2020-2026" label lives.** So AUD-11's remedy as filed - "have the next
+promotion carry this replacement" - **cannot work**: no promotion has ever written that field and
+none will. The relabel is a manual edit to a file AGENTS.md reserves to `--promote`, and fixing
+AUD-10 does not unblock it. It is the same defect class as AUD-10 (promotion leaves the retired
+champion's content in place) in prose rather than in numbers, and it is deliberately **not**
+patched here: `note` is documentation that no code reads for judgment, and having `--promote`
+delete or rewrite it would destroy the promotion record to fix a wording bug. Filed under AUD-11,
+where the plan is, rather than opened as a new item.
+
+**(9) A parallel-track collision, and it left HEAD broken for about twenty minutes.** While this
+iteration was running, the `eng` track committed **bae4866**, whose
+`tests/test_promotion_gate.py` calls `ev.stale_note()` and `ev.cost_columns()` - functions that
+existed only in *this* track's uncommitted working copy. `git show HEAD:scripts/evaluate.py |
+grep -c "stale_note\|cost_columns"` returns **0**, so those tests could not have passed on a
+clean checkout: the suite was green only because my working tree was supplying the
+implementation, and E-5 makes that suite the gate on the 09:25 launch. Committing this patch is
+what repairs it, which is why it is going in rather than being split. Two consequences worth
+carrying: **(a)** a track that writes tests against another track's working tree has committed a
+dependency it cannot see, and the shared-code rule in AGENTS.md ("keep the change backward
+compatible, run the affected gate") needs the reading to be *run the gate from a clean checkout*,
+not from your own tree; **(b)** the duplication was real - their file covers the **reader**
+(`stale_note`, `cost_columns` against metric lookup) and never touches `promoted_columns()` or
+the `--promote` write path, **which is where the defect actually was**. So
+`tests/test_evaluate_promote.py` was trimmed from 13 tests to **8**, dropping every reader-side
+case that their file already owns and keeping the writer half plus the real-ledger regression
+and the end-to-end `main()` test. The two files now partition the gate instead of overlapping it.
+
+**Decision.** Fix shipped: `scripts/evaluate.py` patched, 8 tests added (43 across both promotion
+files), full suite **241 pass**.
+AUD-10 is **MATERIAL** on its pre-registered threshold (4.2 points against a 1.0 tolerance) and is
+closed. Nothing promoted, nothing demoted, `champion.json` untouched, no number in it moved.
+
+**Next.** AUD-12 (`daily+eng`): the runner and the gate both trade `Params()` while `--promote`
+stores no `env`, so a run promoted with any `S1_*` override would pass the deploy gate and paper
+trade something else. It is the same shape as this one - a promotion that does not carry
+everything the champion is - and it is the last daily audit item that needs no trading day.
+
+**The reusable rule.** *A comparison basis must be able to prove it is the champion's own.*
+`stats_by_spread` was correct for eleven months because a human retyped it twice; the invariant
+that makes it correct without a human is that the champion's `run_dir` appears in its own columns.
+And when pricing a gate defect, read the column the gate's *tolerance* lives in, not the column
+its `must_beat` lives in - here the two disagree by a factor of 4,200.
+
 ## 2026-09-12 - S-33 (AUD-11): the label is wrong and the number is not; choosing a parameter on 2012-2019 buys -0.05 CAR points on 2020-2026, and the audit's own first remedy makes the book worse at t -2.18
 
 **What this iteration is.** The operator's 2026-09-12 platform audit filed **AUD-11 [daily]**: the

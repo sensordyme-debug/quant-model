@@ -12,6 +12,11 @@ Promotion rules (research/champion.json "criteria"):
   * beats the champion on every metric in `must_beat` (higher is better)
   * drawdown not above `max_drawdown_limit`
 A run that violates a rule is reported, never promoted.
+
+Promotion also rewrites `stats_by_spread` to the promoted run's own cost column and retires
+the others (AUD-10 / S-34): they belong to the book that just lost, and leaving them in place
+judged the next candidate against a retired champion. The `*_note` keys are kept. A champion
+whose columns do not contain its own run is reported stale and every comparison is refused.
 """
 import argparse
 import datetime as dt
@@ -62,6 +67,62 @@ def load_champion():
 NOT_PROMOTABLE = "not promotable"
 
 
+#: A key of `stats_by_spread` that names a cost column rather than a research note. The
+#: dict carries both: a column keyed by the spread in bps ("0.0", "2.0") whose value is a
+#: book, and a dated `*_note` (S-21..S-33) whose value is prose about the champion. Every
+#: reader of a column goes through `cost_columns` or a note ends up quoted as a comparison
+#: basis - and every writer leaves the notes alone, because git is the only thing that
+#: should ever delete one.
+COLUMN_KEY = re.compile(r"^\d+(\.\d+)?$")
+
+
+def cost_columns(champion) -> dict:
+    """The numeric spread columns of `stats_by_spread`, without the research notes."""
+    columns = champion.get("stats_by_spread") or {}
+    return {k: v for k, v in columns.items() if COLUMN_KEY.match(k) and isinstance(v, dict)}
+
+
+def stale_note(champion):
+    """AUD-10: refuse every comparison when the columns are not the champion's own book.
+
+    `--promote` wrote `stats` and left `stats_by_spread` untouched, so the first candidate
+    after a promotion was judged against the *previous* champion's numbers - and the previous
+    champion is by construction the book that just lost. The defect never bit only because
+    this file was hand-edited after each promotion, which is a habit and not a gate.
+
+    The invariant that makes it detectable without trusting the writer: the champion's own run
+    must appear in its own columns. It is deliberately not "every column must be the champion's
+    run", because a column at another cost model is a legitimate re-run of the same book at
+    another spread - S-18's 2 bp column is run `20260911T150558Z` against the champion's
+    `20260911T145705Z`, same commit `d41aefe`, and that is correct.
+    """
+    run_dir = champion.get("run_dir")
+    columns = cost_columns(champion)
+    if not columns or not run_dir:
+        return None
+    if any(col.get("run_dir") == run_dir for col in columns.values()):
+        return None
+    return (f"champion.json is stale (AUD-10): none of its cost columns {sorted(columns)} was "
+            f"produced by the champion's own run {run_dir}, so every comparison would be "
+            f"against a retired book - re-promote through scripts/evaluate.py --promote")
+
+
+def promoted_columns(run, champion) -> dict:
+    """The `stats_by_spread` a promotion must leave behind.
+
+    The promoted run becomes the only cost column, because the other columns describe the book
+    that just lost. The `*_note` keys beside them are kept: they are the dated research record
+    and each one names the run it was measured on. A later candidate charged a spread this
+    champion has not been re-run at is then refused by `champion_stats` as not comparable,
+    which is S-18's rule working as intended - the remedy is one re-run of the new champion at
+    that spread, which is exactly what S-18 did by hand.
+    """
+    kept = {k: v for k, v in (champion.get("stats_by_spread") or {}).items()
+            if not COLUMN_KEY.match(k)}
+    kept[spread_bps(run)] = dict(run.get("stats") or {}, run_dir=run["run_dir"])
+    return kept
+
+
 def spread_bps(run) -> str:
     """The slippage the run was charged, as the key `stats_by_spread` uses.
 
@@ -85,7 +146,7 @@ def champion_stats(run, champion):
     picks the matching one. With no matching column the comparison falls back to the headline
     stats and says so, because an unlabelled comparison is the defect, not the fallback.
     """
-    columns = champion.get("stats_by_spread") or {}
+    columns = cost_columns(champion)
     key = spread_bps(run)
     if key in columns:
         return columns[key], None
@@ -128,6 +189,9 @@ def verdict(run, champion):
     crit = champion.get("criteria", {})
     stats = run.get("stats", {})
     reasons = []
+    note = stale_note(champion)
+    if note:
+        reasons.append(note)
     note = window_note(run)
     if note:
         reasons.append(note)
@@ -163,6 +227,9 @@ def verdict(run, champion):
 
 
 def table(runs, champion):
+    warning = stale_note(champion)
+    if warning:
+        print(f"WARNING: {warning}\n")
     header = ["ts", "algorithm", "tag"] + SHOW + ["beats?"]
     rows = []
     for r in runs:
@@ -205,13 +272,18 @@ def main() -> int:
             if not ok:
                 print("promotion refused")
                 return 1
+            columns = promoted_columns(run, champion)
             champion.update({
                 "algorithm": run["algorithm"], "class": run["class"], "run_dir": run["run_dir"],
                 "stats": run["stats"], "commit": run.get("commit"), "tag": run.get("tag"),
+                "stats_by_spread": columns,
                 "promoted_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             })
             CHAMPION.write_text(json.dumps(champion, indent=2) + "\n", encoding="utf-8")
-            print(f"promoted; champion.json updated")
+            print("promoted; champion.json updated")
+            print(f"  cost columns now {sorted(cost_columns(champion))} at "
+                  f"{spread_bps(run)} bp; every other column was retired with the old champion, "
+                  f"so a candidate at another spread is refused until this book is re-run there")
         return 0 if ok else 1
 
     table(runs[-args.last:], champion)
