@@ -1,5 +1,88 @@
 # Journal - eng track (platform engineering). Newest first.
 
+## 2026-09-12 - E-8: the gate could stop the sleeve over how much RAM was free at 09:25.
+
+**Hypothesis.** E-8 was filed as a dependency chore: four tests fail on 3.11 for want of
+`pyarrow`, and since E-5 made `pytest exit 1` the one condition that stops the sleeve trading,
+repointing the task at 3.11 would cause an outage. Latent, low value, fix with a `pip install`.
+
+**It is not a dependency chore, and the interpreter was never the problem.** Reproducing it
+turned up a fifth failure the backlog does not name, `test_qb_scheduler::
+test_resolve_workers_respects_a_smaller_request`, which then *passed* when I ran it alone. Not
+order dependence - the test asks the live machine:
+
+```
+resolve_workers(2, "futures")  ->  min(2, workers_for("futures"))
+workers_for("futures")         ->  1      # measured 23:31 UTC, commit charge 81%
+```
+
+So `assert resolve_workers(2, "futures") == 2` is a statement about **free memory at the moment
+pytest runs**, and it is false whenever another track is sweeping - which AGENTS.md guarantees,
+because several jobs work this repo concurrently. That reframes the whole item. The gating suite
+holds tests whose verdict is a property of the machine rather than of the code:
+
+| test | verdict actually depends on | fires when |
+| --- | --- | --- |
+| `test_qb_scheduler` worker clamp | free RAM / commit charge | another track is sweeping at 09:25 |
+| `test_qb_dataquality` (x2) | the deployed IBKR parquet store | an overnight fetch dies - E-6 found exactly that on 2026-09-11 |
+| `test_qb_stats`, `test_qb_labels` | a parquet engine being installed | the task is repointed at 3.11 |
+
+None of them says anything about the book, and **each would have cost the paper sleeve a full
+trading day.** The pyarrow one needs an interpreter change to fire; the other two need only a
+busy machine or a bad fetch, so this was live risk today, not latent risk.
+
+**Two layers, because fixing only the first leaves the class open.**
+
+*Root cause, per test.* The scheduler test now pins the budget to the file's own `snap()`
+fixture and a second test keeps the live-machine half of the property that survives a loaded
+box (`1 <= resolve_workers(want) <= want` - the clamp is one-directional, which is true under
+any load). The four parquet tests take `importorskip`, the route `test_store_health.py` already
+takes. Two of them already skipped on "artifacts not on disk ... a fresh clone should not report
+a false failure" - the principle was accepted, the guard just missed the second axis.
+
+*The class.* `tests/conftest.py` grows a `RUNNER_TESTS` set and applies a `runner` marker by
+module name; on exit 1 the launcher re-runs `-m runner` and **that** decides. E-5's reasoning -
+"a failing test means the sizing or book arithmetic the trader is about to use is provably
+wrong" - is true of eight files and false of the other nineteen. The default is *not* gating, so
+a new test file has to opt in to the power to cause an outage: E-5's asymmetry one level up.
+
+The narrowing may only downgrade a refusal it can **prove** is off the trading path. Subset also
+failed, marker not registered, re-run would not launch, nothing collected -> refuse, exactly as
+before. `test_an_unmarked_repo_refuses_exactly_as_before` pins that, and it is why every
+pre-existing E-5 test still passes unchanged: their throwaway repos have no marker.
+
+**Verification.** Both new branches proven against the **real** repo and the real conftest, by
+writing one probe file that differs only in carrying `pytestmark = pytest.mark.runner`:
+
+| probe | may_trade | outcome |
+| --- | --- | --- |
+| failing test, unmarked | True | `warn` - "suite failed outside the live trading path" |
+| same failing test, `runner` | False | `failed` -> exit 4, no trading |
+
+Suite: **3.11 576 passed / 6 skipped (was 5 failed), 3.14 624 passed**, so the item's headline
+is closed and the two interpreters now agree. Full `--preflight-only` against the real launcher
+**exit 0**, replay of 2026-09-11 P&L -2,080, 36 trades, *open positions at end: none*;
+`live/state/intraday_book.json` and `live/APPROVED_PAPER.md` byte-identical before and after, no
+HALT file. `qb_check.py` GATE PASSED.
+
+**Cost.** A green morning still costs exactly one pytest launch - `test_the_subset_rerun_only_
+happens_on_a_failure` asserts the second process is never spawned on exit 0. The failure path
+adds 13 s (183 tests) against the suite's 30 s, under its own 120 s budget rather than
+inheriting the 300 s hang guard, so the gate's worst case does not double at 09:25.
+
+**One thing I fixed outside my own diff.** `qb_check.py` was already failing on 3 pyright errors
+in `tests/test_intraday_data_extend.py`, committed by the iterate track in d290f62 - a
+`CALENDAR.session(d)` returning `Session | None`. The gate is shared and blocks every track, so
+it is two `assert sess is not None` lines with a message that names the real cause (a fixture
+date that is not a trading day). Flagged here rather than left silent.
+
+**Decision.** Ship. The gate keeps full strength over the code the trader runs and can no longer
+be tripped by an absent optional dependency, a stale data store, or another agent's sweep.
+
+**Next.** E-9 (nothing consumes `store_health.py` on a schedule) is now cheaper and safer to do:
+a store finding can be surfaced as a WARN without any risk of becoming a refusal, because the
+refusal set is explicit. Then E-7 (3.14 is 6x slower than 3.11 on the same suite).
+
 ## 2026-09-12 - E-6: a bar count cannot tell a thin session from a dead fetch. A span can.
 
 **Hypothesis.** `dataquality.py` validates the bars a store *contains* and is structurally blind

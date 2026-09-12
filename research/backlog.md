@@ -3464,14 +3464,6 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   (pandas/numpy) under 3.14 rather than the tests themselves - `-X importtime` on a single
   test would say. Worth it because the launch gate now pays this every morning, and because
   every track's edit-test loop pays it all day.
-- **E-8 The shared suite fails on 3.11, and the launch gate refuses on a failing suite.**
-  Four pre-existing failures under `py -3.11` (`test_qb_dataquality`, `test_qb_labels`,
-  `test_qb_stats`), all one cause: no `pyarrow`, so `pd.read_parquet` raises. Latent today -
-  `unit_tests_ok` uses `sys.executable` and the 09:25 task runs 3.14, where all 523 pass - but
-  E-5 made pytest exit 1 the one condition that stops the sleeve trading, so repointing the task
-  at 3.11 would cause an outage over a missing optional dependency, which is exactly what E-5
-  was built to prevent. Fix is either `pip install pyarrow` into 3.11 or an `importorskip` in
-  those four files; `tests/test_store_health.py` already takes the second route.
 - **E-9 Nothing consumes `store_health.py` on a schedule.** E-6 shipped the checker and wired
   its shape test into `intraday_launch.last_session()`, but the stores are only inspected when
   somebody runs it. Both minute stores currently FAIL on a truncated last session and nothing
@@ -3480,6 +3472,23 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
 
 ## Done
 
+- **E-8 The launch gate could be tripped by the machine instead of the code. DONE 2026-09-12.**
+  Filed as "install pyarrow into 3.11"; it was not a dependency chore. Reproducing it found a
+  fifth failure the item did not name: `test_qb_scheduler`'s `resolve_workers(2, "futures") == 2`
+  reads **live free memory** and returns 1 whenever commit charge is high (measured 1 at 81%),
+  which is routine here because several tracks sweep concurrently - so E-5's one refusal could be
+  triggered by another agent's RAM. Two more read the deployed parquet store, which a dead
+  overnight fetch breaks (E-6 saw exactly that on 2026-09-11). Fixed at both levels: the five
+  tests now state properties of the code (pinned `snap()` budget plus a live-machine test of the
+  one-directional clamp, which holds under any load; `importorskip` for parquet), **and** the
+  refusal is scoped to a `runner` marker applied from `tests/conftest.py::RUNNER_TESTS` (8 files,
+  183 tests) - on exit 1 the launcher re-runs `-m runner` and that decides, with every unreadable
+  answer (subset failed, no marker, nothing collected, re-run would not start) still refusing, so
+  E-5's tests pass unchanged. Default is non-gating: a new test file must opt in to the power to
+  stop the sleeve. 3.11 now 576 passed/6 skipped (was 5 failed), 3.14 624 passed; both gate
+  branches proven on the real repo with a probe file differing only by the marker; full
+  `--preflight-only` exit 0, replay of 2026-09-11 flat at end, live book byte-identical.
+  A green morning still costs one pytest launch (asserted); the failure path adds 13 s.
 - **E-6 Store-completeness checker. DONE 2026-09-12.** `scripts/store_health.py` +
   `tests/test_store_health.py` (27 tests). The design point: a bar count cannot tell a thin
   session (381/390, spans 09:30-15:59 - 5,710 in the Alpaca store, benign) from a dead fetch

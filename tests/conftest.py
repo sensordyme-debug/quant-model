@@ -1,6 +1,6 @@
 """Shared fixtures for the runner test suite.
 
-Two jobs:
+Three jobs:
 
 1. Put `scripts/` on `sys.path` so the runners import as top-level modules, exactly the way
    they import each other at run time (`intraday_trader` does `sys.path.insert` on its own
@@ -13,6 +13,25 @@ Two jobs:
    phone, so the `isolate_live` autouse fixture redirects the book to `tmp_path` and replaces
    every logging and alerting entry point with a recorder. Tests that want to see what was
    logged read `log_records` / `alerts`.
+
+3. **Mark the tests that are allowed to stop the sleeve trading** (E-8). `intraday_launch`
+   runs this suite at 09:25 and E-5 made `pytest exit 1` its one refusal, on the reasoning
+   that "a failing test means the sizing or book arithmetic the trader is about to use is
+   provably wrong". That reasoning is true of the runner tests and false of everything else
+   in here, and the difference is not cosmetic - three tests in this suite have a verdict
+   that depends on the machine rather than on the code:
+
+       test_qb_scheduler   `resolve_workers(2, "futures") == 2` reads live free memory, and
+                           returns 1 whenever commit charge is high - which is routine on
+                           this box, since several sweep tracks run concurrently
+       test_qb_dataquality  runs the validator over the deployed IBKR store, so a dead
+                           overnight fetch fails it (E-6 found exactly that on 2026-09-11)
+       test_qb_stats / test_qb_labels  read parquet, which needs an engine 3.11 lacks
+
+   None of those says anything about the book, and all of them would have stopped the paper
+   sleeve for the day. So the refusal is scoped to `RUNNER_TESTS` below and everything else
+   degrades to a warning. Default is *not* gating: a new test file has to opt in to the
+   power to cause an outage, which is E-5's asymmetry applied one level up.
 """
 from __future__ import annotations
 
@@ -26,6 +45,55 @@ SCRIPTS = REPO / "scripts"
 for p in (str(SCRIPTS), str(REPO)):
     if p not in sys.path:
         sys.path.insert(0, p)
+
+
+# The modules that exercise code the live trader actually executes: sizing, the book, the
+# gates, the cost model it fills at, the state it reconciles, and the launch gate itself. A
+# failure in one of these means the arithmetic of the deployed sleeve is wrong, which is the
+# only thing worth refusing to trade over.
+RUNNER_TESTS = frozenset({
+    "test_costs",             # the cost model positions are sized and marked with
+    "test_intraday_book",     # book accounting
+    "test_intraday_gates",    # halt / approval / time gates
+    "test_intraday_p0",       # the trader's day-zero path
+    "test_intraday_sizing",   # position sizing
+    "test_launch_preflight",  # this gate's own failure mapping
+    "test_paper_sizing",      # the daily sleeve's runner
+    "test_reconcile_state",   # the live book's state reconciliation
+})
+
+# Files that import a runner module but only to *read data through it* (the store loaders) or
+# to test research tooling built on top of it. Listed explicitly so that
+# `test_every_runner_importer_is_classified` stays a real check: a new file that touches the
+# trader is a deliberate decision in one of these two sets, never an accident.
+NON_GATING_RUNNER_IMPORTERS = frozenset({
+    "test_intraday_data_extend",    # the fetcher, not the trader
+    "test_intraday_harness_bias",   # backtest harness correctness
+    "test_gateway_watchdog",        # infrastructure; cannot make the book wrong
+    "test_qb_dataquality",          # validates the deployed store: data finding, not code
+    "test_qb_labels",               # ditto
+    "test_research_harness",        # the research path, not the live path
+    "test_store_health",            # store completeness: data finding, not code
+})
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "runner: covers code the live trader executes; a failure here stops the 09:25 sleeve",
+    )
+
+
+def pytest_collection_modifyitems(items):
+    """Apply `runner` by module name rather than a `pytestmark` line in each file.
+
+    One list in one place beats eight copies of a marker, and it keeps the gating set
+    reviewable: `RUNNER_TESTS` is the answer to "what can stop the sleeve?".
+    """
+    mark = pytest.mark.runner
+    for item in items:
+        if item.module is not None and item.module.__name__ in RUNNER_TESTS:
+            item.add_marker(mark)
 
 
 @pytest.fixture(autouse=True)

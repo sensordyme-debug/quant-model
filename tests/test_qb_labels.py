@@ -144,6 +144,7 @@ def test_grid_report_tolerates_a_degenerate_index():
 
 def test_the_ibkr_store_is_gapless_so_the_guard_is_a_no_op():
     """If this ever fails, a shipped F-1 number has moved and the change must be re-measured."""
+    pytest.importorskip("pyarrow", reason="the minute store is parquet; 3.11 has no engine")
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))

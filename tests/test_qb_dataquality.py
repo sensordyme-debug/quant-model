@@ -204,6 +204,7 @@ def test_the_report_never_rewrites_the_frame():
 @pytest.mark.parametrize("symbol", ["NVDA"])
 def test_the_deployed_ibkr_minute_store_passes(symbol):
     """The store the live sleeve actually trades must be usable, or research on it is void."""
+    pytest.importorskip("pyarrow", reason="the minute store is parquet; 3.11 has no engine")
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -214,6 +215,7 @@ def test_the_deployed_ibkr_minute_store_passes(symbol):
 
 
 def test_the_calendar_recognises_early_closes_in_the_real_store():
+    pytest.importorskip("pyarrow", reason="the minute store is parquet; 3.11 has no engine")
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))

@@ -102,6 +102,7 @@ def store(tmp_path, monkeypatch, symbol: str, days_and_bars: dict[dt.date, int |
         if bars is None:
             continue
         sess = CALENDAR.session(day)
+        assert sess is not None, f"{day} is not a trading session - fix the fixture's dates"
         idx += list(pd.date_range(pd.Timestamp(f"{day} {sess.open_t}", tz=ET),
                                   periods=bars, freq="1min", tz=ET))
     path = tmp_path / f"{symbol}.parquet"
@@ -172,6 +173,7 @@ def test_a_sparse_session_is_not_called_truncated(tmp_path, monkeypatch):
     idx = list(full[keep])
     for d in days[:-1]:
         sess = CALENDAR.session(d)
+        assert sess is not None, f"{d} is not a trading session - fix the fixture's dates"
         idx += list(pd.date_range(pd.Timestamp(f"{d} {sess.open_t}", tz=ET),
                                   periods=sess.minutes, freq="1min", tz=ET))
     path = tmp_path / "TEST.parquet"

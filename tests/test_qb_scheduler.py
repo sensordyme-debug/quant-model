@@ -132,9 +132,28 @@ def test_resolve_workers_lowers_an_oversized_request():
     assert resolve_workers(1000, "futures", verbose=False) <= workers_for("futures")
 
 
-def test_resolve_workers_respects_a_smaller_request():
-    """Ask for 2 and get 2 - the helper must not reshape an experiment upward."""
+def test_resolve_workers_respects_a_smaller_request(monkeypatch):
+    """Ask for 2 and get 2 - the helper must not reshape an experiment upward.
+
+    The budget is pinned to `snap()` instead of the live machine. Read off the machine this
+    assertion is a coin flip: `resolve_workers` clamps to `workers_for("futures")`, which on
+    2026-09-12 was **1** at 81% commit charge, so "ask for 2 and get 2" is false whenever
+    another track is sweeping - and this suite gates the 09:25 launch (E-8).
+    """
+    import quant_brain.core.scheduler as sched
+    monkeypatch.setattr(sched, "plan_workers",
+                        lambda *a, **k: plan_workers(600.0, snap=snap()))
     assert resolve_workers(2, "futures", verbose=False) == 2
+
+
+def test_resolve_workers_never_raises_a_request_on_the_live_machine():
+    """The one-directional clamp against whatever this box actually has free right now.
+
+    This is the half of the property that survives contact with a loaded machine, so it is
+    the half allowed to look at one.
+    """
+    for want in (1, 2, 4, 8):
+        assert 1 <= resolve_workers(want, "futures", verbose=False) <= want
 
 
 def test_resolve_workers_never_returns_zero_for_an_active_market():

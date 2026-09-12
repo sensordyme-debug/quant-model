@@ -190,6 +190,9 @@ def test_the_f3_correction_is_reproducible_from_the_saved_artifacts():
     scores_p, panel_p = repo / "data/f3/ml_scores.csv", repo / "data/f3/panel.parquet"
     if not (scores_p.exists() and panel_p.exists()):
         pytest.skip("F-3 artifacts not on disk (gitignored research output)")
+    # Same reasoning as the artifacts check one line up, second axis: the panel is parquet and
+    # 3.11 has no engine for it, so an absent optional dependency would report a false failure.
+    pytest.importorskip("pyarrow", reason="the F-3 panel is parquet; 3.11 has no engine")
 
     scores = pd.read_csv(scores_p, parse_dates=["date"])
     panel = pd.read_parquet(panel_p)

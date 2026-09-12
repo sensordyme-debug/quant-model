@@ -19,9 +19,8 @@ from __future__ import annotations
 
 import subprocess
 
-import pytest
-
 import intraday_launch
+import pytest
 
 
 def make_repo(root, body: str, name: str = "test_sample.py"):
@@ -147,6 +146,130 @@ def test_the_gate_never_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(intraday_launch.subprocess, "run", explode)
     ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path)
     assert (ok, outcome) == (True, "warn")
+
+
+# --- E-8: which failure counts. Only the live trading path may stop the sleeve -----------
+
+def make_marked_repo(root, *, runner_body: str, other_body: str):
+    """A repo shaped like this one: a `runner`-marked file and an unmarked one.
+
+    The real suite applies the marker from `tests/conftest.py` by module name; here a
+    `pytestmark` line is equivalent and keeps the fixture readable.
+    """
+    (root / "tests").mkdir(parents=True, exist_ok=True)
+    (root / "pytest.ini").write_text(
+        "[pytest]\ntestpaths = tests\nmarkers =\n    runner: live trading path\n",
+        encoding="utf-8")
+    (root / "tests" / "test_runner_path.py").write_text(
+        "import pytest\n\npytestmark = pytest.mark.runner\n\n" + runner_body, encoding="utf-8")
+    (root / "tests" / "test_research_path.py").write_text(other_body, encoding="utf-8")
+    return root
+
+
+def test_a_failure_outside_the_trading_path_trades_with_a_warning(tmp_path):
+    """The E-8 case: worker allocation reading live free memory, or a store validator reading
+    a store whose overnight fetch died. Neither says the book arithmetic is wrong, and both
+    would have cost the sleeve a full day of paper trading under E-5's mapping."""
+    make_marked_repo(tmp_path,
+                     runner_body="def test_sizing():\n    assert True\n",
+                     other_body="def test_free_memory():\n    assert 1 == 2\n")
+    ok, outcome, detail = intraday_launch.unit_tests_ok(root=tmp_path)
+    assert ok is True
+    assert outcome == "warn"
+    assert "outside the live trading path" in detail
+    assert "test_free_memory" in detail        # the warning still names what broke
+
+
+def test_a_failure_on_the_trading_path_still_refuses(tmp_path):
+    """The narrowing must not weaken the refusal it was carved out of."""
+    make_marked_repo(tmp_path,
+                     runner_body="def test_sizing():\n    assert 1 == 2\n",
+                     other_body="def test_research():\n    assert True\n")
+    ok, outcome, detail = intraday_launch.unit_tests_ok(root=tmp_path)
+    assert (ok, outcome) == (False, "failed")
+    assert "test_sizing" in detail
+
+
+def test_both_failing_refuses(tmp_path):
+    make_marked_repo(tmp_path,
+                     runner_body="def test_sizing():\n    assert 1 == 2\n",
+                     other_body="def test_research():\n    assert 1 == 2\n")
+    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path)
+    assert (ok, outcome) == (False, "failed")
+
+
+def test_an_unmarked_repo_refuses_exactly_as_before(tmp_path):
+    """No `runner` marker anywhere -> the subset collects nothing -> the answer is unreadable
+    -> keep E-5's refusal. The narrowing may only downgrade a failure it can *prove* is off
+    the trading path; it must never turn a missing marker into permission to trade."""
+    make_repo(tmp_path, "def test_boom():\n    assert 1 == 2\n")
+    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path)
+    assert (ok, outcome) == (False, "failed")
+
+
+def test_the_subset_rerun_only_happens_on_a_failure(tmp_path):
+    """A green morning must still cost exactly one pytest launch."""
+    make_marked_repo(tmp_path,
+                     runner_body="def test_sizing():\n    assert True\n",
+                     other_body="def test_research():\n    assert True\n")
+    calls = []
+    real = intraday_launch.subprocess.run
+
+    def counting(cmd, *a, **k):
+        calls.append(cmd)
+        return real(cmd, *a, **k)
+
+    intraday_launch.subprocess.run = counting
+    try:
+        ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path)
+    finally:
+        intraday_launch.subprocess.run = real
+    assert (ok, outcome) == (True, "passed")
+    assert not any("-m" in c and "runner" in c for c in calls if isinstance(c, list))
+
+
+def test_every_runner_importer_is_classified():
+    """A new test file that imports the trader is a decision, never an accident.
+
+    If it lands in neither set, this fails and whoever added it has to say whether a failure
+    in it should be allowed to stop the live sleeve.
+    """
+    import conftest
+
+    runner_modules = ("intraday_trader", "paper_trade", "intraday_launch", "reconcile_state")
+    tests_dir = intraday_launch.REPO / "tests"
+    classified = conftest.RUNNER_TESTS | conftest.NON_GATING_RUNNER_IMPORTERS
+    unclassified = []
+    for path in sorted(tests_dir.glob("test_*.py")):
+        src = path.read_text(encoding="utf-8")
+        if any(f"import {m}" in src for m in runner_modules) and path.stem not in classified:
+            unclassified.append(path.name)
+    assert not unclassified, (
+        f"{unclassified} import a live runner but are in neither conftest.RUNNER_TESTS nor "
+        "conftest.NON_GATING_RUNNER_IMPORTERS - decide whether they may stop the sleeve")
+
+
+def test_the_gating_set_names_only_files_that_exist():
+    """A renamed test file must not silently drop out of the gate."""
+    import conftest
+
+    tests_dir = intraday_launch.REPO / "tests"
+    for name in conftest.RUNNER_TESTS | conftest.NON_GATING_RUNNER_IMPORTERS:
+        assert (tests_dir / f"{name}.py").exists(), f"{name} is listed but has no file"
+
+
+def test_the_real_suite_marks_the_trading_path():
+    """The marker actually reaches items in this repo - a typo in the module names would
+    otherwise leave the gate with an empty subset, which refuses on every failure."""
+    import conftest
+
+    assert "test_intraday_sizing" in conftest.RUNNER_TESTS
+    res = subprocess.run(
+        [intraday_launch.PY, "-m", "pytest", "-m", "runner", "--collect-only", "-q",
+         "-p", "no:cacheprovider"],
+        cwd=str(intraday_launch.REPO), capture_output=True, text=True, timeout=300)
+    assert res.returncode == 0, res.stdout[-800:] + res.stderr[-400:]
+    assert "no tests ran" not in res.stdout
 
 
 # --- the gate is wired into the launcher, and only where it belongs ----------------------

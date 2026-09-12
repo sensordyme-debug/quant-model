@@ -29,7 +29,8 @@ from intraday_common import LIVE, REPO, UNIVERSE, load_bars, log_event, notify  
 PY = sys.executable
 TRADER = REPO / "scripts" / "intraday_trader.py"
 CONFIG = LIVE / "intraday_config.json"       # {"strategy": "active", "equity_frac": 1.0, "params": {...}}
-PYTEST_TIMEOUT = 300                         # suite is ~35 s on 3.14 / ~21 s on 3.11: hang guard
+PYTEST_TIMEOUT = 300                         # suite is ~30 s on 3.14 / ~22 s on 3.11: hang guard
+SUBSET_TIMEOUT = 120                         # the `runner` re-run is ~13 s; only on a failure
 
 
 def config():
@@ -94,6 +95,14 @@ def unit_tests_ok(root: Path = REPO, python: str = PY,
 
     So importability is probed separately instead of read off the exit code, because
     `python -m pytest` with pytest absent exits 1 - the same code as a real test failure.
+
+    E-8 narrowed *which* failure counts. "A failing test means the book arithmetic is wrong"
+    is true of the runner tests and false of the rest of the suite, where three tests were
+    found whose verdict depends on the machine and not on the code: worker allocation reads
+    live free memory, the store validators read the deployed parquet store, and two research
+    tests need a parquet engine 3.11 does not have. Any of those would have stopped the
+    sleeve for a day. So on exit 1 the runner-marked subset is re-run and *it* decides; a
+    failure only outside that subset trades with a warning. See `tests/conftest.py`.
     """
     # If this very interpreter is already running pytest, it is importable by definition; the
     # probe is a second process launch (~1.4 s on Windows) worth skipping. At 09:25 the launcher
@@ -124,9 +133,34 @@ def unit_tests_ok(root: Path = REPO, python: str = PY,
     if res.returncode == 0:
         return True, "passed", tail
     if res.returncode == 1:                     # the only refusal: real assertion failures
+        if _runner_subset_passed(root, python, timeout):
+            return True, "warn", ("suite failed outside the live trading path, trading anyway: "
+                                  + out[-1200:])
         return False, "failed", out[-1500:]
     # 2 interrupted, 3 internal error, 4 usage error, 5 nothing collected -> not a verdict
     return True, "warn", f"pytest exit {res.returncode}: {tail}"
+
+
+def _runner_subset_passed(root: Path, python: str, timeout: int) -> bool:
+    """Did the `runner`-marked tests pass? Only reached when the full suite already failed.
+
+    Returns False - i.e. refuse - whenever the answer cannot be established: the subset also
+    failed, the marker is not registered in this repo so nothing was collected, or the re-run
+    could not be launched. The narrowing may only ever *downgrade a refusal it can prove is
+    unrelated to the book*; an unreadable answer keeps E-5's original behaviour.
+
+    The re-run gets its own, tighter budget: it is under a third of the suite (183 tests in
+    13 s against 624 in 30 s) and it only ever happens on a morning that is already going
+    wrong, so it must not be able to double the gate's worst case five minutes before the open.
+    """
+    try:
+        res = subprocess.run([python, "-m", "pytest", "-m", "runner",
+                              "-p", "no:cacheprovider", "--tb=line"],
+                             cwd=str(root), capture_output=True, text=True,
+                             timeout=min(timeout, SUBSET_TIMEOUT))
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return res.returncode == 0 and "no tests ran" not in (res.stdout + res.stderr)
 
 
 def main() -> int:
