@@ -548,6 +548,43 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   leverage**, against the 3-10%/day mandate, and **F-1's forecast**, which was real at t +4.74 and
   died 11% short of an equity commission floor the future clears by 60%. Nothing is blocked today.
 
+  **Amendment (S-26, 2026-09-12) - a futures use has finally been found whose edge clears the
+  0.488 bps round trip, it needs NO history at all, and it is refused on drawdown. Two things here
+  are yours, and neither is a purchase.** S-25 showed all of the daily champion's measurable alpha
+  is earned overnight and none of it intraday. S-26 acted on that the only way the arithmetic
+  allows - not by trading the equity book (1,248x turnover, negative at zero cost) but by
+  **shorting the index over the intraday leg**, sized on a causal trailing beta.
+  - **It needs no CME purchase.** The overlay is priced on SPY's own open-to-close return, and
+    that substitution was validated rather than assumed: over your own 313-session ES stitch,
+    **corr(ES cash session, SPY open->close) = 0.9994, slope 0.9984, basis sd 2.1 bps/session**.
+    So the request above stands on its own merits and this result neither adds to nor subtracts
+    from it.
+  - **The edge clears the instrument by a factor and dies on risk.** Charged 2 bp of equity spread,
+    IBKR Pro financing and the 0.488 bps round trip, then vol-matched to the deployed book's own
+    volatility, the half hedge earns **20.837% / Sharpe 1.100 against 19.640 / 1.047**, wins both
+    halves and stays inside Reg-T - and **its drawdown is 26.0% against 24.0%**, two points worse
+    against the 1.0-point tolerance you set on 2026-09-09, so the loop refused it. Its breakeven is
+    **1.108 bps a round trip** against ES's 0.488. Nothing in the comparison reaches |t| = 2
+    (paired +0.395 bps/day at t +0.60).
+  - **DECISION 1, the only one that could change that verdict, and it is a risk-posture question
+    so it is yours**: the refusal is the drawdown tolerance doing exactly what you asked it to do.
+    If you want the cell judged instead on Sharpe and return with a wider drawdown allowance, say
+    so and it goes back through `evaluate.py` on those criteria - **but read the t-statistic first;
+    this is a +1.2 CAR point claim at t +0.60 on 3,689 sessions, which is not a result the loop
+    would push.**
+  - **DECISION 2, the offer that needs no leverage and no argument about significance**: the
+    **un-relevered** half hedge earns **18.174% / Sharpe 1.124 / DD 22.45%** against the deployed
+    **19.640% / 1.047 / 24.04%**. That is a straight trade of **1.47 CAR points for 1.58 points of
+    drawdown and +0.08 of Sharpe**, with no extra leverage anywhere. It is priced, not recommended -
+    your standing mandate is aggressive and return-first, which argues against it, and the loop will
+    not change the book's risk posture on its own.
+  - **What either decision would additionally require, stated so it is not discovered later**:
+    consent to hold **futures** in the paper account at all (the loop has never held any, and
+    AGENTS.md forbids it from changing what the runner trades without you), and enough equity for
+    the hedge to be held continuously - the full hedge is **below one ES contract on 65.4% of
+    sessions** on this book's $100k -> $899k path, so the practical instrument is **MES** at
+    0.744 bps, which still clears the 1.108 breakeven.
+
 ## Open request to the owner (2026-09-09, intraday sleeve)
 
 - **The intraday sleeve cannot be validated by backtest, at any sample size we can reach

@@ -90,9 +90,20 @@ MODES = ["both", "overnight", "intraday"]
 
 # ------------------------------------------------------------------- the attributing book
 
+def _ols_beta(y: list[float], x: list[float]) -> float:
+    """Slope of `y` on `x`, both equity-normalized leg returns. S-26's hedge sizer."""
+    ya, xa = np.asarray(y, dtype=float), np.asarray(x, dtype=float)
+    ok = np.isfinite(ya) & np.isfinite(xa)
+    ya, xa = ya[ok], xa[ok]
+    if len(ya) < 2 or xa.var(ddof=1) == 0:
+        return float("nan")
+    return float(np.cov(ya, xa, ddof=1)[0, 1] / xa.var(ddof=1))
+
+
 def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
                   slippage_bps: float = 0.0, financing: dict | None = None,
-                  lag: int = 0, divs: pd.DataFrame | None = None) -> pd.DataFrame:
+                  lag: int = 0, divs: pd.DataFrame | None = None,
+                  hedge: dict | None = None, scale: float = 1.0) -> pd.DataFrame:
     """S-19's deployed book with the day's P&L split into its two legs.
 
     `mode="both"` is the deployed convention exactly: decide on the closes through i-1, fill
@@ -104,6 +115,21 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
     targets at close[i]; `mode="intraday"` establishes them at open[i] and liquidates at
     close[i]. Both decide on exactly the same information as the deployed book - the closes
     through i-1 - so the only thing that moves between the three is which leg is held.
+
+    S-26 adds two optional arguments and changes nothing when they are absent (S-22's
+    precedent on `sweep_s19.simulate`, so every S-25 row stays bit-identical).
+
+    `scale` multiplies the shipped target weights, which is how a risk-matched column is
+    priced on the real machinery: gross, commission and the financed debit all follow.
+
+    `hedge` is `{"ratio": h, "leg": "intraday"|"overnight", "cost_bps": c, "window": n}` and
+    shorts `h * beta * equity` of the index over that leg, where `beta` is the OLS slope of
+    the book's own *unhedged* leg return on the index's, over the trailing `window` sessions
+    - so it is causal (history through i-1 only) and it is in the right units by
+    construction. `cost_bps` is charged on the hedge notional once per session, i.e. one
+    round trip. The hedge P&L and its cost are booked to cash, never to `pnl_on`/`pnl_id`,
+    so the leg columns stay a measurement of the equity book and the regression that sizes
+    the next hedge is not fed its own output.
     """
     closes, opens = frames["close"], frames["open"]
     tickers = [t for t in sig.traded_universe(params) if t in closes.columns]
@@ -121,6 +147,19 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
     fin_rates = (financing or {}).get("rates") or {}
     fin_shift = float((financing or {}).get("spread", 0.0))
     fin_first, fin_final = (min(fin_rates), max(fin_rates)) if fin_rates else ("", "")
+
+    # --- S-26's hedge: the index legs it trades against, and the causal beta history
+    hg_leg = (hedge or {}).get("leg", "intraday")
+    hg_ratio = float((hedge or {}).get("ratio", 0.0))
+    hg_cost = float((hedge or {}).get("cost_bps", 0.0))
+    hg_window = int((hedge or {}).get("window", 60))
+    hg_bench = (hedge or {}).get("bench", "SPY")
+    if hedge is not None:
+        bc, bo = closes[hg_bench], opens[hg_bench]
+        bench_on = (bo / bc.shift(1) - 1.0).to_numpy()
+        bench_id = (bc / bo - 1.0).to_numpy()
+    hist_book: list[float] = []
+    hist_bench: list[float] = []
 
     for i in range(i0, i1):
         interest, prev_mark = 0.0, equity
@@ -185,7 +224,7 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
             for t in tickers:
                 p = ref.get(t, 0.0)
                 held = int(positions.get(t, 0))
-                target = 0 if p <= 0 else int(targets.get(t, 0.0) * equity / p)
+                target = 0 if p <= 0 else int(targets.get(t, 0.0) * scale * equity / p)
                 if abs(target - held) * max(p, 0.01) >= MIN_ORDER_VALUE * equity:
                     out[t] = target - held
             return out
@@ -208,6 +247,21 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
             if np.isfinite(o1) and np.isfinite(c1):
                 pnl_id += n * (c1 - o1)
 
+        # --- S-26's index hedge over one leg, sized on the trailing causal beta
+        pnl_hg = hg_fee = hg_notional = 0.0
+        hg_beta = float("nan")
+        if hedge is not None:
+            hg_beta = (_ols_beta(hist_book[-hg_window:], hist_bench[-hg_window:])
+                       if len(hist_book) >= hg_window else float("nan"))
+            leg_ret = bench_id[i] if hg_leg == "intraday" else bench_on[i]
+            if np.isfinite(hg_beta) and np.isfinite(leg_ret):
+                hg_notional = hg_ratio * hg_beta * prev_mark
+                pnl_hg = -hg_notional * leg_ret
+                hg_fee = abs(hg_notional) * hg_cost / 1e4
+                cash += pnl_hg - hg_fee
+            hist_book.append((pnl_on if hg_leg == "overnight" else pnl_id) / prev_mark)
+            hist_bench.append(leg_ret)
+
         # --- and what trades at the close
         if mode in ("both", "overnight"):
             trade(plan(), close_row)          # the deployed rebalance / back on for the night
@@ -219,7 +273,9 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
         rows.append({"date": index[i], "equity": value, "prev": prev_mark,
                      "orders": orders, "fees": fees, "turnover": turnover,
                      "interest": interest, "cash": cash, "gross_in": gross_in,
-                     "pnl_on": pnl_on, "pnl_id": pnl_id, "pnl_div": pnl_div})
+                     "pnl_on": pnl_on, "pnl_id": pnl_id, "pnl_div": pnl_div,
+                     "pnl_hedge": pnl_hg, "hedge_fee": hg_fee,
+                     "hedge_notional": hg_notional, "hedge_beta": hg_beta})
         equity = value
         equity_curve.append(value)
 
@@ -228,7 +284,9 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
     out["ret_on"] = out["pnl_on"] / out["prev"]
     out["ret_div"] = out["pnl_div"] / out["prev"]
     out["ret_id"] = out["pnl_id"] / out["prev"]
+    out["ret_hedge"] = out["pnl_hedge"] / out["prev"]
     out["gross_x"] = out["gross_in"] / out["prev"]
+    out["hedge_x"] = out["hedge_notional"] / out["prev"]
     out.attrs["missing_open"] = missing_open
     return out
 
@@ -236,7 +294,8 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
 def identity_check(book: pd.DataFrame, slippage_bps: float) -> dict:
     """Clause 1: legs + costs must equal the day's P&L to the cent."""
     pnl = book["equity"] - book["prev"]
-    resid = pnl - (book["pnl_on"] + book["pnl_id"] + book["interest"] - book["fees"])
+    resid = pnl - (book["pnl_on"] + book["pnl_id"] + book["interest"] - book["fees"]
+                   + book.get("pnl_hedge", 0.0) - book.get("hedge_fee", 0.0))
     # `resid` is exactly the slippage paid, which is not separately booked above.
     rel = (resid.abs() / book["prev"]).max()
     return {"max_abs_resid_$": float(resid.abs().max()),

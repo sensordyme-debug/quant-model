@@ -17,6 +17,60 @@ for the long-volatility mechanism A-10 confirmed at t = +10.70 (O-1), judged on 
 regimes; and if that fails, say so and take the sleeve to zero rather than find a twelfth lever.
 Live money stays off the table until the human signs off in `live/`.
 
+Status 2026-09-12 05:0x UTC (S-26): **the one direction S-25 left open is now priced, and the book
+that takes it is the first candidate in this repository whose edge survives its own execution and
+dies on its risk.** S-25 named exactly one successor - target the overnight leg without paying for
+a daily equity round trip - and the only instrument that can do that is a futures overlay on the
+*other* leg, which is only worth asking because F-2a measured an ES round trip at 0.488 bps.
+New `scripts/sweep_s26.py` plus **two default-inert arguments on `sweep_s25.legs_simulate`**
+(`hedge=`, `scale=`, S-22's precedent); **10 ledger rows** under `daily/s26_hedge`, all DIAGNOSTIC;
+seven clauses pre-registered, three of which could have invalidated the run. **(1) Identity passes
+to the digit**: `hedge=None, scale=1.0` reproduces S-25's deployed cell at CAR 22.192150% / 5,052
+orders / residual 5.33e-16, and the costed cell lands on S-22's **19.640%** a third time.
+**(2) The proxy is validated, not assumed, and it is the tightest fit on file**: over F-2a's 313
+ES sessions **corr(ES cash session, SPY open->close) = 0.9994, slope 0.9984, basis sd 2.1
+bps/session**, so this overlay needs **no CME purchase at all**. **(3) Said before pricing
+anything**: the intraday leg has no alpha but it does have a return - SPY's own intraday leg is
+**+2.432 bps/day at t +1.86** (overnight +3.666 at t +3.33) - so the trade is one drift that has
+never reached |t| = 2 against a certain variance reduction. **(4) The grid** (2 bp equity spread +
+IBKR Pro financing + 0.488 bps futures round trip, trailing beta 1.12): unhedged **19.640% / 1.047
+/ DD 24.04 / std 0.188**, then 18.972 / 18.174 / 17.263 / **16.224** at h = 0.25 / 0.50 / 0.75 /
+1.00, with **Sharpe peaking at a HALF hedge (1.124)** and drawdown falling monotonically to 20.77 -
+every basis point sold buys risk back. **(5) The primary screen is REFUSED, and on RISK rather than
+on cost, sign or significance - a refusal mode this repository has not produced before.**
+Vol-matched to the unhedged 0.1883 on the real machinery, **h=0.50 earns 20.837% / Sharpe 1.100
+(+1.197 CAR points), beats the bar in both halves (+0.72 IS, +1.66 OOS) and stays inside Reg-T at
+1.83x max gross - and is refused because its drawdown is 26.02 against 24.04, 1.99 points worse
+against the champion's 1.0-point tolerance**; h=1.00 is refused on CAR full period and in both
+halves. Paired **+0.395 at t +0.60**, so nothing reaches |t| = 2. Clause 5's written-down
+expectation ("refused, and narrowly") held, but it expected the refusal from the drift being sold
+and got it from the **leverage used to buy the risk saving back**. **(6) The placebo passes and is
+the durable positive**: the identical overlay on the **overnight** leg costs **-4.310 bps/day at
+t -4.14** (7.598% / DD 28.60) against the intraday overlay's -1.373 at t -1.02 - a factor of 3.1
+and the only |t| > 2 in the file - so **S-25's split is confirmed by a second, independent route**
+(a hedge rather than an attribution). **(7) The breakeven, the durable number**: at zero hedge cost
+h=0.50 earns 21.821% on 0.65x of live equity a session -> **breakeven +1.108 bps a round trip**,
+h=1.00 +0.316, against **ES 0.488** (full tick 0.856, MES 0.744) - **the half hedge clears the
+cheapest instrument on file by 2.3x**. Granularity: the h=1.00 hedge is below one ES contract on
+**65.4%** of sessions (below one MES on 8.2%). **One correction to a prior number, found by this
+iteration**: a breakeven divides a growth-normalized edge, so its turnover divisor must be
+growth-normalized too; S-25's (and this repo's `turn x/yr` column's) start-equity basis reads
+1,447x/yr and +0.073 bps where the correct figures are 335x/yr and +0.316, a **4.3x compression**.
+**S-25's conclusion is unaffected** (its variants lost at zero cost, so the sign holds on any
+divisor) but its printed breakeven magnitudes should be read as signs, not sizes. **Nothing
+shipped, nothing promoted, no default changed**: champion unchanged at S-18, `champion.json` gains
+a `hedge_note` only, `live/*` and all three scheduled tasks untouched, no runner-loaded file
+modified so rule (a) owes no replay. **Standing jobs both ran first with no new input**:
+`slippage_report.py` 66 fills / +2.22 bps / se 0.80 / |diff|/se 0.90; `daily_fills.py` 10 fills /
+$2.37M / **+3.2 bps (se 4.5)**, `ref_price` the previous close 10 of 10. **What it changes for the
+loop**: the reusable rule is that **matching daily volatility is not matching drawdown, so a
+vol-matched relever owes its own drawdown column** - the risk twin of S-15/S-20's vol-matched
+control, which was written to catch a size decision dressed as return and says nothing about the
+path. And what is left of the overlay is not a research item but an owner one: the *un-relevered*
+h=0.50 book trades **1.47 CAR points for 1.58 points of drawdown and +0.08 of Sharpe**, a
+risk-posture change, and it is written into `BLOCKERS.md` as a priced option rather than a
+recommendation.
+
 Status 2026-09-12 03:0x UTC (S-25): **the daily champion is paid while the market is shut - 94% of
 its return and all of its measurable alpha is the overnight leg - and that re-prices both ops
 routes the owner is holding.** With the intraday tracks closed by F-4/F-5 and the daily instrument
@@ -1342,6 +1396,33 @@ ranking. A sweep rejection is therefore grounds for one LEAN confirmation run, n
 an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
+
+- **S-26 DONE 2026-09-12 (see journal): refused - and the first refusal here that is about RISK
+  rather than cost, sign or significance.** `scripts/sweep_s26.py` + two default-inert arguments
+  on `sweep_s25.legs_simulate`; 10 DIAGNOSTIC ledger rows; seven clauses pre-registered. The
+  overlay shorts `h x beta x equity` of the index over the intraday leg on a causal trailing beta,
+  charged 2 bp of equity spread, IBKR Pro financing and F-2a's **0.488 bps** futures round trip.
+  Identity passes to the digit (22.192150%, residual 5.33e-16) and the **proxy is validated, not
+  assumed**: corr(ES cash session, SPY open->close) **0.9994**, slope 0.9984, basis sd 2.1 bps over
+  313 sessions, so **this overlay needs no CME purchase**. Vol-matched, **h=0.50 earns 20.837% /
+  Sharpe 1.100 against 19.640 / 1.047, wins both halves (+0.72 IS, +1.66 OOS), stays inside Reg-T -
+  and is REFUSED on drawdown, 26.02 against 24.04 + 1.0**; h=1.00 is refused on CAR everywhere.
+  Paired +0.395 at **t +0.60**. **The placebo is the durable positive**: the same overlay on the
+  *overnight* leg costs **-4.310 bps/day at t -4.14** against the intraday overlay's -1.373 at
+  t -1.02, the only |t| > 2 in the file, so **S-25's split is confirmed by a second route**.
+  **Breakeven +1.108 bps a round trip at h=0.50 against ES's 0.488** - the edge clears the cheapest
+  instrument on file by 2.3x and dies on risk instead. **Do not re-open as a hedge-ratio, beta-window,
+  benchmark or instrument question** - the ratio grid spans 0 to 1, the best ratio already clears
+  the cost by a factor, and a cheaper instrument cannot fix a drawdown. Three durable pieces survive
+  it: the **`hedge=`/`scale=` arguments** (any future overlay or risk-matched column runs on the
+  deployed book without editing it), the **validated ES-to-SPY proxy** (an index-overlay question
+  can now be priced with no futures history), and the rule that **matching daily volatility is not
+  matching drawdown, so a vol-matched relever owes its own drawdown column**. It also corrects one
+  prior number: a breakeven's turnover divisor must be growth-normalized, so S-25's printed
+  breakevens are compressed ~4.3x and are signs rather than sizes (its conclusion stands - those
+  books lost at zero cost). **What it leaves open is not research but an owner decision**: the
+  un-relevered h=0.50 book trades 1.47 CAR points for 1.58 points of drawdown and +0.08 of Sharpe,
+  now priced in `BLOCKERS.md`.
 
 - **S-25 DONE 2026-09-12 (see journal): measured, not judged - the champion's alpha is an
   overnight object, and the two ops routes in `BLOCKERS.md` are an order of magnitude apart.**
