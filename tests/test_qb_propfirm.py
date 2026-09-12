@@ -19,11 +19,20 @@ from quant_brain.core.execution import OrderIntent, OrderType, Side
 from quant_brain.core.risk import RiskChain, RiskDecision, RiskEngine
 from quant_brain.markets.futures_cme import instruments as fut
 from quant_brain.markets.futures_cme.profiles import (
-    EOD_TRAILING_50K, INTRADAY_TRAILING_50K, STATIC_DRAWDOWN_100K, get,
+    EOD_TRAILING_50K,
+    INTRADAY_TRAILING_50K,
+    STATIC_DRAWDOWN_100K,
+    get,
 )
 from quant_brain.markets.futures_cme.propfirm import (
-    AccountState, Outcome, PropFirmProfile, PropFirmRiskEngine, PropFirmSimulator,
-    SessionPnL, TrailingMode, evaluate,
+    AccountState,
+    Outcome,
+    PropFirmProfile,
+    PropFirmRiskEngine,
+    PropFirmSimulator,
+    SessionPnL,
+    TrailingMode,
+    evaluate,
 )
 
 D = dt.date

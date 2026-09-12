@@ -19,10 +19,8 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 import evaluate as ev
-
+import pytest
 
 # --------------------------------------------------------------------------- fixtures
 

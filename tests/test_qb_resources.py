@@ -14,7 +14,13 @@ import datetime as dt
 import os
 
 from quant_brain.core.resources import (
-    GB, MB, ResourceRegistry, ResourceSnapshot, WorkerRecord, plan_workers, snapshot,
+    GB,
+    MB,
+    ResourceRegistry,
+    ResourceSnapshot,
+    WorkerRecord,
+    plan_workers,
+    snapshot,
 )
 
 
@@ -142,5 +148,5 @@ def test_corrupt_registry_does_not_stop_research(tmp_path):
 
 def test_worker_age_is_measured(tmp_path):
     rec = WorkerRecord(worker_id="w", experiment_id="e", purpose="p", pid=os.getpid(),
-                       started=dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=30))
+                       started=dt.datetime.now(dt.UTC) - dt.timedelta(seconds=30))
     assert 29 <= rec.age_s <= 60
