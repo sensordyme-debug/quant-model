@@ -428,8 +428,11 @@ def vol_regime(days: np.ndarray) -> pd.Series:
         return pd.Series("n/a", index=pd.Index(sorted(set(days)), name="day"))
     close = spy["c"].groupby(spy.index.date).last()
     rv = np.log(close).diff().rolling(20, min_periods=10).std().shift(1) * np.sqrt(252)
-    rv.index = pd.Index(rv.index, name="day")
-    rv = rv.reindex(pd.Index(sorted(set(days)), name="day"))
+    # `days` carries the panel's string day keys; SPY's groupby gives datetime.date objects, so
+    # the reindex silently missed every row (the whole table came back "n/a") until both sides
+    # were normalised to str. Found while building F-8's clause 6.
+    rv.index = pd.Index([str(d) for d in rv.index], name="day")
+    rv = rv.reindex(pd.Index(sorted({str(d) for d in days}), name="day"))
     q1, q2 = rv.quantile(1 / 3), rv.quantile(2 / 3)
     return pd.Series(np.where(rv.isna(), "n/a", np.where(rv <= q1, "low vol",
                      np.where(rv <= q2, "mid vol", "high vol"))), index=rv.index)

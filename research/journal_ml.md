@@ -6,6 +6,143 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-12 - F-8: fit the label the forecast actually has. The right label is worth 2.84x on gross per dollar turned and flips the book positive, and it still fails - not on cost this time, but on a power requirement this data set cannot meet. Refused. The track closes.
+
+**Hypothesis.** F-7 closed every construction axis on F-1's forecast and left exactly one open, and
+it was not a book axis: clause 2 measured that this feature set's IC **rises** with horizon
+(+0.01133 at 30 minutes, +0.02064 at 3.5 hours, +0.02115 at 5 hours), so every F-7 construction was
+harvesting a multi-hour signal with a model fitted to **the worst horizon that signal has**. F-8
+changes the label and nothing else: same panel, same 38 features, same learner
+(`sweep_f1.GRID["mid"]`, `random_state=0`), same walk-forward, same books, same costs.
+
+`scripts/ml_f8.py`, **24 DIAGNOSTIC ledger rows** under `intraday/f8_label` (20 book x label cells,
+4 scrambled controls). Eight clauses pre-registered in the module docstring - including clause 0,
+the prior, written before a number was read: *"the honest prior is that F-8 finds IC ~+0.02 on a
+longer label, converts it to ~3.5 bps per dollar turned, and fails a cost line that prices at
+2.5-3.7."* **No shipped or runner-loaded file was touched**, so no deploy gate and no `--replay` is
+owed. Run with `INTRADAY_DATA_DIR=data/minute_alpaca` (F-7's documented cost hazard); the module
+prints the store it costed against and the run confirms `_splits.json` present.
+
+**(1) The labels, and the one that mattered was not on the backlog's list.** Consecutive decision
+slots chain exactly (`fwd[k]` ends where `fwd[k+1]` begins), so the h-interval label is the sum of
+h consecutive `fwd` values inside one session, invalidated by any missing slot. The backlog asked
+for h in {4, 7, 10}; those are defined on only 8, 5 and 2 of the 11 slots, which confounds horizon
+with time of day and throws away 27%/55%/82% of the panel. So a fourth label was added and it is
+the one that wins: **`close`, hold to the 15:30 flatten, horizon 11 - slot, defined at every slot**
+(1,574,099 rows vs 285,252 for h10). It is also the only label that matches what the sleeve's
+flatten actually does.
+
+**(2) The label ladder is what this iteration is worth keeping.** Same book, same turnover
+($1,995,861/day, exactly 2x equity - one round trip), same names available, same costs. The only
+thing that moves is what the model was asked to predict. 1,933 out-of-sample sessions, 2019-2026:
+
+| label | horizon | gross bps per $ turned | x h1 | gross t | net $/day | t |
+|---|---|---|---|---|---|---|
+| h1 (F-1's own) | 30 min | 1.501 | 1.00 | +1.53 | **-232** | -1.19 |
+| h4 | 2 h | 2.632 | 1.75 | +2.77 | -15 | -0.08 |
+| h7 | 3.5 h | 3.293 | 2.19 | +3.38 | +116 | +0.60 |
+| h10 | 5 h | 3.608 | 2.40 | +3.70 | +191 | +0.98 |
+| **close** | 11 - slot | **4.256** | **2.84** | **+4.10** | **+306** | **+1.47** |
+
+**Monotone in horizon, five for five, at constant construction and constant turnover.** F-7's
+clause-2 prediction was that the persistence is real and harvestable; this is the same claim read
+through a book instead of through an IC table, and it holds. Fitting the label the book actually
+holds is worth **2.84x on gross per dollar turned** and it is the difference between a book that
+loses $232/day and one that makes $306/day.
+
+**(3) It is the first F-track cell whose gross clears its own cost line, and the margin is real.**
+`session <- close` prices at **4.256 gross against 2.724 cost = +1.532 bps of edge per dollar
+turned**. F-7's best cell on this same window was 3.495 against 3.697, i.e. **-0.202**. Five
+scrambled-prediction seeds put the control at **-0.202 +/- 0.543 bps**, so the real cell sits
+**8.2 control sd above the null** - the gross is the forecast, not the construction. Clause 4's
+cost check is also much cleaner than F-7's: the selection premium (real cost minus its own
+control's cost) is **+0.484 bps** here against F-7's +1.7, because a plain decile at one decision a
+day does not preferentially buy the low-priced reverse-split leveraged names the conviction gate
+went hunting for.
+
+**(4) And it is refused, on the clause that was fixed before the run.** Clause 7 asks for t > 2
+pooled and >= 5 of 8 positive years. It gets **5/8 years** (2019 -317, 2020 +1,273, 2021 +595,
+2022 -642, 2023 -422, 2024 +865, 2025 +350, 2026 +923) and **t +1.47**. **0 of 20 cells pass.**
+The 20-cell grid is not a search that got unlucky - it is four books x five labels with every
+parameter fixed in advance, and its best cell is the one the ladder predicts.
+
+**(5) The decisive number is the power arithmetic, and it closes the track rather than deferring
+it.** t scales as sqrt(sessions), so t +1.47 on 1,933 sessions needs **3,558 sessions - 14.1 years
+of out-of-sample** - to reach t = 2 at this effect size. The Alpaca SIP store begins 2016-01-04,
+the walk-forward burns three years to train and validate, and the ceiling is therefore **~7.7
+years**. **This finding cannot be resolved on the data this repository can obtain, ever.** F-7 was
+refused for lack of power and could at least name a longer window; F-8 is refused for lack of power
+and the window does not exist. That is a different and final kind of refusal.
+
+**(6) Regimes: the label effect is concentrated exactly where the mandate wants it, which does not
+rescue it.** By causal trailing 20-session SPY realized-volatility tercile:
+
+| regime | sessions | gross bps (close) | gross bps (h1) | cost bps | net $/day | t |
+|---|---|---|---|---|---|---|
+| low vol | 645 | 2.369 | 1.728 | 2.714 | -69 | -0.22 |
+| mid vol | 644 | 4.970 | 1.496 | 2.709 | +452 | +1.31 |
+| high vol | 644 | 5.421 | 1.279 | 2.751 | +534 | +1.28 |
+
+The h1 column is flat-to-falling across the terciles while the `close` column more than doubles, so
+the horizon effect is a volatility effect: in calm markets a 30-minute and a five-hour forecast are
+worth the same and neither is worth much; in volatile ones the multi-hour forecast is worth 4.2x
+the 30-minute one. Conditioning on the high-vol tercile is not a rescue - it is the same t (+1.28)
+on a third of the data, and the tercile cut is itself a parameter that was not pre-registered as a
+book.
+
+**(7) Feature-importance stability got WORSE with the better label, and that is the strongest
+argument against the finding.** Permutation importance per retrain on the `close` label, 38
+features, 8 retrains, `data/f1/importance_f8.csv`. Spearman rank correlation between retrains runs
+**0.147 to 0.798, mean ~0.42**, against F-7's 0.665-0.767 on three retrains, and **0 of 38 features
+have a positive importance in all 8 retrains** while **30 of 38 flip sign**. The top of the ranking
+has also moved: F-7's `close`-free model led with the VWAP-displacement family, this one leads with
+the volume family (`vol_rel6`, `m_rvol_ratio`, `rvol_ratio`, `cs_rvol_ratio`) and `vwap_atr` has
+fallen to 15th. A model whose validation-set importances change sign every year is not reading a
+stable object, and the honest reading of (2) + (7) together is that **the horizon effect is real and
+the model that exploits it is not stable** - which is exactly the shape of an edge too small to
+resolve.
+
+**Decision: REFUSED, and the F track closes.** The supervised class is now priced four ways.
+F-1 refused the 30-minute book on cost (0.797 bps against 2.392). F-3 refused the daily horizon on
+absence (0.304 bps, IC t +0.18). F-7 refused the low-turnover construction on power (3.495 against
+3.697, t -0.15 on this same 1,933-session window). F-8 refuses the correctly-labelled forecast on
+power again - but this time **with a positive edge column (+1.532 bps) and a named, unreachable
+data requirement (14.1 years)**. Clause 0 said F-8 should be the last item on this track unless it
+clears the hurdle outright; it did not clear it, so the track closes. `champion.json` untouched,
+`live/` untouched, nothing filed in `BLOCKERS.md` - a finding that needs 14 years of minute data
+nobody sells is not an owner option.
+
+**Do not re-open as a label, horizon, book or model question.** The label axis is now swept end to
+end (30 min / 2 h / 3.5 h / 5 h / to-the-flatten), the book axis was exhausted by F-7 (dwell, band,
+EWMA, conviction, decile, and the stacked cells), and the learner was deliberately held fixed so
+the label effect would be readable - swapping in LightGBM would confound the one clean comparison
+this iteration produced. The only honest way to reopen the class is **more independent
+cross-section**, not more history: the panel is 56 names, and the pooled t is a breadth statistic
+as much as a length one. That is a data-track question (a 500-name Alpaca universe), not an ML one,
+and it is filed as **F-9 (parked, needs the D track first)** rather than as an open ML item.
+
+**Three durable pieces survive the refusal.**
+(a) **The label ladder method**: hold the book, the turnover and the learner fixed and vary only the
+training label, then read gross bps per dollar turned. It converts F-7's cheap persistence table
+into a book number and it is reusable by any future forecaster on this repo.
+(b) **`close` is the right label for this sleeve** and `h4`/`h7`/`h10` are not, because a fixed
+horizon is only defined on the early slots and silently confounds horizon with time of day. Any
+future intraday supervised work should train on time-to-flatten.
+(c) **A bug fix in `scripts/ml_f7.py`**: `vol_regime()` reindexed SPY's `datetime.date` keys against
+the panel's string day keys, so **F-7's clause-6 regime table silently returned "n/a" for every
+session**. Both sides are now normalised to `str`. F-7's published conclusion does not depend on it
+(F-7 was refused on the power extension, not on regimes), but its regime clause was never actually
+answered and now can be.
+
+**Standing jobs**: none on this track. A-5 part 2 and S-17 part 2 belong to `iterate`/`daily`.
+
+**Next**: nothing on the F track. F-9 is parked behind a D-track universe expansion; if the `daily`
+or `iterate` tracks ever want the horizon finding, the one transferable claim is that **on this
+universe a multi-hour intraday forecast is worth ~3x a 30-minute one per dollar traded, and the
+gap is entirely a high-volatility phenomenon.**
+
+---
+
 ## 2026-09-12 - F-7: the lower-turnover expression of F-1's forecast. The construction lifts gross per dollar 8.5x, the pre-registered rule still refuses it, and a 2.5x power extension turns the one promising cell to zero. Refused. Nothing shipped.
 
 **Hypothesis.** F-1 found this repository's first positive out-of-sample intraday edge and refused

@@ -1862,7 +1862,41 @@ and no delivery, both of which are barred to the loop.
   commission is charged on split-adjusted share counts and **the cost line is understated by 0.28 bps
   of turnover (2.110 vs 2.392, 12%)** while gross, turnover and IC still match to the cent.
 
-- **F-8 (open, the only axis F-7 left, and it is a new forecast rather than a new book).** F-7's
+- **F-8 DONE 2026-09-12 (see `research/journal_ml.md`): the label ladder is real and the book still
+  fails - this time on a power requirement the data cannot meet, so the F track CLOSES.**
+  `scripts/ml_f8.py`, 24 DIAGNOSTIC rows under `intraday/f8_label`, 8 clauses pre-registered
+  including the prior. Four labels fitted (h4/h7/h10 plus **`close` = hold to the 15:30 flatten,
+  horizon 11 - slot**, which the backlog did not ask for and which is the one that wins: the fixed
+  horizons are defined on only 8/5/2 of the 11 slots and confound horizon with time of day).
+  **At constant book, constant turnover ($1,995,861/day = 2x equity) and constant learner, gross
+  bps per dollar turned is monotone in the label's horizon: h1 1.501 -> h4 2.632 -> h7 3.293 ->
+  h10 3.608 -> close 4.256, i.e. 2.84x for fitting the label the book actually holds**, and the
+  book flips from -$232/day to +$306/day. It is the **first F-track cell whose gross clears its own
+  cost line** (4.256 vs 2.724 = **+1.532 bps of edge**; F-7's best on the same window was -0.202),
+  the five-seed scrambled control sits at -0.202 +/- 0.543 bps so the real cell is **8.2 control sd
+  above the null**, and the cost-selection premium is +0.484 bps against F-7's +1.7. **REFUSED
+  anyway, 0 of 20 cells**: clause 7 asks t > 2 pooled and it gets **t +1.47** on 5/8 positive years.
+  The decisive number is the power arithmetic - **t +1.47 on 1,933 sessions needs 3,558 sessions
+  (14.1 years) for t = 2, and the Alpaca store's ceiling after the walk-forward burn is ~7.7 years,
+  so this cannot be resolved on data this repository can obtain.** Feature-importance stability got
+  *worse* with the better label (Spearman 0.147-0.798 across 8 retrains, mean ~0.42 vs F-7's
+  0.665-0.767; **0 of 38 features positive in all 8 retrains, 30 of 38 flip sign**). The effect is
+  a volatility phenomenon: gross 2.369 / 4.970 / 5.421 bps by causal SPY vol tercile while h1 is
+  flat at 1.7 / 1.5 / 1.3. **Do not re-open as a label, horizon, book or model question** - the
+  label axis is now swept end to end and F-7 exhausted the book axis. Side effect: fixed a latent
+  bug in `scripts/ml_f7.py` `vol_regime()` (date vs string keys) that made F-7's clause-6 regime
+  table silently return "n/a" for every session.
+
+- **F-9 (PARKED, needs the D track first - not an ML item).** The only honest way to reopen the
+  supervised class after four refusals is **more independent cross-section, not more history**: the
+  pooled t is a breadth statistic as much as a length one, and the panel is 56 names. F-8's best
+  cell needs 3,558 sessions at 56 names; ~4x the breadth would reach the same t on the ~1,900
+  sessions that exist. That is a request for a **~500-name Alpaca SIP minute universe**
+  (`scripts/alpaca_data.py`, paced, into `data/minute_alpaca`), after which F-8's exact grid can be
+  re-run with nothing re-tuned. Until that store exists there is no ML work to do here.
+
+- **F-8 (original text, kept for the pre-registration) (open, the only axis F-7 left, and it is a
+  new forecast rather than a new book).** F-7's
   clause 2 measured that this feature set's IC **peaks at h = 7-10 intervals (3.5-5 hours), not at
   the 30 minutes F-1 trains on** (+0.01133 -> +0.02064 at h=7, +0.02115 at h=10). Every F-7
   construction harvests that persistence with a model fitted to the *wrong* label; F-8 fits the
