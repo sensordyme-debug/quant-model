@@ -157,6 +157,33 @@ def champion_stats(run, champion):
     return champion.get("stats") or {}, None
 
 
+def env_note(run, champion):
+    """Refuse a comparison across software environments. The fourth axis-mismatch rule.
+
+    `evaluate.py` already refuses three mismatched comparisons: a different cost model
+    (S-18), a moved backtest window (F-3) and a financed-vs-unfinanced book (S-21). This is
+    the same principle applied to the software that produced the numbers.
+
+    This repository runs LEAN on Python 3.11 with pandas 2.2.3 and everything touching
+    parquet on 3.14 with pandas 3.0.5, and both append to `experiments.jsonl`. pandas 3.0
+    changed copy-on-write, string dtype and resample semantics, so two rows produced under
+    different interpreters are not necessarily comparable.
+
+    Deliberately silent when either side lacks an `env_key`: provenance stamping began on
+    2026-09-12 and every earlier row - including the current champion - predates it. Refusing
+    those would block every promotion over a fact nobody can now establish. It fires only
+    when both sides state an environment and the two disagree, which is exactly when the
+    comparison is knowably unsound.
+    """
+    run_env = run.get("env_key")
+    champ_env = champion.get("env_key")
+    if run_env and champ_env and run_env != champ_env:
+        return (f"run was produced under {run_env} and the champion under {champ_env}; "
+                f"different interpreter or numeric stack, so the two are not comparable - "
+                f"re-run the champion under {run_env} before judging this candidate")
+    return None
+
+
 def window_note(run):
     """Refuse a run whose backtest window is not the champion's.
 
@@ -193,6 +220,9 @@ def verdict(run, champion):
     if note:
         reasons.append(note)
     note = window_note(run)
+    if note:
+        reasons.append(note)
+    note = env_note(run, champion)
     if note:
         reasons.append(note)
     if NOT_PROMOTABLE in (run.get("tag") or "").lower():

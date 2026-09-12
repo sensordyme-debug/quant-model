@@ -324,3 +324,32 @@ def test_missing_champion_file_yields_an_empty_but_valid_champion(tmp_path, monk
     # And an empty champion must not silently promote everything.
     ok, _ = ev.verdict(run(orders="5"), c)
     assert not ok
+
+
+# ------------------------------------------------ the fourth axis: software environment
+
+def test_a_candidate_from_a_different_environment_is_refused():
+    """The same principle as the cost-model and window refusals, applied to the software.
+
+    LEAN runs on 3.11/pandas 2.2.3 and the harness on 3.14/pandas 3.0.5, both appending to
+    one ledger; pandas 3.0 moved copy-on-write, string dtype and resample semantics.
+    """
+    champ = {**champion(), "env_key": "py311-689198"}
+    cand = {**run(), "env_key": "py314-5ba485"}
+    ok, reasons = ev.verdict(cand, champ)
+    assert not ok
+    assert any("not comparable" in r and "py314" in r for r in reasons), reasons
+
+
+def test_the_same_environment_is_not_refused():
+    champ = {**champion(), "env_key": "py311-689198"}
+    cand = {**run(), "env_key": "py311-689198"}
+    assert ev.verdict(cand, champ)[0]
+
+
+def test_an_unstamped_row_is_not_refused_because_provenance_is_new():
+    """Every row before 2026-09-12 predates provenance, including the current champion.
+    Refusing those would block every promotion over a fact nobody can now establish."""
+    assert ev.env_note(run(), champion()) is None
+    assert ev.env_note({**run(), "env_key": "py314-5ba485"}, champion()) is None
+    assert ev.env_note(run(), {**champion(), "env_key": "py311-689198"}) is None
