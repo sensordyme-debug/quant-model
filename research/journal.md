@@ -4,6 +4,139 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - D-7 (`iterate` track)
+
+**AUD-17's premise is true, its P&L reach is 4x bigger than the axis it names, and its
+prescribed remedy does not work - proven by a LEAN run, not by reading the engine.** The daily
+store is split-adjusted prices labelled raw, exactly as the audit says. But the fix it
+prescribes - "store true raw prices with real split factors" - changes **no fee at all**,
+because LEAN charges `$0.005 x quantity` on the share count the *algorithm* orders, and in
+`DataNormalizationMode.ADJUSTED` that count is the adjusted one whatever the factor file says.
+`scripts/sweep_d7.py` (9 clauses pre-registered in the docstring), `algorithms/_d7_feeprobe`
+(a one-question LEAN probe), `tests/test_daily_fee_basis.py` (16 tests), 2 DIAGNOSTIC rows
+`daily/d7_aud17` plus the probe's own row. Nothing in `live/`, no scheduled task, no price in
+any store, and `champion.json` untouched: this run measures and files, it does not migrate.
+
+**Clause 9 (efficacy) is the finding, and it came from LEAN's own sample data.** AUD-17's remedy
+is only a remedy if the split factor reaches the fee model. `Lean/Data/equity/usa/factor_files/
+aig.csv` carries `split_factor = 20` before 2009-06-30 over **true raw** prices - the file this
+repo's fetcher does not write - so the probe buys a fixed $10k of AIG on each side of that
+boundary in ADJUSTED mode:
+
+| leg | factor-file split_factor | price the algorithm sees | shares | fee charged | $0.005 x shares |
+|---|---|---|---|---|---|
+| 2009-06-25 | **20** | $20.4408 | 489 | **$2.4450** | $2.4450 |
+| 2010-06-25 | 1 | $26.0938 | 393 | **$1.9650** | $1.9650 |
+
+AIG's raw close on 2009-06-25 was **$1.45** (20.4408 / (0.7048563 x 20)), so a real $10k order was
+~6,900 shares and ~$34.48 of commission. LEAN charged **$2.45**. A correct factor file did not
+help, and it is sitting right there in the file it read. **The mis-charge is a property of
+ADJUSTED normalization plus a per-share fee model, not of this repo's factor files**, so the
+migration AUD-17 asks for would move 430,639 bars and correct nothing. The remedy is a fee model
+that divides the order quantity by the cumulative adjustment - which is what today's sidecar is
+for - or `Raw` mode, which no algorithm here uses.
+
+**Clause 5 (reach) - the champion IS affected, in the conservative direction, and by more than
+the audit's own axis accounts for.** The 5,128 recorded fills, repriced at the true raw share
+count. The replica is not a model of LEAN's fee: clause 4 reproduces all **5,128 of 5,128**
+recorded `orderFeeAmount` values to **$0.0000**, so only the share count is in question.
+
+| basis | total fees | delta vs charged | |
+|---|---|---|---|
+| as charged (= the promotion row) | **$27,199.76** | - | |
+| (a) split axis only, AUD-17's sentence | $22,840.70 | **-$4,359.06** | -16.03% of fees |
+| (b) full adjustment, dividends included | **$21,320.92** | **-$5,878.84** | -21.61% of fees, -0.248% of net profit |
+
+A per-share fee is charged on a share count, and the share count is wrong by the **whole**
+adjustment, not just its split leg - so (b) is the honest column and **AUD-17 names 74% of its
+own defect**. Per symbol, the whole of it is the three sector ETFs and the dividend factor:
+
+| sym | fills | charged | true (full) | delta | min price factor | split in window |
+|---|---|---|---|---|---|---|
+| XLK | 1,005 | $5,661.65 | $3,113.44 | **-$2,548.21** | 0.8292 | 2.0 on 2025-12-05 |
+| XLE | 495 | $5,693.63 | $3,763.80 | **-$1,929.83** | 0.6022 | 2.0 on 2025-12-05 |
+| XLF | 673 | $8,183.80 | $7,199.82 | **-$983.98** | 0.7694 | 1.231 on 2016-09-19 |
+| TLT | 327 | $871.21 | $712.18 | -$159.03 | 0.6641 | - |
+| SPY | 375 | $967.81 | $890.72 | -$77.09 | 0.7769 | - |
+| IWM | 550 | $1,781.53 | $1,710.22 | -$71.31 | 0.8226 | - |
+| DIA | 258 | $655.10 | $591.00 | -$64.10 | 0.7402 | - |
+| QQQ | 908 | $1,831.68 | $1,786.37 | -$45.31 | 0.8833 | - |
+| **GLD** | 537 | $1,553.36 | $1,553.36 | **$0.00** | **1.0000** | - |
+
+GLD is the control and it lands exactly where a control should: the one champion symbol that
+pays no dividend and never split has an adjusted price identical to its raw price and a
+correction of **exactly zero**. Every other row is an **overcharge** - the store bills the
+champion more commission than reality would - so the promotion row is conservative and the
+direction is safe. The size is not nothing: 21.6% of the fee line. **Do not "fix" this into
+the champion's favour without re-running the promotion gate**, because it moves CAR the right
+way for the wrong reason.
+
+The XLF row carries a caveat the sidecar cannot express: **1.231 on 2016-09-19 is the XLRE
+spin-off, which Yahoo encodes as a split.** No share count changed that day. The fee arithmetic
+is unaffected - the adjusted price still differs from the raw one by that factor, so a fixed
+dollar order still buys the wrong number of shares - but anyone reading `data/daily_splits.json`
+as a pure share-split calendar will be wrong about XLF, and about any other spin-off in it.
+
+**Clause 6 (tradeability) - the failure mode the audit does not name at all.** An adjusted price
+far above the raw one does not merely undercharge; LEAN orders whole shares, so the order rounds
+to **zero** and the symbol is silently absent from the book. Across 430,639 stored sessions a
+$10k order buys nothing on **10,541 (2.45%)** and a $100k order buys nothing on **7,689 (1.78%)**,
+and it is not spread out:
+
+| sym | stored sessions | $10k -> 0 shares | $100k -> 0 shares |
+|---|---|---|---|
+| SOXS | 4,148 | **3,949 (95.2%)** | 3,533 (85.2%) |
+| UVXY | 3,752 | **2,426 (64.7%)** | 1,913 (51.0%) |
+| SQQQ | 4,167 | **2,522 (60.5%)** | 1,717 (41.2%) |
+| SPXU | 4,326 | 1,644 (38.0%) | 526 (12.2%) |
+
+SOXS's cumulative factor at its first stored bar is **1.04e-09**, so its 2010 bars carry an
+adjusted price of about **$2.3e11 per share**. Any daily backtest that has ever "tested" the
+inverse-leveraged sleeve before ~2020 was testing an empty position, not a bad one, and would
+have reported that as zero exposure rather than as an error. Separately, the $1 minimum fee -
+which LEAN applies as an `if/ELSE-if`, so it is **not** subject to the 0.5% cap - masks a real
+per-share charge on 14,865 sessions.
+
+**Clause 7 (blast radius) - and the sign is not the one the audit gives.** Fee error on a $10k
+order, bps of notional, full adjustment. AUD-17 names an understatement (SQQQ/SOXS); the store's
+dominant error is a large **over**statement on the forward-split megacaps, because their deep
+history is adjusted below $1 a share, where `$0.005/share` exceeds the 0.5% cap:
+
+| sym | splits in span | median err | worst | |
+|---|---|---|---|---|
+| NVDA | 6 | **-46.34 bps** | -49.00 | the cap binds on most of its history |
+| NFLX | 3 | -7.62 | -49.00 | |
+| TQQQ | 8 | -7.58 | -49.00 | |
+| SOXL | 2 | -5.07 | -49.00 | |
+| AMZN | 4 | -3.52 | -49.00 | |
+| UVXY | 13 | **+1.73** | +24.24 | the audit's direction, and it is the smaller half |
+| USO | 1 | +0.28 | +20.54 | |
+
+**55 of 69 symbols** have a worst absolute error above the intraday harness's own 1.5 bps
+slippage line. NVDA at -46 bps per side is ~0.9% round-trip of pure fiction in every daily
+backtest that touched it. The champion's own sleeve is mild by comparison - XLK -1.97 bps
+median, XLE -1.39, XLF -1.26, and 0.000 for SPY/QQQ/IWM/DIA/GLD/TLT - which is the second
+reason the promotion row survives this.
+
+**Clauses 1-3 (the premise, and why the sidecar was safe to write).** 69 factor files, 5,291
+rows, **0** with `split_factor != 1`; 58 of 69 symbols have at least one split inside their own
+stored span; and the stored close matches Yahoo's split-adjusted close with a worst median
+relative error of **3.8e-06** (NVDA) against a storage quantisation floor of 1.0e-04, so the
+store is unambiguously on the current share basis and not raw. Had clause 3 failed the whole
+item would have flipped sign and nothing would have been written - D-5's rule, that a factor
+applied to an already-raw store is the same defect reversed.
+
+`data/daily_splits.json` (gitignored with the rest of `data/`, regenerate with
+`py -3.11 scripts/sweep_d7.py --net --write`) is the only artefact that changes behaviour, and
+it changes none yet: it is the validated calendar a future fee model needs. Suite green on 3.14
+at **1,488 passed, 7 skipped**. The three items this opens - the fee model, the untradeable
+inverse-ETF history, and the `sweep_s19.py` cap mismatch AUD-17 also names - are filed under
+D-8, D-9 and S-43 rather than done here, because two of them belong to other tracks and the
+third changes every daily metric.
+
+**Next:** D-9 (the untradeable inverse-ETF history) is the one that can invalidate a conclusion
+rather than a cost column, and it is `iterate`'s own.
+
 ## 2026-09-13 - S-42 (`daily` track; full entry in `research/journal_daily.md`)
 
 **The ensemble trick loses on the signal axes, and clears the incumbent of the charge S-40
@@ -25,9 +158,14 @@ first real netting saving measured on this book, and still **17.482 / 0.986 / 23
 19.640 / 1.047 / 24.037** fully charged, paired **-0.784 bps/day at t -2.08**. The loss is not
 cost, it is dilution: averaging a concentrated ranking is the same operation as widening it.
 Unlike S-41, the incumbent also wins the *decision* bar - both walk-forward selectors pick it in
-0 of 11 years and lose to it by ~4 CAR points, and it beats the blend too. Nothing promoted,
-nothing moved, nothing filed for the owner. Opens **S-43** (rank vote instead of weight average:
-blend, truncate to `top_n=3`, renormalize).
+0 of 11 years and lose to it by ~4 CAR points, and it beats the blend too. **C-8's attack was
+then answered on this grid rather than waited for** (clause 8b, added the same day the critic
+landed it): 17 of 36 fixed cells dominate `wf-CAR` and 15 of 36 dominate `wf-Sharpe`, so the
+margin over the selector is struck from the case, and the rank table C-8 asked for puts the blend
+at **14 / 14 / 17 of 36** on CAR / Sharpe / MaxDD against the shipped cell's 2 / 5 / 19 - the
+honest refusal is not "it loses to the incumbent" but "it is mediocre among its own
+constituents". Nothing promoted, nothing moved, nothing filed for the owner. Opens **S-43**
+(rank vote instead of weight average: blend, truncate to `top_n=3`, renormalize).
 
 ## 2026-09-13 - D-6 (`iterate` track)
 

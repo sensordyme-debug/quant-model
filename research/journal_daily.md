@@ -130,13 +130,40 @@ that shipped; it is a better book than choosing a cell". S-42's is one sentence:
 that choose names, **the cell that shipped is better than the blend and better than choosing** -
 so the ensemble's only remaining argument, that the incumbent is unfindable, does not apply here.
 
+**(6) And the paragraph above is worth less than it looks - clause 8b, added after the `critic`
+track landed C-8 four hours later and pointed at exactly this form of argument.** C-8 showed
+S-41's "+1.587 over the selector" is not evidence about the ensemble, because **23 of 36 fixed
+cells already dominate that selector on all three metrics**: a margin over a walk-forward
+selector measures how bad the selector is. The test was re-run here on S-42's own grid rather
+than waiting to be asked (zero cost, the only cell all 36 were run in, same 2,684 sessions), and
+**it lands**: **17 of 36** fixed cells dominate `wf-CAR` and **15 of 36** dominate `wf-Sharpe` on
+CAR, Sharpe and drawdown at once. So strike the "+1.645 / +2.365" from the case. The object C-8
+says should have been printed instead is the blend's **rank among the cells it averages**, and on
+this grid it is damning in a way S-41's was not:
+
+| 2,684 sessions, zero cost | CAR | rank | Sharpe | rank | MaxDD | rank |
+| --- | --- | --- | --- | --- | --- | --- |
+| shipped | 24.705 | **2 of 36** | 1.228 | **5 of 36** | 23.860 | 19 of 36 |
+| weight-blend36 | 21.991 | **14 of 36** | 1.170 | **14 of 36** | 23.278 | **17 of 36** |
+
+S-41's blend ranked 9th on Sharpe and **4th** on drawdown, which was a real if small case. S-42's
+ranks **14 / 14 / 17** - the middle of its own grid on every metric, including the drawdown that
+was supposed to be the prize. **2 of 36 fixed cells dominate the blend outright** (`skip=10
+lb4=252 n=3` and `n=4`) against **1 of 36** that dominates the shipped cell (`skip=10 lb4=252
+n=3`, the FULL-window argmax). The refusal in clause 7 was "the blend loses to the incumbent";
+the honest, stronger version is **the blend is mediocre among its own constituents**, and its
+drawdown advantage over the incumbent is a median outcome on this grid rather than a property of
+averaging.
+
 **Decision: nothing promoted, nothing moved, nothing filed for the owner.** The blend is refused
 on its own pre-registered bars. The incumbent's parameters are not touched - they are, if
 anything, better supported than before this ran.
 
-**Next.** The dilution diagnosis is testable and it is the item worth taking: the ensemble's
-gain (0.64 drawdown points, 31% less turnover) and its loss (2.16 CAR points) may be separable,
-because the loss is the blend's **width** and the gain is its **smoothness**. The object that
+**Next.** The dilution diagnosis is testable and it is the item worth taking, though clause 8b
+has already shrunk the prize: of the ensemble's two gains, the **0.64 drawdown points are a
+median outcome on this grid** (rank 17 of 36) and only the **31% turnover saving** is
+distinctive, so S-43 is now a test of the mechanism more than a search for a book. The loss is
+the blend's **width** and the gain is its **smoothness**, and they may still separate. The object that
 keeps one without the other is a rank VOTE rather than a weight AVERAGE - blend the 36 cells'
 rankings, truncate the result to `top_n=3` by blended weight, renormalize to the deployed gross,
 and execute that. If truncation recovers the CAR while keeping the drawdown and turnover gains,

@@ -1726,6 +1726,57 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
+- **D-9 (`iterate`, opened by D-7 2026-09-13, and the one that can invalidate a CONCLUSION rather
+  than a cost column): 10,541 stored sessions where a daily order buys ZERO shares, and the
+  backtest reports it as no position rather than as an error.** LEAN orders whole shares off the
+  ADJUSTED price, and the daily store's adjusted price for the inverse-leveraged sleeve is
+  astronomical: SOXS's cumulative factor at its first stored bar is 1.04e-09, i.e. ~$2.3e11 per
+  share in 2010. A $10k order therefore buys nothing on **95.2% of SOXS's 4,148 sessions**, 64.7%
+  of UVXY's, 60.5% of SQQQ's and 38.0% of SPXU's ($100k: 85.2 / 51.0 / 41.2 / 12.2%). Any daily
+  result that "tested" the inverse sleeve before ~2020 tested an empty book. Two things to do and
+  they are separable: (a) a **store-health assertion** - `scripts/store_health.py` should fail a
+  symbol whose adjusted price makes a sleeve-sized order round to zero, so this is caught at fetch
+  time rather than by a reader; (b) a **re-read of the ledger** - find which committed daily rows
+  touched SOXS/SQQQ/SPXU/UVXY in an affected span and mark them, because their conclusions are
+  about a position that was never opened. Start with (a); it is cheap and it stops the bleeding.
+  `py -3.11 scripts/sweep_d7.py` prints the per-symbol table. Needs no owner and no trading day.
+  <!-- added by D-7, 2026-09-13 (iterate). -->
+
+- **D-8 (`eng`, opened by D-7 2026-09-13): the per-share fee is charged on an ADJUSTED share count,
+  and no data migration can fix it - it needs a fee model.** D-7 clause 9 proved with a LEAN run on
+  LEAN's own sample data (`aig.csv`, a real `split_factor = 20` over true raw prices) that the
+  factor file never reaches `InteractiveBrokersFeeModel`: a $10k ADJUSTED-mode order was charged
+  `$0.005 x 489 adjusted shares = $2.4450` where the raw basis says ~$34.48. So AUD-17's prescribed
+  store rewrite is not the fix and should not be scheduled. The fix is a `FeeModel` subclass that
+  divides the order quantity by the full adjustment (`price_factor / cum_split`, both already
+  available - the factor file is on disk and `data/daily_splits.json` is the validated calendar
+  D-7 shipped) before applying `$0.005 / $1 minimum / 0.5% cap`. It is `eng`'s because it is shared
+  execution code, and it is **promotion-gated**: on the champion it is worth **-$5,878.84**, i.e.
+  it makes the book look BETTER by 21.6% of its fee line, so it must not land as a silent
+  improvement. Ship it inert behind a flag first, then let the `daily` track re-run the gate.
+  <!-- added by D-7, 2026-09-13 (iterate). -->
+
+- **S-43 (`daily`, opened by D-7 2026-09-13): `sweep_s19.py:76` calibrates costs against a 1% cap
+  while LEAN's IB model caps at 0.5%.** The second half of AUD-17, untouched by D-7 because
+  `sweep_s19.py` is the daily track's file. D-7 confirmed LEAN's constants from source and then
+  from data - `feePerShare 0.005, minimumFee 1, maximumFeeRate 0.005`
+  (`InteractiveBrokersFeeModel.cs:150`), and the replica reproduces all 5,128 champion fills to
+  $0.0000 - so the engine side is settled and only the sweep's own constant is wrong. Note the
+  branch while you are in there: the $1 minimum is applied as an `if/ELSE-if`, so it is **not**
+  subject to the 0.5% cap; a 1-share order pays $1, two hundred times the cap. Cheap, and it moves
+  a calibration the S-track quotes to the owner.
+  <!-- added by D-7, 2026-09-13 (iterate). -->
+
+- **D-7 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): AUD-17 measured - the premise
+  holds, the reach is 4x the axis the audit names, and the remedy the audit prescribes changes no
+  fee at all.** Full detail under **AUD-17** in the audit section below. Headline: a LEAN run on
+  LEAN's own correct factor file shows the split factor never reaches the fee model; the champion
+  is **overcharged $5,878.84 (21.61% of its fees)**, only 74% of which is the split axis; 55 of 69
+  symbols exceed 1.5 bps of error and SOXS is untradeable on 95.2% of its stored history.
+  `scripts/sweep_d7.py` (9 clauses), `algorithms/_d7_feeprobe`, `tests/test_daily_fee_basis.py`
+  (16 tests), `data/daily_splits.json`, 2 DIAGNOSTIC rows. Opens D-8, D-9, S-43.
+  <!-- added by D-7, 2026-09-13 (iterate). -->
+
 **Priority set at the 2026-09-13 review (`research/reports/2026-09-13.md`), in order.** Ten of
 eleven hypotheses in the last 24 h were refused and nothing was promoted, so the ranking below
 favours the four confirmed deployed-path defects and the one free data step over new hypotheses.
@@ -1930,8 +1981,17 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   weights paths so the boundary rebalance is a real trade rather than S-40's stitch bound - pick
   the shipped cell in **0 of 11 years** and lose to it by ~4 CAR points, and the blend beats the
   selectors (+1.645 / +2.365) but loses to the incumbent. S-41's "better book than choosing a
-  cell" argument does not transfer. Nothing promoted, nothing moved, nothing filed for the owner.
-  Opens **S-43**.
+  cell" argument does not transfer. **(d) C-8's attack, answered on this grid rather than waited
+  for (clause 8b, added the same day the critic landed C-8).** The margin over a walk-forward
+  selector is worthless as evidence here too - **17 of 36** fixed cells dominate `wf-CAR` and
+  **15 of 36** dominate `wf-Sharpe` on all three metrics - so the "+1.645 / +2.365" is struck
+  from the case. The rank table C-8 asked for is worse for this blend than for S-41's: on the
+  2,684-session span it ranks **14 / 14 / 17 of 36** on CAR / Sharpe / MaxDD against S-41's
+  23 / 9 / 4, the shipped cell ranks **2 / 5 / 19**, and **2 of 36 cells dominate the blend
+  outright** against 1 that dominates the shipped cell. The honest refusal is not "it loses to
+  the incumbent" but **"it is mediocre among its own constituents"**, and the drawdown gain that
+  was supposed to be the prize is a median outcome on its own grid. Nothing promoted, nothing
+  moved, nothing filed for the owner. Opens **S-43**.
   <!-- added by S-42, 2026-09-13 (daily). -->
 
 - **S-41 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): the ensemble is worth
@@ -4948,7 +5008,31 @@ carry the owning track in brackets; record each fix in that track's journal and 
   defect the checker was written to find. **AUD-24 files the same shape** for the events and
   options caches ("marked complete when partial").
 - **AUD-16 [data] (original text)** `intraday_data.py` cannot extend the store and truncates today's session (all 16 symbols hold a 170-bar 2026-09-11).
-- **AUD-17 [data]** LEAN daily store writes adjusted prices as raw with split factor 1; per-share fees charged on adjusted share counts.
+- **AUD-17 [data] MEASURED AND HALF-CLOSED 2026-09-13 by D-7** (`scripts/sweep_d7.py`, 9 clauses,
+  `algorithms/_d7_feeprobe`, `tests/test_daily_fee_basis.py` (16 tests), 2 DIAGNOSTIC rows
+  `daily/d7_aud17`, `research/journal.md`). **The premise is true, the reach is 4x the axis this
+  item names, and the remedy it prescribes does not work.** Premise: 69 factor files, 5,291 rows,
+  **0** with `split_factor != 1`, and the stored close matches Yahoo's split-adjusted close to
+  3.8e-06 against a 1.0e-04 quantisation floor - adjusted, as stated. Remedy: **REFUSED by a LEAN
+  run.** `aig.csv` carries a real `split_factor = 20` over true raw prices, and a $10k ADJUSTED-mode
+  order there is charged `$0.005 x 489 adjusted shares = $2.4450` when the raw basis (AIG closed at
+  $1.45) says ~$34.48 - the factor **never reaches the fee model**, so "store true raw prices with
+  real split factors" would move 430,639 bars and correct nothing. The mis-charge belongs to
+  `DataNormalizationMode.ADJUSTED` plus a per-share fee, and the fix is a fee model (**D-8**).
+  Reach on the deployed champion: $27,199.76 charged vs **$21,320.92** true, **-$5,878.84**
+  (-21.61% of fees, -0.248% of net profit) - an **overcharge**, so the promotion row is
+  conservative - of which only $4,359.06 is the split axis; the rest is the dividend price factor
+  this item does not mention. GLD, the one symbol with `pf == sf == 1`, corrects by exactly $0.00.
+  Two things the item does not name at all: 55 of 69 symbols carry a worst |error| above 1.5 bps
+  (NVDA **-46.34 bps median** on a $10k order, because its pre-2010 adjusted price is under $1 and
+  the 0.5% cap binds), and the adjusted price makes whole-share orders round to **zero** on 10,541
+  sessions - SOXS on **95.2%** of its stored history (**D-9**). The `sweep_s19.py` cap half is
+  re-filed as **S-43**. Reusable rule: **a data defect's remedy has to be tested against the
+  consumer, not the store - the factor file was already correct in LEAN's own sample data and the
+  fee was still wrong.**
+  <!-- D-7, 2026-09-13 (iterate). Original text below. -->
+
+- **AUD-17 [data] (original text)** LEAN daily store writes adjusted prices as raw with split factor 1; per-share fees charged on adjusted share counts.
 - **AUD-18 [ml]** F-3's IC t-stat is naive on overlapping 5-day labels (NW t ~1.2, not 2.17); no embargo.
 - **AUD-19 [ml]** F-7 draft: persistence table is a composition artifact; best cell chosen on the test window; report 2019-23 separately.
 - **AUD-20 [ml]** F-1 row-based shifts on an irregular 5-min grid (SOXS 16.6% of sessions affected).

@@ -595,6 +595,53 @@ def clause_8(cache: dict, picks: dict) -> None:
                   f"   MaxDD {a['MaxDD'] - s['MaxDD']:+.3f}")
 
 
+def clause_8b(cache: dict, cells: list[dict]) -> None:
+    """C-8's attack on S-41 clause 7b, answered here on S-42's own grid before it is made.
+
+    The `critic` track (C-8, 2026-09-13) showed that S-41's "the blend beats the walk-forward
+    selector" margin is not evidence ABOUT THE ENSEMBLE, because 23 of 36 FIXED cells already
+    dominate that same selector on all three metrics - a margin over the selector measures how
+    bad the selector is, not how good the blend is. The right object is the blend's RANK among
+    the cells it is built from, and whether any fixed cell DOMINATES it. Both are computed here
+    on the same 2,684-session span, at ZERO cost, which is the only cell every one of the 36 was
+    run in; the costed rows above are unaffected and the comparison is like for like.
+    """
+    h("CLAUSE 8b - C-8's test, applied to this grid before the critic has to")
+    cut = pd.Timestamp(WF_SPAN_START)
+
+    def span(label):
+        d = book_of(cache, label, "FULL", False)
+        return summarize_span(d[1][d[1]["date"] >= cut], label) if d else None
+
+    ref = {n: span(n) for n in ("blend36", "shipped (in-loop)", "wf-CAR", "wf-Sharpe")}
+    fixed = [(c, span(cell_name(c))) for c in cells]
+
+    def dominates(a, b):
+        return a["CAR"] > b["CAR"] and a["Sharpe"] > b["Sharpe"] and a["MaxDD"] < b["MaxDD"]
+
+    for obj in ("wf-CAR", "wf-Sharpe"):
+        n = sum(1 for _, d in fixed if dominates(d, ref[obj]))
+        print(f"  fixed cells that DOMINATE {obj:<10} on all three metrics: "
+              f"{n:>2} of 36   (C-8 measured 23 of 36 for S-41's selector)")
+    print("  -> a margin over the selector is a statement about the selector. The blend's own\n"
+          "     case has to be its rank among the cells it averages:")
+    for metric, better in (("CAR", "high"), ("Sharpe", "high"), ("MaxDD", "low")):
+        vals = np.array([d[metric] for _, d in fixed])
+        b = ref["blend36"][metric]
+        s = ref["shipped (in-loop)"][metric]
+        rank_b = int((vals > b).sum()) + 1 if better == "high" else int((vals < b).sum()) + 1
+        rank_s = int((vals > s).sum()) + 1 if better == "high" else int((vals < s).sum()) + 1
+        print(f"    {metric:<7} blend36 {b:>8.3f} -> rank {rank_b:>2} of 36      "
+              f"shipped {s:>8.3f} -> rank {rank_s:>2} of 36")
+    dom_b = [c for c, d in fixed if dominates(d, ref["blend36"])]
+    dom_s = [c for c, d in fixed if dominates(d, ref["shipped (in-loop)"])]
+    print(f"\n  fixed cells that DOMINATE blend36 on all three:            {len(dom_b):>2} of 36")
+    print(f"  fixed cells that DOMINATE the shipped cell on all three:   {len(dom_s):>2} of 36")
+    if dom_b:
+        print(f"    {', '.join(cell_name(c) for c in dom_b[:6])}"
+              f"{' ...' if len(dom_b) > 6 else ''}")
+
+
 # --------------------------------------------------------------------------------- ledger
 
 def record(rows: list[dict], skip: bool) -> None:
@@ -714,6 +761,7 @@ def main() -> int:
     clause_6(c5)
     clause_7(c5, band["ok"])
     clause_8(cache, picks)
+    clause_8b(cache, cells)
 
     rows = [cache[k][0] for k in cache if len(k) == 4 and "CAR" in cache[k][0]]
     record(rows, a.no_record)
