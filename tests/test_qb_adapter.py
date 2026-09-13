@@ -399,3 +399,53 @@ def test_the_check_above_would_actually_catch_an_offender(tmp_path):
         elif isinstance(n, ast.ImportFrom) and n.module:
             found.append(n.module)
     assert any(x.split(".")[0] in BROKER_SDKS for x in found)
+
+
+# ======================================================================================
+# TWO INSTRUMENTS MUST NOT SHARE A BUCKET
+#
+# Found by an audit of whether the Options branch could adopt this adapter. On equities the
+# defect is invisible, because the intent symbol and the contract symbol agree.
+# ======================================================================================
+
+class FakeOptionContract:
+    """ib_async's Option('SPY', ...).symbol is 'SPY' for EVERY strike and expiry."""
+
+    def __init__(self, local: str):
+        self.symbol = "SPY"
+        self.localSymbol = local
+
+
+def test_two_option_legs_do_not_collapse_into_one_working_bucket():
+    """AUD-06 through a different door: netted legs make the sizer double up.
+
+    Both legs of a spread report contract.symbol == 'SPY'. Keying `working()` off that
+    merges them, so a long call and a short call at another strike cancel to zero and the
+    sizer believes nothing is outstanding.
+    """
+    ib = FakeIB()
+    contracts = {"SPY_660C": FakeOptionContract("SPY 260918C00660000"),
+                 "SPY_665C": FakeOptionContract("SPY 260918C00665000")}
+    ad = IBKRAdapter(ib, contracts)
+    ad.submit(OrderIntent(symbol="SPY_660C", side=Side.BUY, quantity=5))
+    ad.submit(OrderIntent(symbol="SPY_665C", side=Side.SELL, quantity=5))
+    assert ad.working() == {"SPY_660C": 5.0, "SPY_665C": -5.0}, (
+        "two legs of one spread were netted into a single bucket")
+
+
+def test_the_working_key_is_the_symbol_the_caller_used(ibkr):
+    """Not the one read back off the contract, which the venue may spell differently."""
+    _, ad = ibkr
+    ad.submit(_buy("AAPL", 3))
+    assert set(ad.working()) == {"AAPL"}
+
+
+def test_a_trade_from_before_this_adapter_falls_back_to_local_symbol():
+    """A foreign trade must still not merge two instruments."""
+    ib = FakeIB()
+    ad = IBKRAdapter(ib, {})
+    for local in ("SPY 260918C00660000", "SPY 260918C00665000"):
+        tr = FakeTrade(FakeOptionContract(local), FakeOrder("BUY", 2), 0)
+        tr.order.orderId = None
+        ad.open.append(tr)
+    assert len(ad.working()) == 2, "the fallback collapsed two option legs"

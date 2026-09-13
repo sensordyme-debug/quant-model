@@ -44,6 +44,12 @@ class IBKRAdapter(ExecutionAdapter):
         self.outside_rth = outside_rth
         self.tif = tif
         self.open: list = []
+        #: orderId -> the symbol the CALLER used. `working()` must not re-derive this from
+        #: the contract: ib_async's Option('SPY', ...).symbol is 'SPY' for every strike and
+        #: expiry, so two different legs of one spread collapse into a single bucket and the
+        #: sizer nets them against each other. That is AUD-06 reintroduced through a
+        #: different door, and it is invisible on equities because there the two agree.
+        self._symbol_by_order: dict[int, str] = {}
 
     # -- construction ---------------------------------------------------------------------
 
@@ -66,8 +72,10 @@ class IBKRAdapter(ExecutionAdapter):
             return Ack(intent=intent, accepted=False,
                        reason=f"{type(exc).__name__}: {exc}")
         self.open.append(trade)
-        return Ack(intent=intent, accepted=True,
-                   broker_id=str(getattr(trade.order, "orderId", "")), handle=trade)
+        oid = getattr(trade.order, "orderId", None)
+        if oid is not None:
+            self._symbol_by_order[oid] = intent.symbol
+        return Ack(intent=intent, accepted=True, broker_id=str(oid or ""), handle=trade)
 
     def working(self) -> dict[str, float]:
         """Signed quantity still outstanding per symbol, from executions. AUD-06."""
@@ -78,9 +86,23 @@ class IBKRAdapter(ExecutionAdapter):
             if left <= 1e-9:
                 continue
             sign = 1 if tr.order.action == "BUY" else -1
-            sym = tr.contract.symbol
-            out[sym] = out.get(sym, 0.0) + left * sign
+            out[self._key(tr)] = out.get(self._key(tr), 0.0) + left * sign
         return {s: q for s, q in out.items() if q}
+
+    def _key(self, trade) -> str:
+        """The symbol this trade is tracked under.
+
+        The intent's own symbol wherever it is known, because that is the key the caller
+        sizes against. The fallback prefers `localSymbol`, which distinguishes option legs,
+        over `symbol`, which does not - a trade placed before this adapter existed, or by
+        another process, still should not silently merge two instruments.
+        """
+        oid = getattr(trade.order, "orderId", None)
+        known = self._symbol_by_order.get(oid) if oid is not None else None
+        if known:
+            return known
+        c = trade.contract
+        return getattr(c, "localSymbol", "") or getattr(c, "symbol", "")
 
     def cancel_all(self) -> int:
         """Cancel every order this adapter placed that is still working."""
