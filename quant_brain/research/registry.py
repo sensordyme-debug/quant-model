@@ -29,6 +29,7 @@ it, and applies the arithmetic that follows. Promotion still requires a human-au
 """
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import datetime as dt
 import enum
@@ -36,12 +37,77 @@ import hashlib
 import json
 import math
 import os
-import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from quant_brain.core import stats
 from quant_brain.core.provenance import Provenance
+
+
+@contextlib.contextmanager
+def _file_lock(path: Path, *, timeout: float = 10.0):
+    """A cross-process advisory lock for one ledger file.
+
+    An exclusive lock FILE rather than a byte-range lock on the ledger itself, because the
+    reader opens the ledger separately and a range lock would have to be threaded through
+    every read. `O_CREAT | O_EXCL` is atomic on every filesystem this runs on, which is the
+    only primitive needed.
+
+    Measured on this machine, without it: eight concurrent records produced three rows with a
+    read-modify-write, and three rows again with a plain append - Python emulates O_APPEND on
+    Windows with a seek followed by a write, so the POSIX advice that a small append is atomic
+    does not transfer here.
+
+    A stale lock (an agent killed mid-write) is broken after `timeout` rather than deadlocking
+    the whole research loop. Losing the lock is recoverable; losing a trial is not, so the
+    timeout is generous.
+    """
+    lock = path.with_suffix(path.suffix + ".lock")
+    started = time.monotonic()
+    fd = None
+    while True:
+        try:
+            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except (FileExistsError, PermissionError):
+            # PermissionError, not just FileExistsError: on Windows a lock file that another
+            # thread is in the middle of unlinking sits in a pending-delete state, and
+            # O_CREAT|O_EXCL against it raises errno 13 rather than errno 17. Measured here,
+            # not anticipated - the first version of this loop caught only FileExistsError
+            # and threw under contention.
+            waited = time.monotonic() - started
+            if waited > timeout:
+                # Break it. An agent died holding this, and blocking every other track
+                # forever is a worse failure than one racy append.
+                try:
+                    os.unlink(str(lock))
+                except OSError:
+                    pass
+                started = time.monotonic()
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        if fd is not None:
+            os.close(fd)
+        try:
+            os.unlink(str(lock))
+        except OSError:
+            pass
+
+
+def _provenance_from(d: dict | None) -> Provenance | None:
+    """Rebuild a Provenance from a ledger row, tolerating rows written by older code.
+
+    Filtered against the current field set rather than splatted, because the ledger is
+    append-only and contains rows written before fields were added or removed. A row from
+    last month must not crash the reader that needs to count it.
+    """
+    if not d:
+        return None
+    known = {f.name for f in dataclasses.fields(Provenance)}
+    return Provenance(**{k: v for k, v in d.items() if k in known})
 
 
 class Stage(str, enum.Enum):
@@ -154,13 +220,23 @@ class Experiment:
 
     @classmethod
     def from_dict(cls, d: dict) -> Experiment:
+        """Rebuild an experiment from a ledger row, provenance included.
+
+        The provenance round trip is load-bearing rather than cosmetic. `to_dict` writes the
+        full record including `env_key`, and an earlier version of this method threw it away
+        with a hard-coded `provenance=None` - so an experiment loaded from disk had no
+        environment at all, and a promotion gate asking "were these two measured on the same
+        interpreter?" would have compared None against None and called it a match. That is
+        the precise failure `provenance.py` says the gate exists to prevent.
+        """
         v = d.get("verdict")
+        prov = d.get("provenance")
         return cls(
             hypothesis=d["hypothesis"], family=d["family"], params=d.get("params", {}),
             metrics=d.get("metrics", {}), stage=Stage(d.get("stage", "research")),
             verdict=Verdict(**v) if v else None, notes=d.get("notes", ""),
             created=d.get("created", ""), experiment_id=d.get("experiment_id", ""),
-            provenance=None,
+            provenance=_provenance_from(prov),
         )
 
 
@@ -239,24 +315,28 @@ class Ledger:
     # -- writing ---------------------------------------------------------------------------
 
     def record(self, experiment: Experiment) -> Experiment:
-        """Append one experiment. Idempotent on the fingerprint."""
-        prior = self.seen(experiment)
-        if prior is not None:
-            return prior
+        """Append one experiment, under a lock. Idempotent on the fingerprint.
+
+        The lock covers the duplicate check AND the append together, because they are two
+        reads of the same file and splitting them is its own race: two agents recording the
+        same fingerprint at the same moment would both find nothing and both write.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        with _file_lock(self.path):
+            prior = self.seen(experiment)
+            if prior is not None:
+                return prior
+            return self._append(experiment)
+
+    def _append(self, experiment: Experiment) -> Experiment:
         line = json.dumps(experiment.to_dict(), sort_keys=True, default=str) + "\n"
-        # Atomic append: write the whole new content to a temp file in the same directory and
-        # replace. Slower than an O_APPEND write and correct under concurrent agents, which
-        # is the trade this repository wants - the alternative loses experiments silently.
-        existing = self.path.read_text(encoding="utf-8") if self.path.exists() else ""
-        fd, tmp = tempfile.mkstemp(dir=str(self.path.parent), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(existing + line)
-            os.replace(tmp, self.path)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
+        # Called under `_file_lock`. A lost row is a lost trial, and the trial count is the
+        # denominator of every multiplicity correction this module enforces, so this is the
+        # one place in the package where correctness beats speed without argument.
+        with self.path.open("a", encoding="utf-8") as fh:
+            fh.write(line)
+            fh.flush()
+            os.fsync(fh.fileno())
         return experiment
 
     # -- the arithmetic --------------------------------------------------------------------

@@ -291,3 +291,108 @@ def test_the_verdict_renders_both_outcomes():
                   reason="nope")
     assert good.describe().startswith("PASS")
     assert bad.describe().startswith("FAIL")
+
+
+# ======================================================================================
+# CONCURRENCY AND PROVENANCE
+#
+# Both regressions below were found by an adversarial review of code written the same day,
+# and both were confirmed by measurement before being fixed. They are the two ways the trial
+# count - the denominator of every correction this module applies - could silently be wrong.
+# ======================================================================================
+
+def test_provenance_survives_the_round_trip(ledger):
+    """It was written to disk and thrown away on read, so a loaded row had no environment.
+
+    That is precisely the field a cross-environment refusal needs: two rows both reporting
+    None would have compared equal and been called a match.
+    """
+    from quant_brain.core.provenance import Provenance
+    e = Experiment(hypothesis="h", family="f", params={"a": 1},
+                   provenance=Provenance.capture())
+    ledger.record(e)
+    back = ledger.all()[0].provenance
+    assert back is not None, "provenance was dropped on read"
+    assert back.env_key, "an experiment loaded from disk must know its environment"
+
+
+def test_a_row_written_by_older_code_still_loads(ledger):
+    """The ledger is append-only, so it holds rows from before fields existed."""
+    ledger.path.parent.mkdir(parents=True, exist_ok=True)
+    ledger.path.write_text(json.dumps({
+        "experiment_id": "old1", "hypothesis": "h", "family": "f", "params": {},
+        "metrics": {}, "stage": "research", "created": "2026-01-01T00:00:00",
+        "provenance": {"git_commit": "abc", "a_field_that_no_longer_exists": 1},
+    }) + "\n", encoding="utf-8")
+    e = ledger.all()[0]
+    assert e.provenance is not None and e.provenance.git_commit == "abc"
+
+
+def test_concurrent_records_do_not_lose_experiments(tmp_path):
+    """A lost row is a lost trial. Measured before the fix: 8 recorded, 3 on disk.
+
+    Neither obvious design was correct on this machine. A read-modify-write around
+    os.replace loses updates; a plain append-mode write is not atomic either, because Python
+    emulates O_APPEND on Windows with a seek followed by a write.
+    """
+    import threading
+    led = Ledger(tmp_path / "l.jsonl")
+    n = 16
+    barrier = threading.Barrier(n)
+    errors: list[str] = []
+
+    def record(i: int) -> None:
+        try:
+            barrier.wait()
+            led.record(Experiment(hypothesis=f"h{i}", family="fam", params={"i": i}))
+        except Exception as exc:                                        # noqa: BLE001
+            errors.append(repr(exc))
+
+    threads = [threading.Thread(target=record, args=(i,)) for i in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == [], f"recording raised under contention: {errors[:3]}"
+    assert led.trials("fam") == n, f"{n} recorded, {led.trials('fam')} survived"
+
+
+def test_concurrent_duplicates_still_count_as_one_trial(tmp_path):
+    """The check and the append must be one operation, or both racers write."""
+    import threading
+    led = Ledger(tmp_path / "l.jsonl")
+    barrier = threading.Barrier(12)
+
+    def record(_: int) -> None:
+        barrier.wait()
+        led.record(Experiment(hypothesis="same", family="fam", params={"a": 1}))
+
+    threads = [threading.Thread(target=record, args=(i,)) for i in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert led.trials("fam") == 1
+    assert len(led.all()) == 1
+
+
+def test_the_lock_file_is_not_left_behind(tmp_path):
+    led = Ledger(tmp_path / "l.jsonl")
+    for i in range(5):
+        led.record(_exp(i))
+    assert list(tmp_path.glob("*.lock")) == []
+
+
+def test_a_stale_lock_is_broken_rather_than_deadlocking(tmp_path):
+    """An agent killed mid-write must not block every other track forever."""
+    import time as _time
+    led = Ledger(tmp_path / "l.jsonl")
+    stale = led.path.with_suffix(led.path.suffix + ".lock")
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.touch()
+    started = _time.monotonic()
+    from quant_brain.research.registry import _file_lock
+    with _file_lock(led.path, timeout=0.2):
+        pass
+    assert _time.monotonic() - started < 5.0, "a stale lock deadlocked the loop"
