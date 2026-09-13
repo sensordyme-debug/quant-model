@@ -52,8 +52,21 @@ class TrailingMode(str, enum.Enum):
     """
 
     NONE = "none"          # static floor from the starting balance
-    EOD = "eod"            # trails the highest end-of-day balance
-    INTRADAY = "intraday"  # trails the highest intraday equity, unrealized included
+    EOD = "eod"            # trails the highest end-of-day balance, breach tested EOD
+    INTRADAY = "intraday"  # trails the highest intraday equity, breach tested intraday
+    #: Topstep's actual rule, and neither of the two above. The threshold advances on the
+    #: END-OF-DAY balance ("It rises as your end-of-day balance grows, but never moves down")
+    #: while the BREACH is tested in real time against unrealized P&L ("monitored in real
+    #: time throughout the session. Both realized and unrealized P&L count toward it" /
+    #: "If your balance hits it at any point during the trading day, including on unrealized
+    #: P&L, your account is liquidated immediately").
+    #: help.topstep.com/en/articles/8284204, retrieved 2026-09-12.
+    #:
+    #: Modelling Topstep as EOD understates breach risk, because it never tests the intraday
+    #: path. Modelling it as INTRADAY overstates the trailing, because it ratchets the floor
+    #: up on unrealized highs the real rule ignores. Both errors are large and they point in
+    #: opposite directions, which is why this is a distinct mode rather than an approximation.
+    EOD_TRAIL_INTRADAY_BREACH = "eod_trail_intraday_breach"
 
 
 class Outcome(str, enum.Enum):
@@ -170,6 +183,8 @@ class PropFirmProfile:
             return -math.inf
         if self.trailing_mode is TrailingMode.NONE:
             return self.starting_balance - self.max_drawdown
+        # EOD_TRAIL_INTRADAY_BREACH trails exactly like EOD; the difference is only in WHEN
+        # the breach is tested, which is the simulator's concern rather than the floor's.
         threshold = peak - self.max_drawdown
         if self.trailing_locks_at is not None:
             threshold = min(threshold, self.trailing_locks_at)
@@ -259,7 +274,7 @@ class AccountState:
         mode = self.profile.trailing_mode
         if mode is TrailingMode.INTRADAY and intraday:
             self.peak = max(self.peak, self.equity)
-        elif mode is TrailingMode.EOD and not intraday:
+        elif mode in (TrailingMode.EOD, TrailingMode.EOD_TRAIL_INTRADAY_BREACH) and not intraday:
             self.peak = max(self.peak, self.balance)
 
 
@@ -434,7 +449,9 @@ class PropFirmSimulator:
             state.unrealized = 0.0
 
             # --- within-session path, only if the profile's trailing rule looks at it -------
-            if p.trailing_mode is TrailingMode.INTRADAY and s.intraday_equity:
+            if (p.trailing_mode in (TrailingMode.INTRADAY,
+                                    TrailingMode.EOD_TRAIL_INTRADAY_BREACH)
+                    and s.intraday_equity):
                 for mark in s.intraday_equity:
                     state.unrealized = mark
                     state.mark_peak(intraday=True)
