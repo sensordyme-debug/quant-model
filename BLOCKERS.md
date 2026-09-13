@@ -85,6 +85,27 @@ once the target is known; guessing at it now would be building against an imagin
 
 ---
 
+## OWNER-5 — The Options track is blocked on a paid data tier
+
+**Status: OPEN. Carried forward from `research/BLOCKERS.md`, which this file supersedes.**
+
+This entry exists because creating this file nearly lost the item. The root `BLOCKERS.md` was
+written on 2026-09-13 claiming to hold everything that needs the owner, and contained zero
+mentions of Theta, options, or the VALUE tier — the only thing blocking an entire branch. A
+superseding document that silently drops a live blocker is worse than no document.
+
+The Theta Data plan has lapsed to FREE and re-probes as `HTTP 403 "you only have a FREE
+subscription"`. O-4 disqualified the free trade-print fallback: it cannot refuse a bad trade.
+The stored 0DTE data (18.2 M rows, 0 fail) remains readable; nothing new arrives.
+
+**One caution before spending.** `research/BLOCKERS.md` justified the VALUE tier partly by
+pointing at O-6's PASS being handed to the A-track. That justification has lapsed: A-15
+(`cc14f9e`) refused the whole class on mechanism — *"O-6's finding should not be re-proposed
+as a sizing input for the A-track"* — and nobody updated the blocker. The VALUE tier may still
+be worth buying, but it needs a fresh reason, not that one.
+
+---
+
 ## Resolved
 
 - **Runners built broker objects inline** — closed 2026-09-13. Both runners route through the

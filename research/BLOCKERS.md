@@ -70,6 +70,21 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   it survives on the sleeve's own P&L is filed as **A-15** for the sizing tracks and is not
   proven. **The scheduling advice below is unchanged**: O-6 handed its next step to another scope,
   so the `options` track itself still has no open item until VALUE is restored.
+- **RETRACTION 2026-09-13 ~05:4x UTC (O-7), filed by this track against the paragraph above.** The
+  "SECOND and cheaper justification" should no longer be counted when you price this
+  subscription. O-6's argument was that the frozen store now has a demonstrated *product* - a
+  position-size input - so every day on FREE costs a real input. **That product has since been
+  measured and refused.** A-15 (`iterate`, same day) split magnitude causally into its forecastable
+  and surprise parts on the deployed sleeve and found the sleeve is paid **+$2,651/day per 1 sd of
+  the SURPRISE at t +8.41** and **-$230/day per 1 sd of the PREDICTABLE part at t -0.73**; adding
+  the chain moved explained variance 0.090 -> 0.100, one point of R-squared on the half that does
+  not pay. O-7 then confirmed O-6's forecast claim is not a volatility-regime artifact (incremental
+  in 15 of 15 clock x vol-state cells, sized-book dispersion -11.7% in the calm state) - **so the
+  forecast is real and the use for it is not.** Both statements stand; they are about different
+  things. **What this changes for you**: the ask is back to exactly what O-4 priced it at - VALUE
+  buys the SPXW question and an unfrozen store, and nothing else this loop has found is waiting on
+  it. **What it does not change**: the scheduling advice. This track now has no open item of any
+  kind, disk-answerable or otherwise, until VALUE is restored.
 - **What is lost.** Nothing on disk: the 0DTE store is intact at **1,891 SPY sessions,
   2016-01-08..2026-09-10, 176 MB**, and O-3 ran entirely from it today. What is lost is
   everything *new*: no chain after 2026-09-10, no second symbol, no implied-vol or greeks history,

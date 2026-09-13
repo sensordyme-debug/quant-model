@@ -5,6 +5,136 @@ Newest first. The `options` scope: the Theta store, `scripts/odte_*`, `scripts/t
 
 ---
 
+## 2026-09-13 - O-7: O-6's magnitude skill is NOT a volatility-regime detector - it is there in 15 of 15 (clock x vol-state) cells and the sized-book benefit is LARGEST in the calm state, where a realized-vol sizer is blind. PASS on the pre-registered rule, and the calm leg clears its bar by 0.037 of a t, which is reported as the marginal thing it is. Nothing shipped - and the product this characterizes was already refused downstream by A-15, so this closes the track rather than advancing it.
+
+**Why this item.** There was no open O-item: O-1 through O-6 are all closed. O-6 is the only PASS
+this track has produced, and it wrote down, in its own caveats, the one thing that would make it
+overstated and never tested:
+
+> "measured on SPY only, on a sample tilted volatile by O-3's mask (it drops calm sessions
+> preferentially - O-5 measured mean |move| 13.3 bps where it drops out against 38.7 bps where it
+> survives)"
+
+The SPY-only half cannot be closed from disk - the store has exactly one underlying and Theta was
+re-checked live at the top of this run (`listening True serving True`, `history/quote` **HTTP 403,
+"you only have a FREE subscription"**), so the store is still frozen at 1,891 sessions ending
+2026-09-10. The volatility half **can** be, and it is the half that matters economically. A sizing
+rule needs no help on a day the tape is already screaming; `rv_sofar` at 12:00 on a 3% day tells it
+everything. **The expensive error is the quiet morning that ends in a move** - the state where a
+realized-vol sizer is structurally blind and a forward-looking risk-neutral measure is the only
+thing that could see. If O-6's increment lived only in the volatile state, what it found was a
+regime detector largely redundant with the tape's own regime read.
+
+**Hypothesis.** The chain's incremental magnitude skill over the tape is a GENERAL input to
+position size, not a volatility-state detector: it survives out of sample in the CALM state.
+
+**Design, pre-registered in `scripts/sweep_o7.py`'s docstring before any run.** Nothing on the
+measurement side is new: the panel, O-5's frozen chain cache, the four-predictor tape baseline, the
+target `log|fwd|`, the five clocks, the 250-session burn-in and the expanding-window OOS protocol
+are **imported from `sweep_o6.py` and re-run unmodified**. The only new object is the state
+variable the out-of-sample errors are partitioned by: **`rv20`**, the prior 20 sessions'
+close-to-close vol - known *before* the forecast session opens, so the partition cannot be
+contaminated by the outcome, and deliberately not the strongest tape predictor. Splitting on
+`rv_sofar` was **rejected in advance and written down as rejected**, because it is one of the
+baseline's own fitted inputs; it is carried as an explicitly secondary read that cannot overturn.
+Terciles are assigned **causally** (33.3/66.7 percentiles of strictly prior rows, 100-session
+minimum), never by a full-sample quantile. PASS required **both** (i) the chain beating the tape in
+the calm state at >= 4 of 5 clocks **and** a pooled calm DM t > +2.576, pooled by averaging the
+loss difference across clocks *within a session* first so one session is one observation and not
+five; **and** (ii) the two-of-three rule applied to volatility states instead of calendar regimes,
+at >= 4 of 5 clocks. PARTIAL was defined in advance as (ii) without (i) - "real but
+volatility-conditional, re-label the handoff".
+
+**Gates.** O-6's own Gate 0 passes and its Stage C reproduces at 5 of 5 clocks, so there was a
+result to condition. 7,007 of 7,507 OOS rows label (calm 2,665 / mid 2,838 / volatile 1,504).
+
+**Stage 1 - decisive. The chain wins in 15 of 15 cells.**
+
+| clock | calm dRMSE% (DM t) | mid dRMSE% (DM t) | volatile dRMSE% (DM t) | states won |
+|---|---|---|---|---|
+| 10:00 | -1.38 (+2.15) | -2.10 (+2.88) | -1.60 (+1.85) | 3 of 3 |
+| 11:00 | -0.85 (+0.94) | -2.44 (+3.38) | -1.15 (+1.25) | 3 of 3 |
+| 12:00 | -1.37 (+1.22) | -2.47 (+2.65) | -3.12 (+2.28) | 3 of 3 |
+| 13:00 | -2.07 (+2.56) | -2.10 (+2.59) | -0.65 (+0.49) | 3 of 3 |
+| 14:00 | -1.72 (+1.67) | -4.14 (+4.07) | -2.41 (+1.80) | 3 of 3 |
+
+Leg (ii) passes 5 of 5. Leg (i): calm wins 5 of 5 clocks, pooled calm DM t **+2.613** on 632
+sessions against a bar of **+2.576**. **Verdict PASS.**
+
+**And leg (i) clears by 0.037 of a t, which is said out loud rather than rounded away.** No
+individual clock's calm DM t reaches the Bonferroni bar; the calm leg is carried entirely by
+consistency of sign across clocks. A post-hoc sensitivity (Stage 5, added after the first run and
+labelled as such, and it does not move the verdict, which stands on the pre-registered lag 5)
+shows the pooled calm t at Newey-West lags 0 / 2 / 5 / 10 / 20 = **2.487 / 2.532 / 2.613 / 2.659 /
+2.790** - it **fails at the two shortest lags**. And the secondary state variable (Stage 4b,
+`rv_sofar`) gives calm wins at 5 of 5 clocks but a pooled calm t of only **+2.033**: PARTIAL. So
+the calm-specific *statistical* claim is directionally consistent under both state variables and
+statistically marginal under both. **What is not marginal is leg (ii)**: 15 of 15 cells negative,
+3 of 3 states at every clock.
+
+**Stage 2 - where the skill lives, and this is the part that answers the question asked.** Delta
+OOS R-squared by state: calm **0.016-0.041**, mid **0.037-0.071**, volatile **0.012-0.054**. The
+increment is **not concentrated in the volatile state** - if anything the trough is the volatile
+state at 13:00 (0.012) and the peak is the *mid* state at 14:00 (0.071). **The regime-detector
+reading is refuted.**
+
+**Stage 3 - the economic leg, and it is the strongest thing here.** sd of the normalized move
+`|fwd|/exp(y_hat)`, by state, mean over the five clocks: **calm -11.7%**, mid -2.9%, volatile
+-13.7%. In the calm state it is MATERIAL (the >= 5% bar O-6 set) at **5 of 5 clocks**
+(-3.3 / -10.1 / -11.4 / -18.3 / -15.4). So the benefit is **U-shaped with the trough in the middle
+state**: exactly where a realized-vol sizer is least wrong, the chain adds least, and where it is
+most wrong - a quiet tape that does not stay quiet - the chain adds most. The pre-registered
+primary breach count (level-scaled, a correction O-6 justified post hoc and this item adopted
+*before* running) improves in calm at 5 of 5, -4.5% to -17.6%.
+
+**Reported against itself.** The **raw** 3-sigma breach count in the calm state moves the *wrong*
+way at 4 of 5 clocks (11:00 66->72, 12:00 75->78, 13:00 67->81, 14:00 77->90; only 10:00 improves,
+81->78). That is the same level artifact O-6 hit, and it is **worse in the calm state than
+anywhere else**, which is consistent with the story above and is still a real caveat for anyone
+building a hard risk limit off `exp(y_hat)` without recalibrating its level.
+
+**Stage 4a, the mask attack, and it lands.** The feature-complete mask survives 93.9 / 88.4 / 83.8
+/ 81.3 / **77.3**% of calm-state cells across the clocks, and the cells it drops are far quieter
+than the ones it keeps (calm kept mean |fwd| 35.0 / 30.4 / 27.5 / 23.9 / 19.6 bps against dropped
+15.9 / 14.5 / 11.0 / 10.9 / 10.1 bps - a factor of 2 to 3). **So "calm" here means the busier end
+of calm**: the quietest sessions in the bucket are preferentially absent, and at 14:00 nearly a
+quarter of them are. The calm claim is about the sessions that survive, and no disk-only test can
+extend it to the ones that do not.
+
+**Decision: PASS on the pre-registered rule - and it closes this track rather than advancing it.**
+The reason is not the statistics. O-6 handed its next step to the sizing tracks as **A-15**, and
+A-15 has since been run by `iterate` and **REFUSED on the mechanism**: the intraday sleeve is paid
+**+$2,651/day per 1 sd of the volatility SURPRISE at t +8.41** and **-$230/day per 1 sd of the
+PREDICTABLE part at t -0.73**, and adding the chain moves the explained variance 0.090 -> 0.100 -
+one point of R-squared on the half of magnitude that does not pay. O-7 does not contradict that and
+does not try to: A-15 is about a *book's P&L*, O-6 and O-7 are about *forecast accuracy on SPY*,
+and both can be true at once. Read together they are the track's closing sentence: **the chain's
+magnitude skill is real, it is general across volatility states, it is economically material to
+anything sized to |move| - and this repository contains no book that is paid for the predictable
+part of magnitude.**
+
+**Nothing shipped.** No shipped file, no runner-loaded file, no config, no `champion.json`; the
+only new file is `scripts/sweep_o7.py`, which imports its measurement from `sweep_o6` rather than
+re-implementing it. No deploy gate owed.
+
+**Correction filed against this track's own record.** O-6 appended a second justification for the
+Theta VALUE ask to `BLOCKERS.md` on the strength of the sizing product. A-15 has since removed that
+product. An addendum recording the retraction is appended there - the SPXW justification is
+untouched, but the loop should not be quoting a benefit that has since been measured and refused.
+
+**Ledger**: 46 DIAGNOSTIC rows under `options/odte_o7_volstate`.
+`python scripts/sweep_o7.py` reruns every number here from disk in ~3 min.
+
+**Operational**: unchanged - `py -3.11` has no pyarrow; run `sweep_o*` on the default `python`.
+
+**Next step: none on this track.** Every question this store can answer from disk is now answered
+(O-2 cost, O-3 selection, O-4 feeds, O-5 direction, O-6 magnitude-incrementality, O-7
+magnitude-generality), and the two that remain - a second underlying, and any session after
+2026-09-10 - both need the Theta subscription restored. O-4's advice stands and is now
+unconditional: **do not schedule this scope again until VALUE is restored.**
+
+---
+
 ## 2026-09-13 - O-6: the first PASS this track has produced. The chain's magnitude skill is NOT a restatement of the tape - it is incremental out of sample at all five clocks and cuts the dispersion of a sized book by 4-14%. It is a RISK input, not a return signal, so the cost wall never applies to it. Nothing shipped; the O-track is evidence-only and sizing is not its scope.
 
 **Why this item, when O-5 said the axis was closed and O-4 said the track should not be

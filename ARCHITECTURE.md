@@ -208,6 +208,25 @@ and no further; champion straight from research is the failure the ladder exists
 
 ---
 
+### Options branch, current state (2026-09-13)
+
+Seven items, not the three a stale note recorded: five refusals (O-1, O-1b, O-2, O-3, O-5),
+one feed disqualification (O-4), and one PASS (O-6 — the chain's magnitude skill as a risk
+input, not a tradeable edge). O-6's PASS currently has **no consumer**: it was handed to the
+A-track and A-15 refused the whole class on mechanism.
+
+The branch is functional and was NOT broken by the futures work — 1,010 tests green, all nine
+options modules import, `sweep_o5`/`sweep_o6` reproduce their journals to the digit. It is
+blocked on the Theta VALUE tier (OWNER-5).
+
+Its real structural weakness is unprotected intelligence: `Chain`, parity spot, `prob_itm`,
+`pick_strike` and the round-trip cost model all live inside `scripts/sweep_o2.py`, imported by
+four other items, excluded from ruff-strict and pyright, with **no test covering the pricing
+path**. Extracting those into `quant_brain/markets/options_us/` is the highest-value options
+work that needs no data at all.
+
+---
+
 ## 5. What has not been done, and why
 
 Honest list. None of these are blocked; they are sequenced.

@@ -482,10 +482,15 @@ def build() -> list[Dimension]:
              "selection bias is +0.000. The real exposure is 55 untested specifications "
              "against one window with no multiplicity control (threshold |t| > 3.32)",
              "AUD-20 measured: 0 labels dropped on IBKR, 173 of 190,394 (0.091%) on Alpaca"],
-          "59 sweep_*/ml_* scripts exist and NOT ONE imports quant_brain.core.stats: the "
-          "corrections are correct, tested, and used by nothing outside the futures branch. "
-          "Retrofitting them is other agent tracks' work; new research goes through the "
-          "ledger, which is the only path where the trial count cannot be understated"),
+          "62 sweep_*/ml_* scripts, 40 compute a t, ZERO import quant_brain.core.stats and "
+          "zero purge or embargo. But an audit measured the exposure and it is narrower than "
+          "that sounds: most of those t's are on one-observation-per-session series where "
+          "overlap does not apply, genuine label overlap exists in 2 scripts, and the ~760 "
+          "uncorrected cells are overwhelmingly REFUSALS, where a correction only makes the "
+          "refusal safer. On daily equity series the naive t is conservative, not liberal - "
+          "sweep_s25 measures 4.00 naive against 4.27 Newey-West. See research/sweep_audit.md "
+          "for the ranked table; the realized exposure is F-3, and the largest unrecorded "
+          "effect is per-trip tables pooling same-day names (design effect 14.8, 3.84x)"),
 
         D("Deployment safety", 7.0,
           ["09:25 launch gates on the unit suite (E-5) and a replay preflight",

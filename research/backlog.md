@@ -3341,6 +3341,42 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
   the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
   test: the 50 megacaps from D-1 are now fetchable at minute resolution.
+- **O-7 DONE 2026-09-13 (see `research/journal_options.md`): O-6's magnitude skill is NOT a
+  volatility-regime detector - it is present in **15 of 15** (clock x vol-state) cells and the
+  sized-book benefit is **largest in the CALM state**, where a realized-vol sizer is blind. PASS on
+  the pre-registered rule; nothing shipped.** `scripts/sweep_o7.py` (the only new file; it
+  *imports* the panel, cache, baseline, target, clocks, burn-in and OOS protocol from `sweep_o6`
+  rather than re-implementing them - the sole new object is the state variable), **46 DIAGNOSTIC
+  rows** under `options/odte_o7_volstate`. There was no open O-item; this closes the one caveat
+  O-6 named that is testable from disk (the SPY-only half cannot be, the store has one underlying
+  and Theta was re-confirmed **HTTP 403** live). State = `rv20`, known *before* the forecast
+  session opens; terciles assigned **causally** against strictly prior rows; splitting on
+  `rv_sofar` was **rejected in advance in writing** (it is a fitted input of the baseline) and
+  carried only as a secondary read. Gates: O-6's Gate 0 passes and its Stage C reproduces 5 of 5.
+  **Stage 1**: dRMSE negative in all 15 cells (calm -0.85..-2.07%, mid -2.10..-4.14%, volatile
+  -0.65..-3.12%), 3 of 3 states won at every clock; calm wins 5 of 5 clocks, pooled calm DM t
+  **+2.613** on 632 sessions against a bar of +2.576. **Reported as the marginal thing it is**: no
+  single clock's calm t reaches the bar, a post-hoc NW-lag sweep gives 2.487 / 2.532 / **2.613** /
+  2.659 / 2.790 at lags 0/2/5/10/20 so leg (i) **fails at the two shortest lags**, and the
+  secondary `rv_sofar` split gives PARTIAL at t +2.033. What is *not* marginal is leg (ii).
+  **Stage 2** (the question actually asked): dOOSR2 calm 0.016-0.041, mid 0.037-0.071, volatile
+  0.012-0.054 - **not vol-concentrated, so the regime-detector reading is refuted**. **Stage 3**:
+  sd of the normalized move falls **-11.7% mean in calm** (MATERIAL 5 of 5 clocks), -2.9% mid,
+  -13.7% volatile - **U-shaped with the trough in the middle state**, i.e. the chain adds most
+  exactly where realized-vol sizing is most wrong. **Reported against itself**: the RAW 3-sigma
+  breach count in calm moves the wrong way at 4 of 5 clocks (worse there than anywhere), the same
+  level artifact O-6 hit. **Mask attack lands**: calm-state survival 93.9/88.4/83.8/81.3/**77.3**%
+  and dropped cells are 2-3x quieter than kept (e.g. 19.6 vs 10.1 bps at 14:00), so **"calm" here
+  means the busier end of calm** and no disk-only test extends it. **Why this closes the track
+  rather than advancing it**: O-6's handoff A-15 has since been REFUSED by `iterate` on the
+  mechanism (the sleeve is paid +$2,651/day per sd of volatility *surprise* and -$230/day per sd of
+  the *predictable* part). O-7 does not contradict it - A-15 is about a book's P&L, O-6/O-7 about
+  forecast accuracy on SPY. Together: **the chain's magnitude skill is real and general, and this
+  repository contains no book paid for the predictable part of magnitude.** A retraction of the
+  second VALUE justification O-6 wrote into `BLOCKERS.md` is appended there (SPXW untouched).
+  **Next step: none on this track** - every disk-answerable question is answered; a second
+  underlying and any session after 2026-09-10 both need VALUE restored, so O-4's advice not to
+  schedule this scope is now unconditional.
 - **O-6 DONE 2026-09-13 (see `research/journal_options.md`): the FIRST PASS on this track. The
   chain's magnitude skill is NOT a restatement of the tape - incremental out of sample at 5 of 5
   clocks, and it cuts the dispersion of a sized book 4-14%. Nothing shipped: it is a RISK input

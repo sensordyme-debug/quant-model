@@ -216,7 +216,10 @@ def test_the_ack_renders_both_outcomes():
 class FakeOrder:
     def __init__(self, action, qty):
         self.action, self.totalQuantity = action, qty
-        self.orderRef, self.outsideRth, self.tif, self.orderId = "", None, "", 0
+        self.orderRef, self.outsideRth, self.tif = "", None, ""
+        # int | None: a trade this adapter did not place has no orderId, which is the
+        # fallback path the option-leg test exercises.
+        self.orderId: int | None = 0
 
 
 class FakeExec:
