@@ -2070,6 +2070,58 @@ and no delivery, both of which are barred to the loop.
   bug in `scripts/ml_f7.py` `vol_regime()` (date vs string keys) that made F-7's clause-6 regime
   table silently return "n/a" for every session.
 
+- **F-12 DONE 2026-09-12 (REFUSED; see `research/journal_ml.md`): the label-family axis is closed,
+  and the measured elasticity beta = 1.494 is the finding.** The first F iteration to fit a new
+  model on a new label family, and the first to act on the book's **sd** rather than its mean:
+  a second walk-forward model on `|y_close|` (the per-name risk contribution of a dollar-neutral
+  book), spent on sizing as `w_i ~ sigma_hat_i^-p`, p in {0, 0.5, 1, 2}, p = 1 pre-registered as
+  primary. `scripts/ml_f12.py`, 22 DIAGNOSTIC rows under `intraday/f12_risksize`, clause 1 identity
+  exact at gross 4.256 / cost 2.724 / t +1.474, and **turnover identical in every cell to the
+  dollar ($1,995,861/day, spread $0)** because each side sums to gross/2 however it is split - the
+  one F-track file with no turnover confound to control for. **The risk model is excellent**: rank
+  IC **+0.3302** mean (+0.3065..+0.3563, IC t +100..+146), R^2 +0.315, against F-8's own signed
+  `close` label re-measured at **+0.01030** and *negative in 2026* - a 32x IC. **The sizing works
+  on the risk side**: sd 9,118 -> 6,622 (-27%) at p = 1, worst day -$51,431 -> -$27,421. **REFUSED
+  on clause 5**: t **+1.058** against a hurdle of 2.0, because the **mean fell x0.521 while the sd
+  fell only x0.726**. Paired (F-11's standing rule), p1 - p0 is the **exact mirror of F-11**: cost
+  saved +$51 at t +42.38 (arithmetic), **gross given up -$197 at t -2.28 (significant, not noise)**,
+  net -$146 at t -1.69. **Clause 4(ii) fails and the failure is the result**: scrambled sigma - the
+  same weight dispersion on the wrong names - reads **t +1.400 +/- 0.065**, so random dispersion
+  costs 0.07 of t and *the correct risk forecast costs 0.42*. The free trailing-ATR baseline beats
+  the ML model at every rung (+1.41/+1.28/+0.93 vs +1.31/+1.06/+0.49; paired `p1 - atr_p1` -$35/day
+  at t -1.55) despite Spearman +0.945 between them - **the refinement is the part that loses
+  money**. Clause 4(i) passes (scrambled alpha under inverse-vol sizing, gross t -0.13). The
+  mechanism, measured post-run over 21,940 held name-days: realised alpha by sigma quintile runs
+  **-0.76 / 3.94 / 6.08 / 10.20 / 20.51 bps** and alpha/sigma **rises monotonically -0.0125 ->
+  +0.0745**, i.e. **log-log beta = +1.494** where inverse-vol sizing breaks even at 1.0, and the
+  forecast has *no edge at all* in the quietest fifth of its own holdings. The opposite direction
+  (p = -1, post-run, test-set-selected, no control) reads net $499/day at **t +1.57** with sd
+  14,029 and a -$82,537 worst day, so **the whole ladder p in [-1, 2] spans t +0.49 to +1.57 and
+  never touches 2.0 - the sizing axis is bounded on both sides.** Regimes: sizing makes the dead
+  regime deader (low vol -$69 -> -$200 -> -$299/day at p = 0/1/2), helps nowhere. Reusable rules:
+  **(a) risk parity is a bet on beta = 1** - measure the log-log elasticity of realised alpha on
+  predicted risk before applying any inverse-vol overlay, which no sleeve in this repository
+  (daily champion or deployed intraday `active`) has ever done; **(b) a better forecast of the
+  wrong quantity is worse than no forecast of it** - run any overlay against a *scrambled version
+  of its own signal*, not only against a null book. **Do not re-open as a sizing, risk-label,
+  risk-learner or cap question** - both directions are priced and bounded.
+
+- **F-13 (open, and it is NOT an F-track item - filed here because F-12 found it).** F-12 (7)
+  measured that this forecast's realised alpha scales as **vol^1.49** and is **negative in the
+  quietest fifth of its own holdings** (-0.76 bps, t -0.49, on 4,388 name-days). Every F
+  construction has taken the 56-name universe as given and asked what to do with it. The question
+  that opens is a **universe** question, not a model question: the sleeve carries names the
+  forecast demonstrably cannot trade, and they are identifiable ex ante by predicted risk, which
+  is the one thing F-12 proved is forecastable (rank IC +0.33). **Pre-register before running**, and
+  inherit F-12's arithmetic rather than rediscovering it: the honest hurdle is still t > 2 pooled
+  on >= 5 of 8 years, a sigma floor must be tested as a *continuous* penalty as well as an
+  eligibility filter (F-11 (7): a continuous penalty strictly dominates a floor), and the cell must
+  be run against a scrambled-sigma control per F-12 (b). **State the prior**: dropping the quietest
+  quintile removes ~20% of name-days worth ~0 and concentrates the book, so the expected outcome is
+  gross up, sd up and t roughly flat - which would close the universe question too. This belongs to
+  whoever owns the sleeve's universe (A-track/D-track), not to `ml`; it is written down so the
+  measurement is not lost.
+
 - **F-11 DONE 2026-09-12 (REFUSED; see `research/journal_ml.md`): the cost axis is closed, and the
   paired test is the finding.** F-8 pays away 64% of its gross as cost, and cost is a property of
   the *names chosen*: IBKR's $0.005 per share makes a round trip run 3.40 bps (TMO at $516) to

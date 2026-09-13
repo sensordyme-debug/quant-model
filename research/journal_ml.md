@@ -6,6 +6,153 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-12 - F-12: forecast the denominator. The risk model works (rank IC +0.53 against the return model's +0.02) and using it makes the book worse, because this forecast's alpha scales as vol^1.49 and inverse-vol sizing is a bet on vol^1.0. Refused. The sizing axis is bounded on BOTH sides and neither end reaches t = 2.
+
+**Hypothesis.** F-11 closed the track with a standing sentence: reopening the supervised class
+needs *"a different instrument, a different frequency, or a different label family - not another
+construction on this one."* F-12 is the third. F-7 moved the book, F-8 the label's horizon, F-10
+the breadth, F-11 the cost - **all four are the numerator of the P&L and none is the denominator
+of the t**. And three separate runs have reported the same incidental fact without acting on it:
+*the only feature family that survives a retrain on this panel is the volatility family*
+(F-11 (10): `vol_rel6` rank mean 6.8, `m_rvol_ratio` 7.5, `rvol_ratio` 7.9). A model asked for
+direction keeps reaching for the volatility features, which is what a model does when the thing
+it can resolve is not the thing it was asked for. So F-12 **fits a second model on a new label
+family** - `|y_close|`, the absolute demeaned move to the flatten, i.e. the per-name risk
+contribution of a dollar-neutral book - and spends it on **sizing** rather than selection:
+`w_i proportional to sigma_hat_i^-p`, p in {0, 0.5, 1, 2}, p = 0 being F-8 exactly and **p = 1
+the pre-registered primary** (the optimum is alpha/sigma^2, so p = 1 is right when alpha scales
+with vol and p = 2 when it is constant; the two bracket every plausible view).
+
+`scripts/ml_f12.py`, **22 DIAGNOSTIC ledger rows** under `intraday/f12_risksize` (18 pre-registered
+cells in `data/f1/f12_risksize.csv`, 4 post-run). Eight clauses pre-registered in the module
+docstring including clause 0, the prior, written before a number was read: *"sd down ~15%, mean
+down ~10%, t from +1.47 to roughly +1.6, refused on clause 5."* The **return** predictions are
+re-read frozen from `data/f1/f8_preds.parquet` - nothing about F-8's forecast is re-fitted - and
+the only new fitted object is the risk model (`data/f1/f12_risk.parquet`, same 38 features, same
+`GRID["mid"]` learner, same expanding walk-forward, 8 test years). **No shipped or runner-loaded
+file was touched**, so no deploy gate and no `--replay` is owed. Run with
+`INTRADAY_DATA_DIR=data/minute_alpaca`, `_splits.json` confirmed present.
+
+**(1) Clause 1 identity is exact and this file has no turnover confound at all.** p = 0
+reproduces F-8 to the printed digit: gross **4.256**, cost **2.724**, net **$305.7/day**, t
+**+1.474** on 1,933 sessions. And uniquely among F-track constructions, **turnover is identical
+in every cell to the dollar - $1,995,861/day, spread $0** - because each side still sums to
+gross/2 on entry and to zero at the flatten however the dollars are split inside it. Every bps
+column below is like-for-like by construction rather than by control.
+
+**(2) The risk model is a genuinely good forecast, and 32x the return model's.** Per-timestamp
+rank IC on `|y_close|`, by test year: **+0.3065 to +0.3563, mean +0.3302** (IC t-stats +100 to
++146), level R^2 **+0.251 to +0.350, mean +0.315**. The same walk-forward on the *signed* label
+- F-8's own `close` predictions, re-measured here - gives mean rank IC **+0.01030**, and it is
+**negative in 2026 (-0.00755)** while the risk model's worst year is +0.3065. Predicted session
+risk runs **BRK.B 47 bps to SOXS 242 bps, a 5.1x cross-sectional spread**, which is the
+dispersion F-8's equal-weight book was ignoring.
+
+**(3) The lever does exactly what it was built to do on the risk side.** 1,933 out-of-sample
+sessions, 2019-2026, turnover constant:
+
+| p | eff. N | gross bps | cost bps | net $/day | t | sd $/day | worst |
+|---|---|---|---|---|---|---|---|
+| **0 (= F-8)** | 11.4 | 4.256 | 2.724 | **306** | **+1.47** | 9,118 | -51,431 |
+| 0.5 | 10.9 | 3.708 | 2.580 | 225 | +1.31 | 7,575 | -37,352 |
+| **1 (primary)** | 9.9 | **3.267** | 2.469 | **159** | **+1.06** | **6,622** | -32,402 |
+| 2 | 7.8 | 2.656 | 2.326 | 66 | +0.49 | 5,923 | -27,421 |
+
+**sd falls 27%** at p = 1 and 35% at p = 2, monotonically, and the worst day improves from
+-$51,431 to -$27,421. Clause 0 predicted 10-25%; the risk side of the prior was right.
+
+**(4) And the mean falls twice as fast, so it is refused.** **t +1.058 against a hurdle of 2.0**,
+5/8 years positive. **REFUSE.** Clause 6(a): mean **x0.521**, sd **x0.726**, t **x0.718** - the
+entire loss is the mean channel. Paired per session (clause 6(b)), p = 1 minus p = 0:
+
+| component | mean $/day | paired t |
+|---|---|---|
+| gross given up | **-197** | **-2.28** |
+| cost saved | +51 | +42.38 |
+| **net** | **-146** | **-1.69** |
+
+This is the **exact mirror of F-11**. There the cost saving was arithmetic (t +41.67) and the
+gross it bought was noise (t -0.48); here the cost saving is the same arithmetic (t +42.38) and
+**the gross given up is the significant term** (t -2.28). Same standing rule, opposite verdict,
+and only the paired test shows it.
+
+**(5) Clause 4(ii) FAILS, and the way it fails is the finding.** Scrambling `sigma_hat` per
+timestamp keeps the weight *dispersion* and assigns it to the wrong names. Random dispersion
+costs the book almost nothing - **t +1.400 +/- 0.065** against equal weight's +1.474 - while the
+**correct** risk forecast costs it a great deal, **t +1.058**. *Sizing unequally is nearly free;
+sizing by this forecast is expensive.* The better the risk forecast, the worse the book, because
+it is better at finding exactly the names the book should be overweight. Clause 4(i) passes
+(scrambled alpha under inverse-vol sizing earns gross t **-0.13**), so the lever is not a static
+short-the-leveraged-sleeve tilt.
+
+**(6) The free baseline beats the ML model at every rung.** Trailing 20-bar ATR - the panel's own
+causal range feature, available to any desk for nothing - gives **t +1.41 / +1.28 / +0.93** at
+p = 0.5/1/2 against the model's +1.31 / +1.06 / +0.49, and paired, `p1 - atr_p1` is **-$35/day at
+t -1.55**. sigma_hat and atr are Spearman **+0.945** correlated, so the ML model is the same
+object plus a refinement, and **the refinement is the part that loses money**. That is the
+sharpest version of (5).
+
+**(7) The elasticity, measured. This is the reusable number.** Clause 0 stated the analytic floor
+in advance: by Cauchy-Schwarz, inverse-vol weighting is *weakly better* than equal weighting
+whenever alpha is proportional to sigma, so a loss requires alpha to rise with vol **faster than
+linearly**. Post-run, over 21,940 held name-days:
+
+| sigma quintile | n | sigma bps | realised alpha bps | t | alpha/sigma |
+|---|---|---|---|---|---|
+| 1 (quietest) | 4,388 | 60.6 | **-0.76** | -0.49 | **-0.0125** |
+| 2 | 4,388 | 90.5 | 3.94 | +1.77 | 0.0435 |
+| 3 | 4,388 | 123.5 | 6.08 | +1.98 | 0.0492 |
+| 4 | 4,388 | 170.2 | 10.20 | +2.40 | 0.0599 |
+| 5 (loudest) | 4,388 | 275.2 | **20.51** | +3.00 | **0.0745** |
+
+**log-log slope beta = +1.494.** Break-even for inverse-vol sizing is beta = 1. And the
+`alpha/sigma` column - the per-name information ratio - **rises monotonically across the whole
+range**: the forecast has *no edge at all* in the quietest fifth of its own holdings (-0.76 bps,
+t -0.49) and its edge per unit of risk is 6x larger in the loudest. Harmonic/arithmetic mean of
+sigma over held name-days is 0.751, which is the mean ratio the linear case predicts; the mean
+actually fell to 0.521, i.e. **31% more than beta = 1 allows**. This is the same volatility
+finding F-8 and F-11 reported as a regime split (low vol dead, high vol paying), measured in the
+cross-section instead of the time series, and it says the two are one phenomenon.
+
+**(8) The other direction is better and still does not clear the hurdle - which bounds the axis.**
+Post-run and explicitly barred from clause 5 (test-set-selected, no control): p = -1 tilts *into*
+the loud names and reads net **$499/day at t +1.57**, paired **+$194/day, gross t +2.03** - a
+significant gross gain, unlike F-11's. But sd goes **9,118 -> 14,029** and the worst day
+**-$51,431 -> -$82,537**, so t moves only +0.10. **The full sizing ladder p in [-1, 2] spans t
+from +0.49 to +1.57 and never touches 2.0.** The axis is bounded on both sides.
+
+**(9) Regimes, which the brief asks for explicitly.** Risk sizing makes the dead regime deader.
+Low vol **-$69 -> -$200 -> -$299/day** at p = 0/1/2; mid vol $452 -> $272 -> $177; high vol $534
+-> $407 -> $320. It helps nowhere. F-8's and F-11's volatility finding stands and (7) explains it.
+
+**(10) Feature-importance stability, the brief's second criterion, with the contrast that
+matters.** See the run's `--importance` output; the headline is that a model asked for the thing
+the features actually describe selects its inputs far more consistently than one asked for
+direction, and **that stability bought nothing**, because the stable object is not the one the
+book needs.
+
+**Decision.** **REFUSE.** Nothing deployed, nothing promoted, `champion.json` untouched.
+
+**What it changes for the loop.** Two reusable rules. **(a) Risk parity is a bet on beta = 1.**
+Equal-risk sizing is only optimal when a forecast's alpha scales linearly with the name's own
+volatility; measure the log-log elasticity of realised alpha on predicted risk *before* applying
+any inverse-vol overlay, and if beta > 1 the overlay is a tax. This applies to every sleeve in
+this repository, including the daily champion and the deployed intraday `active` book, neither of
+which has ever measured its own beta. **(b) A better forecast of the wrong quantity is worse than
+no forecast of it.** The scrambled-sigma control here beat the real one: random dispersion cost
+0.07 of t, the correct risk forecast cost 0.42. Any future overlay must be run against a
+*scrambled version of its own signal*, not only against a null book.
+
+**Next.** The label-family axis is now priced alongside the other five, and with (8) the sizing
+axis is bounded on both sides. The honest reading is that **this feature set on this panel does
+not support a t = 2 book by any construction available in this scope.** The one direction (7)
+opens that is not a construction is a *universe* question rather than a model question - the
+forecast's edge is concentrated where beta is largest and is negative in its own quietest
+quintile - but that is A-track/D-track territory (which names belong in the sleeve), not F-track.
+Filed as **F-13** for whoever wants it, pre-registered and unread.
+
+---
+
 ## 2026-09-12 - F-11: rank on alpha net of the name's own round trip. The cost saving is real to five decimal places, the gross it buys back is pure noise, and the improvement in t is therefore not an improvement at all. Refused. The cost axis closes.
 
 **Hypothesis.** F-8 and F-10 both tried to make the numerator bigger - a better label, then more
