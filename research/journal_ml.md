@@ -6,6 +6,191 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-13 - F-15: the auction tape DOES carry orthogonal, sign-stable signal the panel does not have - and adding all 19 columns of it made the book worse while 3 of them made it better. Refused on the pre-registered arm. The gate is necessary and NOT sufficient: F-14 screened the REDUNDANT, and what beat this run was the WEAK-AND-NUMEROUS.
+
+**Hypothesis.** F-14 closed the supervised class with a sentence and a rule. The sentence: all seven
+priced axes ran on the same 38 columns, every one a transform of 5-minute OHLCV, so *"this panel
+does not support a t = 2 book"*. The rule, F-14 (a): **measure a candidate's univariate IC and its
+correlation against the incumbents BEFORE fitting anything.** F-15 is the first F iteration to leave
+the trade-bar store, and the first to make **the gate the primary deliverable** rather than a
+post-run diagnostic. Two channels, neither computable from OHLCV at any width:
+
+- **A, the auction tape, per name.** `/v2/stocks/auctions` (Alpaca SIP, one request per symbol,
+  2015-12 to 2026-09-11) returns the official opening and closing **cross** - a single batch print
+  struck by an imbalance mechanism. Two things live in it that no bar can say: the **size** of the
+  cross (how much stock the open/close had to clear - index, rebalance, MOC flow) and the **gap
+  between the cross print and the continuous tape** around it (how far the auction reached to
+  clear). 14 columns.
+- **B, the SPY 0DTE chain, market-level.** `data/options/odte/SPY`, 1,891 same-day expirations at
+  5-minute bid/ask, already local. The ATM straddle over spot **is** the market's forecast of
+  |move to today's close| in bps; no trade bar contains a forecast. 5 columns.
+
+`scripts/ml_f15.py`, **6 ledger rows** under `intraday/f15_altstore` (4 pre-registered, 2 post-run),
+cells in `data/f1/f15_arms.csv`, gate in `f15_gate.csv`, per-year ICs in `f15_post.csv`, importance
+in `importance_f15.csv`. Eight clauses pre-registered in the module docstring including clause 0,
+the prior, written before a number was read: *"`auc_ojump` ~0.9 correlated with `gap` and DROPPED;
+`auc_cdrift` and the size surprises survive with |IC| 0.002-0.006; `both` lands within +/-$120 of
+base's $306/day at t +1.3 to +1.7; refused on clause 5."* Run with
+`INTRADAY_DATA_DIR=data/minute_alpaca`, `_splits.json` confirmed present. **No shipped or
+runner-loaded file was touched**, so no deploy gate and no `--replay` is owed.
+
+**(0) A defect found and fixed mid-run, and it is worth recording because it would have inverted
+the headline.** Family A was first built on `intraday_common.UNIVERSE` - the 16-name *deployed
+sleeve*. But `sweep_f1` builds its panel from **every** symbol in the Alpaca store minus
+`f1.EXCLUDE`: **56 names**, and the book ranks over all 56. Coverage was 27.08% and, worse, the
+`cs_*` ranks were computed over a different and narrower cross-section than the one being traded.
+On that wrong cross-section `auc_ofade` read IC **-0.0131 (t -7.7)** and `auc_cdrift` **+0.0080
+(t +4.5)**; on the correct 56 they read **-0.0069 (t -4.9)** and **+0.0004 (t +0.3)**. The second of
+those is the difference between a finding and nothing. `panel_symbols()` now reads the panel itself
+rather than any hand-maintained list, and coverage is **99.64%**.
+
+**(1) Clause 1 identity is exact.** Alt columns are merged, never inner-joined; the 0.36% of rows
+with no auction print and the 28.89% with no 0DTE session are kept carrying NaN. `base` reproduces
+the frozen F-8 model to the printed digit: mean rank IC **+0.01030**, gross **4.256** bps, cost
+**2.724**, net **$305.7/day**, t **+1.474** on 1,933 sessions.
+
+**(2) THE GATE, and the prior was wrong in both directions.** Per-timestamp rank IC over the 8 test
+years, and max median |Spearman| against each of the 38 incumbents. **19 of 19 survive** - not one
+candidate was >= 0.50 correlated with an incumbent carrying a larger |IC|, which is the opposite of
+F-14, where the whole flow family was a 0.645-correlated copy of `r6`.
+
+| column | rank IC | t | max abs rho vs the 38 | against | that column's IC |
+|---|---|---|---|---|---|
+| **`auc_ofade`** (first 5 min of tape vs the opening cross) | **-0.00690** | **-4.9** | **0.295** | `r_sess` | -0.00387 |
+| `auc_ojump` (cross-to-cross overnight) | -0.00532 | -3.3 | **0.905** | `gap` | **-0.00086** |
+| `auc_osz_z` (opening cross size surprise) | +0.00326 | +2.8 | 0.347 | `vol_rel6` | +0.00427 |
+| `auc_osz_adv` | -0.00151 | -0.8 | 0.345 | `atr` | -0.00586 |
+| `auc_csz_z` (prior close cross size) | +0.00133 | +1.1 | 0.156 | `vol_rel6` | +0.00427 |
+| **`auc_cdrift`** (prior close cross vs last tape print) | **+0.00041** | **+0.3** | 0.142 | `gap` | -0.00086 |
+| *(reference)* `prev_ret` | -0.01310 | -7.0 | - | - | - |
+| *(reference)* `vwap_atr` | -0.01112 | -7.0 | - | - | - |
+
+Clause 0 named `auc_cdrift` as the likely survivor and it is **dead on arrival** (t +0.3). What
+carries is the column the prior did not name: **`auc_ofade`**, how far the first five minutes of
+continuous tape travelled away from the opening cross print. And `auc_ojump` is kept **by the rule
+as written** despite 0.905 correlation with `gap`, because `gap`'s own IC is **-0.00086** against
+`auc_ojump`'s **-0.00532** - the cross-to-cross jump carries **6x** what the bar-based gap does.
+Measured directly post-run: their residual, `auc_ojump - gap`, has IC **-0.00547 (t -3.38)**. *The
+part of the overnight move that only the auction print knows is the part that predicts.*
+
+**(3) Clause 3b: the market-level channel needed a different screen, and that is a methodological
+point the brief's framing hides.** A SPY-level column is constant across names at a timestamp, so
+its per-timestamp rank IC is **undefined, not zero**, and clause 3a cannot screen it at all - which
+also caught `m_auc_osz_z`/`m_auc_cdrift`, two family-A columns that are market-level by
+construction. Screened instead on correlation with the regime already in use (SPY trailing 20-day
+realised vol): `iv_strad` **+0.667**, `iv_rvgap` -0.299, `iv_d30` -0.264, `iv_skew` +0.192,
+`iv_qi` +0.036. None reaches the 0.70 drop threshold, so all 7 pass to the fit. Clause 0 predicted
+0.6-0.75 for the straddle and was right.
+
+**(4) And the fit refused it anyway, on all three legs.** 1,933 out-of-sample sessions, 2019-2026,
+one decision, decile 0.10, **turnover identical in every arm to the dollar ($1,995,861/day, spread
+$0)**, so every bps column is like-for-like by construction.
+
+| arm | features | mean rank IC | gross bps | cost bps | net $/day | t | yrs + | worst |
+|---|---|---|---|---|---|---|---|---|
+| **base** | 38 | **+0.01030** | 4.256 | 2.724 | **306** | **+1.47** | 5/8 | -51,431 |
+| **alt** | 19 | +0.00137 | 0.658 | 2.657 | **-399** | **-2.52** | 2/8 | -40,162 |
+| **both** | 57 | +0.00743 | 3.587 | 2.797 | **158** | **+0.80** | 4/8 | -44,020 |
+| **both_scrambled** | 57 | +0.00864 | 4.210 | 2.722 | **297** | **+1.40** | 5/8 | -40,154 |
+
+**Clause 5: REFUSE.** net t **+0.799** against 2.0 (FAIL), **4/8** years positive (FAIL), paired
+`both - base` **-$148/day at t -0.913** (FAIL). Clause 0 predicted t +1.3 to +1.7 and was generous.
+
+**(5) F-14's control reproduces exactly, so the loss is again the INFORMATION and not the width.**
+19 columns permuted within each timestamp - every marginal, every cross-sectional dispersion and
+every within-family correlation preserved, only the name destroyed - cost **-$9/day at t -0.07**,
+statistically indistinguishable from adding nothing. 19 columns of **real** data cost **-$148/day**.
+
+**(6) But the MECHANISM is new, because F-14's explanation is ruled out by (2).** F-14's flow
+family lost because it was a 0.645-correlated, noisier copy of `r6`. Nothing here is a copy: the
+best survivor is 0.295 correlated with its nearest incumbent. And per-year univariate IC
+(`f15_post.csv`) shows it is not F-14 (6)'s sign-instability either - **`auc_ofade` carries the same
+sign in 7 of 8 test years**, which is exactly what `prev_ret` (7/8) and `r6` (7/8), the two best
+incumbents, manage. It is orthogonal, it is real, it is stable, and the book still got worse.
+
+**(7) The parsimony arms, POST-RUN and test-set-selected, and they identify the cause.** Barred
+from clause 5 by construction - they cannot accept anything - and run only to separate *"the
+auction tape carries nothing"* from *"19 columns carrying one signal dilute 38 carrying several."*
+Same learner, same seed, same walk-forward, turnover still $0 apart:
+
+| arm | features | gross bps | net $/day | t | yrs + | paired vs base | low-vol regime |
+|---|---|---|---|---|---|---|---|
+| base | 38 | 4.256 | 306 | +1.47 | 5/8 | - | -133 |
+| both | 57 | 3.587 | 158 | +0.80 | 4/8 | -148 (t -0.91) | -38 |
+| **lean3** (+`auc_ofade`, `x_`, `cs_`) | **41** | **4.643** | **365** | **+1.75** | **5/8** | **+60 (t +0.49)** | **+103** |
+| lean1 (+`auc_ofade` raw only) | 39 | 2.940 | 28 | +0.13 | 5/8 | -278 (t -2.33) | -117 |
+
+**The same family, the same data, the same learner: 19 columns cost -$148/day and 3 of those 19
+columns gain +$60/day.** `lean3` posts the **highest gross this track has measured on this label**
+(4.643 bps against base's 4.256) and is the only arm ever to be **positive in the low-vol tercile**
+(+$103 against base's -$133), the regime F-8/F-11/F-12/F-14 all report as dead. It is still not
+significant (paired t +0.49) and it is selected on the test window, so it proves a mechanism, not
+an edge.
+
+**(8) `lean1` is the other half of the mechanism and it is a warning about "just add the column".**
+The *raw* column alone, without its market residual and its cross-sectional rank, reads **$28/day**
+- worse than base by $278 at t -2.33. A column that helps as a triple hurts as a single. F-1's
+original design gave every feature `x_`/`cs_` companions, and (8) is the first direct measurement
+of why: the book ranks cross-sectionally, so a level the tree must itself convert into a rank is a
+harder question than the rank.
+
+**(9) Importance stability, the brief's second criterion, collapses exactly as in F-14.** Mean
+pairwise Spearman of the yearly rankings: base **+0.434** (F-14's measurement), F-14's `both`
++0.036, **F-15's `both` +0.001** (-0.500..+0.339), with **no** feature in every year's top 10. The
+alt family takes **18.2% to 81.2%** of positive importance (2024: 81.2%). A 19-column family is
+not merely unhelpful - the tree genuinely spends on it, and what it spends on changes completely
+every retrain.
+
+**(10) Regimes, which the brief asks for explicitly.** Net $/day across terciles of SPY trailing
+20-session realised vol: base -133 / +250 / +623; `alt` -458 / -775 / +35; `both` -38 / +244 /
+**+180**; scrambled -149 / +216 / +646; `lean3` **+103 / +354 / +532**. `both` again does its
+damage in the **high-vol** tercile, the only regime this forecast has ever been paid in - and
+`lean3` is the first arm to earn in all three.
+
+**(11) What was NOT tried, and it is not a choice.** F-15's own pre-registered favourite - per-name
+implied skew and term structure from Theta - is **blocked**. The terminal answers `listening: true`
+but every history/quote endpoint returns HTTP 403, *"requires a value subscription... you only have
+a FREE subscription"*. This is already open in `research/BLOCKERS.md` as O-3, re-diagnosed and
+priced by O-4 on 2026-09-12; F-15 adds a second track waiting on it and does **not** re-file it.
+The local 0DTE store predates the lapse and reads fine, which is why family B exists at all.
+
+**Decision.** **REFUSE** the pre-registered arm. Nothing deployed, nothing promoted,
+`champion.json` untouched. `lean3` is filed as **F-16**, not adopted.
+
+**What it changes for the loop.** Three rules, and one correction to F-14.
+**(a) The F-14 gate is NECESSARY and NOT SUFFICIENT, and F-15 is the counterexample.** F-14's rule
+screens out the *redundant*. It says nothing about the *weak and numerous*, and that is what beat
+this run: 19 columns, 1 of them above the incumbent floor, and the 18 below it cost $208/day of
+gross by diluting the tree's budget. **Add a second leg: a candidate FAMILY is admitted only at the
+size justified by how many of its members clear the incumbent floor** - here, admit 3, not 19.
+Every track adding features should count survivors before adding a family.
+**(b) Add a column as a TRIPLE or not at all.** (8): the raw level alone is worse than nothing
+(-$278/day, t -2.33) while the raw + market-residual + cross-sectional-rank triple is the best
+arm measured (+$60/day). For a book that ranks cross-sectionally, handing the tree a level and
+asking it to infer the rank is a strictly harder question than handing it the rank.
+**(c) Build alt features on the PANEL'S universe, not the sleeve's.** (0) cost this run a rebuild
+and would have inverted the headline had it gone unnoticed. Read the universe from the artifact
+being joined to, never from a constant that happens to be nearby.
+**(d) The correction to F-14's closing statement.** F-14 wrote *"this panel does not support a
+t = 2 book"* and inferred that no new column could help. That inference is now too strong: the
+auction tape is a store outside 5-minute OHLCV, it holds a column that is orthogonal (rho 0.295),
+significant (t -4.9) and sign-stable (7/8 years), and the 3-column form of it posts the highest
+gross and the first positive low-vol regime this track has measured. **The ceiling is real, but
+F-14 attributed it entirely to the market and part of it is the panel.** What is still true, and
+now on stronger evidence, is that **no arm of any construction has reached t = 2.0**, and `lean3`
+at +1.75 post-run and test-set-selected is not a counterexample to that.
+
+**Next.** **F-16**, and it must be pre-registered against the one thing (7) cannot answer.
+`auc_ofade` was chosen *after* seeing the test window, so `lean3`'s +$60/day is a selection
+artefact until the selection itself is made causally. F-16: run the gate **inside** the
+walk-forward - at each retrain, screen every candidate on train+validation only, admit the
+survivors above the incumbent floor, and fit. If the causal selection reproduces `lean3`, the
+auction tape is a real addition to the panel and the F-14 closing statement needs rewriting; if it
+does not, then (7) is a test-set artefact and F-14 stands as written. That is one file and roughly
+40 minutes of compute, and it is the cheapest remaining question in the F scope.
+
+---
+
 ## 2026-09-13 - F-14: the seventh axis was never a construction, it was the 38 columns. Bar-level order flow is the one channel in this store that is not a transform of 5-minute OHLCV, and it makes the book strictly worse - while 20 columns of SCRAMBLED flow cost nothing. Refused. The feature-set axis closes, and with it the panel.
 
 **Hypothesis.** F-12 closed with a sentence that names its own binding constraint: *"this **feature

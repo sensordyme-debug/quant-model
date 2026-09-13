@@ -2239,18 +2239,68 @@ and no delivery, both of which are barred to the loop.
   rule generalises to feature sets: permute the columns you add, within timestamp, or you cannot
   tell "the extra width hurt" from "the information hurt".
 
-- **F-15 (open, pre-registered and unread; a DATA question before it is a model question).** F-14
-  closes the supervised class on this store: seven axes, eight refusals, an IC ceiling at +0.01 to
-  +0.02, and F-12's *"this feature set does not support a t = 2 book"* now reads **"this panel does
-  not."** The only thing genuinely untried is a **different store** - a column that cannot be
-  computed from trade bars at all. Two candidates, both already paid for: per-name **options-implied
-  skew and term structure** from Theta (O-track's store, 2012+), and **true tape-level signed
-  volume** (Alpaca trades endpoint, not bars - F-14 proves the bar-level proxy is not a substitute).
-  **Inherit F-14 (a) as a gate**: any new column is measured for univariate IC and for max
-  |Spearman| against the 38 *before* a single fit is run, and is dropped if it is >= 0.5 correlated
-  with an incumbent that has a larger |IC|. **State the prior**: implied skew is the more likely of
-  the two to be orthogonal, and the hurdle is unchanged at t > 2 pooled on >= 5 of 8 years. This
-  belongs to O-track/D-track (getting the data into a panel) before `ml` can fit anything.
+- **F-15 DONE 2026-09-13 (REFUSED on the pre-registered arm; see `research/journal_ml.md`): the
+  first F iteration outside the trade-bar store, and the gate was the deliverable.** Two channels
+  neither computable from 5-minute OHLCV: the **auction tape** per name (Alpaca
+  `/v2/stocks/auctions`, official opening/closing cross price+size, 2015-12..2026-09-11, one
+  request per symbol, stored in `data/f1/f15_auctions/`) and the **SPY 0DTE chain** market-level
+  (the local `data/options/odte/SPY` store, ATM straddle over spot = the market's own forecast of
+  |move to the close|). `scripts/ml_f15.py`, 6 rows under `intraday/f15_altstore` (4
+  pre-registered + 2 post-run), gate in `data/f1/f15_gate.csv`, per-year ICs in `f15_post.csv`.
+  Clause 1 identity exact at IC +0.01030 / gross 4.256 / cost 2.724 / t +1.474, turnover identical
+  across every arm to the dollar ($1,995,861/day, spread $0).
+  **The gate passed 19 of 19** - nothing was a redundant copy, which is the opposite of F-14. The
+  carrier is `auc_ofade` (how far the first five minutes of tape travelled from the opening cross):
+  IC **-0.00690, t -4.9**, max |rho| **0.295** against the 38, and **sign-stable in 7 of 8 test
+  years**, matching `prev_ret` and `r6`, the two best incumbents. `auc_ojump` is 0.905 correlated
+  with `gap` and kept by the rule because `gap`'s own IC is -0.00086 against its -0.00532; their
+  residual reads IC -0.00547 (t -3.38), so **the part of the overnight move only the auction print
+  knows is the part that predicts**. `auc_cdrift`, the prior's favourite, is dead (t +0.3).
+  **REFUSED on all three legs**: `both` (57 features) net **$158/day, t +0.799**, 4/8 years,
+  paired -$148/day at t -0.913. F-14's scramble control reproduces exactly - 19 permuted columns
+  cost **-$9/day (t -0.07)** and 19 real ones cost -$148/day, so the damage is the information,
+  not the width.
+  **The mechanism is NEW and it is the finding.** F-14's explanation (redundancy) is ruled out by
+  the gate and F-14 (6)'s explanation (sign instability) by the 7/8 years. Post-run parsimony arms,
+  test-set-selected and barred from clause 5: **`lean3`** (base + `auc_ofade` + its `x_` and `cs_`
+  forms, 41 features) reads **$365/day, t +1.75, gross 4.643 bps** - the highest gross this track
+  has measured - **paired +$60/day (t +0.49)**, and is the **first arm ever positive in the low-vol
+  tercile** (+$103 against base's -$133). `lean1` (the raw column alone) reads $28/day, -$278
+  paired at t -2.33. **The same family, same data, same learner: 19 columns cost $148/day and 3 of
+  those 19 gain $60/day.** Importance stability collapses as in F-14 (mean pairwise Spearman
+  **+0.001** against base's +0.434, no feature in every year's top 10, alt family taking 18-81% of
+  positive importance).
+  Reusable rules: **(a) the F-14 gate is necessary and NOT sufficient** - it screens the
+  *redundant* and says nothing about the *weak and numerous*; add a second leg, **a candidate
+  FAMILY is admitted only at the size justified by how many members clear the incumbent floor**
+  (here 3, not 19). **(b) Add a column as a TRIPLE (raw + market residual + cross-sectional rank)
+  or not at all** - for a book that ranks cross-sectionally the raw level alone is worse than
+  nothing. **(c) Build alt features on the PANEL'S universe, not the sleeve's**: family A was first
+  built on `intraday_common.UNIVERSE` (16 names) against the panel's 56, giving 27% coverage and
+  `cs_*` ranks over the wrong cross-section, and it inverted two of the headline ICs before it was
+  caught. **(d) F-14's closing statement is corrected, not overturned**: a store outside 5-minute
+  OHLCV does hold an orthogonal, significant, sign-stable column, so part of the ceiling is the
+  panel and not only the market - but **no arm of any construction has reached t = 2.0**, and a
+  post-run, test-set-selected +1.75 is not a counterexample.
+  **Per-name implied skew, F-15's own pre-registered favourite, was NOT tried and that is not a
+  choice**: Theta history/quote returns HTTP 403 on a FREE subscription. Already open in
+  `research/BLOCKERS.md` as O-3/O-4 (2026-09-12); F-15 adds a second track waiting on it and does
+  not re-file it.
+
+- **F-16 (open, and it is the only open item in the F scope).** F-15 (7) measured that a 3-column
+  subset of a 19-column family turns a -$148/day loss into a +$60/day gain and posts the highest
+  gross and the first positive low-vol regime this track has seen - but `auc_ofade` was chosen
+  **after seeing the test window**, so `lean3` is a selection artefact until the selection is made
+  causally. **Make the gate causal: run it INSIDE the walk-forward.** At each retrain, screen every
+  candidate on train + validation only (univariate per-timestamp rank IC, max |Spearman| against
+  the incumbents, and F-15 (a)'s new floor test), admit the survivors that clear the incumbent
+  floor, fit, and carry the admitted set forward as a per-year record. Pre-register: the hurdle is
+  unchanged at net t > 2.0 pooled AND >= 5 of 8 years AND paired t > 2.0 against base; a secondary
+  and reportable outcome is **which columns the causal gate admits in each year** - if it picks
+  `auc_ofade` in most years the mechanism is confirmed, if the admitted set churns then F-15 (9)'s
+  importance collapse is the whole story and F-14 stands as written. One file, ~40 minutes of
+  compute, reuses `data/f1/f15_famA.parquet` and `f15_famB.parquet` unchanged so there is no new
+  data pull. **Do not reopen F-15 as a "try more auction columns" item** - (a) says the opposite.
 
 - **F-12 DONE 2026-09-12 (REFUSED; see `research/journal_ml.md`): the label-family axis is closed,
   and the measured elasticity beta = 1.494 is the finding.** The first F iteration to fit a new
