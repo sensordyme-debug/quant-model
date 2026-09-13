@@ -2103,8 +2103,13 @@ and no delivery, both of which are barred to the loop.
   predicted risk before applying any inverse-vol overlay, which no sleeve in this repository
   (daily champion or deployed intraday `active`) has ever done; **(b) a better forecast of the
   wrong quantity is worse than no forecast of it** - run any overlay against a *scrambled version
-  of its own signal*, not only against a null book. **Do not re-open as a sizing, risk-label,
-  risk-learner or cap question** - both directions are priced and bounded.
+  of its own signal*, not only against a null book. Feature-importance stability (the brief's
+  second criterion) confirms the premise the item was built on: the risk model's yearly rankings
+  correlate at Spearman **+0.772** with `vol_rel` and `vol_rel6` in the top 10 of **every** year
+  (rank means 1.9 and 2.2), against the return model's +0.434 and **no** feature in every year -
+  and the return model's own most-persistent feature is `vol_rel6`, the risk model's #2, so the
+  direction model had been reaching for the risk model's inputs all along. **Do not re-open as a
+  sizing, risk-label, risk-learner or cap question** - both directions are priced and bounded.
 
 - **F-13 (open, and it is NOT an F-track item - filed here because F-12 found it).** F-12 (7)
   measured that this forecast's realised alpha scales as **vol^1.49** and is **negative in the

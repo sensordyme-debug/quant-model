@@ -125,11 +125,22 @@ from +0.49 to +1.57 and never touches 2.0.** The axis is bounded on both sides.
 Low vol **-$69 -> -$200 -> -$299/day** at p = 0/1/2; mid vol $452 -> $272 -> $177; high vol $534
 -> $407 -> $320. It helps nowhere. F-8's and F-11's volatility finding stands and (7) explains it.
 
-**(10) Feature-importance stability, the brief's second criterion, with the contrast that
-matters.** See the run's `--importance` output; the headline is that a model asked for the thing
-the features actually describe selects its inputs far more consistently than one asked for
-direction, and **that stability bought nothing**, because the stable object is not the one the
-book needs.
+**(10) Feature-importance stability, the brief's second criterion, and the contrast confirms the
+premise.** Permutation importance over the same 8 test years and 38 features, both models:
+
+| | mean pairwise Spearman | top-10 overlap | in the top 10 of every year |
+|---|---|---|---|
+| return model (F-8, `y_close`) | +0.434 (0.147..0.798) | 44% | **none** |
+| risk model (F-12, `\|y_close\|`) | **+0.772** (0.598..0.957) | **61%** | **`vol_rel`, `vol_rel6`** |
+
+The risk model's top two features are `vol_rel` (rank mean **1.9**, rank sd 1.0) and `vol_rel6`
+(**2.2**, sd 1.4) - stable to within one rank across eight retrains, against a return model where
+nothing survives. **And the return model's own most-persistent feature is `vol_rel6`** (rank mean
+6.8), i.e. the #2 feature of the risk model: the direction model has been reaching for the risk
+model's inputs all along, which is the observation F-12 was built on and is now measured rather
+than inferred. **That stability bought nothing.** F-11 asked whether unstable importance was a
+symptom of a weak forecast; the answer here is that the stable object is simply not the one the
+book needs, and a forecast can be 32x more accurate, 1.8x more stable, and strictly harmful.
 
 **Decision.** **REFUSE.** Nothing deployed, nothing promoted, `champion.json` untouched.
 
