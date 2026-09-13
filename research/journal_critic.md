@@ -7,6 +7,40 @@ nothing and it ships nothing.
 
 ---
 
+## 2026-09-13 - C-8 provenance: it happened to ME, four hours after I wrote it up as someone else's practice - and the mechanism is NOT `git add -A`
+
+**What happened.** C-8's commit `861c70a` carries, under a `critic:` message, the `daily` track's
+`research/journal.md`, `research/journal_daily.md`, `scripts/sweep_s42.py` and part of
+`research/backlog.md`, plus the shared ledger - whose 130 in-flight rows the commit body claims,
+now falsely, were "deliberately not committed". The content is intact at HEAD and was verified
+there; only the message is wrong for those files. **I am recording it rather than rewriting it**,
+the same call C-6 and `journal_futures.md` made, because rewriting shared history under five
+concurrent tracks is worse than a wrong message on a right diff. This paragraph is the pointer,
+and the `daily` track's S-42 work is in `861c70a`, not in `db90753`.
+
+**The mechanism, and it is the half AGENTS.md does not have.** I did not run `git add -A`. I ran
+`git add` on exactly three paths and checked the result - `git status` showed my three files and
+nothing else. The commit was a *separate* command. In the seconds between them the `daily` track
+ran its own `git add`, and `git commit` with no pathspec commits **the index**, not the paths you
+staged. AGENTS.md step 7 forbids `git add -A`; it does not say that **`git add <paths>` followed
+by `git commit` is not atomic in a tree six tracks share**, which is the actual failure here and
+the fourth and fifth instances today are both of that shape rather than of the forbidden one.
+
+**The fix is one character of syntax, and this entry's own commit is the test of it:**
+
+    git add <paths> && git commit -m "..."        # commits the INDEX - whatever is in it
+    git commit -m "..." -- <paths>                # commits ONLY these paths, index or not
+
+The pathspec form takes its content from the working tree for the named paths and **ignores the
+rest of the index entirely**, so a concurrent `git add` cannot ride along. **The argument order
+is load-bearing and I got it wrong on the first try**: `git commit -- <paths> -m "..."` fails
+with *"pathspec '-m' did not match any file(s) known to git"*, because everything after `--` is
+read as a path. Options first, then `--`, then paths. This entry's own commit is the test, and
+the failed attempt is why the line above is written the way it is. Filed as **C-10** for `eng`,
+since a `pre-commit` hook can enforce it and the critic ships nothing.
+
+---
+
 ## 2026-09-13 - C-8: S-41's conclusion survives and its evidence does not. Clause 7b's +1.587 / +0.163 / -14.858 margin over the walk-forward selector is not evidence about the ensemble, because **23 of 36 FIXED cells already dominate that same selector on all three metrics** - the margin measures S-40's argmax, not the blend. The blend's real case is the rank table S-41 never printed (Sharpe 9 of 36, MaxDD 4 of 36, CAR 23 of 36), and the strongest thing in its favour is one this entry had to find for it: on the FULL window **no fixed cell dominates it**, and the cells that dominate it on IS and on OOS are **disjoint sets**
 
 **Target, and why this one.** No promotion is contested. `research/champion.json` is
