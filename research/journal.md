@@ -282,6 +282,39 @@ third changes every daily metric.
 **Next:** D-9 (the untradeable inverse-ETF history) is the one that can invalidate a conclusion
 rather than a cost column, and it is `iterate`'s own.
 
+## 2026-09-13 - S-43 (`daily` track; full entry in `research/journal_daily.md`)
+
+**The ensemble's loss is not dilution, so truncating it does not fix it - and weight-ensembling
+is now closed on this sleeve on both kinds of axis.** S-42 refused the 36-cell weight-blend of
+the signal axes and diagnosed the loss as DILUTION (4.88 names against the shipped 2.47 at the
+same gross). S-43 built the object that would separate the blend's gain from that loss - blend as
+before, then truncate to the top K by blended weight and **renormalize to the identical gross on
+every session** - and ran the ladder K in {2,3,4,5,all} through `scripts/sweep_s43.py`, 9 clauses
+pre-registered with the truncation rule written out in six steps beforehand, 30 DIAGNOSTIC rows
+`daily/s43_trunc`, S-42's weight paths reused read-only, no LEAN run, no shared-code change,
+nothing shipped or owner-owned touched. **The dose-response refutes the prediction it was built
+to confirm.** The pre-registered reading was "CAR must rise as K falls"; instead the ladder is
+**U-shaped with its minimum at K = 4** - below the untruncated blend - so dropping the 5th-and-
+beyond names, exactly what dilution names as the damage, makes the book slightly worse. The
+decisive cell is **K = 3**: at **2.49 names against the shipped 2.47** and identical gross by
+construction, the ensemble **still gives up 1.543 CAR points at zero cost and 1.349 fully
+charged**. With the width confound arithmetically removed the loss survives, so the ensemble
+loses at *which* names, not at *how many*. A post-hoc split on the 77.80% of sessions where the
+K = 3 vote holds the same three names as the incumbent puts 42.7% of the shortfall in the 18.7%
+that disagree (-0.984 vs -0.303 bps/day) - directional, both channels negative, neither t past 1.
+Two things did work and are recorded as the useful residue: truncation buys back the
+significance of the loss without its sign (blend36 -0.784 bps/day at **t -2.08** -> trunc3 -0.430
+at **t -1.07** -> trunc2 -0.126 at **t -0.17**), and the netting saving survives to K = 3 at
+**0.85x turnover for 0.85x fees**, dying only at K = 2. The control kills the framing: a blend
+over just the 9 cells with `top_n = 3`, which never widens at all, ties `trunc3` fully charged on
+FULL (CAR -0.139, Sharpe -0.035, inside the tie band) with a simpler object. **0 of 5 rungs clear
+the promotion bar** - every K fails Sharpe on both windows - and the best rung's own case,
+`trunc2`, rests on an OOS half whose IS half carries the worst drawdown in the item (**29.072%**
+FULL MaxDD, +5.2 points on the incumbent). Refused, on clause 9's pre-registered closing branch.
+
+**Next:** S-44, the last cheap `daily`-owned item - `sweep_s19.py:76` calibrates costs against a
+1% fee cap while LEAN's IB model caps at 0.5%, a constant the S-track quotes to the owner.
+
 ## 2026-09-13 - S-42 (`daily` track; full entry in `research/journal_daily.md`)
 
 **The ensemble trick loses on the signal axes, and clears the incumbent of the charge S-40

@@ -4,6 +4,121 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-13 - S-43: the ensemble's loss is not dilution, so truncating it does not fix it - weight-ensembling is closed on this sleeve
+
+**Hypothesis (S-43, opened by S-42).** S-42 refused the 36-cell weight-blend on the signal axes
+and split the verdict in two. The GAIN - 0.64 drawdown points and 0.69x turnover for 0.87x fees -
+and the LOSS - fully charged 17.482 / 0.986 / 23.397 against the shipped 19.640 / 1.047 / 24.037,
+paired **-0.784 bps/day at t -2.08** - were attributed to different causes, and S-42's diagnosis of
+the loss was **DILUTION**: the blend holds 4.88 names against the shipped 2.47 at the same 1.25x
+gross, so averaging a concentrated ranking widens it. If that is right the two halves are separable
+by construction: blend as before, then **truncate to the shipped `top_n` by blended weight and
+renormalize to the same gross** - an ensemble vote on WHICH THREE with the concentration restored.
+New `scripts/sweep_s43.py` (9 clauses pre-registered in the docstring before the first simulation,
+`results/s43_full.txt`, 30 DIAGNOSTIC rows `daily/s43_trunc`). S-42's 36 weight paths were reused
+whole from `results/s42_cache.pkl`, read-only; this item's books live in `results/s43_cache.pkl`.
+No LEAN run, no parameter moved, no shared-code change, no file any other track reads.
+
+**The rule, pre-registered in six steps before anything ran**, because its arbitrary parts are
+where a truncation experiment goes wrong: gross from `sum |w|`; empty target when gross is zero;
+order by `(-|w|, symbol)` with the alphabetical tiebreak **measured** rather than assumed harmless;
+keep `min(K, names with weight)` and never invent a name; **return the blend bit-identical when K
+covers every name**, which makes `K = all` an exact licence against S-42's blend36; otherwise scale
+the kept weights so the truncated book carries the **identical gross on every session**. That last
+clause is the whole experiment - holding exposure fixed is the only way to test width without
+re-running the sizing confound S-42 corrected S-41 on. Clause 1 passed: shipped in-loop and
+fed-its-own-weights both at `delta 0.00e+00 / +0` (22.192150170492%, 5,052); `K = all` reproduces
+blend36 to `0.00e+00 / +0` (19.641411311028%, 11,485); one date set over 36 cells on both windows.
+Clause 3 verified the rule against itself: **max |gross error| 6.66e-16** across every K and every
+one of 3,689 sessions, mean names 1.67 / 2.49 / 3.31 / 4.12 / 4.88 for K = 2/3/4/5/all, and the
+**tiebreak binding on 0 boundary decisions in total** - it is inert and is reported as such.
+
+**(4) The ladder refutes the dilution prediction it was built to confirm.** Pre-registered reading:
+"CAR must RISE as K falls toward 3". FULL, zero cost, against the shipped 22.192:
+
+| K | CAR% | vs shipped | Sharpe | MaxDD% | vs shipped | turn/yr | fees |
+|---|------|-----------|--------|--------|-----------|---------|------|
+| 2 | 21.504 | -0.688 | 1.054 | **29.072** | **+5.212** | 52.8 | 24,700 |
+| 3 | 20.649 | -1.543 | 1.079 | 22.652 | -1.208 | 42.0 | 18,235 |
+| 4 | 19.574 | **-2.619** | 1.066 | 23.093 | -0.767 | 38.9 | 17,407 |
+| 5 | 19.589 | -2.603 | 1.082 | 23.166 | -0.694 | 35.8 | 17,441 |
+| all | 19.641 | -2.551 | 1.087 | 23.278 | -0.581 | 33.9 | 17,877 |
+
+The answer is **NO - the ladder is U-shaped with its minimum at K = 4**, which is *below* the
+untruncated blend. Dropping the 5th-and-beyond names, which is what "dilution" names as the damage,
+makes the book **slightly worse**. The gap only starts closing below the shipped cell's own width.
+And the decisive cell is **K = 3**: at 2.49 names against the shipped 2.47, at identical gross by
+construction, **the ensemble still gives up 1.543 CAR points at zero cost and 1.349 fully charged**.
+With the width confound arithmetically removed, the loss is still there. **S-42's diagnosis of its
+own refusal is wrong: the ensemble loses at WHICH names, not at HOW MANY.**
+
+**(4d, post hoc and labelled so) Where K = 3 loses, split on the one number this item could not
+have predicted.** Clause 4b turned up **77.80%** identical name sets at K = 3 against 1.90% at every
+other rung - the 1.90% is mostly a *count* mismatch, since a set of 4 can never equal the shipped
+cell's 2.47. So at K = 3 the vote agrees with the incumbent about which names four sessions in five.
+Splitting the paired daily difference on that boundary (3,689 sessions, fully charged; the 81.3%
+here against 4b's 77.80% is a denominator choice - 4b drops sessions where neither book holds
+anything):
+
+| sessions | n | share | bps/day | t | total bps |
+|---|---|---|---|---|---|
+| same three names as shipped | 3,001 | 81.3% | -0.303 | -0.85 | -908 |
+| a different name set | 688 | 18.7% | **-0.984** | -0.66 | -677 |
+| all | 3,689 | 100.0% | -0.430 | -1.07 | -1,585 |
+
+The 18.7% of sessions where the vote picks a different set carry **42.7% of the shortfall**, 2.3x
+their share, and cost **3.2x per session**. But **both channels are negative and neither t clears
+1**, so the honest reading is that the ensemble loses on name choice *and* on sizing the same names,
+roughly 43/57, and the split is directional rather than decisive. What it does rule out is the one
+story that would have saved the mechanism: the loss is not confined to the sessions where the vote
+is doing something the incumbent is not.
+
+**(5, 6) Truncation buys back significance and keeps the netting - the only two things that worked.**
+Paired against the shipped cell, FULL: blend36 **-0.784 at t -2.08** -> trunc3 **-0.430 at t -1.07**
+-> trunc2 **-0.126 at t -0.17**; OOS trunc2 is **+0.361 at t +0.29**. So truncation removes the
+statistical significance of the loss without changing its sign, which is a weaker claim than it
+looks. Turnover: the pre-registered expectation was that truncation RAISES turnover, and it does
+(33.9 -> 42.0 -> 52.8 as K falls), but the saving **survives to K = 3 at 0.85x turnover and 0.85x
+fees** and only dies at K = 2 (1.07x / 1.12x). Note the shape, because it is the mechanism: the
+blend trades **11,472 orders at 33.9x turnover** against the shipped **5,054 at 49.4x** - many small
+adjustments instead of few large ones - and truncation converts them back.
+
+**(4c) The control says truncation is grid restriction.** `trunc3` widens then narrows; a blend over
+only the **9 cells with `top_n = 3`** never widens. Fully charged on FULL they are a tie: CAR -0.139,
+**Sharpe -0.035** (inside S-41's 0.05 tie band), MaxDD -0.133, and blend9 does it with a simpler
+object. On OOS trunc3 is ahead (+0.864 CAR, +0.001 Sharpe, -0.602 MaxDD), which is one window and
+not enough to claim the wide cells' votes carry membership information the narrow grid lacks.
+
+**(7) Promotion: 0 of 5 rungs.** Every K fails Sharpe on **both** windows; the band test passes
+everywhere (worst 0.086% of target weight at $100k, and truncation *improves* it - concentration
+lifts small targets over the band). Best rung `trunc3`: FULL Sharpe 0.976 vs 1.047 FAIL, CAR 18.291
+vs 19.640 FAIL by 0.35 past the 1.0-point giveaway, MaxDD 23.257 vs 24.037 PASS; OOS Sharpe 1.111 vs
+1.151 FAIL, CAR 25.108 vs 25.967 PASS, MaxDD 22.796 vs 24.040 PASS.
+
+**(8) C-8's rank bar, 2016+, zero cost, and it is the clause that is kindest to the mechanism.**
+Truncation genuinely improves the blend's standing among the 36 cells it averages - CAR rank
+**14 -> 7**, MaxDD rank **17 -> 11** at K = 3, and `trunc2` is **dominated by 0 of 36** fixed cells,
+the only book in the table that is. But `trunc2`'s Sharpe rank is 25 of 36 and its FULL drawdown is
+**29.072** - its whole case is an OOS half whose IS half is the worst drawdown in the item. The
+shipped cell sits at CAR 2/36, Sharpe 5/36, MaxDD 19/36. For continuity: `wf-CAR` and `wf-Sharpe` are
+dominated by 17 and 15 of 36, which is C-8's point restated - a margin over the selector is a
+statement about the selector, and no rung is asked to clear that bar.
+
+**Decision: REFUSED, and this takes the pre-registered branch that CLOSES the line.** Clause 9 was
+written both ways before the run: truncation does not recover the CAR, so weight-ensembling is
+closed on this sleeve on **both** kinds of axis - S-41's risk dials and S-42/S-43's signal axes -
+and should not be re-opened without a new mechanism rather than a new construction. `champion.json`,
+`live/*`, `margin_budget`, `target_vol`, `target_exposure`, the drawdown cap and every scheduled
+task untouched; no deploy gate and no `--replay` owed. Suite **1,421 pass / 29 fail / 15 skip** of
+1,465 - all 29 failures are in `futures`, `intraday`, `ml` and `qb` test files that S-43 does not
+touch and were failing before it (another track has `scripts/store_health.py` dirty in the tree).
+
+**Reusable rule: an explanation that survives only because the experiment never removed the
+confound is not an explanation.** S-42's dilution story fit every number it had and was wrong; it
+took one clause that held gross fixed and matched the width to 2.49 against 2.47 names to find that
+out. Before believing a diagnosis of a refusal, build the cell where the named cause is arithmetically
+absent - if the effect is still there, the diagnosis was a description of the treatment, not its cause.
+
 ## 2026-09-13 - S-42: the ensemble loses on the signal axes, and on the way to finding that out it clears the incumbent of the charge S-40 convicted the crisis switch of
 
 **Hypothesis (S-42, opened by S-41).** S-41's weight-blend of the 36-cell crisis-switch grid
