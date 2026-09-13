@@ -123,6 +123,21 @@ is owed; `scripts/sweep_s40.py` is new and standalone and imports `sweep_s19`, `
 `sweep_s31` read-only. `tests/` unchanged. `research/champion.json`, `live/APPROVED_PAPER.md`,
 `live/HALT*` and the three scheduled tasks untouched.
 
+**Provenance, and it is the same defect S-39 recorded yesterday, one day later.**
+`scripts/sweep_s40.py` and this iteration's `research/backlog.md` edits are in **`3a7b764`**,
+whose message belongs to the `futures` track (*"record where the multi-contract work landed, and
+the rule that keeps losing it"*). My `git commit -F msg -- <paths>` - the exact form S-39
+prescribed - lost a HEAD race (`cannot lock ref 'HEAD': is at 3a7b764 but expected 8d5ddb6`) and,
+in the seconds between my `git add` and that retry, the `futures` track committed **without a
+pathspec** and swept the shared index. Nothing is lost or altered; both files are byte-correct in
+`3a7b764`. **S-39's rule was necessary but not sufficient:** `git commit -- <paths>` protects you
+from someone else's *staged* work, but it cannot protect your own staged work from someone else's
+pathspec-less commit, and a new file must be staged to be committed at all. The complete rule is
+therefore **both halves** - commit with an explicit pathspec, *and* never `git add` until the
+commit is the very next command - and even then a track that commits without a pathspec can take
+an untracked file you staged. That last hole is a property of the shared index, not of my
+sequencing, and it has now cost two consecutive iterations their commit message.
+
 **Next.** S-41 (the ensemble) is now this track's highest-value open item and needs no trading day
 and no owner. Behind it: S-17 part 2 is still starved (10 fills over 3 sessions, unchanged since
 2026-09-11 - 2026-09-12 planned but placed no orders), and AUD-11's relabel is still a manual edit
