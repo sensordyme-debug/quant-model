@@ -28,3 +28,49 @@ and to `tests/test_intraday_splits.py` (split back out in `90704c4`); the ml tra
 these. `AGENTS.md` already says "no more git add -A" — the missing half is that after clearing
 a stale `.git/index.lock` you must check what is already staged before committing, because a
 killed process leaves its staged files behind for whoever commits next.
+
+
+## 2026-09-13 - the execution safety layer (master directive, Phases 0 and 6-10)
+
+Phase 0 is `docs/ARCHITECTURE_AUDIT.md`. Its execution-layer findings were seven, and five
+of them are closed by this commit, additively - `risk.py`, `execution.py`'s types, the
+registry, the rulebook, the twin and the features are untouched beyond two small additions:
+
+  core/governor.py     Reason (25 closed codes), Limits (frozen), AccountView (None = UNKNOWN),
+                       LimitEngine (state limits deny, size limits reduce, unknown input ->
+                       DATA_UNAVAILABLE), KillSwitch (reset only by a named person), Governor
+                       (a RiskChain with every switch pre-installed; FLATTEN passes all of them)
+  core/lifecycle.py    SessionMachine (no AUTHENTICATED->READY edge; READY needs all 13
+                       Readiness fields), OrderMachine (PROTECTED vs UNPROTECTED are states)
+  core/protection.py   verify() against the VENUE's working orders: acked + closing side +
+                       protective side of entry + full size, or UNPROTECTED with the reason
+  core/reconcile.py    Snapshot vs Snapshot -> named discrepancies; failure trips
+                       POSITION_UNRECONCILED, a missing stop also trips BRACKET_UNVERIFIED,
+                       a clean pass resets nothing
+  core/idempotency.py  intent_id = hash of what the strategy knew; IntentJournal.claim() is
+                       check+append under the ledger's lock; RoutedExecutor(journal=...)
+                       refuses a duplicate AND an unlabelled intent before the chain
+  core/locking.py      file_lock, lifted out of registry.py so both journals share it
+
+Two defects found by the tests while writing them, both in my own code from earlier today:
+
+  1. `registry._append` and the new journal appended without checking that the previous
+     byte was a newline. A row torn by a crash mid-write would have swallowed the NEXT row -
+     in the ledger that is a lost trial, in the journal a lost claim, which is a duplicate
+     order. Both now start a row on its own line. Measured by writing a torn row and
+     appending after it: before the fix the second row was unreadable.
+  2. My first executor test built a RESEARCH authority against the simulated adapter and the
+     authority ladder refused it at construction. Correct behaviour; wrong test. Left as a
+     note because it is the property working.
+
+CLI: `risk status --scope` reads a published governor.json through StateStore (scoped, so a
+dryrun status cannot pass for paper); `risk reasons`; `session readiness`; `intents recover`
+(non-zero when any intent is SUBMITTED with no outcome - reconcile, never resend).
+
+Gate: ruff core+tests PASS, pyright PASS, pytest PASS (full suite). The one red stage is
+`ruff (2 changed elsewhere)` on `scripts/intraday_backtest.py` and `scripts/sweep_a18.py`,
+which are another track's uncommitted work and not touched here.
+
+What is NOT done: no runner is wired to the governor; nothing connects to a venue; the
+ProjectX live path is still `NotPermitted` by design. Wiring is a per-venue diff a person
+reviews with the approval file in hand, not something this commit does on its own.

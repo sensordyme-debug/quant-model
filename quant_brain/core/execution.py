@@ -26,6 +26,8 @@ from quant_brain.core.instruments import InstrumentSpec
 from quant_brain.core.mode import Authority, Mode
 
 if TYPE_CHECKING:  # pragma: no cover
+    from quant_brain.core.idempotency import IntentJournal
+
     # Import-time circular: risk.py imports OrderIntent from here. The dependency
     # only exists for the type checker, which is the honest shape - this module
     # defines the boundary and does not need the risk layer to run.
@@ -81,6 +83,10 @@ class OrderIntent:
     #: this with orderRef=INTRADAY; this generalises it).
     tag: str = ""
     ts: dt.datetime | None = None
+    #: Deterministic identity from `core/idempotency.intent_id`. Optional here so research
+    #: and simulation need not mint one; MANDATORY once a `RoutedExecutor` carries a
+    #: journal, which refuses any non-flatten intent without it.
+    intent_id: str = ""
 
     def __post_init__(self) -> None:
         if self.quantity < 0:
@@ -107,7 +113,7 @@ class OrderIntent:
         """
         return OrderIntent(symbol=self.symbol, side=self.side, quantity=quantity,
                            order_type=self.order_type, limit_price=self.limit_price,
-                           tag=self.tag, ts=self.ts)
+                           tag=self.tag, ts=self.ts, intent_id=self.intent_id)
 
 
 @dataclass(frozen=True)
@@ -275,7 +281,8 @@ class RoutedExecutor:
     """
 
     def __init__(self, risk: RiskEngine, adapter: ExecutionAdapter, *,
-                 authority: Authority | None = None, on_event=None):
+                 authority: Authority | None = None, on_event=None,
+                 journal: IntentJournal | None = None):
         # Default RESEARCH rather than something permissive. An omitted authority is a
         # caller who has not thought about it, and the safe reading of that is "not allowed
         # to reach anything real" - which makes the omission fail loudly here instead of
@@ -288,6 +295,11 @@ class RoutedExecutor:
         self.adapter = adapter
         self.decisions: list[tuple[OrderIntent, RiskDecision, Ack | None]] = []
         self._on_event = on_event
+        # Optional, and when present it is consulted BEFORE the risk chain: a duplicate is
+        # refused whatever the chain would have said, and an intent with no id is refused
+        # because deduplication that only covers labelled orders is not deduplication.
+        # FLATTEN intents are exempt - flattening twice is safe, refusing one is not.
+        self.journal = journal
 
     def _emit(self, event: str, **fields) -> None:
         if self._on_event is not None:
@@ -297,8 +309,15 @@ class RoutedExecutor:
         """Route intents. Returns an Ack for each one that reached the venue."""
         acks: list[Ack] = []
         for intent in intents:
+            refusal = self._claim(intent)
+            if refusal is not None:
+                self.decisions.append((intent, refusal, None))
+                self._emit("duplicate_refused", symbol=intent.symbol,
+                           intent_id=intent.intent_id, reasons=list(refusal.reasons))
+                continue
             decision = self.risk(intent)
             if not decision.allowed:
+                self._journal_done(intent, False, note="risk denied")
                 self.decisions.append((intent, decision, None))
                 self._emit("risk_denied", symbol=intent.symbol,
                            side=intent.side.value, qty=intent.quantity,
@@ -308,6 +327,7 @@ class RoutedExecutor:
                      else intent.with_quantity(decision.quantity))
             if sized.quantity <= 0:
                 # A reduction to zero is a refusal however it was spelled.
+                self._journal_done(intent, False, note="risk zeroed")
                 self.decisions.append((intent, decision, None))
                 self._emit("risk_zeroed", symbol=intent.symbol,
                            reasons=list(decision.reasons))
@@ -316,13 +336,48 @@ class RoutedExecutor:
                 self._emit("risk_reduced", symbol=intent.symbol,
                            requested=intent.quantity, allowed=sized.quantity,
                            reasons=list(decision.reasons), binding=list(decision.binding))
+            self._journal_sent(sized)
             ack = self.adapter.submit(sized)
+            self._journal_done(sized, ack.accepted, note=ack.reason, broker_id=ack.broker_id)
             self.decisions.append((intent, decision, ack))
             acks.append(ack)
             self._emit("order_sent" if ack.accepted else "venue_rejected",
                        symbol=sized.symbol, side=sized.side.value, qty=sized.quantity,
                        broker_id=ack.broker_id, reason=ack.reason)
         return acks
+
+    def _claim(self, intent: OrderIntent) -> RiskDecision | None:
+        """Journal the intent. A refusal is returned as a denial; None means proceed."""
+        if self.journal is None or intent.is_flatten:
+            return None
+        # Local: risk.py imports OrderIntent from here, so RiskDecision is type-only above.
+        from quant_brain.core.risk import RiskDecision
+        if not intent.intent_id:
+            return RiskDecision.deny(
+                f"{intent.symbol}: no intent_id; an executor with a journal refuses "
+                f"unidentified intents (see core/idempotency.intent_id)", "IDEMPOTENCY_NO_ID")
+        from quant_brain.core.idempotency import Duplicate
+        try:
+            self.journal.claim(intent.intent_id, note=f"{intent.symbol} {intent.side.value} "
+                                                     f"{intent.quantity:g} {intent.tag}".strip())
+        except Duplicate as e:
+            return RiskDecision.deny(str(e), "IDEMPOTENCY_DUPLICATE")
+        return None
+
+    def _journal_sent(self, intent: OrderIntent) -> None:
+        if self.journal is None or intent.is_flatten:
+            return
+        from quant_brain.core.idempotency import IntentState
+        self.journal.advance(intent.intent_id, IntentState.SUBMITTED)
+
+    def _journal_done(self, intent: OrderIntent, accepted: bool, *, note: str = "",
+                      broker_id: str = "") -> None:
+        if self.journal is None or intent.is_flatten:
+            return
+        from quant_brain.core.idempotency import IntentState
+        self.journal.advance(intent.intent_id,
+                             IntentState.ACKED if accepted else IntentState.FAILED,
+                             note=note or "", broker_id=broker_id or "")
 
     def flatten(self, positions: dict[str, float], *, tag: str = "flatten") -> list[Ack]:
         """Close everything. Builds FLATTEN intents, which the chain cannot touch."""

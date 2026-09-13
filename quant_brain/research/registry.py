@@ -29,7 +29,6 @@ it, and applies the arithmetic that follows. Promotion still requires a human-au
 """
 from __future__ import annotations
 
-import contextlib
 import dataclasses
 import datetime as dt
 import enum
@@ -37,64 +36,16 @@ import hashlib
 import json
 import math
 import os
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from quant_brain.core import stats
+from quant_brain.core.locking import file_lock
 from quant_brain.core.provenance import Provenance
 
-
-@contextlib.contextmanager
-def _file_lock(path: Path, *, timeout: float = 10.0):
-    """A cross-process advisory lock for one ledger file.
-
-    An exclusive lock FILE rather than a byte-range lock on the ledger itself, because the
-    reader opens the ledger separately and a range lock would have to be threaded through
-    every read. `O_CREAT | O_EXCL` is atomic on every filesystem this runs on, which is the
-    only primitive needed.
-
-    Measured on this machine, without it: eight concurrent records produced three rows with a
-    read-modify-write, and three rows again with a plain append - Python emulates O_APPEND on
-    Windows with a seek followed by a write, so the POSIX advice that a small append is atomic
-    does not transfer here.
-
-    A stale lock (an agent killed mid-write) is broken after `timeout` rather than deadlocking
-    the whole research loop. Losing the lock is recoverable; losing a trial is not, so the
-    timeout is generous.
-    """
-    lock = path.with_suffix(path.suffix + ".lock")
-    started = time.monotonic()
-    fd = None
-    while True:
-        try:
-            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            break
-        except (FileExistsError, PermissionError):
-            # PermissionError, not just FileExistsError: on Windows a lock file that another
-            # thread is in the middle of unlinking sits in a pending-delete state, and
-            # O_CREAT|O_EXCL against it raises errno 13 rather than errno 17. Measured here,
-            # not anticipated - the first version of this loop caught only FileExistsError
-            # and threw under contention.
-            waited = time.monotonic() - started
-            if waited > timeout:
-                # Break it. An agent died holding this, and blocking every other track
-                # forever is a worse failure than one racy append.
-                try:
-                    os.unlink(str(lock))
-                except OSError:
-                    pass
-                started = time.monotonic()
-            time.sleep(0.01)
-    try:
-        yield
-    finally:
-        if fd is not None:
-            os.close(fd)
-        try:
-            os.unlink(str(lock))
-        except OSError:
-            pass
+# The lock itself lives in core/locking.py since the intent journal needed it too; the
+# private name is kept because tests and callers in this package reach for it.
+_file_lock = file_lock
 
 
 def _provenance_from(d: dict | None) -> Provenance | None:
@@ -349,6 +300,13 @@ class Ledger:
         # denominator of every multiplicity correction this module enforces, so this is the
         # one place in the package where correctness beats speed without argument.
         with self.path.open("a", encoding="utf-8") as fh:
+            if fh.tell():
+                # A row torn by a crash mid-write must not swallow this one: the previous
+                # byte has to be a newline before this row starts.
+                with self.path.open("rb") as rb:
+                    rb.seek(-1, os.SEEK_END)
+                    if rb.read(1) != b"\n":
+                        fh.write("\n")
             fh.write(line)
             fh.flush()
             os.fsync(fh.fileno())

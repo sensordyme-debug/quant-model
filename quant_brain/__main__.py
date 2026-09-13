@@ -13,6 +13,10 @@ Every command answers a question that is genuinely hard to answer otherwise:
     topstep readiness   the gate between here and a practice account
     broker list         every adapter and the authority it demands
     research ledger     how many hypotheses have been tried, and what happened
+    risk status         the governor's last published state: halted? which switch? why?
+    risk reasons        every code an order can be refused with
+    session readiness   the thirteen preconditions of READY
+    intents recover     intents sent and never confirmed - reconcile, never resend
 
 Commands that would need a venue connection are absent rather than stubbed. A `broker test`
 that printed "OK" without connecting would be worse than not having one.
@@ -191,6 +195,85 @@ def _research_ledger(args) -> int:
     return 0
 
 
+def _risk_status(args) -> int:
+    """The governor's last published state for one scope. Absent is reported, not assumed."""
+    from quant_brain.core.governor import Governor
+    from quant_brain.core.state import StateScope, StateStore
+    scope = StateScope(args.scope)
+    store = StateStore.open(scope, base=Path(args.base) if args.base else None)
+    st = store.read_json(Governor.STATUS_FILE)
+    if st is None:
+        print(f"  no governor status published for scope {scope.value}")
+        print("  (a running session publishes one; none has, or this scope has no session)")
+        return 1
+    print(f"  scope {st.get('_scope', '?')}   published {st.get('published_at', '?')}")
+    print(f"  halted: {'YES' if st.get('halted') else 'no'}")
+    for t in st.get("tripped", []):
+        print(f"    TRIPPED {t['reason']:<24} since {t.get('since')}")
+        print(f"            {t.get('detail', '')}")
+    print()
+    print("  limits:")
+    for k, v in sorted(st.get("limits", {}).items()):
+        print(f"    {k:<28} {v}")
+    print("  view:")
+    for k, v in st.get("view", {}).items():
+        print(f"    {k:<28} {'UNKNOWN' if v is None else v}")
+    print()
+    if st.get("halted"):
+        print("  A tripped switch is reset by a named person, not by a restart.")
+        return 1
+    return 0
+
+
+def _risk_reasons(_args) -> int:
+    from quant_brain.core.governor import Reason
+    print("  every code the governor can refuse with; * = a kill switch (stateful)")
+    print()
+    for r in Reason:
+        print(f"    {'*' if r.is_kill_switch else ' '} {r.value}")
+    print()
+    print("  The executor adds IDEMPOTENCY_NO_ID and IDEMPOTENCY_DUPLICATE before the chain.")
+    return 0
+
+
+def _session_readiness(_args) -> int:
+    """The preconditions of READY, and the fact that every one defaults to unmet."""
+    from quant_brain.core.lifecycle import Readiness, SessionState
+    r = Readiness()
+    print("  a session may trade in exactly one state:",
+          ", ".join(s.value for s in SessionState if s.may_trade))
+    print(f"  READY requires all {len(r.missing())} of these, each asserted by a check:")
+    print()
+    for name in r.missing():
+        print(f"    [ ] {name}")
+    print()
+    print("  AUTHENTICATED is not READY. RECONCILING sits between them and cannot be skipped.")
+    return 0
+
+
+def _intents_recover(args) -> int:
+    """Intents whose outcome is unknown. Reconcile them against the venue; never resend."""
+    from quant_brain.core.idempotency import IntentJournal
+    path = Path(args.path)
+    if not path.exists():
+        print(f"  no intent journal at {path}")
+        return 0
+    j = IntentJournal(path)
+    open_ = j.recover()
+    total = len(j.entries())
+    if not open_:
+        print(f"  {path}: {total} intent(s), none unresolved")
+        return 0
+    print(f"  {path}: {len(open_)} of {total} intent(s) UNRESOLVED")
+    print()
+    for e in open_:
+        print(f"    {e.intent_id}  {e.state.value:<10} {e.when}  {e.note}")
+    print()
+    print("  These were claimed or sent and never confirmed. The venue knows what happened;")
+    print("  this process does not. Reconcile before anything else. Do not resend.")
+    return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="python -m quant_brain", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -218,6 +301,26 @@ def build_parser() -> argparse.ArgumentParser:
     p = rsub.add_parser("ledger", help="trials and verdicts by family")
     p.add_argument("--path", default="research/experiments_futures.jsonl")
     p.set_defaults(fn=_research_ledger)
+
+    rk = sub.add_parser("risk", help="the governor: limits, kill switches, reason codes")
+    rksub = rk.add_subparsers(dest="cmd", required=True)
+    p = rksub.add_parser("status", help="last published governor state for a scope")
+    p.add_argument("--scope", default="dryrun",
+                   choices=["live", "paper", "dryrun", "backtest", "research"])
+    p.add_argument("--base", default=None, help=argparse.SUPPRESS)
+    p.set_defaults(fn=_risk_status)
+    rksub.add_parser("reasons", help="every refusal code").set_defaults(fn=_risk_reasons)
+
+    ss = sub.add_parser("session", help="the trading-session state machine")
+    sssub = ss.add_subparsers(dest="cmd", required=True)
+    sssub.add_parser("readiness", help="what READY requires").set_defaults(
+        fn=_session_readiness)
+
+    it = sub.add_parser("intents", help="the idempotency journal")
+    itsub = it.add_subparsers(dest="cmd", required=True)
+    p = itsub.add_parser("recover", help="intents whose outcome is unknown")
+    p.add_argument("--path", default="live/state/intents.jsonl")
+    p.set_defaults(fn=_intents_recover)
     return ap
 
 

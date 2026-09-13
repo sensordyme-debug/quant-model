@@ -96,6 +96,15 @@ asset_class == ...`, it does not belong in the core.
 | `provenance.py` | `Provenance`, `env_key` | Reproducibility metadata. |
 | `knowledge.py` | `KnowledgeIndex` | "Have we tried this?" over the ledger and backlog. |
 | `resources.py` | `ResourceSnapshot`, `plan_workers`, `ResourceRegistry` | Worker budgeting from RAM, commit charge and CPU. |
+| `mode.py` | `Mode`, `Authority`, `NotPermitted` | What a PROCESS may reach. Ordered; three independent conditions for live; checked at executor construction. |
+| `governor.py` | `Reason`, `Limits`, `AccountView`, `KillSwitch`, `Governor` | The hard limits with a closed reason-code vocabulary and stateful kill switches. Is a `RiskChain`. |
+| `lifecycle.py` | `SessionMachine`, `OrderMachine`, `Readiness` | Deterministic state machines; illegal transitions raise; READY needs thirteen preconditions. |
+| `protection.py` | `verify`, `ProtectionMonitor`, `WorkingOrder` | A position is protected only by an acknowledged, correctly-sided, correctly-priced, fully-sized stop the VENUE reports. |
+| `reconcile.py` | `Snapshot`, `reconcile`, `Reconciler` | Compare local and broker; every difference named; failure trips a switch; nothing auto-corrected. |
+| `idempotency.py` | `intent_id`, `IntentJournal`, `Duplicate` | Deterministic decision identity; the executor refuses a replay and refuses an unlabelled intent. |
+| `locking.py` | `file_lock` | The one cross-process lock the ledger and the intent journal share. |
+| `sizing.py` | `Sizer` family, `SizeLimits`, `enforce` | Whole units, min'd against strategy/governor/venue/prop-firm ceilings; UNAVAILABLE when an input is missing. |
+| `portfolio.py` | `Portfolio`, `Exposure`, `CorrelationMatrix` | Gross/net/leverage/correlated risk over positions; a configured limit that cannot be computed is a breach. |
 
 **Explicitly not core**, per Part 3 of the brief and enforced by review: futures tick size and
 roll, options greeks and exercise, crypto's 24/7 session, equity corporate actions.
@@ -209,6 +218,46 @@ of every other module.
 
 Full detail, including what is safe to point at a practice account today and the eight things
 still required before live execution, is in `docs/topstep/EXECUTION.md`.
+
+---
+
+## 4a-ii. The execution safety layer
+
+Added 2026-09-13 under the master directive, additively - `risk.py` and `execution.py`'s
+types are unchanged; the new modules compose with them.
+
+```text
+ SIGNAL -> sizing.Sizer.size()            whole units, min'd against every ceiling
+        -> idempotency.intent_id()        deterministic id from what the strategy knew
+        -> RoutedExecutor.submit()
+             journal.claim()              duplicate or unlabelled -> refused before the chain
+             Governor(...)                kill switches first, then limits; reason code on every no
+             adapter.submit()             the only call that reaches a venue
+             journal.advance()            SUBMITTED -> ACKED | FAILED; a crash leaves SUBMITTED
+        -> lifecycle.OrderMachine         INTENT_CREATED ... FILLED -> PROTECTED | UNPROTECTED
+        -> protection.verify()            against the venue's working orders, not our outbox
+        -> reconcile.Reconciler.run()     local vs broker; any difference trips POSITION_UNRECONCILED
+```
+
+Five properties, each with a test that would fail if it were lost:
+
+1. **A refusal carries a code.** `RiskDecision.binding` holds a `Reason` value, so a caller
+   can distinguish `RISK_DAILY_LOSS` from `DATA_STALE` without parsing prose.
+2. **Unknown is a denial, not a skip.** A configured limit whose input is `None` denies with
+   `DATA_UNAVAILABLE`. The limit that quietly stops applying when the feed dies is the one
+   that was for that moment.
+3. **A kill switch outlasts the logic that tripped it.** `reset(by=<name>)` is the only way
+   back, a clean reconciliation does not reset it, and FLATTEN passes every tripped switch.
+4. **AUTHENTICATED is not READY.** `SessionMachine` has no edge from AUTHENTICATED to READY;
+   RECONCILING is in between and READY requires a complete `Readiness`.
+5. **The same decision cannot go out twice.** `intent_id` is a hash of what the strategy
+   knew; the journal's claim is check-and-append under one lock; a fresh process after a
+   crash sees the SUBMITTED row and refuses to resend. `intents recover` lists what to
+   reconcile.
+
+What this layer does NOT do: connect to anything. The ProjectX live path is unimplemented by
+design, and no runner has been wired to the governor yet; that wiring is a diff a person
+reviews, per venue, with the approval file in hand.
 
 ---
 
@@ -408,6 +457,10 @@ topstep unresolved  what still needs the owner; exits non-zero
 topstep readiness   the gate between here and a practice account
 broker list         every adapter and the authority it demands
 research ledger     trials and verdicts by family
+risk status         the governor's last published state for a scope; non-zero if halted
+risk reasons        every refusal code; * marks a kill switch
+session readiness   the thirteen preconditions of READY
+intents recover     intents sent and never confirmed; non-zero if any
 ```
 
 Commands needing a venue connection are absent rather than stubbed.
