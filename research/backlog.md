@@ -1838,6 +1838,15 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
      pile is one item lighter without an owner turn. Two of the six decisions are now answered by
      the loop's own numbers rather than waiting on one. The standing jobs remain the only open
      work; both still need a trading day. -->
+<!-- amended after S-38 closed, 2026-09-12: S-36 and S-37 both signed off saying the `daily`
+     track had no item left that needs no trading day. Both were wrong, and in the same way:
+     an item marked "PRICED AND HALF-CLOSED" still has a half. AUD-11's LOWER BOUND clause was
+     open, daily-owned, needed neither a trading day nor an owner, and S-38 closed it (+1.25 to
+     +2.07 CAR points of selection inflation against S-33's +0.974 floor). Rule that came out
+     of it: **before declaring a track out of work, re-read every item marked PRICED,
+     HALF-CLOSED or BOUND - a bound is an open item wearing a closed item's label.** NOW the
+     daily track's only remaining human-free work is the standing jobs, both of which need a
+     trading day. -->
 
 - **D-4 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): AUD-16 closed - the IBKR
   minute store had been frozen since 2026-09-11 12:35 ET and could not unfreeze itself, because
@@ -3961,9 +3970,31 @@ carry the owning track in brackets; record each fix in that track's journal and 
   full-period argmax either** - `mom_skip=10` beats the shipped 5 by 0.485 on the selection window
   and was not taken, which is S-10's docstring rule behaving as advertised. Honest fully-charged
   (cell C) withheld half: shipped **25.967% / 1.151 / DD 24.040**; grid band ~20.0..27.7%.
-  **LOWER BOUND:** three dials priced (`mom_skip`, `alloc_vol_window`, the 252 shelf) plus the
+  ~~**LOWER BOUND:** three dials priced (`mom_skip`, `alloc_vol_window`, the 252 shelf) plus the
   band by S-32; `top_n`, `target_vol`, `regime_threshold`, `regime_vol_window` and
-  `target_exposure` are not, so +0.5 is a floor on total selection inflation, not an estimate.
+  `target_exposure` are not, so +0.5 is a floor on total selection inflation, not an estimate.~~
+  **THE LOWER BOUND IS CLOSED 2026-09-12 by S-38** (`scripts/sweep_s38.py`, 7 clauses, 123
+  unique books, `research/journal_daily.md`; no LEAN run, `champion.json` untouched). **The
+  floor was not the estimate.** All eight axes run: the shipped set sits **+2.073 CAR points
+  above the 32-cell fitted grid mean** on 2020-2026 (0.89 sd, 84th percentile), and **+1.254**
+  when the null is restricted post-hoc to the 25 cells that pass `evaluate.py`'s own 1.0-point
+  drawdown tolerance - **the honest range is +1.25 to +2.07**, against S-33's +0.974 on three
+  axes. Three things worth carrying: (a) **S-33's published numbers reproduce only under two
+  counting conventions it did not state** - unique cells (7+6+7 = 20 is **18 unique**) and an
+  inclusive rank; under the obvious alternative the same grid gives +0.877 / 65th / rank 5 of
+  20, so a percentile without its convention is not reproducible; (b) the two biggest
+  contributors are **`regime_vol_window` (+3.596, the one dial in the parameter set with NO
+  selection record anywhere)** and `regime_threshold` (+3.016), both halves of the crisis
+  switch, while `mom_skip` is a dead heat at +0.074; (c) **coordinate deltas are not additive**
+  - the full-period argmax set sums to +8.492 and delivers +4.004 jointly, so the pooled-grid
+  estimator is the one to quote and any total built by adding axes overstates ~2x. Mechanism
+  counted rather than argued: selection ran on 2012-2026, which *contains* the withheld half,
+  and the shipped value is the **OOS argmax of its own axis on 3 of 6 fitted axes** against
+  0.99 expected, Poisson-binomial **P = 0.060**. By-product: **`target_exposure` is inert** -
+  byte-identical book from 0.875 to 10.0 because `target_vol / sigma` cancels it, `scale_cap`
+  binds only below 0.875, so the shipped 1.75 is 2x above the point where the dial does
+  anything and it is **not the leverage lever it reads as** (`target_vol`, `scale_cap` and
+  `margin_budget` are).
   - **STILL OPEN, and it is a one-sentence edit the daily track may not make.** The wrong label
     lives in `champion.json`'s `note`; AGENTS.md reserves that file to `scripts/evaluate.py
     --promote`, and re-running `--promote` for a wording fix would rewrite the record and trip
@@ -3985,6 +4016,19 @@ carry the owning track in brackets; record each fix in that track's journal and 
     cells, 0.53 sd above the grid mean) and measured the selection premium at -0.049, so the
     figures below are right to about half a point and wrong in their label. IBKR paper trading
     from 2026-09-09 is the only genuinely out-of-sample evidence this strategy has."*
+    <!-- S-38, 2026-09-12: the replacement text above is SUPERSEDED - it quotes S-33's
+         three-axis number and S-38 has now priced all eight. Use this instead: -->
+    **Replacement text, updated by S-38 (use this one):** *"The 2020-2026 half is NOT
+    out-of-sample: every shipped parameter was chosen on full-period tables, so it is a
+    sub-period check of the chosen set (AUD-11). S-38 priced the contamination across all eight
+    tunable axes at **+1.25 to +2.07 CAR points** at 0 bp (the shipped set sits +2.073 above its
+    32-cell grid mean, 0.89 sd, 84th percentile; +1.254 against the 25 cells that also pass the
+    drawdown tolerance), and the shipped value is the out-of-sample argmax of its own axis on 3
+    of 6 fitted axes against 0.99 expected (P = 0.060). Selection itself carries no
+    out-of-sample content here - the premium is -0.049 and the full-period argmax set is worse
+    on both return and drawdown - so the figures below are right to about one to two CAR points
+    and wrong in their label. IBKR paper trading from 2026-09-09 is the only genuinely
+    out-of-sample evidence this strategy has."*
 
 - **AUD-11 [daily] (original text)** the "OOS 2020-2026" label is a sub-period of full-period parameter selection; relabel or re-select on 2012-2019.
 - **AUD-12 [daily+eng] DONE 2026-09-12 by S-35** (`scripts/sweep_s35.py`, 7 clauses,

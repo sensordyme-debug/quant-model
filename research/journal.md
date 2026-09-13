@@ -4,6 +4,32 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-12 - S-38 / AUD-11 part 2 (`daily` track; full entry in `research/journal_daily.md`)
+
+**S-33 called its +0.974 a floor because five dials were unpriced; run all eight, the estimate
+is +1.25 to +2.07 CAR points, and the two axes that carry it are the two with the weakest paper
+trail.** `scripts/sweep_s38.py`, seven pre-registered clauses, 123 unique books, no LEAN run and
+nothing shipped. Clause 4 was meant to be a formality and became the first finding: S-33's three
+axes re-ran to **+0.877 / 65th percentile** until two unstated counting conventions were
+recovered - count the shipped cell **once** (7+6+7 = 20 cells is **18 unique**) and rank
+**inclusively** - after which all five of its statistics reproduce to the third decimal. On all
+eight axes the shipped set sits **+2.073 above the 32-cell fitted grid mean** (0.89 sd, 84th
+percentile), pre-registered branch (c); restricted post-hoc to the **25** cells that pass
+`evaluate.py`'s own drawdown tolerance it is **+1.254**, branch (b). The mechanism is countable:
+selection ran on 2012-2026, which *contains* the "OOS" half, and the shipped value is the
+**out-of-sample argmax of its own axis on 3 of 6 fitted axes** against 0.99 expected,
+Poisson-binomial **P = 0.060**. The two biggest contributors are `regime_vol_window` (**+3.596**,
+and the one dial in the whole parameter set with **no selection record anywhere**) and
+`regime_threshold` (+3.016) - both halves of the crisis switch, while `mom_skip` is a dead heat
+at +0.074. Two by-products: **`target_exposure` is inert** (byte-identical book from 0.875 to
+10.0; `scale_cap` binds only below 0.875, so the shipped 1.75 is 2x above the point where the
+dial does anything, and it is not the leverage lever it reads as), and **coordinate deltas are
+not additive** - the full-period argmax set sums to +8.492 and delivers +4.004 jointly, so any
+total built by adding axes overstates ~2x. Fully charged the joint argmax set is *worse on both
+axes* (21.707% / DD 40.191% against 25.967% / 24.040%, paired -1.174 bps/day, **t -0.65**).
+Nothing promoted, `champion.json` untouched; the relabel it earns is still the manual edit to a
+reserved file that S-34 showed no promotion can carry.
+
 ## 2026-09-12 - S-37 / AUD-13 (`daily` track; full entry in `research/journal_daily.md`)
 
 **The paper runner answered a broken history frame with `print("warning: no history for ...")`

@@ -4,6 +4,161 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-12 - S-38 (AUD-11 part 2): the floor was not the estimate, and the two dials with the weakest paper trail are the two that move it most
+
+**What this iteration is.** S-33 priced AUD-11 on three of this sleeve's dials, measured the
+shipped set at **+0.974 CAR points above its 18-cell grid mean** on 2020-2026, and closed with
+an explicit caveat: `top_n`, `target_vol`, `regime_threshold`, `regime_vol_window` and
+`target_exposure` are unpriced, so **"+0.5 is a floor on total selection inflation, not an
+estimate."** That sentence is the only open, human-free, no-trading-day item this track had
+left, and this iteration closes it by running **all eight** axes - S-33's three verbatim as a
+reproduction check, plus the five it named.
+
+**Provenance and scope.** New `scripts/sweep_s38.py` (seven clauses pre-registered in the
+docstring before the first simulation; console output in `results/s38_full.txt` and
+`results/s38_full_v4.txt`, cell cache `results/s38_cache.pkl`). **No LEAN run, no strategy
+parameter changed, no shipped or runner-loaded file touched**, so no deploy gate and no
+`--replay` is owed; `champion.json`, `live/*` and all three scheduled tasks are untouched.
+`target_vol`, `target_exposure` and `margin_budget` are the owner's and are **read** here,
+never changed. 123 unique books, 10 workers, 410 s.
+
+**(1) Identity.** The harness reproduces the cell nine previous iterations agree on exactly -
+**22.192150170492255% / 5,052 orders**, 2012-2026 at zero cost.
+
+**(2) The five are not one kind of thing, and this was written down before the grid ran.**
+Classifying each axis from the record that set it is the clause that could have made the whole
+estimate wrong, because summing a CAR grid over a *size* dial would charge selection inflation
+for the owner's own risk decision:
+
+| axis | class | what set the value |
+| --- | --- | --- |
+| `mom_skip`, `alloc_vol_window`, `mom_lb4` | FITTED | S-10 / S-12 / S-9 full-period tables |
+| `top_n` | FITTED | S-7/S-8 CAR grids ("`top_n=3` is a local peak") |
+| `regime_threshold` | FITTED | a table value; re-run as a shelf by S-29 |
+| `regime_vol_window` | **UNRECORDED** | **no table and no stated rationale anywhere** |
+| `target_vol`, `target_exposure` | RISK-POSTURE | the owner's mandate and leverage budget |
+
+An UNRECORDED value is treated as FITTED, because a value nobody wrote a reason for cannot be
+defended as a priori. So **6 of 8 axes enter the estimate** and the two risk dials are reported
+but not summed.
+
+**(3) Clause 4 was meant to be a formality and it is the first finding.** S-33's three axes,
+re-run cell for cell, gave **+0.877 / 65th percentile / rank 5 of 20** against its published
+**+0.974 / 78th / 14 of 18**. Nothing had changed in the code: the gap is entirely **two
+counting conventions S-33 used and did not state**. (a) The shipped cell sits on every axis and
+is *one book*, so it is counted **once** per pool - 7 + 6 + 7 = 20 cells is **18 unique**.
+(b) "rank 14 of 18" counts the cells at **or below** the shipped one, so the percentile is
+`<=`, not `<`. Under both, all five statistics reproduce to the third decimal - **+0.974,
+77.778th, 14 of 18, premium -0.049** - and only then is the eight-axis number reportable.
+**Reusable rule: a published percentile or rank is not reproducible without its counting
+convention; state "unique cells, inclusive rank" or the same grid gives two different answers
+0.1 CAR points apart.**
+
+**(4) The estimate. The floor roughly doubles, and the pre-registered branch is (c).**
+Shipped OOS CAR 29.124% at 0 bp, against the grid it was chosen from:
+
+| pool | unique cells | grid mean | grid sd | shipped - mean | sd | pct |
+| --- | --- | --- | --- | --- | --- | --- |
+| S-33's three axes | 18 | 28.150 | 1.832 | **+0.974** | +0.53 | 78 |
+| the three new fitted axes | 15 | 25.871 | 2.284 | **+3.253** | +1.42 | 93 |
+| risk-posture (not summed) | 9 | 28.736 | 1.638 | +0.388 | +0.24 | 78 |
+| **ESTIMATE - all fitted axes** | **32** | **27.051** | **2.331** | **+2.073** | **+0.89** | **84** |
+
+**+2.073** clears the pre-registered 2.0 boundary into branch (c) - *"the label is not the
+problem, the number is"* - by 0.073 points, which is too close to the line to state without its
+own attack. So the obvious one was run rather than left to the critic.
+
+**(5) POST-HOC, and it pulls the number back: a null that includes cells the promotion gate
+would refuse is too weak.** Seven of the 32 fitted cells breach the shipped drawdown plus
+`evaluate.py`'s own 1.0-point tolerance (`regime_threshold=2.0` at **38.19%** OOS MaxDD,
+`regime_vol_window=10` at 30.56%, `top_n=5/6`, `mom_lb4=300`, `regime_threshold=1.75`,
+`regime_vol_window=15`). A selector could never have shipped them. Restricted to the **25
+risk-feasible** cells the estimate falls to **+1.254** (+0.69 sd, 80th percentile), which is
+branch (b). **The honest range is +1.25 to +2.07 CAR points**, and both ends say the same
+thing: **S-33's floor of ~+0.5 was not the estimate.**
+
+**(6) The mechanism, countable rather than argued.** Selection ran on FULL 2012-2026, and
+2020-2026 is *inside* it, so a full-period argmax is partly an out-of-sample argmax. That is
+AUD-11's whole thesis and it can simply be counted: **the shipped value is the OUT-OF-SAMPLE
+best cell of its own axis on 3 of the 6 fitted axes** - `mom_lb4`, `regime_threshold`,
+`regime_vol_window` - against **0.99 expected** under no selection. Exact Poisson-binomial
+**P(X >= 3) = 0.060**. Suggestive, short of 0.05, and said out loud as such.
+
+**(7) The two axes that carry it are the two with the weakest paper trail, and both are the
+crisis switch.** Per-axis, shipped minus grid mean: `mom_skip` **+0.074** (57th percentile - a
+dead heat, exactly as S-33 found), `alloc_vol_window` +0.565, `top_n` +1.826, `mom_lb4` +1.947,
+`regime_threshold` **+3.016** (1.45 sd), `regime_vol_window` **+3.596** (1.32 sd). The largest
+single contributor is the one axis in the whole parameter set for which **no selection record
+exists** - grep finds `regime_vol_window` only in S-36's window-guard audit and in AUD-11's own
+list, never in a table - and the second largest is its partner in `risk_on`. The sleeve's
+momentum dials are honestly placed; its **regime switch is where the 2020-2026 figure was
+bought**, and S-29 already reported that removing that switch entirely earns +2.68 CAR points.
+
+**(8) `target_exposure` is inert, and the range was measured rather than asserted.** All five
+grid values give a **byte-identical book** (29.124% / 1.262 / 23.855% / 2,267 orders, grid sd
+**0.000**). The mechanism was already in `signals.py:351-352` - `sigma` is proportional to the
+exposure request, so `target_vol / sigma` cancels it - but the *range* was not: probing
+0.25 .. 10.0 puts the cancellation break at **0.875**, where `scale_cap=2.0` starts to bind.
+
+| `target_exposure` | 0.25 | 0.5 | 0.875 | 1.0 | **1.75\*** | 3.0 | 5.0 | 10.0 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| OOS CAR% | 10.035 | 20.304 | 29.124 | 29.124 | **29.124** | 29.124 | 29.124 | 29.124 |
+| mean gross | 0.408 | 0.816 | 1.206 | 1.206 | **1.206** | 1.206 | 1.206 | 1.206 |
+
+The shipped 1.75 sits **2.0x above the point where the dial does anything at all**. It
+contributes exactly zero selection inflation, it cannot be tuned, and - the part that matters
+to a reader of `BLOCKERS.md` - it is **not the leverage lever it reads as**. The book's size is
+set by `target_vol`, `scale_cap` and `margin_budget`; `target_exposure` only matters if someone
+turns it *below* 0.875.
+
+**(9) Clause 6: a sum of coordinate deltas is not a joint delta, by a factor of two.** The
+full-period argmax over the fitted axes is `mom_skip=10 regime_threshold=2.0
+regime_vol_window=60`. Its coordinate deltas sum to **+8.492**; run jointly the delta is
+**+4.004** (additivity error **-4.488**, against a pre-registered 0.5). So the coordinate sum of
+**+11.023** over all six axes is rejected and **+2.073 / +1.254 - the shipped set's position
+against the pooled grid, which is S-33's estimator and comparable to its +0.974 - is the number
+to quote.** Anyone totalling selection inflation by adding axes will overstate it about 2x.
+
+**(10) The honest number, and nothing here reaches |t| = 2.** Fully charged (cell C: 2 bp
+one-way plus IBKR Pro financing on the historical effective fed funds rate) the shipped set
+prints **25.967% / 1.151 / DD 24.040%** on 2020-2026. The joint full-period argmax set prints
+**21.707% / 0.931 / DD 40.191%** - *worse on both axes*, paired **-1.174 bps/day at t -0.65** -
+which is S-33's -0.049 selection premium showing up as a book rather than a statistic: choosing
+every axis on the full period buys nothing out of sample and costs 16 points of drawdown. The
+cell-C charge on this book is **-3.157** points, and the fitted grid's 0 bp OOS range is
+22.201 .. 30.846 (median 27.320), so **the honest fully-charged 2020-2026 band of this
+parameterization is roughly 19.0 .. 27.7%, median 24.2%**, against the 25.967% the shipped set
+prints.
+
+**Decision. Nothing promoted, nothing shipped, no default changed.** `champion.json`,
+`live/*`, `signals.py` and the scheduled tasks are untouched; the one thing this iteration
+earns is a **number for AUD-11's still-open relabel**, whose replacement text in
+`research/backlog.md` said "~+0.5 CAR points" and now says **+1.25 to +2.07**. That edit is a
+manual write to `champion.json`'s `note`, which AGENTS.md reserves and which S-34 established
+no promotion can carry (`--promote` has never written `note`), so it stays where S-33 and S-34
+left it - the owner's or the critic's restore-with-evidence path. **No new `BLOCKERS.md` item
+was filed**: the ask is unchanged and already recorded, only its magnitude moved, and the owner
+should not be asked the same question twice.
+
+**One disclosure.** The first run of `sweep_s38.py` wrote **145** ledger rows under
+`daily/s38_selection` of which **123 are unique**: the shipped cell sits on all eight axes and
+the writer emitted it once per axis. The 22 repeats are identical copies of a correct row. The
+ledger is append-only so they stay; the writer now deduplicates, and the corrected clause-4/5
+analysis was re-run with `--no-record` against a cached grid rather than appending a second
+copy of the whole sweep.
+
+**Standing jobs both ran and neither had new input.** `daily_fills.py`: unchanged at 3
+sessions / 10 fills / $2.37M, execution **+3.2 bps** against the auction it aimed at (per-fill
+sd 14.1, **se 4.5**), `ref_price` the previous close in 10 of 10. S-17 part 2 still needs
+trading days, not another sweep.
+
+**Next.** This track's last human-free, trading-day-free research item is now closed. What
+remains is S-17 part 2 (needs fills), the owner pile in `BLOCKERS.md`, and one thing this
+iteration opened that is *not* a research item: **`regime_vol_window=20` is the largest single
+contributor to the published OOS figure and has no written rationale.** The honest next move
+is not to re-tune it - S-33's -0.049 premium says tuning it predicts nothing - but to record
+why 20, or to record that nobody knows.
+
 ## 2026-09-12 - S-37 (AUD-13): two bad prints a year spend the whole selection premium, and the audit's own remedy is right for a reason its tail test gets backwards
 
 **What this iteration is.** S-36 signed off saying the `daily` track had no audit item left that
