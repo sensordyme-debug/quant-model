@@ -1,5 +1,95 @@
 # Journal - eng track (platform engineering). Newest first.
 
+## 2026-09-13 - E-10: E-8 scoped which test may stop the sleeve. Any other test could skip the question.
+
+**What I set out to do.** E-7, the item the last entry left as next: "why is the shared suite 6x
+slower on 3.14 than 3.11?" The filed hypothesis was import cost. `-X importtime` says pytest's
+whole import tree is **203 ms** and asyncio 41 ms, so that was wrong, and chasing the real answer
+turned up something the timing was a symptom of.
+
+**The suite the gate runs is 11x the suite E-7 was filed against.**
+
+| | tests | 3.14 | 3.11 |
+| --- | --- | --- | --- |
+| E-7 as filed (2026-09-12) | 107 | 19.9-24.8 s | 3.27 s |
+| measured today | **1,171** | **81.6 s** | 52.3 s |
+
+Five tracks commit tests to one `tests/` directory, and the 09:25 gate runs all of it under one
+`PYTEST_TIMEOUT = 300`. The constant's own comment still read "~30 s on 3.14" - stale by 2.7x in
+a day.
+
+**The defect.** E-8 established that only the 216 `runner`-marked tests may refuse to trade,
+because they are the only ones whose verdict is about the book rather than about the machine.
+But the refusal is reached *through* the full suite, and a timeout returns before the subset is
+ever asked:
+
+```python
+except subprocess.TimeoutExpired:
+    return True, "warn", f"suite exceeded {timeout}s and was abandoned"
+```
+
+So one hung test in any of the other 955 - a module-level network call, a Theta probe, a
+deadlock - abandons the run before the verdict exists, and "a hang says nothing about the book"
+lets the sleeve trade. Proven rather than argued, real pytest, sizing arithmetic that is
+provably wrong sitting next to a file that sleeps:
+
+| repo at the gate | before | after |
+| --- | --- | --- |
+| failing `runner` test + a hang elsewhere | **may_trade=True**, warn | **may_trade=False**, failed |
+| passing `runner` test + a hang elsewhere | may_trade=True, warn | may_trade=True, warn |
+
+Row one is a full paper day traded on sizing the gate had already been told was broken. Row two
+is E-5's asymmetry, which must survive: a hang on its own is still not evidence.
+
+**Why the answer was always cheap.** `-m runner` *deselects* the hang before it runs, so the
+deciding verdict costs 12 s of the 82 s that timed out. The fix is not a longer timeout - the
+suite grows daily and other tracks own that growth - it is that the tests which decide get a
+budget of their own (`SUBSET_TIMEOUT`, not the suite's exhausted remainder).
+
+**The subset probe is now three-valued**, which is the load-bearing part. The two call sites have
+opposite defaults, and each must keep its own when the answer is unreadable:
+
+| | default | subset may move it to |
+| --- | --- | --- |
+| full suite failed (exit 1) | REFUSE | trade, only on `passed` |
+| full suite timed out | TRADE | refuse, only on `failed` |
+
+One rule - the subset may move the verdict only when it can *prove* the trading path's state,
+never when it is merely silent. As a bool, `unknown` would have to mean trade or refuse, and
+these two need it to mean the opposite things: it would either resurrect E-5's self-inflicted
+outages at the first site or let a hang hide a broken book at the second. `exit 5` / no marker
+registered still trades (`test_nothing_collected_trades`, `test_a_hung_suite_trades` unchanged).
+
+**E-7 itself: there is no 6x, and the comparison was never like-for-like.** 3.11 looks faster
+because it *fails nine tests and skips seven more* for want of a parquet engine - including the
+two most expensive in the suite (`test_futures_baseline`, 10.7 s and 9.2 s on 3.14, ImportError
+in under a second on 3.11). Deselect the nine files that differ and the gap is:
+
+| | like-for-like suite | fixed pytest launch |
+| --- | --- | --- |
+| 3.11 | 56.7 s | 0.31 s |
+| 3.14 | 63.1 s | 0.44 s |
+
+**1.11x.** Not worth engineering, and the interpreter was never the story. Closing E-7 answered
+rather than done. (None of the nine 3.11 failures is `runner`-marked, so E-8's narrowing already
+handles them correctly - verified.)
+
+**Verification.** 3.14 **1,181 passed, 19 skipped**; 3.11 unchanged at the same 9 pre-existing
+failures, none mine, none gating. Real `--preflight-only` **exit 0**, replay 2026-09-11, P&L
+-2,080, 36 trades, flat at end - identical to E-9's run. `live/state/intraday_book.json`,
+`live/APPROVED_PAPER.md`, `live/intraday_config.json` byte-identical md5 before and after, no
+HALT file created. Seven new tests in `test_launch_preflight.py` (a `runner` file): one
+end-to-end through real pytest for each row of the table above, the rest monkeypatched, +8 s.
+
+**Decision.** Ship. No hang anywhere in the repo can now buy broken book arithmetic a trading
+day.
+
+**Next.** The gate's worst case is now 300 s + 120 s = 7 min against a 09:25 start and a 09:30
+open, and the suite that drives the first number grew 2.7x in a day under five tracks. Worth
+measuring whether the full suite belongs in the morning gate at all, or whether the 12 s subset
+should decide and the rest run as a report after the open. Resume: `py -3.14 -m pytest
+-p no:cacheprovider --durations=25` and compare against `SUBSET_TIMEOUT`.
+
 ## 2026-09-12 - E-9: E-6's own fix made the failure it guards against silent. A lag number says it.
 
 **Hypothesis.** E-9 was filed as a wiring chore: `store_health.py` exists, nothing runs it on a

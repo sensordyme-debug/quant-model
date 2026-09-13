@@ -32,8 +32,9 @@ from intraday_common import DATA_DIR, LIVE, REPO, UNIVERSE, load_bars, log_event
 PY = sys.executable
 TRADER = REPO / "scripts" / "intraday_trader.py"
 CONFIG = LIVE / "intraday_config.json"       # {"strategy": "active", "equity_frac": 1.0, "params": {...}}
-PYTEST_TIMEOUT = 300                         # suite is ~30 s on 3.14 / ~22 s on 3.11: hang guard
-SUBSET_TIMEOUT = 120                         # the `runner` re-run is ~13 s; only on a failure
+PYTEST_TIMEOUT = 300                         # hang guard; suite is 82 s on 3.14 / 52 s on 3.11
+SUBSET_TIMEOUT = 120                         # the `runner` re-run is ~12 s; only when the suite
+                                             # gives no verdict of its own
 
 #: How many closed sessions the replayed day may sit behind the last closed one before the
 #: preflight says so. 1 is a fetcher that skipped a night; 2+ is a fetcher that is not running.
@@ -171,6 +172,13 @@ def unit_tests_ok(root: Path = REPO, python: str = PY,
     tests need a parquet engine 3.11 does not have. Any of those would have stopped the
     sleeve for a day. So on exit 1 the runner-marked subset is re-run and *it* decides; a
     failure only outside that subset trades with a warning. See `tests/conftest.py`.
+
+    E-10 closed the way *round* that refusal. A hang is "anything else", so it trades - but the
+    whole suite shares one timeout, and the 216 tests that may decide are a twelve-second slice
+    of the 1,171 that may not. One hung test in any of the other 955, which other tracks add to
+    daily, burned the budget and the sleeve traded on sizing arithmetic that was provably
+    wrong. The abandoned suite is no longer the last word: the subset is asked again on a
+    budget of its own, and `-m runner` deselects whatever hung before it can run.
     """
     # If this very interpreter is already running pytest, it is importable by definition; the
     # probe is a second process launch (~1.4 s on Windows) worth skipping. At 09:25 the launcher
@@ -192,7 +200,17 @@ def unit_tests_ok(root: Path = REPO, python: str = PY,
         res = subprocess.run([python, "-m", "pytest", "-p", "no:cacheprovider", "--tb=line"],
                              cwd=str(root), capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return True, "warn", f"suite exceeded {timeout}s and was abandoned"
+        # E-10. The suite said nothing - but the 216 tests that are *allowed* to say anything
+        # are a twelve-second slice of it, and `-m runner` deselects whatever hung before it
+        # runs. Abandoning the whole suite therefore threw away an answer that was still
+        # cheaply available, and a failing `runner` test went live behind any hang anywhere in
+        # the other 955. Ask the subset on its own budget; unreadable still trades (E-5).
+        verdict, out = _runner_subset_verdict(root, python, SUBSET_TIMEOUT)
+        if verdict == "failed":
+            return False, "failed", (f"suite exceeded {timeout}s; the live trading path failed "
+                                     f"on its own re-run: {out[-1200:]}")
+        return True, "warn", (f"suite exceeded {timeout}s and was abandoned"
+                              f" (live trading path: {verdict})")
     except OSError as exc:
         return True, "warn", f"could not run the suite: {exc}"
 
@@ -201,7 +219,7 @@ def unit_tests_ok(root: Path = REPO, python: str = PY,
     if res.returncode == 0:
         return True, "passed", tail
     if res.returncode == 1:                     # the only refusal: real assertion failures
-        if _runner_subset_passed(root, python, timeout):
+        if _runner_subset_verdict(root, python, min(timeout, SUBSET_TIMEOUT))[0] == "passed":
             return True, "warn", ("suite failed outside the live trading path, trading anyway: "
                                   + out[-1200:])
         return False, "failed", out[-1500:]
@@ -209,26 +227,43 @@ def unit_tests_ok(root: Path = REPO, python: str = PY,
     return True, "warn", f"pytest exit {res.returncode}: {tail}"
 
 
-def _runner_subset_passed(root: Path, python: str, timeout: int) -> bool:
-    """Did the `runner`-marked tests pass? Only reached when the full suite already failed.
+def _runner_subset_verdict(root: Path, python: str, budget: int) -> tuple[str, str]:
+    """Re-run only the `runner`-marked tests. Returns (verdict, output).
 
-    Returns False - i.e. refuse - whenever the answer cannot be established: the subset also
-    failed, the marker is not registered in this repo so nothing was collected, or the re-run
-    could not be launched. The narrowing may only ever *downgrade a refusal it can prove is
-    unrelated to the book*; an unreadable answer keeps E-5's original behaviour.
+    verdict is `"passed"`, `"failed"`, or `"unknown"` - the last when the question could not
+    be answered: the marker is not registered in this repo so nothing was collected, the
+    re-run could not be launched, or it hung too.
 
-    The re-run gets its own, tighter budget: it is under a third of the suite (183 tests in
-    13 s against 624 in 30 s) and it only ever happens on a morning that is already going
-    wrong, so it must not be able to double the gate's worst case five minutes before the open.
+    Three-valued on purpose, because the two callers have *opposite* defaults and each has to
+    keep its own when the answer is unreadable:
+
+        full suite failed (exit 1)   default REFUSE  -> trade only on "passed"
+        full suite timed out         default TRADE   -> refuse only on "failed"
+
+    That is one rule, not two: the subset may move the verdict only when it can *prove* the
+    state of the trading path, never when it is merely silent. Collapsing it back to a bool
+    would either resurrect E-5's self-inflicted outages at the first call site or let a hang
+    hide a broken book at the second.
+
+    The re-run gets its own budget rather than what is left of the suite's: it is a sixth of
+    the suite (216 tests in 12 s against 1,171 in 82 s), and the point at the timeout call
+    site is precisely that the deciding tests must not be starved by how long the other 955 -
+    owned by other tracks, and growing - chose to take.
     """
     try:
         res = subprocess.run([python, "-m", "pytest", "-m", "runner",
                               "-p", "no:cacheprovider", "--tb=line"],
-                             cwd=str(root), capture_output=True, text=True,
-                             timeout=min(timeout, SUBSET_TIMEOUT))
+                             cwd=str(root), capture_output=True, text=True, timeout=budget)
     except (OSError, subprocess.SubprocessError):
-        return False
-    return res.returncode == 0 and "no tests ran" not in (res.stdout + res.stderr)
+        return "unknown", ""
+    out = (res.stdout + res.stderr).strip()
+    if "no tests ran" in out:
+        return "unknown", out
+    if res.returncode == 0:
+        return "passed", out
+    if res.returncode == 1:
+        return "failed", out
+    return "unknown", out       # 2-5: collection error, internal, usage error, none collected
 
 
 def main() -> int:

@@ -229,6 +229,88 @@ def test_the_subset_rerun_only_happens_on_a_failure(tmp_path):
     assert not any("-m" in c and "runner" in c for c in calls if isinstance(c, list))
 
 
+# --- E-10: a hang in the other 955 tests must not buy a broken book a trading day --------
+
+def test_a_hang_outside_the_trading_path_cannot_hide_a_broken_book(tmp_path):
+    """The regression, end to end through real pytest.
+
+    E-8 scoped the refusal to the `runner` tests; the whole suite still shared one timeout.
+    The deciding tests are a twelve-second slice of an eighty-second suite, so any hang in the
+    other 955 - a module-level network call, a Theta probe, a deadlock - abandoned the run
+    before the verdict existed, and "a hang says nothing about the book" let provably wrong
+    sizing arithmetic go live. `-m runner` deselects the hang, so the answer was always still
+    there for twelve seconds' work.
+    """
+    make_marked_repo(tmp_path,
+                     runner_body="def test_sizing():\n    assert 1 == 2\n",
+                     other_body="import time\n\ndef test_slow():\n    time.sleep(30)\n")
+    ok, outcome, detail = intraday_launch.unit_tests_ok(root=tmp_path, timeout=2)
+    assert ok is False, "a hang elsewhere must not license broken sizing arithmetic"
+    assert outcome == "failed"
+    assert "test_sizing" in detail          # the alert still names what is actually wrong
+
+
+def test_a_hang_with_a_healthy_trading_path_still_trades(tmp_path):
+    """The other half: E-5's asymmetry is intact. A hang alone is still not a refusal."""
+    make_marked_repo(tmp_path,
+                     runner_body="def test_sizing():\n    assert True\n",
+                     other_body="import time\n\ndef test_slow():\n    time.sleep(30)\n")
+    ok, outcome, detail = intraday_launch.unit_tests_ok(root=tmp_path, timeout=2)
+    assert (ok, outcome) == (True, "warn")
+    assert "exceeded" in detail and "passed" in detail
+
+
+def test_the_subset_verdict_is_three_valued(tmp_path):
+    """`passed`/`failed`/`unknown` against real pytest. The third value is the load-bearing
+    one: bolted onto a bool, an unreadable subset would have to mean either trade or refuse,
+    and the two call sites need it to mean the opposite things."""
+    cases = {
+        "passed": ("def test_sizing():\n    assert True\n", None),
+        "failed": ("def test_sizing():\n    assert 1 == 2\n", None),
+        "unknown": (None, "def test_research():\n    assert True\n"),   # no marker anywhere
+    }
+    for expected, (runner_body, plain_body) in cases.items():
+        root = tmp_path / expected
+        if runner_body is not None:
+            make_marked_repo(root, runner_body=runner_body,
+                             other_body="def test_research():\n    assert True\n")
+        else:
+            make_repo(root, plain_body)
+        verdict, _ = intraday_launch._runner_subset_verdict(root, intraday_launch.PY, 120)
+        assert verdict == expected
+
+
+@pytest.mark.parametrize("verdict, expected", [
+    ("failed", (False, "failed")),     # the only way a timeout may now refuse
+    ("passed", (True, "warn")),
+    ("unknown", (True, "warn")),       # unreadable keeps E-5: a hang is not evidence
+])
+def test_the_timeout_verdict_mapping_is_total(tmp_path, monkeypatch, verdict, expected):
+    make_repo(tmp_path, "def test_ok():\n    assert True\n")
+    monkeypatch.setattr(intraday_launch.subprocess, "run",
+                        lambda cmd, *a, **k: (_ for _ in ()).throw(
+                            subprocess.TimeoutExpired(cmd, 1)))
+    monkeypatch.setattr(intraday_launch, "_runner_subset_verdict",
+                        lambda *a, **k: (verdict, "subset output"))
+    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path, timeout=1)
+    assert (ok, outcome) == expected
+
+
+def test_the_subset_gets_its_own_budget_not_the_suites_remains(tmp_path, monkeypatch):
+    """The whole point. The suite's timeout is spent by the time we get here, and the tests
+    that decide must not be starved by how long the other tracks' tests chose to take."""
+    seen = []
+    make_repo(tmp_path, "def test_ok():\n    assert True\n")
+    monkeypatch.setattr(intraday_launch.subprocess, "run",
+                        lambda cmd, *a, **k: (_ for _ in ()).throw(
+                            subprocess.TimeoutExpired(cmd, 1)))
+    monkeypatch.setattr(intraday_launch, "_runner_subset_verdict",
+                        lambda root, python, budget: (seen.append(budget), ("passed", ""))[1])
+    intraday_launch.unit_tests_ok(root=tmp_path, timeout=1)
+    assert seen == [intraday_launch.SUBSET_TIMEOUT], \
+        "the subset must not inherit the exhausted suite budget"
+
+
 def test_every_runner_importer_is_classified():
     """A new test file that imports the trader is a decision, never an accident.
 
