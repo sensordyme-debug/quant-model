@@ -1740,22 +1740,57 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   must be on a *subprocess*, since an in-process import inherits pytest's already-fixed `sys.path`
   and would pass while deployed.
 
-- **S-41 (`daily`, opened by S-40 2026-09-13): ensemble the crisis switch instead of choosing it.**
-  S-40 proved no real-time selector can find the shipped `regime_threshold`/`regime_vol_window`
-  cell (0 of 11 walk-forward years under two objectives, -1.389/-1.688 CAR points below the grid
-  mean, worst drawdown of any book tested at 38.185%), while the **equal-weight blend of all 36
-  cells** - which requires no selection at all - carried the best Sharpe (**1.173**) and the lowest
-  drawdown (**23.389%**) of every book in S-40's table, beating even the hindsight-shipped cell's
-  drawdown on FULL (23.389 vs 23.860) and OOS (23.407 vs 23.855). Build it properly: **average the
-  36 cells' target WEIGHTS, not their returns** (S-40's number is a return-average, which is the
-  right upper bound but not an implementable book), then price turnover, commission and the
-  fractional risk-off boundary it necessarily holds, fully charged in S-22 cell C. The prize is
-  not return - it gives up ~0.42 bps/day against the shipped cell on FULL at t -0.98, and the sign
-  of that gap flips with the window - it is that the sleeve's single most fragile decision stops
-  having to be made. Judge on Sharpe and drawdown against the shipped cell at equal cost, and on
-  whether the blended weights are executable at the deployed order sizes. Needs no trading day and
-  no owner. **Do not touch `margin_budget`, `target_vol`, `target_exposure` or the drawdown cap.**
-  <!-- added by S-40, 2026-09-13 (daily). -->
+- **S-42 (`daily`, opened by S-41 2026-09-13): the same ensemble trick on the axes where a CAR
+  grid is a fair instrument.** S-41 built the weight-blend of the crisis switch and it failed the
+  promotion bar on return while winning on drawdown - but the switch is a RISK dial, so every
+  column in that comparison is confounded by the drawdown-for-return trade S-40 corrected S-38 on.
+  The clean version of the experiment lives on the axes S-38 labelled FITTED that are *not* risk
+  dials (`mom_lookbacks`, `mom_skip`, `rank_persist`, `entry_mode`/`min_momentum`, `top_n`), where
+  higher CAR at equal drawdown is unambiguously better and an ensemble has nothing to hide behind.
+  Reuse `sweep_s41.py` whole: `sweep_s25.legs_simulate(weights_fn=...)` is in place and clause 1b
+  proves weight extraction is bit-identical to the in-loop call, so the work is a new grid and a
+  new blend, not new machinery. Pre-register the grid before running it, keep the 36-ish cell count
+  so the fractional-boundary arithmetic stays comparable, and carry S-41's clause 3b discipline:
+  **every row on the same session count**. Judge fully charged in S-22 cell C against the shipped
+  cell AND against the walk-forward selector (S-41 clause 7b's framing - the shipped cell is the
+  promotion bar, the selector is the decision bar). Needs no trading day and no owner. **Do not
+  touch `margin_budget`, `target_vol`, `target_exposure` or the drawdown cap.**
+  <!-- added by S-41, 2026-09-13 (daily). -->
+
+- **S-41 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): the ensemble is worth
+  having, the sentence it was opened on is not, and the two facts are independent.** New
+  `scripts/sweep_s41.py` (7 clauses pre-registered, `results/s41_full.txt`, 21 DIAGNOSTIC rows
+  `daily/s41_blend`); one default-inert `weights_fn` on the research harness
+  `sweep_s25.legs_simulate` (S-26/S-28/S-30/S-32 precedent, clause 1a re-proves every earlier row
+  bit-identical); no LEAN run, `champion.json`, `live/*` and all scheduled tasks untouched, no
+  parameter moved. **Clause 1b is the new licence**: the shipped cell's target weights extracted
+  day by day and fed back through the same simulator reproduce the deployed book to the digit on
+  CAR *and* order count, so a blend of 36 extractions is executed through the deployed rebalance.
+  **(a) Weight-averaging and return-averaging are the same book here** - agreement to 0.034 CAR
+  points and 0.001 Sharpe on FULL/IS/OOS - because the blended target holds at most 3 names and on
+  **86.83%** of sessions holds the *identical name set* as the shipped cell, differing only in
+  size. The ensemble is a vote on GROSS, not on which names to own, so there is nothing to net and
+  S-40's "36 independent rebalances" upper bound is attained, not approached. **(b) Correction to
+  this item's own premise, and the second instance this month of the shape that made S-40 correct
+  S-38**: the quoted "best Sharpe 1.173 / lowest drawdown 23.389%" is a **2,684-session** row
+  (S-40's 2016-2026 walk-forward span) compared against a **3,689-session** FULL-window 1.159.
+  Span-matched (clause 3b) the shipped cell is **1.228** and the blend **1.174** - the blend never
+  had the best Sharpe, and the claim is withdrawn. The drawdown half survives only because the
+  blend's worst drawdown is the 2020 crash, which lies inside both spans. Reusable rule: **a
+  number quoted from a table is a comparison only if the row it is compared against has the same
+  session count.** **(c) The verdict on the pre-registered bar is NOT a promotion candidate**:
+  fully charged the blend is -1.096 CAR on FULL and -3.924 on OOS (paired t -0.92 / -1.64) to buy
+  0.286 / 0.217 points of drawdown, and it trades **1.26x the orders at 0.99x the turnover**
+  because gross ratchets in 1/36 steps across a fractional risk-off boundary live on **39.01%** of
+  sessions. Executability was never the constraint: **0.002%** of blended target weight falls below
+  the 0.01x no-trade band against a 10% bar, and deleting the shipped cell from the grid moves
+  Sharpe by <= 0.005. **(d) The result, from clause 7b**: against what a real-time selector
+  *actually gets* rather than against a cell S-40 proved unfindable, the blend beats the
+  walk-forward CAR selector by **+1.587 CAR / +0.163 Sharpe / -14.858 drawdown points** and the
+  Sharpe selector by +1.886 / +0.174 / -14.858. **The blend is not a better cell than the one that
+  shipped; it is a better book than choosing a cell** - and the promotion gate compares to the
+  incumbent, so the shipped cell keeps its place. Opens **S-42**.
+  <!-- added by S-41, 2026-09-13 (daily). -->
 
 - **S-40 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): the crisis switch is a
   drawdown instrument that has been read as a return instrument, its shipped cell is unfindable in
