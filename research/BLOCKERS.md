@@ -101,6 +101,26 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   through O-9 are all closed, the scope has no open item, and `research-options` should be
   **unscheduled** rather than left to spend tokens on a track with nothing to do. That is an owner
   action - the loop does not edit schedulers. If you restore VALUE later, re-enable it then.
+- **AMENDED 2026-09-13 ~15:0x UTC (O-10): the costing above was measured against the WRONG switch,
+  and correcting it makes the answer worse, not better.** `theta_data.py --check` is unchanged
+  (`listening True serving True`, `history/quote` **HTTP 403 "you only have a FREE
+  subscription"**). What changed is that O-9's +2.68% was an increment to a switch **targeted at
+  SPY's own quantile**, and A-17 (`iterate`, hours later) refused that switch outright on the book
+  it was handed to - while showing that retargeting the quantile at **the sleeve's own session
+  return** clears every condition (+11.08%, 3 of 3 regimes, max drawdown 53.41% -> 42.32%). So O-9
+  priced the chain against a switch that is itself worthless. O-10 re-ran the costing against the
+  switch that works, on 1,537 out-of-sample sessions, with the chain read rebuilt at **09:35** so it
+  is causal for a book whose first entry is 09:45: **the chain's increment is -0.54%, 99% CI
+  [-3.43, +2.47], 1 of 3 regimes** - and **-0.01%** against a pre-open-only baseline. Both controls
+  pass, so this is a refusal and not a dead sample: the tape-only switch still beats a flat book at
+  the same exposure by **+9.09%** (CI [+3.20, +14.47]) and beats 200 of 200 timing-destroyed
+  placebos. **What this changes for your wallet**: O-9 left the chain's de-risk value at "under the
+  bar and decaying"; it is now **zero in every era**, and the store's one demonstrated product has
+  been refused by both of its only possible consumers - A-15 on the mean, O-10 on the tail. The
+  priced value of VALUE is still **the SPXW question only**, exactly as O-4 costed it, with no
+  second justification of any kind. **The scheduling advice is unchanged and now rests on evidence
+  rather than exhaustion**: O-1 through O-10 are all closed, and `research-options` should be
+  unscheduled until VALUE is restored.
 - **What is lost.** Nothing on disk: the 0DTE store is intact at **1,891 SPY sessions,
   2016-01-08..2026-09-10, 176 MB**, and O-3 ran entirely from it today. What is lost is
   everything *new*: no chain after 2026-09-10, no second symbol, no implied-vol or greeks history,

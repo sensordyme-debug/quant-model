@@ -5,6 +5,121 @@ Newest first. The `options` scope: the Theta store, `scripts/odte_*`, `scripts/t
 
 ---
 
+## 2026-09-13 - O-10: the chain adds NOTHING to the de-risk switch that WORKS. O-9 measured the chain's increment on a SPY-targeted switch that A-17 then refused outright; on A-17's sleeve-targeted switch - the only de-risking rule in this repository that survives its own controls - `rn_half` read at **09:35** (causal, 98.4% coverage, 0.963 correlated with the 10:00 read O-6/O-8/O-9 used) cuts the sleeve's ES5 by **-0.54%**, 99% block-bootstrap CI **[-3.43, +2.47]**, **1 of 3 regimes**, against a +5% bar. Against the pre-open-only baseline it is **-0.01%**, CI [-3.07, +3.11]. The switch itself reproduces here (+8.61% vs a matched flat book, CI [+2.99, +13.73], placebo beaten 200/200). **REFUSED-BY-TAIL. O-9's "the switch works and the chain is not why" is now confirmed on the version that matters, and the O-track closes on evidence rather than exhaustion.**
+
+**Why this item, after the track was declared closed.** O-9 closed this scope by measuring the
+chain's increment to a tape-only inverse-VaR switch whose target was **SPY's own** open-to-close
+quantile (+2.68%, CI [-0.49, +7.11], bar +5%). Hours later A-17 (`iterate`) transplanted that
+switch to the book it was handed to and found the target was the whole story: O-9's switch **as
+handed over** is refused on the sleeve (ES5 cut +2.72%, CI [-3.50, +8.94], and matched by dividing
+by `rv20` with no fitting at all), while retargeting the quantile at **the sleeve's own session
+return** clears everything (+11.08%, CI [+5.76, +16.52], 3 of 3 regimes, max drawdown 53.41% ->
+42.32%). So O-9 had measured the chain against a switch that is itself worthless: a small increment
+on nothing. The question never asked is whether the chain improves the switch with a real effect to
+be incremental to - a question about what the chain is worth, answerable off the frozen store with
+zero Theta calls, and the only live justification still available for OWNER-5's VALUE-tier
+decision. Re-confirmed before writing anything: `theta_data.py --check` returns `listening True
+serving True` with `history/quote` at **HTTP 403 "you only have a FREE subscription"**.
+
+**The causality problem, solved rather than assumed.** A-17's switch is pre-open because the
+sleeve's size multiplier has to be one whole-session scalar to be scored off a persisted daily P&L
+series, and the sleeve's first ORB entry is minute 15 = 09:45 (`algorithms/intraday/base.py:
+OR_MINUTES = 15`, verified in the file). O-5's frozen cache starts at **10:00**, fifteen minutes
+*inside* the book, so it could not be used at all and the chain read had to be rebuilt earlier.
+`rn_half` coverage under O-3's strict both-rights mask was measured **on coverage alone, before any
+forward return was touched**: 09:30 **13.3%**, 09:35 **98.4%**, 09:40 **98.2%**, 10:00 **97.8%**.
+Coverage is flat from 09:35, so there was no information-versus-causality trade to make and the
+clock was chosen on causality: **09:35 primary**, which closes at 09:40 even under the most
+pessimistic timestamp convention and is still strictly before 09:45; 09:40 declared in advance as a
+robustness arm. New cache `results/options/o10_chain_open.parquet` (1,891 sessions, 94 s, no Theta
+call). Gate 1 confirms this is the same feature one clock earlier, not a new one:
+corr(`rn_half`@09:35, |SPY open-to-close|) = **+0.531** against O-5's published +0.540 at 10:00, and
+corr(09:35, 10:00) = **+0.963**.
+
+**The confound that would otherwise have faked a pass, and the baseline that kills it.** A 09:35
+chain read sees the first five minutes of the session; A-17's tape features are all strictly
+prior-session. So "M0 + chain" confounds *the chain is informative* with *seeing the open is
+informative*, and the tape can see the open for free. The decisive baseline is therefore
+clock-matched - the same two magnitude features the tape has over the same five minutes, off bars
+stamped 09:30..09:34 only.
+
+| arm | features | target |
+|---|---|---|
+| M0 | rv20, absret_1, rng_1, vix_lag | the sleeve's own session return |
+| M0b | M0 + absret_open, rng_open (bars 09:30..09:34) | same |
+| M1 | M0b + log(`rn_half` @ 09:35) | same |
+
+tau 0.05, expanding window, 250 burn-in, budget = expanding median of PAST \|q_hat\| over >= 60
+priors, cap 1.0 (cut-only - A-15 refused sizing *up* on a forecastable quantity). Every estimator,
+constant, matching rule, bootstrap and placebo **imported from `sweep_a17`/`sweep_o8`**, not
+re-implemented. 1,847 of A-17's 2,686 sessions carry every feature; 1,537 survive the burn-in
+(2019-02-13 .. 2026-09-09). All arms are **fitted as well as scored** on chain-available sessions.
+
+**Gates.** Gate 0: the control book reproduces A-14/A-15 (-262/-512/-134, -324 full, 2,686
+sessions), and a fresh refit of A-17's SW_SLEEVE reproduces its persisted
+`results/a17/exposures.csv` schedule on **2,355 of 2,355** rows at worst \|diff\| **1.11e-16** - so
+this run may be read as A-17's economics the way O-9's Stage C licensed reading it as O-8's. Gate 2:
+every bar in the open window is stamped <= 09:34; the soft "at least 2 bars" check fired on exactly
+**one** session in the whole store (2020-03-16, the limit-down open, 1 bar) and that session is
+**not in the OOS sample**, so it touches no number here. Gate 3: the restricted training sample
+still carries the effect - M0 cuts ES5 **+8.61%** against a matched flat book (A-17: +11.08% on its
+own 2,355 sessions), CI [+2.99, +13.73], so the sample can answer the question.
+
+**The result.** Every book at matched average exposure M = 0.8273; CONST is a flat book at that
+level, never the unscaled sleeve (which loses -$554/day on these sessions).
+
+| comparison | ES5 cut | q05 cut | 99% CI | mean $/day diff | regimes |
+|---|---|---|---|---|---|
+| **M1 vs M0b** (DECISIVE) | **-0.54%** | +0.12% | **[-3.43, +2.47]** | +4 +/- 29 | **1 of 3** |
+| M1 vs M0 (chain + open vs pre-open) | -0.01% | +1.62% | [-3.07, +3.11] | -27 +/- 35 | - |
+| M0b vs M0 (just seeing the open) | +0.53% | +1.50% | [-1.10, +2.28] | -31 +/- 26 | - |
+| M0b vs CONST (Control A) | **+9.09%** | +12.50% | **[+3.20, +14.47]** | +126 +/- 73 | 2 of 3 |
+| M0 vs CONST (A-17's arm here) | **+8.61%** | +11.16% | **[+2.99, +13.73]** | +158 +/- 67 | 2 of 3 |
+| M1_0940 vs M0b (robustness) | +0.65% | +1.65% | - | +37 +/- 34 | - |
+
+Both controls pass, which is what makes the refusal clean rather than a null sample: Control A -
+the clock-matched tape switch beats a flat book at the same exposure by 9.09% with a CI clear of
+zero; Control B - permuting the exposure schedule (marginal preserved, timing destroyed, 200 draws)
+gives a placebo mean of **-7.0%**, and the real switch beats **200 of 200** placebos at all three
+arms. So there is a real, timing-driven de-risking effect on this sample, and the chain is not part
+of it. Mean is not the reason either: M1 costs M0b nothing (+$4/day, t +0.15), so this is
+REFUSED-BY-TAIL, not REFUSED-BY-MEAN.
+
+**The chain does move the schedule, and the reshuffle buys nothing.** Raw exposure schedules
+correlate M0-M0b 0.948, M0-M1 **0.853**, M1-M1_0940 0.958. Adding `rn_half` changes *which* days
+get cut by a visible amount - it is not a duplicated column - and the tail comes out identical.
+That is the sharpest form of the finding: the chain has information about magnitude (O-6, and the
++0.531 control above re-confirms it at a new clock), and none of it is information about *when this
+book's left tail arrives* that the tape does not already have.
+
+**The regime split, and the decay question O-9 left open.** The chain's increment by cell is
+**-0.39% (2019, n=133) / +2.67% (2020-2023, n=732) / -3.06% (2024-2026, n=672)**. O-9's closing
+argument was that the chain's increment had decayed to +1.6% in 2024-2026; here there is no era
+where it works at all, and unlike O-9 the regimes leg ran as a genuine **2-of-3** (three cells
+qualified at >= 100 sessions, because the pre-open clock loses no sessions to a missing intraday
+bar). The 09:40 robustness arm lands at +0.65%, so the clock choice was not what refused this.
+
+**One flagged observation for whoever owns A-17, weak and offered as such.** On the
+chain-available sample the switch's 2016-2019 cell is **negative** (M0 vs CONST -11.6% on the 133
+overlapping 2019 sessions) where A-17 reported +16.5% on its own 675-session cell. A-17's
+2016-2019 strength therefore rests mostly on sessions this store does not hold. This is 133
+sessions fitted on a restricted training set and is **not** a refutation of A-17 - the same
+comparison is +9.9% and +6.7% in the two later cells, so A-17's headline is not in question - but
+if anyone tightens A-17, its earliest cell is the one to attack.
+
+**Decision: REFUSED. Nothing shipped, nothing handed off, and the O-track closes here.** The chain's
+last living consumer is now measured against the switch that works instead of the one that does not.
+Every O-item O-1..O-10 is closed on evidence. `research/BLOCKERS.md` carries the unchanged ask
+(restore Theta VALUE or unschedule `research-options`) with this run added as the reason the second
+option is now the better one: the scope has no open question that the frozen store can answer, and
+the one product the store ever demonstrated has now been refused by its two possible consumers
+(A-15 on the mean, O-10 on the tail).
+
+`scripts/sweep_o10.py` (pre-registered docstring, 8 clauses + 4 gates), 5 DIAGNOSTIC ledger rows
+under `options/odte_o10_chain_switch`, outputs in `results/o10/`.
+
+---
+
 ## 2026-09-13 - O-9: the de-risk SWITCH is worth having and the CHAIN is not what makes it work. A tape-only inverse-VaR switch cuts the book's 5% tail **8.0-15.5%** at matched average exposure, at 5 of 5 clocks, beating a timing-destroyed placebo at 5 of 5. Adding `rn_half` on top of it buys **+2.68%** more (99% CI **[-0.49, +7.11]**, crosses zero; bar was +5%). **PARTIAL** on the pre-registered statistic. The decisive number for OWNER-5 is in the regime split: the chain's increment is **+7.7% in 2020-2023 and +1.6% in 2024-2026** - it has decayed to nothing in the only era where this store is actually daily. Nothing shipped.
 
 **Why this item.** It was the last open O-item and the only consumer of `rn_half` that A-15 did not

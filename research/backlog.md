@@ -1882,7 +1882,31 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   protects unnamed files, **not shared named ones**.
   <!-- added by the 2026-09-13 daily review. -->
 
-- **O-9 DONE 2026-09-13 (PARTIAL, and it CLOSES the O-track; see `research/journal_options.md`):
+- **O-10 DONE 2026-09-13 (and it is what actually closes the O-track; see
+  `research/journal_options.md`): the chain adds NOTHING to the de-risk switch that WORKS.** O-9
+  measured the chain's increment on a switch targeted at **SPY's own** quantile, and A-17 then
+  refused that switch outright while showing the retargeted version (the **sleeve's own** session
+  return) clears every condition at +11.08%. So O-9 had priced the chain against a switch that is
+  itself worthless. O-10 asks the question that was never asked - does `rn_half` improve the switch
+  with a real effect to be incremental to - and the answer is no: **ES5 cut -0.54%, 99%
+  block-bootstrap CI [-3.43, +2.47], 1 of 3 regimes**, against the same +5% bar; against the
+  pre-open-only baseline **-0.01%**, CI [-3.07, +3.11]; the 09:40 robustness read +0.65%. The chain
+  read had to be rebuilt at **09:35** because O-5's cache starts at 10:00, fifteen minutes *inside*
+  the book (the sleeve's first entry is minute 15); coverage there is 98.4% - measured on coverage
+  alone before any forward return - and the read correlates 0.963 with the 10:00 read, so it is the
+  same feature one clock earlier. Both controls PASS, which is what makes this a refusal and not a
+  null sample: the clock-matched tape switch beats a flat book at the same exposure by **+9.09%**,
+  CI [+3.20, +14.47], and beats **200 of 200** timing-destroyed placebos. Gate 0 reproduces A-17's
+  persisted SW_SLEEVE schedule on 2,355 of 2,355 rows at 1.11e-16. Raw schedules correlate M0-M1
+  0.853 - the chain *does* change which days get cut, and the tail is unchanged. **REFUSED-BY-TAIL.
+  O-1..O-10 are all closed on evidence; the store's one demonstrated product has now been refused
+  by both of its possible consumers (A-15 on the mean, O-10 on the tail), and nothing here is
+  answerable that the frozen store has not already answered.** `scripts/sweep_o10.py`, 5 DIAGNOSTIC
+  ledger rows under `options/odte_o10_chain_switch`, 1,537 OOS sessions.
+  <!-- O-10 opened and closed by the options track, 2026-09-13. -->
+
+- **O-9 DONE 2026-09-13 (PARTIAL; superseded as the track's closing item by O-10 above - see
+  `research/journal_options.md`):
   the de-risk switch is worth having and the chain is not what makes it work.** A tape-only
   inverse-VaR switch cuts the book's 5% tail **8.0-15.5%** at matched average exposure at 5 of 5
   clocks, at no measurable cost in mean (every book's mean moves less than one SE, one of them
