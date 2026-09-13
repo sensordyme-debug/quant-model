@@ -5,6 +5,160 @@ Newest first. The `options` scope: the Theta store, `scripts/odte_*`, `scripts/t
 
 ---
 
+## 2026-09-13 - O-8: the put wing does NOT forecast the day's downside tail. Against a baseline that already carries the chain's own symmetric magnitude, the asymmetry block loses on the pooled test (DM t **-0.401**), wins 2 of 5 clocks, gets 1 of 5 clocks on the regimes leg, and fits the DECLARED SIGN WRONG at 4 of 5 clocks. REFUSED on both legs. The secondary read is the positive one and it is real: `rn_half` cuts the OOS 5% VaR loss **-3.0% to -8.0%, rising monotonically through the day**, at 5 of 5 clocks. Nothing shipped.
+
+**Why this item.** There was no open O-item - O-1 through O-7 are all closed - and O-7's closing
+sentence was that everything this 176 MB store contains lives in ONE number, `rn_half`, a
+*symmetric* scale, whose only consumer (position size) was then refused downstream by A-15. But
+the chain also prices **asymmetry**, and this track has tested that exactly once, for exactly one
+thing: O-5 asked whether `rn_skew` (0.5% of spot) and `rn_tail` (2.0%, the crash-premium tilt)
+forecast the **direction** of the remaining move, found best cover 0.963 and zero cells above 1,
+and closed direction.
+
+A conditional **mean** and a conditional **quantile** are not the same object, and the gap between
+them is this item's whole economics. The conditional mean of a return is a tradeable expectation;
+if the chain knew it, the chain would price it away, so O-5's null is what efficiency is supposed
+to look like. The 5th percentile is not a tradeable expectation in the same sense - the
+risk-neutral left wing is a physical tail probability multiplied by a pricing kernel that is
+largest exactly there, which makes the put wing a **biased** estimator of the physical tail and
+says nothing about whether it is an **informative** one. And a downside tail has a consumer that
+magnitude does not: A-15 refused `rn_half` as a size scaler because the sleeve is paid for the
+volatility *surprise*, not the predictable part; nothing in A-15 is about the **left tail**, and a
+de-risk/flatten switch is paid for avoiding drawdown, a functional of the lower quantile alone.
+
+**Hypothesis.** The chain's risk-neutral asymmetry carries information about the LOWER conditional
+quantile of the remaining session's move in SPY that is contained neither in the realized tape nor
+in the chain's own symmetric magnitude `rn_half`.
+
+**Design, pre-registered in `scripts/sweep_o8.py`'s docstring before any run.** No new feature, no
+new clock, no new data: the chain side is O-5's frozen cache, and the tape panel, the five clocks,
+the 250-session burn-in, the expanding-window protocol, the regime split and the DM statistic are
+**imported from `sweep_o6.py`**. What is new is the target and the loss. Target = **`fwd` itself,
+signed** - no absolute value and no log, because taking either destroys the asymmetry being
+tested. Estimator = **linear quantile regression at tau = 0.05**, chosen over a binary exceedance
+model precisely because binarising needs an arbitrary threshold, and the pinball loss at tau =
+0.05 *is* the loss function of a 5% VaR, so the statistical test and the economic object are one
+quantity. Three nested models, all in levels: **M0** = tape (`rv_sofar`, `rng_sofar`, `rv20`,
+`absret_1`); **M1 = M0 + `rn_half`**; **M2 = M1 + {`rn_skew`, `rn_tail`} as a fixed two-column
+block**. The test that decides the item is **M2 against M1**, not against the tape - if the
+asymmetry block only beats the tape it has found O-6's result again through a wider door, and that
+is a refusal here. `rn_drift` and `d_rn_skew` are in the cache, are *not* in the block, and were
+declared unswappable. Declared sign: `rn_tail` = P_rn(move <= -2%) - P_rn(move >= +2%), so a
+higher value is a fatter left wing and must push the 5% quantile **down** - coefficient NEGATIVE,
+same for `rn_skew`. PASS needed **both** (i) M2 below M1 at >= 4 of 5 clocks and a pooled DM t >
++2.576, pooled by averaging the loss difference across clocks *within a session* first; and (ii)
+the two-of-three regimes rule at >= 4 of 5 clocks.
+
+**Gates.** Gate 0 (O-6's, O-5's control reproducing to 0.005) passes. Gate 1 is new and it is the
+one this item could not have run without: `statsmodels` is not installed on this machine, so the
+IRLS quantile-regression solver is written out in the file, and rather than trust it, it is checked
+against an **exact `scipy.optimize.linprog` solution of the same program** - excess pinball loss
+**0.0000 at both taus** (tolerance 1e-6). Gate 2, in-sample calibration, breaches 5.20-5.30% at
+tau = 0.05 and 94.75-94.85% at tau = 0.95 across all five clocks. Panel: 8,754 feature-complete
+rows, 1,855 sessions, 2016-02-05..2026-09-10.
+
+**Stage C - decisive, and it is a clean refusal.**
+
+| clock | pin M1 (+half) | pin M2 (+asym) | d_pin M2 vs M1 | DM t | regimes won | clock won |
+|---|---|---|---|---|---|---|
+| 10:00 | 0.000800 | 0.000798 | **-0.21%** | +0.12 | 1 | yes |
+| 11:00 | 0.000700 | 0.000702 | +0.25% | -0.23 | 2 | no |
+| 12:00 | 0.000600 | 0.000608 | +1.34% | -1.12 | 1 | no |
+| 13:00 | 0.000500 | 0.000499 | **-0.21%** | +0.15 | 1 | yes |
+| 14:00 | 0.000400 | 0.000402 | +0.43% | -0.61 | 1 | no |
+
+Leg (i): clocks won **2 of 5**, pooled DM t **-0.401** against a bar of +2.576 - the block is
+fractionally on the *wrong* side of zero, not merely short of significance. Leg (ii): 1 of 5
+clocks reach two regimes. **Verdict REFUSED**, and the two legs agree, which is the cheapest kind
+of refusal to believe.
+
+**Stage F, and this is the part that says the refusal is about the mechanism and not about power.**
+The declared sign is **wrong**. Fitted per-1-sd effects on the 5% quantile: `rn_skew` comes out
+**positive at 4 of 5 clocks** (+14.8 / +3.8 / +4.2 / +4.6 / -0.8 bps) where the declaration said
+negative, and `rn_tail` is negative at only 3 of 5 (+1.2 / -6.9 / -0.8 / -9.2 / +4.6). `rn_half`,
+by contrast, is **-21.9 to -37.1 bps per sd at 5 of 5**, exactly as a scale must be. A block that
+carried real tail information and merely lacked power would at least load in the declared
+direction; this one does not.
+
+**Stage A shows why, and the answer was visible before the verdict.** Both asymmetry reads have a
+substantial Spearman with **|fwd|** (`rn_skew` -0.31 to -0.34, `rn_tail` +0.15 to +0.22) and an
+almost null one with **signed fwd** (-0.08 to +0.08). On the worst 5% of days they *are* more
+extreme (`rn_skew` mean -0.031 against -0.014 at 10:00), but the worst 5% of days are also the big
+-move days, so that gap is a magnitude effect - and it is exactly the confound the M1 baseline was
+built to absorb. It absorbed it. **The put wing's asymmetry, as this store measures it, is a
+restatement of the chain's own width.**
+
+**Stage D - the economic leg is a null in both directions.** The de-risk switch the 5% quantile
+would feed, at matched mean exposure: the book's 5th-percentile return moves +0.00 / +1.86 /
++4.08 / -4.09 / -1.26 percent - no sign, no material cell (bar was -5%). Calibration is worth
+noting on its own: **M1's realised breach rate is 4.39-5.25% against a nominal 5%** at every
+clock, so the `rn_half` VaR is honest out of sample; M2's is 4.91-5.83%, marginally worse.
+
+**Stage E - the placebo, which did not have to bite and did not.** At tau = 0.95 the asymmetry
+block is **worse** than M1 at 5 of 5 clocks (pooled DM t **-2.674**), and the upper tail improves
+at least as much as the lower one at **0 of 5** clocks. So the refusal is not "a symmetric scale
+leaked in beside `rn_half`" - the block is simply fitting noise, and it costs more on the side
+where the store's sample is richer.
+
+**The secondary read, which is the only positive here and was pre-registered as unable to change
+the verdict.** M1 against M0 asks a question nobody had asked: does O-6's magnitude skill survive
+a change of *target* and *loss function*, from `log|move|` under squared error to a signed lower
+quantile under pinball loss? It does, at **5 of 5 clocks**, and the gain **grows monotonically
+through the session**: d_pin **-2.96 / -3.43 / -5.79 / -7.21 / -8.03 percent** at 10:00 .. 14:00,
+DM t **+2.66 / +2.24 / +2.90 / +2.78 / +3.16**. Four of five clear the 2.576 Bonferroni bar; 11:00
+at +2.24 does not, and that is said rather than rounded away. The same feature also improves the
+tau = 0.95 quantile (-5.6% to -7.9%, t +1.85 to +3.20), which is the coherence check this reading
+needed: `rn_half` is a *symmetric* scale and it should help both tails about equally, and it does.
+
+**Reported against itself - three limits, none of which the verdict leans on.** (1) `rn_tail` is
+**exactly 0 on 23.8% of rows** - on calm days both 2% wings are worthless - so a quarter of that
+column is a constant and the test is weaker for `rn_tail` specifically. It is not weaker for
+`rn_skew`, which is non-zero on 99.8% of rows and fails the declared sign at 4 of 5 clocks, so the
+refusal does not rest on the mass point. (2) The estimator is **linear in levels**; a nonlinear
+tail response at these two distances would be missed, and the honest claim is therefore "linear,
+at 0.5% and 2.0% of spot, out of sample, over and above tape + `rn_half`: nothing", not "the chain
+has no tail information at any functional form". (3) The 250-session burn-in leaves the 2016-2019
+regime with 32-187 OOS rows, so at 13:00 and 14:00 it falls under the 100-row floor and "2 of 3"
+is judged as 2 of 2 available - which, if anything, made leg (ii) *easier* to pass, and it still
+failed. The store remains frozen at 1,891 sessions ending 2026-09-10 (Theta FREE, `history/quote`
+403), and the sample carries O-3's both-rights mask and is therefore tilted volatile, identically
+for all three models.
+
+**Decision: REFUSED, and it closes the store on evidence rather than on exhaustion.** The
+pre-registered meaning of this outcome, written before the run, was that the chain's entire
+content is the one symmetric number O-6 found, that the asymmetry the put wing is famous for is a
+pricing kernel rather than a forecast, and that **O-4's advice to stop scheduling this scope until
+Theta VALUE is restored becomes unconditional rather than a judgement call.** All three now hold.
+Eight items, one PASS (O-6), one characterisation of it (O-7), and a downstream refusal of the
+product (A-15). The residue this track leaves behind is a single well-calibrated fact for whoever
+wants it: **`rn_half` is a better same-day 5% VaR for SPY than the tape alone, by 3 to 8 percent
+of pinball loss, increasing through the day** - measured, out of sample, and not shipped.
+
+**Nothing shipped.** No shipped file, no runner-loaded file, no config, no `champion.json`, no
+deploy gate owed. The only new file is `scripts/sweep_o8.py`, which imports its measurement side
+from `sweep_o6` rather than re-implementing it; `scripts/sweep_o6.py` and `sweep_o7.py` are
+**unmodified**. 21 DIAGNOSTIC rows under `options/odte_o8_tail`; the full console run is kept at
+`results/options/o8_run.txt` (gitignored) and the verdict reproduced exactly on the recorded
+second pass.
+
+**No handoff opened.** O-6 opened A-15 and A-15 was refused; opening another item off a REFUSED
+result would be spending another track's slot on nothing.
+
+**Provenance note, so the history is not misleading.** `.git/index.lock` was held by other tracks
+for most of this run. Between this track's `git add` and its `git commit`, a concurrent track
+committed - taking these four staged paths out of the index - and then staged its own. The result
+is that **commit `30abec5` carries this item's commit message but seven files belonging to the
+`eng`/futures tracks** (`quant_brain/core/mode.py`, `quant_brain/brokers/ibkr.py`,
+`quant_brain/core/execution.py`, `scripts/intraday_trader.py`, `scripts/paper_trade.py`,
+`tests/test_qb_adapter.py`, `tests/test_qb_mode.py`) and **none of O-8's**. Nothing was lost and
+nothing of another track's was altered - only the message is attached to the wrong files. History
+was deliberately NOT rewritten (other agents are committing against this branch right now, and an
+amend would move a commit out from under them); O-8's own four paths are committed separately in
+the commit that follows this line, which is the one to read for this item. Same failure mode and
+same remedy as `C-6` on 2026-09-12.
+
+---
+
 ## 2026-09-13 - O-7: O-6's magnitude skill is NOT a volatility-regime detector - it is there in 15 of 15 (clock x vol-state) cells and the sized-book benefit is LARGEST in the calm state, where a realized-vol sizer is blind. PASS on the pre-registered rule, and the calm leg clears its bar by 0.037 of a t, which is reported as the marginal thing it is. Nothing shipped - and the product this characterizes was already refused downstream by A-15, so this closes the track rather than advancing it.
 
 **Why this item.** There was no open O-item: O-1 through O-6 are all closed. O-6 is the only PASS

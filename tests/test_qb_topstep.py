@@ -53,10 +53,12 @@ def test_every_rule_carries_a_source_and_a_date():
 
 
 def test_every_documented_rule_cites_a_topstep_url():
+    """Topstep-owned, not necessarily the help centre - topstep.com is equally official."""
     for name, rule in _all_rules().items():
         if rule.confidence is ts.Confidence.DOC:
-            assert rule.source.startswith("https://help.topstep.com/"), (
-                f"{name} claims DOC confidence but does not cite a help-centre page")
+            assert rule.source.startswith(("https://help.topstep.com/",
+                                           "https://www.topstep.com/")), (
+                f"{name} claims DOC confidence but does not cite a Topstep-owned page")
 
 
 def test_retrieval_date_is_the_date_the_pages_were_fetched():
@@ -81,8 +83,10 @@ def test_unresolved_lists_exactly_the_rules_below_doc():
     unresolved = ts.unresolved()
     for name, rule in unresolved.items():
         assert rule.confidence < ts.Confidence.DOC, f"{name} is resolved, should not be listed"
-    # The three things the owner genuinely has to supply.
-    assert any("profit_target" in k for k in unresolved)
+    # The profit target left this list on 2026-09-13 when it was verified on
+    # topstep.com/no-activation-fee. What is left is genuinely unpublished.
+    assert not any("profit_target" in k for k in unresolved), (
+        "the profit target is verified now and should not still be listed as unresolved")
     assert "xfa_scaling_plan" in unresolved
     assert "combine_min_trading_days" in unresolved
 
@@ -100,11 +104,20 @@ def test_rulebook_renders_every_rule_with_its_citation():
 # FAIL CLOSED - the unverified profit target
 # ======================================================================================
 
-def test_combine_refuses_to_invent_a_profit_target():
-    with pytest.raises(ts.UnverifiedRule) as e:
-        ts.combine(50_000)
-    assert "profit target" in str(e.value).lower()
-    assert "dashboard" in str(e.value).lower(), "the error must say how to resolve it"
+def test_the_profit_target_is_verified_and_no_longer_has_to_be_supplied():
+    """It used to raise. It was the repository's largest owner blocker and it is closed."""
+    assert ts.COMBINE_PROFIT_TARGET[50_000].confidence is ts.Confidence.DOC
+    assert ts.combine(50_000).profit_target == 3_000.0
+    assert ts.combine(100_000).profit_target == 6_000.0
+    assert ts.combine(150_000).profit_target == 9_000.0
+
+
+def test_the_monthly_cost_is_recorded_with_its_disagreement():
+    """Two official pages differ on the no-activation-fee row; both are kept."""
+    assert ts.COMBINE_COST[50_000].value == 49.0
+    assert ts.COMBINE_COST[150_000].value == 199.0
+    note = ts.COMBINE_COST_NO_ACTIVATION[50_000].note
+    assert "$85" in note and "disagree" in note.lower()
 
 
 def test_combine_accepts_an_owner_supplied_target():
@@ -112,10 +125,9 @@ def test_combine_accepts_an_owner_supplied_target():
     assert p.profit_target == 3_000.0
 
 
-def test_combine_accepts_the_search_tier_target_only_when_asked():
-    p = ts.combine(50_000, allow_unverified_target=True)
-    assert p.profit_target == 3_000.0
-    assert ts.COMBINE_PROFIT_TARGET[50_000].confidence is ts.Confidence.SEARCH
+def test_an_owner_supplied_target_still_overrides_the_published_one():
+    """Your dashboard beats our reading of a marketing page if they ever differ."""
+    assert ts.combine(50_000, profit_target=2_500.0).profit_target == 2_500.0
 
 
 def test_require_below_the_bar_names_the_source_and_the_tier():
@@ -395,9 +407,23 @@ def test_relative_quantities_match_across_two_starting_balances():
 # CONSISTENCY - the contradiction, made measurable
 # ======================================================================================
 
-def test_the_default_reading_is_the_strict_one():
-    assert ts.DEFAULT_READING == "strict"
-    assert ts.CONSISTENCY_READINGS["strict"] == (0.50, "total")
+def test_the_default_reading_is_the_documented_one():
+    """Settled by the article's own worked example: 1,600/3,000 = 53%, denominator TOTAL."""
+    assert ts.DEFAULT_READING == "doc_calc"
+    assert ts.CONSISTENCY_READINGS["doc_calc"] == (0.55, "total")
+    assert ts.CONSISTENCY_READINGS["strict"] == (0.50, "total"), (
+        "the owner's 50% figure stays available even though no page supports it")
+
+
+def test_the_published_worked_example_reproduces():
+    """1,600 best day on 3,000 total profit = 53%, and 53% <= 55% passes."""
+    a = ts.TopstepAccount(profile=ts.combine(50_000))
+    a.settle_day(1_600.0)
+    a.settle_day(1_400.0)
+    assert a.total_profit == 3_000.0 and a.best_day == 1_600.0
+    assert a.consistency_pct == pytest.approx(0.5333, abs=0.001)
+    assert a.consistency_ok
+    assert a.combine_passed()[0]
 
 
 def test_both_documented_readings_are_recorded_verbatim():
@@ -445,11 +471,11 @@ def test_exceeding_consistency_raises_the_target_rather_than_failing():
     """8284208: "If it exceeds that, your Profit Target increases." Not a failure."""
     a = ts.TopstepAccount(profile=ts.combine(50_000, profit_target=3_000.0))
     a.settle_day(2_000.0)
-    a.settle_day(1_100.0)
+    a.settle_day(1_100.0)                       # 3,100 total, best day 64.5% > 55%
     assert a.stage is ts.TopstepStage.TRADING_COMBINE
     assert a.advance() is ts.TopstepStage.TRADING_COMBINE, "must not be marked failed"
-    assert a.effective_profit_target == pytest.approx(4_000.0)   # 2,000 / 0.50
-    assert a.profit_target_remaining == pytest.approx(900.0)
+    assert a.effective_profit_target == pytest.approx(2_000.0 / 0.55, abs=1.0)
+    assert a.profit_target_remaining == pytest.approx(2_000.0 / 0.55 - 3_100.0, abs=1.0)
 
 
 def test_trading_on_past_the_raised_target_eventually_passes():
@@ -538,22 +564,53 @@ def test_the_consistency_route_needs_three_days_and_forty_percent():
     assert not y.payout_eligible, "best day 67% of total must block the consistency route"
 
 
-def test_a_payout_is_capped_at_half_the_balance_and_the_route_ceiling():
+@pytest.mark.parametrize("size,standard,consistency", [
+    (50_000, 2_000.0, 3_000.0), (100_000, 3_000.0, 4_000.0), (150_000, 5_000.0, 6_000.0)])
+def test_the_payout_ceiling_is_per_account_size(size, standard, consistency):
+    """A single constant here used the $150K row for every size - 2.5x too generous at 50K.
+
+    The source page states the $150K figures unqualified in its summary text and only the
+    table is per-size, which is exactly how the error survived being read once.
+    """
+    x = ts.TopstepAccount(profile=ts.express_funded(size),
+                          stage=ts.TopstepStage.EXPRESS_FUNDED)
+    for _ in range(5):
+        x.settle_day(20_000.0)                  # balance far above any ceiling
+    assert x.payout_cap == standard
+
+    y = ts.TopstepAccount(profile=ts.express_funded(size, consistency_route=True),
+                          stage=ts.TopstepStage.EXPRESS_FUNDED, consistency_route=True)
+    for _ in range(5):
+        y.settle_day(20_000.0)
+    assert y.payout_cap == consistency
+
+
+def test_below_the_ceiling_the_binding_limit_is_half_the_balance():
     x = ts.TopstepAccount(profile=ts.express_funded(50_000),
                           stage=ts.TopstepStage.EXPRESS_FUNDED)
     for _ in range(5):
         x.settle_day(400.0)                     # balance 2,000
     assert x.payout_cap == 1_000.0
-    x2 = ts.TopstepAccount(profile=ts.express_funded(50_000),
-                           stage=ts.TopstepStage.EXPRESS_FUNDED)
+
+
+def test_a_payout_pins_the_mll_at_zero_permanently():
+    """8284233: "After each Payout: your MLL resets to $0 permanently."
+
+    Modelled explicitly rather than left to the trailing arithmetic, because a payout can be
+    taken before the floor has trailed up to the lock - and there the real rule is more
+    generous than the trailing model, which would understate the account's room.
+    """
+    x = ts.TopstepAccount(profile=ts.express_funded(50_000),
+                          stage=ts.TopstepStage.EXPRESS_FUNDED)
     for _ in range(5):
-        x2.settle_day(4_000.0)                  # balance 20,000; half is 10,000
-    assert x2.payout_cap == 5_000.0, "the standard route caps at $5,000"
-    x3 = ts.TopstepAccount(profile=ts.express_funded(50_000, consistency_route=True),
-                           stage=ts.TopstepStage.EXPRESS_FUNDED, consistency_route=True)
-    for _ in range(5):
-        x3.settle_day(4_000.0)
-    assert x3.payout_cap == 6_000.0, "the consistency route caps at $6,000"
+        x.settle_day(400.0)                     # balance 2,000, floor just reached 0
+    x.advance()
+    assert x.take_payout() == 1_000.0
+    assert x.mll_reset_by_payout
+    assert x.mll == 0.0
+    x.settle_day(-500.0)                        # balance 500, and the floor stays at 0
+    assert x.mll == 0.0
+    assert x.distance_to_mll == 500.0
 
 
 def test_a_payout_resets_the_winning_day_count_and_the_daily_series():
@@ -688,9 +745,10 @@ def test_profiles_covers_every_size_and_route():
         assert p[f"xfa_{k}k_consistency"].max_single_day_profit_share == 0.40
 
 
-def test_profiles_refuses_the_unverified_target_when_told_to():
-    with pytest.raises(ts.UnverifiedRule):
-        ts.profiles(allow_unverified_target=False)
+def test_profiles_builds_without_an_owner_supplied_target_now():
+    """It could not before 2026-09-13; the target was the blocker and it is verified."""
+    p = ts.profiles(allow_unverified_target=False)
+    assert p["combine_50k"].profit_target == 3_000.0
 
 
 def test_every_profile_round_trips_through_json():

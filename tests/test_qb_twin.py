@@ -224,9 +224,9 @@ def test_a_supplied_fee_produces_a_net_figure():
     assert "FEE UNKNOWN" not in ev.summary()
 
 
-def test_the_twin_inherits_the_rulebook_refusal_on_the_profit_target():
-    with pytest.raises(ts.UnverifiedRule):
-        tw.TopstepTwin(50_000)
+def test_the_twin_uses_the_verified_profit_target_without_being_told():
+    """It used to raise here. The target is DOC-tier as of 2026-09-13."""
+    assert tw.TopstepTwin(50_000).combine_profile.profit_target == 3_000.0
 
 
 # ======================================================================================
@@ -329,8 +329,10 @@ def test_a_payout_halves_the_room_on_a_locked_xfa():
     before = tw.risk_budget(flush)
     flush.advance()
     paid = flush.take_payout()
-    assert paid == 3_000.0, "the cap is half the balance, not the $5,000 ceiling, at $6,000"
-    assert tw.risk_budget(flush) == pytest.approx(before / 2)
+    # $6,000 balance on a 50K XFA: half the balance is $3,000 but the ceiling is $2,000,
+    # so the CEILING binds here, not the half-balance rule.
+    assert paid == 2_000.0, "the 50K standard ceiling is $2,000, not the $150K row"
+    assert tw.risk_budget(flush) == pytest.approx(before * 4 / 6)
 
 
 def test_the_risk_budget_shrinks_the_moment_a_payout_is_taken():

@@ -413,3 +413,60 @@ def test_the_real_es_spread_confirms_the_one_tick_assumption():
     assert modelled == pytest.approx(MEASURED_ES_BPS, abs=0.03), (
         "the model and F-2a's realised measurement must agree at the SAME price; comparing "
         "across price levels is what once made the model look 17% conservative")
+
+
+@pytest.mark.skipif(not __import__("pathlib").Path(QUOTES).exists(),
+                    reason="no ES quote store on this machine")
+def test_the_spread_is_stable_in_ticks_while_its_bps_cost_decays():
+    """Why the cost model charges ticks, not basis points.
+
+    Measured across six quarters the RTH spread is exactly 1.00 tick every time, while the
+    same spread costs 20% fewer basis points at the end than at the start - entirely because
+    the index rose. A hard-coded bps constant would have silently cheapened execution every
+    year; charging in ticks is right at every price.
+    """
+    import pandas as pd
+    q = pd.read_parquet(QUOTES)
+    q["t"] = pd.to_datetime(q["t"], utc=True)
+    hm = q["t"].dt.tz_convert("America/New_York").dt.strftime("%H:%M")
+    r = q[(hm >= "09:30") & (hm <= "16:00")].copy()
+    # tz dropped deliberately: quarters are calendar buckets, and to_period warns
+    # rather than doing it silently.
+    naive = pd.Series(pd.DatetimeIndex(r["t"]).tz_convert("UTC").tz_localize(None))
+    r["quarter"] = naive.dt.to_period("Q").to_numpy()
+
+    ticks, bps = [], []
+    for _, d in r.groupby("quarter", observed=True):
+        spread = pd.Series(pd.to_numeric(d["spread"])).median()
+        price = pd.Series(pd.to_numeric(d["c"])).median()
+        ticks.append(spread / 0.25)
+        bps.append(spread / price * 10_000)
+
+    assert len(ticks) >= 4, "need several quarters for this to mean anything"
+    assert max(ticks) == pytest.approx(1.0, abs=0.01)
+    assert min(ticks) == pytest.approx(1.0, abs=0.01), (
+        f"the spread is not tick-stable: {min(ticks):.2f}-{max(ticks):.2f} ticks")
+    assert max(bps) / min(bps) > 1.1, (
+        "the bps cost did not move across quarters; if that ever becomes true the argument "
+        "for charging in ticks rather than bps is weaker and worth revisiting")
+
+
+@pytest.mark.skipif(not __import__("pathlib").Path(QUOTES).exists(),
+                    reason="no ES quote store on this machine")
+def test_the_model_and_the_tape_agree_when_compared_at_the_same_price():
+    """Like-for-like: spread PLUS commission, both at the sample's own median price."""
+    import pandas as pd
+    q = pd.read_parquet(QUOTES)
+    q["t"] = pd.to_datetime(q["t"], utc=True)
+    hm = q["t"].dt.tz_convert("America/New_York").dt.strftime("%H:%M")
+    r = q[(hm >= "09:30") & (hm <= "16:00")]
+    spread = float(pd.Series(pd.to_numeric(r["spread"])).median())
+    price = float(pd.Series(pd.to_numeric(r["c"])).median())
+
+    sim = _sim("ES")
+    tape = (spread / price + 2 * sim.cost.commission_per_side / (price * sim.multiplier)) * 1e4
+    model = sim.cost_per_dollar_exposure(price) * 1e4
+    assert model == pytest.approx(tape, rel=0.01), (
+        f"model {model:.3f} bps vs tape {tape:.3f} bps. If these diverge, check that both "
+        f"include commission and that both are evaluated at the same price - the two "
+        f"previous disagreements about this number were both category errors, not defects.")

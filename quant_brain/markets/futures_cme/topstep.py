@@ -96,6 +96,13 @@ DLL_DOC = _HC + "8284207-what-is-the-daily-loss-limit-and-what-happens-if-i-exce
 CONSISTENCY_DOC = _HC + "8284208-what-is-the-consistency-target"
 XFA_DOC = _HC + "8284215-express-funded-account-parameters"
 LFA_DOC = _HC + "10657969-live-funded-account-parameters"
+PAYOUT_DOC = _HC + "8284233"
+PRICING = _HC + "14289835"
+
+#: topstep.com rather than the help centre. Both are Topstep-owned and both are
+#: authoritative; they are separated here because they disagree on one row - see
+#: COMBINE_COST_NO_ACTIVATION.
+NAF = "https://www.topstep.com/no-activation-fee"
 
 T = TypeVar("T")
 
@@ -249,27 +256,56 @@ XFA_CONSISTENCY_EXCEEDED = Rule(
 #: The readings in play, so the difference between them can be measured instead of argued.
 #: (threshold, denominator); "total" divides by total profit, "target" by the profit target.
 CONSISTENCY_READINGS: dict[str, tuple[float, str]] = {
-    "strict": (0.50, "total"),        # default: the strictest combination
-    "doc_calc": (0.55, "total"),      # the page's threshold with the page's calculation
-    "doc_text": (0.55, "target"),     # the page's threshold read literally
+    "doc_calc": (0.55, "total"),      # DEFAULT: settled by the page's own worked example
+    "doc_text": (0.55, "target"),     # the threshold sentence read literally
+    "strict": (0.50, "total"),        # the owner brief's figure; unsupported on any page
     "owner_target": (0.50, "target"),
 }
-DEFAULT_READING = "strict"
+
+#: RESOLVED 2026-09-13. The ambiguity recorded above was real but is now settled, and by the
+#: article's own worked example rather than by argument:
+#:
+#:     "$50K account: $1,600 best day / $3,000 total profit = 53%  Consistency Target met."
+#:
+#: 1,600/3,000 = 53%, so the denominator is TOTAL PROFIT, not the profit target - the
+#: calculation line was right and the threshold sentence's "of your Profit Target" is loose
+#: wording. And the threshold is 55%: topstep.com/no-activation-fee prints "55%" beside every
+#: account size, and 8284099 says "best trading day <= 55% of total profits".
+#:
+#: The 50% figure came from the owner's brief and is supported by no page reachable today. It
+#: is kept as `strict` because designing to it is harmless, but it is no longer the default:
+#: modelling a rule stricter than the real one understates the pass rate, and a research
+#: platform should model the rule that exists.
+DEFAULT_READING = "doc_calc"
 
 # --- passing the Combine --------------------------------------------------------------
-#: NOT verbatim on any page fetched. A topstep.com search summary gives 6% of buying power,
-#: corroborated by the LFA page, which states the same three figures as its reserve-unlock
-#: targets. Corroboration is not verification: this stays SEARCH, and `combine()` refuses it
-#: unless the caller opts in or supplies the number from their own dashboard.
+#: VERIFIED 2026-09-13 on topstep.com/no-activation-fee, which prints the profit target
+#: beside the monthly price for each size, and independently corroborated by the worked
+#: example on the consistency article ("$50K account: $1,600 best day / $3,000 total
+#: profit") and by the LFA page quoting the same three figures as reserve-unlock targets.
+#: This was the repository's single largest owner blocker and it is now closed.
 COMBINE_PROFIT_TARGET: dict[int, Rule[float]] = {
-    50_000: Rule(3_000.0, "$50K buying power with a $3,000 profit target",
-                 "topstep.com search summary", Confidence.SEARCH,
-                 note="Not found on 8284197, 8284099 or /our-program. Read it off your "
-                      "Combine dashboard and pass profit_target= explicitly."),
-    100_000: Rule(6_000.0, "$100K buying power with a $6,000 profit target",
-                  "topstep.com search summary", Confidence.SEARCH),
-    150_000: Rule(9_000.0, "$150K buying power with a $9,000 profit target",
-                  "topstep.com search summary", Confidence.SEARCH),
+    50_000: Rule(3_000.0, "$50K Buying Power ... Profit Target $3,000", NAF, Confidence.DOC),
+    100_000: Rule(6_000.0, "$100K Buying Power ... Profit Target $6,000", NAF, Confidence.DOC),
+    150_000: Rule(9_000.0, "$150K Buying Power ... Profit Target $9,000", NAF, Confidence.DOC),
+}
+
+#: Monthly cost. Two published paths, and the two official pages DISAGREE on the
+#: no-activation-fee row - recorded rather than reconciled, because picking one silently
+#: would bury a real discrepancy in a number that feeds every expected-capital figure.
+COMBINE_COST: dict[int, Rule[float]] = {
+    50_000: Rule(49.0, "$50K ... $49/month (Standard)", PRICING, Confidence.DOC),
+    100_000: Rule(99.0, "$100K ... $99/month (Standard)", PRICING, Confidence.DOC),
+    150_000: Rule(199.0, "$150K ... $199/month (Standard)", PRICING, Confidence.DOC),
+}
+COMBINE_COST_NO_ACTIVATION: dict[int, Rule[float]] = {
+    50_000: Rule(95.0, "$50K ... $95/month (No Activation Fee)", PRICING, Confidence.DOC,
+                 note="topstep.com/no-activation-fee says $85 for the same row. The two "
+                      "official pages disagree; confirm at checkout."),
+    100_000: Rule(149.0, "$100K ... $149/month (No Activation Fee)", PRICING, Confidence.DOC,
+                  note="topstep.com/no-activation-fee says $129 for the same row."),
+    150_000: Rule(229.0, "$150K ... $229/month (No Activation Fee)", PRICING, Confidence.DOC,
+                  note="topstep.com/no-activation-fee says $199 for the same row."),
 }
 
 COMBINE_MIN_DAYS = Rule(
@@ -284,15 +320,44 @@ XFA_WINNING_DAYS = Rule(
     5, "5 winning days with at least $150 profit each", XFA_DOC, Confidence.DOC)
 XFA_WINNING_DAY_MIN = Rule(
     150.0, "at least $150 profit each", XFA_DOC, Confidence.DOC)
+#: PER ACCOUNT SIZE. The previous single constant used the $150K row for every size, which
+#: overstated a $50K account's payout ceiling by 2.5x - in the flattering direction, on the
+#: size most people actually trade. The source page states the $150K figures unqualified in
+#: its summary text and only the table is per-size, which is how the error survived review.
+XFA_STANDARD_CAP_BY_SIZE: dict[int, Rule[float]] = {
+    50_000: Rule(2_000.0, "$50K | XFA Standard | $2,000", PAYOUT_DOC, Confidence.DOC),
+    100_000: Rule(3_000.0, "$100K | XFA Standard | $3,000", PAYOUT_DOC, Confidence.DOC),
+    150_000: Rule(5_000.0, "$150K | XFA Standard | $5,000", PAYOUT_DOC, Confidence.DOC),
+}
+XFA_CONSISTENCY_CAP_BY_SIZE: dict[int, Rule[float]] = {
+    50_000: Rule(3_000.0, "$50K | XFA Consistency | $3,000", PAYOUT_DOC, Confidence.DOC),
+    100_000: Rule(4_000.0, "$100K | XFA Consistency | $4,000", PAYOUT_DOC, Confidence.DOC),
+    150_000: Rule(6_000.0, "$150K | XFA Consistency | $6,000", PAYOUT_DOC, Confidence.DOC),
+}
+
+#: "Max Payout per request: 50% of your account balance up to the cap below." (8284233)
 XFA_STANDARD_CAP = Rule(
-    5_000.0, "max 50% of balance up to $5,000", XFA_DOC, Confidence.DOC)
+    5_000.0, "max 50% of balance up to $5,000", XFA_DOC, Confidence.DOC,
+    note="The $150K row. Kept for the $150K case only; use XFA_STANDARD_CAP_BY_SIZE.")
 XFA_BALANCE_SHARE = Rule(
     0.50, "50% of balance", XFA_DOC, Confidence.DOC)
 XFA_CONSISTENCY_MIN_DAYS = Rule(
     3, "at least 3 days with at least 1 trade per day", XFA_DOC, Confidence.DOC)
 XFA_CONSISTENCY_CAP = Rule(
     6_000.0, "up to $6,000", XFA_DOC, Confidence.DOC,
-    note="The consistency route's higher ceiling, paired with the 40% requirement.")
+    note="The $150K row. Use XFA_CONSISTENCY_CAP_BY_SIZE; the ceiling is per size.")
+
+#: "After each Payout: Your Maximum Loss Limit (MLL) resets to $0 permanently, and your
+#: 5-day count restarts." (8284233, retrieved 2026-09-13)
+MLL_RESETS_ON_PAYOUT = Rule(
+    True,
+    "After each Payout: Your Maximum Loss Limit (MLL) resets to $0 permanently, and your "
+    "5-day count restarts.",
+    PAYOUT_DOC, Confidence.DOC,
+    note="This is what makes a payout a risk decision rather than a cash transfer: the "
+         "balance falls by the amount withdrawn and the floor does NOT follow it down. "
+         "Taking the maximum at the first opportunity therefore buys cash by spending the "
+         "entire buffer that keeps the account alive.")
 PROFIT_SPLIT = Rule(0.90, "90/10", XFA_DOC, Confidence.DOC, note="90% to the trader.")
 MAX_ACTIVE_XFA = Rule(5, "up to 5 active Express Funded Accounts", XFA_DOC, Confidence.DOC)
 
@@ -330,15 +395,20 @@ LFA_ENTRY = Rule(
 
 
 def unresolved() -> dict[str, Rule]:
-    """Every rule below DOC confidence. Print this before spending money."""
-    out: dict[str, Rule] = {
-        f"combine_profit_target[{size}]": rule
-        for size, rule in COMBINE_PROFIT_TARGET.items()
+    """Every rule below DOC confidence. Print this before spending money.
+
+    Shorter than it was: the Combine profit target and the monthly cost were verified on
+    2026-09-13 and moved to DOC, which closed the largest owner blocker this repository
+    had. What remains is genuinely unpublished rather than merely unfound.
+    """
+    return {
+        "combine_min_trading_days": COMBINE_MIN_DAYS,
+        # Published only as an image on the XFA page - no text, alt-text or caption anywhere.
+        "xfa_scaling_plan": XFA_SCALING,
+        # Retained so the owner's figure stays on the record, but no longer the default:
+        # 55% is what every official page says today.
+        "combine_consistency_owner_figure": COMBINE_CONSISTENCY_OWNER,
     }
-    out["combine_min_trading_days"] = COMBINE_MIN_DAYS
-    out["xfa_scaling_plan"] = XFA_SCALING
-    out["combine_consistency_threshold"] = COMBINE_CONSISTENCY_OWNER
-    return out
 
 
 def rulebook() -> str:
@@ -486,8 +556,8 @@ def express_funded(size: int, *, consistency_route: bool = False,
         max_contracts_per_symbol=per_symbol,
         allow_overnight=False,
         allow_weekend=False,
-        payout_on_pass=(XFA_CONSISTENCY_CAP.value if consistency_route
-                        else XFA_STANDARD_CAP.value),
+        payout_on_pass=(XFA_CONSISTENCY_CAP_BY_SIZE[size].value if consistency_route
+                        else XFA_STANDARD_CAP_BY_SIZE[size].value),
         profit_split=PROFIT_SPLIT.value,
         scaling=scaling if scaling is not None else XFA_SCALING.value,
     )
@@ -573,6 +643,8 @@ class TopstepAccount:
     total_paid_out: float = 0.0
     consistency_route: bool = False
     reading: str = DEFAULT_READING
+    #: Set by the first payout and never cleared. See MLL_RESETS_ON_PAYOUT.
+    mll_reset_by_payout: bool = False
 
     def __post_init__(self) -> None:
         if math.isnan(self.balance):
@@ -587,7 +659,15 @@ class TopstepAccount:
 
     @property
     def mll(self) -> float:
-        """The Maximum Loss Limit right now, as an equity level."""
+        """The Maximum Loss Limit right now, as an equity level.
+
+        A payout pins it at the lock level permanently (8284233: "resets to $0 permanently"),
+        which for an XFA is $0. Modelled explicitly rather than relying on the trailing
+        arithmetic having already reached the lock, because a payout can be taken before it
+        has - and in that case the real rule is more generous than the trailing model.
+        """
+        if self.mll_reset_by_payout and self.profile.trailing_locks_at is not None:
+            return self.profile.trailing_locks_at
         return self.profile.floor_for(self.peak_eod_balance)
 
     @property
@@ -681,8 +761,13 @@ class TopstepAccount:
 
     @property
     def payout_cap(self) -> float:
-        """The most withdrawable now: 50% of balance, capped by the route's ceiling."""
-        cap = (XFA_CONSISTENCY_CAP.value if self.consistency_route else XFA_STANDARD_CAP.value)
+        """The most withdrawable now: 50% of balance, capped by the route's ceiling.
+
+        The ceiling is per ACCOUNT SIZE and the profile carries it, rather than being read
+        from a module constant - the constant was the $150K row and applying it to a $50K
+        account overstated the ceiling 2.5x.
+        """
+        cap = self.profile.payout_on_pass or float("inf")
         return max(0.0, min(self.balance * XFA_BALANCE_SHARE.value, cap))
 
     # -- transitions ------------------------------------------------------------------------
@@ -776,6 +861,7 @@ class TopstepAccount:
         self.equity = self.balance
         self.total_paid_out += paid
         self.payouts_taken += 1
+        self.mll_reset_by_payout = True
         self.winning_days = 0
         self.daily_pnl.clear()
         self.stage = TopstepStage.EXPRESS_FUNDED

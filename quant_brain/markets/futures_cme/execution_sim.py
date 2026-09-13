@@ -311,11 +311,28 @@ class ExecutionSimulator:
         6,872. The model charges 0.480 bps. F-2a's independently measured realised cost was
         0.488 bps. Three numbers, agreeing to within 2%.
 
-        One caution the earlier version of this docstring got wrong: this figure is
-        PRICE-DEPENDENT, because commission and tick value are fixed dollars while notional
-        is not. The same model reads 0.569 bps at a price of 5,800 and 0.480 bps at 6,872.
-        Comparing a modelled bps figure computed at one price against a cost measured at
-        another is how the model briefly appeared 17% conservative when it was not.
+        WHY THE COST IS CHARGED IN TICKS AND NOT IN BASIS POINTS
+        Measured on the ES quote store, RTH, by quarter:
+
+            2025Q2  1.00 ticks  0.411 bps   median price 6,086
+            2025Q3  1.00 ticks  0.389 bps                6,431
+            2025Q4  1.00 ticks  0.366 bps                6,830
+            2026Q1  1.00 ticks  0.363 bps                6,888
+            2026Q2  1.00 ticks  0.337 bps                7,412
+            2026Q3  1.00 ticks  0.327 bps                7,647
+
+        The spread is pinned at exactly one tick in every quarter while its cost in basis
+        points decays 20%, entirely because the index rose. A tick is a fixed 0.25 points;
+        bps is not fixed at all. So a hard-coded bps constant silently cheapens execution
+        every year the market goes up, and charging in ticks is right at every price.
+
+        This figure is therefore PRICE-DEPENDENT and must only ever be compared against a
+        measurement taken at the SAME price. The same model reads 0.569 bps at 5,800 and
+        0.480 bps at 6,872 - and ES never traded below 5,971 anywhere in this sample, so
+        5,800 is not merely a different price, it is one that did not occur. Two separate
+        readings of this number have gone wrong that way: once appearing 17% conservative
+        and once appearing to overcharge by 56%. Like-for-like at the same price, the model
+        and the tape agree to 1.000x.
         """
         spread = self.cost.spread_ticks * self.tick * self.multiplier
         return 2 * self.cost.commission_per_side * quantity + spread * quantity
