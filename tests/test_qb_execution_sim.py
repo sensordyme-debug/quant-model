@@ -343,3 +343,73 @@ def test_the_result_renders_both_outcomes():
     bad = str(sim.execute(_buy(5.0), _q(), position=1.0))
     assert "ES" in ok and "@" in ok and "cost $" in ok
     assert bad.startswith("REJECTED") and "position_limit" in bad
+
+
+# ======================================================================================
+# THE SPREAD IS NOW MEASURED, NOT ASSUMED
+#
+# The model charged one tick because one tick is the venue minimum, which is a floor rather
+# than a measurement. The ES quote store fetched 2026-09-13 settles it: median exactly 1.00
+# tick in RTH, 95.6% of bars at one tick.
+# ======================================================================================
+
+QUOTES = "data/futures/ES_quotes.parquet"
+
+
+def test_the_spread_is_a_parameter_not_a_hard_coded_tick():
+    cheap = ex.CostModel(commission_per_side=2.0, spread_ticks=1.0)
+    wide = ex.CostModel(commission_per_side=2.0, spread_ticks=2.0)
+    a = ex.ExecutionSimulator(cost=cheap, symbol="ES").round_turn_cost(1.0)
+    b = ex.ExecutionSimulator(cost=wide, symbol="ES").round_turn_cost(1.0)
+    assert b - a == pytest.approx(12.50), "a second tick of spread costs one more tick value"
+
+
+def test_measure_spread_reports_the_shape_of_the_distribution():
+    import pandas as pd
+    q = pd.DataFrame({"spread": [0.25] * 90 + [0.50] * 10})
+    out = ex.measure_spread_ticks(q, tick=0.25)
+    assert out["median_ticks"] == pytest.approx(1.0)
+    assert out["one_tick_share"] == pytest.approx(0.90)
+    assert out["n"] == 100
+
+
+def test_measure_spread_drops_halt_and_rollover_artefacts():
+    import pandas as pd
+    q = pd.DataFrame({"spread": [0.25] * 99 + [500.0]})
+    out = ex.measure_spread_ticks(q, tick=0.25)
+    assert out["n"] == 99, "a 2000-tick spread is a halt, not something a strategy trades"
+
+
+def test_measure_spread_refuses_an_empty_store():
+    import pandas as pd
+    with pytest.raises(ValueError) as e:
+        ex.measure_spread_ticks(pd.DataFrame({"spread": []}), tick=0.25)
+    assert "empty" in str(e.value) or "artefact" in str(e.value)
+
+
+@pytest.mark.skipif(not __import__("pathlib").Path(QUOTES).exists(),
+                    reason="no ES quote store on this machine")
+def test_the_real_es_spread_confirms_the_one_tick_assumption():
+    """Three independent numbers, agreeing to within 2%.
+
+    This is the test the cost model has been waiting for since it was written: it charged a
+    spread it had no way to verify. Now the tape answers, and it agrees both with the model
+    and with F-2a's separately measured realised cost.
+    """
+    import pandas as pd
+    q = pd.read_parquet(QUOTES)
+    q["t"] = pd.to_datetime(q["t"], utc=True)
+    hm = q["t"].dt.tz_convert("America/New_York").dt.strftime("%H:%M")
+    rth = q[(hm >= "09:30") & (hm <= "16:00")]
+
+    out = ex.measure_spread_ticks(rth, tick=0.25)
+    assert out["median_ticks"] == pytest.approx(1.0), (
+        f"the one-tick assumption is wrong: median is {out['median_ticks']:.2f} ticks")
+    assert out["one_tick_share"] > 0.90
+
+    price = float(pd.Series(pd.to_numeric(rth["c"])).median())
+    modelled = _sim("ES").cost_per_dollar_exposure(price) * 10_000
+    assert modelled == pytest.approx(0.480, abs=0.02)
+    assert modelled == pytest.approx(MEASURED_ES_BPS, abs=0.03), (
+        "the model and F-2a's realised measurement must agree at the SAME price; comparing "
+        "across price levels is what once made the model look 17% conservative")

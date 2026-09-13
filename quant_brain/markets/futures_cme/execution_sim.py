@@ -99,6 +99,10 @@ class CostModel:
     #: Zero means the order is assumed to fill entirely at the touch, which is only credible
     #: for sizes small against the book.
     impact_ticks_per_book: float = 1.0
+    #: The quoted spread, in ticks. One tick is the default because it is the minimum the
+    #: venue permits, but it is an ASSUMPTION until a quote store exists - use
+    #: `measure_spread_ticks` to replace it with the tape.
+    spread_ticks: float = 1.0
 
     @classmethod
     def for_contract(cls, symbol: str, **kw) -> CostModel:
@@ -299,12 +303,22 @@ class ExecutionSimulator:
         return self.total_commission + self.total_slippage
 
     def round_turn_cost(self, quantity: float = 1.0) -> float:
-        """Modelled cost of entering and exiting `quantity` contracts at a one-tick spread.
+        """Modelled cost of entering and exiting `quantity` contracts.
 
-        The number to compare against F-2a's measured 0.488 bps on ES before trusting any
-        result this simulator produces.
+        Now cross-checked against three independent numbers rather than asserted. On the ES
+        quote store fetched 2026-09-13, the RTH spread is a median of exactly 1.00 tick with
+        95.6% of bars at one tick, giving 0.480 bps of round turn at ES's median price of
+        6,872. The model charges 0.480 bps. F-2a's independently measured realised cost was
+        0.488 bps. Three numbers, agreeing to within 2%.
+
+        One caution the earlier version of this docstring got wrong: this figure is
+        PRICE-DEPENDENT, because commission and tick value are fixed dollars while notional
+        is not. The same model reads 0.569 bps at a price of 5,800 and 0.480 bps at 6,872.
+        Comparing a modelled bps figure computed at one price against a cost measured at
+        another is how the model briefly appeared 17% conservative when it was not.
         """
-        return 2 * self.cost.commission_per_side * quantity + self.tick * self.multiplier * quantity
+        spread = self.cost.spread_ticks * self.tick * self.multiplier
+        return 2 * self.cost.commission_per_side * quantity + spread * quantity
 
     def cost_per_dollar_exposure(self, price: float) -> float:
         """Round-turn cost as a fraction of one contract's notional.
@@ -318,6 +332,33 @@ class ExecutionSimulator:
         if notional <= 0:
             raise ValueError(f"non-positive notional from price {price}")
         return self.round_turn_cost(1.0) / notional
+
+
+def measure_spread_ticks(quotes, *, tick: float, column: str = "spread",
+                        low: float = 0.0, high: float = 20.0) -> dict[str, float]:
+    """Measure the quoted spread from a quote store, so the cost model stops assuming it.
+
+    Returns median, mean and the share of bars at exactly one tick. The median is the number
+    to feed `CostModel.spread_ticks`: the mean is dragged by halt and rollover artefacts that
+    no strategy actually trades through, and the `low`/`high` bounds drop those outright.
+
+    A store with no quotes cannot call this, which is the point - `dataquality` reports the
+    absence explicitly rather than letting an assumed spread pass for a measured one.
+    """
+    import pandas as pd
+
+    # Series-typed explicitly: pd.to_numeric's return union includes scalars, so neither the
+    # comparisons nor the reductions below are statically elementwise without this.
+    s = pd.Series(pd.to_numeric(pd.Series(quotes[column]), errors="coerce")).dropna()
+    # Re-wrapped after the boolean mask: indexing a Series widens the inferred type again.
+    s = pd.Series(s[(s > low) & (s < high)])
+    if s.empty:
+        raise ValueError("no usable spread observations after filtering; the quote store is "
+                         "empty or every row was an artefact")
+    ticks = pd.Series(s / tick)
+    return {"median_ticks": float(ticks.median()), "mean_ticks": float(ticks.mean()),
+            "p90_ticks": float(ticks.quantile(0.90)),
+            "one_tick_share": float((ticks <= 1.001).mean()), "n": float(len(ticks))}
 
 
 def compare_granularity(symbol: str, price: float, *, micro_price: float | None = None
