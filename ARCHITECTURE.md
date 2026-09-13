@@ -166,6 +166,52 @@ a limit.
 
 ---
 
+## 4a. Venues, brokers, and what may reach them
+
+Two independent questions, kept apart because conflating them is how prop-firm integrations
+fire unintended orders.
+
+```text
+  Authority  (quant_brain/core/mode.py)      what may this PROCESS do?
+    RESEARCH -> BACKTEST -> VALIDATED -> PAPER -> PRACTICE -> HUMAN_APPROVAL -> EXECUTION_READY
+
+  ConnectionState (per adapter)              what can this SOCKET do?
+    DISCONNECTED -> AUTHENTICATING -> AUTHENTICATED -> PRACTICE_READY / DRY_RUN
+                                                    -> EXECUTION_READY | HALTED
+```
+
+`AUTHENTICATED` means a token exists. It grants read access and nothing else; a test asserts
+`EXECUTION_READY` is the only connection state whose `can_send` is true.
+
+```text
+Signal -> OrderIntent -> RiskChain -> RoutedExecutor -> ExecutionAdapter -> venue
+                                          |
+                            checks Authority >= adapter.requires
+                            AT CONSTRUCTION, not at submit
+```
+
+| adapter | requires | reaches |
+|---|---|---|
+| `SimulatedAdapter` | BACKTEST | nothing, in-memory |
+| `IBKRAdapter` | PAPER | IB Gateway paper |
+| `IBKRAdapter(live=True)` | EXECUTION_READY | IB Gateway live |
+| `ProjectXAdapter` (dry run) | PRACTICE | nothing; records `would_send` |
+| `ProjectXAdapter` (armed) | EXECUTION_READY | TopstepX |
+| base class default | EXECUTION_READY | an author who forgets gets the strictest answer |
+
+**Reaching EXECUTION_READY needs three independent things** and no single edit supplies all
+three: an explicit `i_understand_this_is_real_money` argument, `QB_LIVE_TRADING_ENABLED` set
+outside the code, and a per-venue-per-account approval file written by a person.
+`QB_ACCOUNT_MODE` can select up to PRACTICE and is refused above it.
+
+**Nothing above `quant_brain/brokers/` may import a broker SDK** — checked by walking the AST
+of every other module.
+
+Full detail, including what is safe to point at a practice account today and the eight things
+still required before live execution, is in `docs/topstep/EXECUTION.md`.
+
+---
+
 ## 4b. The research engine
 
 `quant_brain/research/` is market-agnostic and is what the Options branch will share when it
@@ -194,11 +240,33 @@ much smaller search than actually happened. Bounded by an experiment budget, a w
 budget and a machine-pressure check between candidates; resumable because duplicates are
 detected by fingerprint before they run.
 
+**`core/multipletest.py` — the correction suite.** Holm, Benjamini-Hochberg,
+Benjamini-Yekutieli, White's Reality Check, Hansen's SPA, the Deflated Sharpe Ratio and PBO.
+Each documents the assumption it rests on and refuses when it is violated rather than
+returning a plausible number. SPA is the default over Reality Check because RC is corrupted by
+padding: measured, a marginal edge among 20 candidates gives RC p = 0.032, and adding 80
+hopeless variants pushes it to 0.129 while SPA is unchanged at 0.015.
+
+**`research/robustness.py` — regimes and concentration.** Causal regime labelling (every label
+computed from sessions strictly before the one it labels) plus the metrics that answer "is
+this one lucky path": best-day/week/month share, effective sessions, Gini against its
+arithmetic floor, totals with the best N days removed, time under water, parameter-neighbour
+decay. Every metric declares whether its reading is arithmetic or a judgement.
+
 **`core/validation.py` — purged walk-forward and the holdout.** Label-horizon purging, and a
 final holdout whose ledger is keyed by a fingerprint of the data, so a second evaluation next
 week from a fresh process is still refused. One finding worth carrying: **under strict
 walk-forward the embargo is structurally vacuous** — every training row precedes the test fold
 by construction, so no embargo width can remove one. It is `purged_kfold` that needs it.
+
+### Withdrawing a result
+
+`Ledger.retract(id, why=...)` appends a retraction; `all()` applies it on read by moving the
+experiment to REJECTED with the reason in its notes. The original row stays byte-identical and
+`trials()` is unchanged — a retracted experiment is still a trial and still belongs in the
+denominator of every later correction. Built because a hypothesis that survived the funnel at
+t = +6.25 turned out to be produced by a lookahead, and neither deleting it nor leaving it as
+a survivor was acceptable.
 
 ### The promotion ladder
 
@@ -307,3 +375,40 @@ python -m quant_brain.core.resources          # snapshot + budget + pressure
 5. Risk limits go in the branch, composed via `RiskChain`. Never in the core.
 6. Tests before wiring: the calendar's session lengths and the risk engine's refusals are
    what everything else assumes.
+
+---
+
+## 9. Which components can touch what
+
+| component | research | simulation | paper / practice | execution-capable |
+|---|---|---|---|---|
+| `core/stats`, `core/multipletest`, `core/validation` | yes | — | — | no |
+| `research/registry`, `search`, `robustness`, `promotion` | yes | — | — | no |
+| `markets/futures_cme/*` (rules, twin, paths, features) | yes | yes | — | no |
+| `markets/futures_cme/execution_sim` | yes | yes | — | no |
+| `core/execution` (`OrderIntent`, `RiskChain`, `RoutedExecutor`) | — | yes | yes | yes, gated |
+| `brokers/ibkr` | — | — | yes (paper) | only with `live=True` + EXECUTION_READY |
+| `brokers/projectx` | — | — | dry run only | **no** — submission is unimplemented |
+
+Nothing in this repository is execution-capable against a prop firm today. The ProjectX
+adapter's `submit()` raises on a live path by design: an implementation present but gated is
+one edit from an accident, and an implementation absent is not.
+
+---
+
+## 10. Command line
+
+`python -m quant_brain <group> <command>`, following the existing per-module `_main`
+convention.
+
+```text
+mode                what this process is allowed to do, and why
+topstep rules       every rule with its source and confidence tier (--raw for citations)
+topstep unresolved  what still needs the owner; exits non-zero
+topstep readiness   the gate between here and a practice account
+broker list         every adapter and the authority it demands
+research ledger     trials and verdicts by family
+```
+
+Commands needing a venue connection are absent rather than stubbed.
+
