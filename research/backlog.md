@@ -1848,6 +1848,45 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
      daily track's only remaining human-free work is the standing jobs, both of which need a
      trading day. -->
 
+- **A-8 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): REFUSED, 0 of 11 cells -
+  the entry window and the time stop are not levers on this sleeve, and the event study pointed
+  the wrong way on both ends.** `scripts/sweep_a8.py` (11 pre-registered cells + 1 labelled
+  post-hoc, 2,686 Alpaca SIP sessions, 4 batches combined by `--combine`, 36 DIAGNOSTIC ledger
+  rows, `results/a8/combined.log`). Control = the deployed config at **-$324/day, t -1.32,
+  Sharpe -0.36, DD 69.6%, 34.9 tr/day**; clause 1 holds in decisions (sessions 1,006/1,006/674 and
+  trades/day 27.3/39.4/39.1 identical to A-12's control) and is void in P&L because four commits
+  changed this harness since A-12 (`f1c9968`, `1311586`, `25d30db`, `9d67bef`) - A-8's control
+  agrees with **A-13's** recorded control on 2024-2026 (-133.7 vs -133) rather than A-12's -112.
+  **Entry window: dead both ways.** Stage 1 found one positive bucket of six (90-119 min,
+  +$43.2/trip, t +2.27, z +3.31 vs pooled -$20.1), and the labelled post-hoc cell that isolates
+  it (`win90_119`) produces the **worst regime t on the page (-2.20)** on 21.8 tr/day - a 37%
+  turnover cut that buys nothing; `after30/45/60` are 0/3 on clause 2, `before60/90/120` are
+  0/3, 0/3, 1/3, and all six fail clause 3. **The one real finding is the time stop**, which the
+  trip-level table said to leave alone: the book is **monotone in stop length with no interior
+  optimum** (-954 / -340 / -324 / -160 / **+81** $/day at 120 / 180 / 240 / 300 / 368) and
+  drawdown falls 95.3 -> 40.2 with it. `stop368` (hold to the 15:38 flatten) is **+$405/day
+  paired, t +0.91 / +2.80 / -0.24**, at unchanged turnover (35.1 vs 34.9) and *higher* cost - so
+  it is not a trade-reduction artifact, and it is still refused: clause 2 is 1 of 3, the sign
+  flips in the newest regime, and +$81/day is 0.2 bps a session at t +0.25. `stop120` is the
+  largest statistic in the study at **-$630/day paired, t -5.27**. Nothing shipped;
+  `live/intraday_config.json` untouched, no runner-loaded file modified, no replay owed.
+  **This was the last A-track item with a stated mechanism and a permitted instrument**, so the
+  A-track's answer to the Current objective is the one it asked for: the ORB sleeve cannot be
+  validated by moving its windows. **Opened by it: A-14** (below) - the time-stop ordering is the
+  only monotone structure this sleeve has produced and it deserves the one test A-8 could not
+  give it, an out-of-sample split rather than a three-regime paired table.
+- **A-14 (`iterate`, opened by A-8 2026-09-12): is the time stop pure cost, or is `stop368` the
+  2020-2023 regime?** A-8's grid is monotone in `time_stop` and the extreme cell turns an
+  eleven-year loss into zero at half the drawdown, but its whole significance is one regime
+  (2020-2023, paired +$990.7/day at t +2.80) and the newest regime disagrees in sign (-$76.3,
+  t -0.24). A-8's decision rule is a three-regime paired test, which cannot tell "pure cost" from
+  "one volatile regime" - the honest next test is the harness's own `--split`: fit nothing, and
+  ask whether `stop368` beats the control on 2024-01-01 onward after the constant was chosen on
+  2016-2023. Cheap (the cells exist on disk: `results/a8/daily_control.csv`,
+  `daily_stop300.csv`, `daily_stop368.csv`), needs no new backtest, and it is the only A-track
+  question A-8 leaves with a stated mechanism. If it fails, the A-track closes on evidence rather
+  than on exhaustion; if it passes, it is still not deployable until the sleeve itself is, because
+  clause 4 is about the book and the book is at t +0.25.
 - **D-4 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): AUD-16 closed - the IBKR
   minute store had been frozen since 2026-09-11 12:35 ET and could not unfreeze itself, because
   the fetcher wrote a truncated session and then counted it as present.** Full detail under
@@ -2152,6 +2191,44 @@ and no delivery, both of which are barred to the loop.
   label axis is now swept end to end and F-7 exhausted the book axis. Side effect: fixed a latent
   bug in `scripts/ml_f7.py` `vol_regime()` (date vs string keys) that made F-7's clause-6 regime
   table silently return "n/a" for every session.
+
+- **F-14 DONE 2026-09-13 (REFUSED; see `research/journal_ml.md`): the FEATURE-SET axis is closed,
+  and with it the panel.** Six axes were priced on one feature matrix - all 38 columns of
+  `sweep_f1.FEATURES` are transforms of 5-minute OHLCV, which cannot encode *direction of flow*.
+  F-14 built the two standard bar-level flow proxies at 1-minute resolution (tick-rule signed
+  volume, Chaikin close-location value) plus path-shape and liquidity columns, 20 features,
+  strictly causal, merged not inner-joined so the row set is F-8's exactly. Three arms at constant
+  learner/split/label/book: `base` 38 = **IC +0.01030, $306/day, t +1.474** (clause 1 identity
+  exact); `flow` 20 = **IC +0.00006**, **-$304/day, t -1.93**, paired **-$609 at t -2.70**;
+  `both` 58 = IC +0.00843, $106/day, **t +0.528**, paired **-$199 at t -1.51**. **REFUSED.** The
+  control is the finding: 20 columns of **scrambled** flow (permuted within timestamp) land at
+  **+$29/day, t +0.29** - free - so the damage is the *information*, not the dimensionality.
+  Post-run explains all of it: `ofi30` has univariate rank IC **-0.00928 (t -7.1)** and is **0.645
+  correlated with `r6`**, whose IC is -0.00966, while `vwap_atr` already in the panel beats both at
+  -0.01131; the genuinely orthogonal members (`eff30`, `eff5`, `dvol30`, median corr 0.004-0.015)
+  have IC +0.0003 to +0.0025. **The tick rule is a noisier copy of the 30-minute return, and
+  everything about it the return is not, is noise.** Importance stability collapses to mean
+  pairwise Spearman **+0.036** (F-8's 38 scored +0.434, F-12's risk model +0.772) with only `gap`
+  in every year's top 10. **Do not re-open on new columns built from the same OHLCV store.**
+  Two reusable rules: **(a)** before fitting, measure a candidate feature's univariate IC *and* its
+  max |Spearman| against the incumbent set - a 0.6-correlated column with a smaller IC is
+  measurement error on an old signal and will cost money; this two-line check would have predicted
+  the whole file in under a minute, against 32 walk-forward fits. **(b)** F-12's scrambled-signal
+  rule generalises to feature sets: permute the columns you add, within timestamp, or you cannot
+  tell "the extra width hurt" from "the information hurt".
+
+- **F-15 (open, pre-registered and unread; a DATA question before it is a model question).** F-14
+  closes the supervised class on this store: seven axes, eight refusals, an IC ceiling at +0.01 to
+  +0.02, and F-12's *"this feature set does not support a t = 2 book"* now reads **"this panel does
+  not."** The only thing genuinely untried is a **different store** - a column that cannot be
+  computed from trade bars at all. Two candidates, both already paid for: per-name **options-implied
+  skew and term structure** from Theta (O-track's store, 2012+), and **true tape-level signed
+  volume** (Alpaca trades endpoint, not bars - F-14 proves the bar-level proxy is not a substitute).
+  **Inherit F-14 (a) as a gate**: any new column is measured for univariate IC and for max
+  |Spearman| against the 38 *before* a single fit is run, and is dropped if it is >= 0.5 correlated
+  with an incumbent that has a larger |IC|. **State the prior**: implied skew is the more likely of
+  the two to be orthogonal, and the hurdle is unchanged at t > 2 pooled on >= 5 of 8 years. This
+  belongs to O-track/D-track (getting the data into a panel) before `ml` can fit anything.
 
 - **F-12 DONE 2026-09-12 (REFUSED; see `research/journal_ml.md`): the label-family axis is closed,
   and the measured elasticity beta = 1.494 is the finding.** The first F iteration to fit a new
@@ -3525,7 +3602,10 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   journal and `live/intraday_config.json`. Also verify the store has no dropped first-of-window
   sessions (compare session count to the daily calendar; `intraday_data.py` now overlaps
   windows, re-run `--months 9 --force` if gaps exist).
-- **A-8 The one ORB lever A-2 did not spend: the entry window.** `entry_after` /
+- **A-8 DONE 2026-09-12 - REFUSED, 0 of 11 cells; see the A-8 block at the head of this section
+  and `research/journal.md`. The parked text below is kept as the pre-registration, including the
+  power objection that expired when the Alpaca store reached 2,686 sessions.**
+- **A-8 (original text, kept for the pre-registration) The one ORB lever A-2 did not spend: the entry window.** `entry_after` /
   `entry_before` / `time_stop` were left at 15 / 150 / 240 throughout A-2, and the frontier it
   found says the shipped edge is concentrated in *which* breakouts are taken, not in how they
   are stopped. Sweep the entry window and the time stop, and check the result separately on

@@ -6,6 +6,166 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-13 - F-14: the seventh axis was never a construction, it was the 38 columns. Bar-level order flow is the one channel in this store that is not a transform of 5-minute OHLCV, and it makes the book strictly worse - while 20 columns of SCRAMBLED flow cost nothing. Refused. The feature-set axis closes, and with it the panel.
+
+**Hypothesis.** F-12 closed with a sentence that names its own binding constraint: *"this **feature
+set** on this panel does not support a t = 2 book by any construction available in this scope."*
+Six axes are now priced - construction (F-7), label horizon (F-8), breadth (F-10), cost-aware
+selection (F-11), sizing and label family (F-12), decision frequency (F-1's own 11-slot grid) - and
+**every one of them ran on the same 38 columns**, `sweep_f1.FEATURES`, unchanged since F-1. All 38
+are deterministic transforms of **5-minute OHLCV**. What that matrix cannot contain is **direction
+of flow**: a 5-minute bar says where the price ended (`r6`) and how much traded (`vol_rel`), and
+nothing about which side lifted. The 1-minute bars underneath the panel can say it, approximately,
+and the panel throws them away at `to_5min()`. So F-14 builds the two standard bar-level flow
+proxies at 1-minute resolution - the **tick rule** (sign of each minute's return times its volume)
+and **close-location value** (Chaikin money flow) - plus the path-shape and liquidity columns the
+5-minute frame averages away, and asks the one question the track has never asked: **is the IC
+ceiling this panel keeps hitting a property of the market, or of the features?**
+
+`scripts/ml_f14.py`, **4 DIAGNOSTIC ledger rows** under `intraday/f14_features` (cells in
+`data/f1/f14_arms.csv`, features in `data/f1/f14_flow.parquet`, predictions in `f14_preds.parquet`,
+importance in `importance_f14.csv`). Seven clauses pre-registered in the module docstring including
+clause 0, the prior, written before a number was read: *"`flow` alone scores +0.003 to +0.008,
+`both` scores +0.022 to +0.025 against base's +0.021, the book's t moves from +1.474 to roughly
++1.6, refused on clause 5."* **20 new features** (`ofi5/30/sess`, `updn30`, `clv5/30/sess`,
+`eff5/30`, `amihud30`, `dvol30`, three SPY copies, two residuals, four cross-sectional ranks), all
+causal: the window for a decision on the bar starting 09:55+30k ends at the **1-minute bar starting
+T+4**, the last minute of the decision bar, and nothing reads the fill bar. Rolling sums are
+cumulative **within the session**, so the 30-minute window at slot 0 is exactly 09:30-09:59 and no
+feature at any slot reads the prior day's tape. Three arms at constant everything else -
+`base` (38), `flow` (20), `both` (58) - same `GRID["mid"]` learner, same seed, same expanding
+walk-forward, same label `y_close`, same 8 test years, **no hyperparameter search**. Run with
+`INTRADAY_DATA_DIR=data/minute_alpaca`, `_splits.json` confirmed present. **No shipped or
+runner-loaded file was touched**, so no deploy gate and no `--replay` is owed.
+
+**(1) Clause 1 identity is exact.** Flow is **merged, never inner-joined** - coverage is 98.47% and
+the 24,395 uncovered rows are kept carrying NaN (the learner handles NaN natively) - so the row set
+is F-8's exactly and the arms are read at constant sample. `base` reproduces the frozen F-8 `close`
+model to the printed digit: mean rank IC **+0.01030** (F-12 (2)'s own re-measurement), gross
+**4.256** bps, cost **2.724**, net **$305.7/day**, t **+1.474** on 1,933 sessions.
+
+**(2) The flow family carries nothing, and the book it builds alone is significantly negative.**
+
+| arm | features | mean rank IC | gross bps | cost bps | net $/day | t | yrs + | worst |
+|---|---|---|---|---|---|---|---|---|
+| **base** | 38 | **+0.01030** | 4.256 | 2.724 | **306** | **+1.47** | 5/8 | -51,431 |
+| **flow** | 20 | **+0.00006** | 0.943 | 2.464 | **-304** | **-1.93** | 2/8 | -34,061 |
+| **both** | 58 | +0.00843 | 3.214 | 2.682 | **106** | **+0.53** | 5/8 | -56,295 |
+| **both_scrambled** | 58 | **+0.01114** | 4.403 | 2.724 | **335** | **+1.58** | 5/8 | -45,382 |
+
+`flow` alone is rank IC **+0.00006** - zero to four decimal places, negative in 4 of its 8 test
+years. Clause 0 predicted +0.003 to +0.008 and the prior was too generous.
+
+**(3) Adding it to the 38 makes the model worse, and the paired test is unambiguous.** Turnover is
+$1,995,861/day in every arm (one decision, decile 0.10, in and out), so the bps columns are
+like-for-like. Paired per session, F-11's standing rule:
+
+| comparison | net $/day | paired t | gross t | cost t |
+|---|---|---|---|---|
+| flow - base | **-609** | **-2.70** | -2.93 | +23.63 |
+| both - base | **-199** | -1.51 | -1.57 | +5.22 |
+| **both_scrambled - base** | **+29** | **+0.29** | +0.29 | +0.04 |
+
+**Clause 5: REFUSE.** `both` fails on t (+0.528 against 2.0) and on the paired test (-1.506); the
+years-positive leg passes at 5/8 and is the only one that does.
+
+**(4) Clause 6 is the finding. Twenty columns of SCRAMBLED flow are free; twenty columns of REAL
+flow cost $199/day.** The control permutes each flow column **within its timestamp**, preserving
+every marginal, the cross-sectional dispersion and the within-family correlation, destroying only
+the name it is attached to. It lands at IC **+0.01114** and **+$29/day, t +0.29** against base -
+statistically indistinguishable from adding nothing, which is exactly what 20 noise columns should
+do to a tree with `max_features=0.7`. So the degradation in `both` is **not** dimensionality, not
+capacity, not overfitting the extra width: **it is the information in the flow columns.** The model
+is misled by the real flow and untroubled by the fake.
+
+**(5) POST-RUN, and it explains (2)-(4) completely: the flow columns that are NEW are
+uninformative, and the flow columns that are INFORMATIVE are not new.** Univariate per-timestamp
+rank IC against `y_close` over the test window, and each column's maximum |Spearman| against the
+38 it was added to:
+
+| column | rank IC | t | max corr vs the 38 | against |
+|---|---|---|---|---|
+| `ofi30` | **-0.00928** | **-7.1** | **0.645** | `r6` |
+| `x_ofi30` | -0.00921 | -7.0 | 0.441 | `cs_r6` |
+| `ofi_sess` | -0.00858 | -6.1 | 0.660 | `r_sess` |
+| `clv30` | -0.00667 | -5.2 | 0.558 | `r6` |
+| `updn30` | -0.00572 | -4.3 | 0.637 | `r6` |
+| `amihud30` | -0.00450 | -4.0 | **0.222** | `vol_rel6` |
+| `dvol30` | **+0.00252** | +1.6 | 0.445 | `atr` |
+| `eff5` | **+0.00124** | +1.1 | **0.339** | `rng_atr` |
+| `eff30` | **+0.00028** | **+0.3** | **0.161** | `vol_rel` |
+| *(reference)* `r6` | -0.00966 | -5.3 | - | - |
+| *(reference)* `vwap_atr` | **-0.01131** | **-7.1** | - | - |
+
+The directional columns **do** predict - they predict **reversal**, significantly (t -4 to -7):
+names bought over the last 30 minutes underperform to the flatten. But `ofi30`'s IC of -0.00928 is
+**the same number as `r6`'s -0.00966**, they are **0.645** correlated, and `vwap_atr` - already in
+the panel since F-1 - beats both at -0.01131. Meanwhile the columns that are genuinely orthogonal
+(`eff30` median correlation 0.012, `eff5` 0.004, `amihud30` 0.021, `dvol30` 0.015) have IC
+**+0.00028, +0.00124, -0.00450, +0.00252**. Stated as one sentence: **the tick rule is a 0.65
+correlated, noisier copy of the 30-minute return, and everything about it that the return is not,
+is noise.** That is why the tree does worse with it - it is offered a second, degraded measurement
+of a signal it already has, spends budget on it, and dilutes the original.
+
+**(6) And the pooled sign is not a sign a walk-forward can trade.** (5) is measured on the test
+window pooled; `flow`'s *causal* yearly ICs are +0.011, +0.004, **-0.004**, +0.001, **-0.006**,
+**-0.005**, **-0.004**, +0.003 - the learner picks the reversal up in 2019-2020 and it inverts for
+the rest of the sample. A full-period univariate t of -7.1 and a causal mean IC of +0.00006 are
+both true, and the gap between them is the whole difference between a statistic and a trade.
+
+**(7) Feature-importance stability, the brief's second criterion, and it collapses.** Permutation
+importance on each retrain's validation year, `both` arm:
+
+| model | mean pairwise Spearman | in every year's top 10 |
+|---|---|---|
+| risk model (F-12, `\|y_close\|`) | +0.772 | `vol_rel`, `vol_rel6` |
+| return model (F-8, 38 features) | +0.434 | none |
+| **return model + flow (F-14, 58)** | **+0.036** (-0.418..+0.323) | **`gap` only** |
+
+The flow family takes **2.7% to 23.7%** of positive importance (mean **13.5%**), so the tree is
+genuinely spending on it - and the ranking of *all* 58 features goes from weakly stable to
+**uncorrelated year to year**. Adding a redundant family did not just fail to help; it destabilised
+the attribution of the features that were working. And the flow members that rank highest across
+the retrains are `dvol30` (mean rank 19.8) and `amihud30` - the two **non-directional** ones,
+consistent with (5).
+
+**(8) Regimes, which the brief asks for explicitly.** Base -133 / +250 / +623 $/day across terciles
+of SPY's trailing 20-session realised vol; `both` -347 / +250 / **+221**; scrambled -96 / +331 /
++593. The damage is concentrated in the **high-vol** tercile, which is the only regime this
+forecast has ever been paid in (F-8, F-11, F-12 (9) all report it) - the flow family is worst
+exactly where the book's entire edge lives.
+
+**Decision.** **REFUSE.** Nothing deployed, nothing promoted, `champion.json` untouched.
+
+**What it changes for the loop.** Two reusable rules, and one closing statement.
+**(a) Check a candidate feature's correlation against the incumbent set BEFORE fitting anything.**
+A new column that is 0.6 correlated with an existing one and has a *smaller* univariate IC is not a
+new signal, it is a measurement error on an old one, and a tree cannot tell the difference - it
+will spend budget on it and lose. The two-line diagnostic in (5) - univariate IC and max |Spearman|
+against the incumbents - would have predicted this entire file in under a minute, and it is cheaper
+than any of the 32 walk-forward fits it took to confirm. Every track adding features should run it.
+**(b) F-12's rule (b) generalises from signals to feature sets.** The scrambled-flow control is
+what separates "the extra columns hurt" from "the information in them hurt", and here it is the
+difference between a boring result and (4). Any feature-set change must be run against a
+within-timestamp permutation of the columns it adds.
+**(c) The closing statement.** The one information channel in this store that is not a transform of
+5-minute OHLCV has now been tried, priced, and refused - so F-12's sentence upgrades from *"this
+feature set does not support a t = 2 book"* to **"this panel does not."** Seven axes, eight
+refusals, one IC ceiling at +0.01 to +0.02, and the ceiling is the market's, not the model's.
+
+**Next.** Nothing in the F scope is open. F-11's standing test for reopening the supervised class -
+*"a different instrument, a different frequency, or a different label family"* - is now spent on all
+three (F-3 frequency, F-12 label family, F-2a/F-4 instrument) plus construction, cost, breadth,
+sizing and, here, the feature set. **The supervised class on this universe is closed and should not
+be reopened on new columns built from the same OHLCV store.** What is genuinely untried is a
+different *store*: the panel has never seen a column that cannot be computed from trade bars at all
+- options-implied skew and term structure per name (Theta, O-track's data), or true tape-level
+signed volume. Filed as **F-15**, pre-registered and unread, and it is an O-track/D-track data
+question before it is an F-track model question. F-13 (the universe question F-12 opened) remains
+open and still belongs to A/D-track.
+
+---
+
 ## 2026-09-12 - F-12: forecast the denominator. The risk model works (rank IC +0.53 against the return model's +0.02) and using it makes the book worse, because this forecast's alpha scales as vol^1.49 and inverse-vol sizing is a bet on vol^1.0. Refused. The sizing axis is bounded on BOTH sides and neither end reaches t = 2.
 
 **Hypothesis.** F-11 closed the track with a standing sentence: reopening the supervised class
