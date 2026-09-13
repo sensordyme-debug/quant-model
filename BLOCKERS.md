@@ -48,25 +48,39 @@ credential it requires. The plumbing is a small change once the channel exists.
 
 ---
 
-## OWNER-3 — Futures history is a sixth of what the method needs
+## OWNER-3 — Futures history is a fifth of what the method needs
 
 **Status: OPEN. This is the binding constraint on the whole futures branch.**
 
-The store holds **one contract (ES), 1.25 years, 326 regular-hours sessions**. A-4 measured
-~2,000 sessions as necessary to resolve an intraday edge to this repository's own standard.
-326 is 16% of that, and it is exactly enough data to produce a confident-looking result that
-will not survive — F-3's t-statistic fell from 2.41 to 0.79 on the horizon correction alone.
+**Step 1 is now done and it did not help enough.** Four contracts are stored and validated:
 
-No purchase is recommended yet. Two free steps come first and neither needs the owner:
+| | bars | sessions | span |
+|---|---|---|---|
+| ES | 447,600 | 395 | 2025-06-08 → 2026-09-10 |
+| NQ | 447,596 | 395 | 2025-06-08 → 2026-09-10 |
+| MES | 358,845 | 317 | 2025-09-07 → 2026-09-10 |
+| MNQ | 358,845 | 317 | 2025-09-07 → 2026-09-10 |
 
-1. Fetch MES, NQ and MNQ alongside ES, with `BID_ASK`. Roughly 90–180 MB, no cost. This also
-   replaces the **assumed** one-tick spread with a measured one — the store is OHLCV only
-   today, so `execution_sim` charges a spread it cannot verify.
-2. Test whether a free QuantConnect account offers deeper CME history than IBKR's 2–4 years.
+MES and MNQ stop a quarter short because MESU5 and MNQU5 have aged out of IBKR retention.
+ES `BID_ASK` also landed, which retired a real assumption: the spread is a measured median of
+exactly 1.00 tick in RTH (95.6% of bars), so the cost model's 0.480 bps agrees with both the
+tape and F-2a's independently measured 0.488 bps.
 
-**Owner input is needed only if step 2 comes back short**, at which point the question is
-whether to buy depth, and that decision should be made against a specific result worth
-confirming rather than as insurance.
+**But breadth is not depth.** Four contracts over the same 1.25 years are four views of one
+market regime, not four independent samples. A-4 measured ~2,000 sessions as necessary to
+resolve an intraday edge to this repository's own standard; the deepest series here is 395,
+which is 20%. There is no 2020 crash and no 2022 rate shock in any of it.
+
+That remains exactly enough data to produce a confident-looking result that will not survive —
+F-3's t fell from 2.41 to 0.79 on the horizon correction alone, and this session produced its
+own example when a lookahead manufactured a *t* of +6.25 that cleared a 3.56 multiplicity bar.
+
+**The one free step left, and it still does not need the owner:** test whether a free
+QuantConnect account offers deeper CME history than IBKR's 2–4 years.
+
+**Owner input is needed only if that comes back short**, at which point the question is whether
+to buy depth — and that decision should be made against a specific result worth confirming
+rather than as insurance.
 
 ---
 
