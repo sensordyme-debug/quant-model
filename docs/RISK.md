@@ -224,8 +224,12 @@ deterministic intent identity and an append-only journal (`idempotency`), bracke
 "no runner is wired to the governor; nothing connects to a venue".
 
 What this document records about them is only what can be verified from the tree: they
-exist and are committed, neither live runner imports any of them or sets an
-`intent_id` or passes a `journal`, no scheduled task or preflight publishes the state the new
+exist and are committed. The intraday runner (`scripts/intraday_trader.py`, commit "the
+intraday runner's chain is no longer empty") now arms a `Governor` with the sleeve's 2.5%
+daily-loss limit on its first bar and attaches it to `LiveExecutor`'s chain, told UNKNOWN on an
+unmarked position and tripped MANUAL_HALT by a HALT file; the same commit makes the in-loop
+close-outs FLATTEN intents, which they were not. `scripts/paper_trade.py`'s chain is still empty;
+neither runner sets an `intent_id` or passes a `journal`, no scheduled task or preflight publishes the state the new
 CLI commands read, and the 1,550-test count quoted elsewhere in these documents was taken
 before their test files appeared (the suite is larger now; `docs/IMPLEMENTATION_REPORT.md`
 carries the current count). Nothing in this section is a claim that any of it protects a live

@@ -286,7 +286,7 @@ class SimExecutor:
         self.bars = bars
         self.pending: dict[str, int] = {}
 
-    def submit(self, orders: dict[str, int], when):
+    def submit(self, orders: dict[str, int], when, flatten: bool = False):
         self.pending.update({s: self.pending.get(s, 0) + q for s, q in orders.items()})
 
     def pending_qty(self) -> dict[str, int]:
@@ -347,6 +347,14 @@ class LiveExecutor:
                                      authority=Authority.paper("ibkr", ORDER_REF),
                                      on_event=lambda ev, **kw: log(ev, **kw))
         self.open = self.adapter.open
+
+    def attach_governor(self, governor) -> bool:
+        """Add a RiskEngine to this executor's chain. Every non-flatten order then meets it."""
+        from quant_brain.core.risk import RiskChain
+        if isinstance(self.routed.risk, RiskChain):
+            self.routed.risk.add(governor)
+            return True
+        return False
 
     def submit(self, orders: dict[str, int], when, *, flatten: bool = False):
         # AUD-08/09: an order sent outside RTH has outsideRth=False, so IBKR queues it to the
@@ -537,6 +545,52 @@ class Trader:
         #: loss-limit flatten was submitted, holding the book open across the alert.
         self._pending_notes: list[str] = []
         self.submit_before_notify = False
+        #: core/governor.py. Armed on the first bar (nav_open is needed for the dollar
+        #: limit) and attached to the executor's risk chain. None means no bar seen yet.
+        self.governor = None
+        self.view = None
+
+
+    # ------------------------------------------------------------------ the governor
+    def _arm_governor(self, t) -> None:
+        """Build the hard governor once nav_open is known and attach it to the executor's chain.
+
+        `LiveExecutor` was constructed with an EMPTY chain; docs/RISK.md found that the
+        sleeve's limits were applied by sizing code before an OrderIntent existed, so the
+        seam the executor's comment describes had nothing in it. This puts the daily-loss
+        limit into the chain itself, where a refusal carries a reason code and cannot be
+        skipped by a code path that forgot to check `stopped`.
+        """
+        from quant_brain.core.governor import AccountView, Governor, Limits
+        limit = DAILY_LOSS_LIMIT * self.nav_open
+        self.view = AccountView(now=t.to_pydatetime())
+        self.governor = Governor(Limits(max_daily_loss=limit), self.view)
+        attach = getattr(self.ex, "attach_governor", None)
+        attached = bool(attach(self.governor)) if attach is not None else False
+        log("governor_armed", max_daily_loss=limit, nav_open=self.nav_open, attached=attached,
+            executor=type(self.ex).__name__)
+
+    def _refresh_governor(self, t, pnl: float, unmarked, halted: bool) -> None:
+        from quant_brain.core.governor import Reason
+        v = self.view
+        # An unmarked position makes `pnl` a partial sum. The governor is told UNKNOWN: a
+        # configured daily-loss limit with an unknown P&L refuses NEW entries with
+        # DATA_UNAVAILABLE. It does not flatten (AUD-05) and it cannot block the flatten.
+        v.daily_pnl = None if unmarked else pnl
+        v.positions = {s: float(q) for s, q in self.book.pos.items() if q}
+        v.now = t.to_pydatetime()
+        if halted and not self.governor.switches[Reason.MANUAL_HALT].tripped:
+            self.governor.trip(Reason.MANUAL_HALT, "HALT file present")
+        if self.persist:
+            self._publish_governor()
+
+    def _publish_governor(self) -> None:
+        """`python -m quant_brain risk status --scope paper` reads what this writes."""
+        try:
+            from quant_brain.core.state import StateScope, StateStore
+            self.governor.publish(StateStore.open(StateScope.PAPER))
+        except Exception as exc:  # noqa: BLE001
+            log("governor_publish_failed", error=str(exc)[:200])
 
     def pending_qty(self) -> dict[str, int]:
         """In-flight signed quantity from the executor, or {} if it cannot report.
@@ -617,6 +671,8 @@ class Trader:
         self.last_t = t
         if self.nav_open is None:
             self.nav_open = nav
+        if self.governor is None:
+            self._arm_governor(t)
         equity = nav * self.equity_frac
         # 1) settle fills from the previous minute
         for sym, q, px, cost in self.ex.settle(t):
@@ -643,6 +699,7 @@ class Trader:
             self.stopped = True
             log("halt", files=[str(p) for p in HALT_FILES if p.exists()])
             self._queue_note("INTRADAY halted by HALT file; flattening.")
+        self._refresh_governor(t, pnl, unmarked, halted)
         flatten = self.stopped or m >= flatten_minute_for(t.date())
         # 3) decide
         targets = {}
@@ -668,7 +725,11 @@ class Trader:
             log("decision", t=str(t), minute=m, targets=targets, orders=orders, pnl=pnl, equity=equity, mode=self.mode,
                 ref={s: round(float(marks[s]), 4) for s in orders if marks.get(s)})
             if not self.dry_run:
-                self.ex.submit(orders, t)
+                # `flatten` MUST reach the executor: a FLATTEN intent bypasses the chain,
+                # a MARKET intent does not, and the loss-limit close-out is the one order
+                # no engine may refuse (AUD-06 / AUD-08). Before this flag was passed the
+                # in-loop flattens were MARKET intents; harmless only while the chain was empty.
+                self.ex.submit(orders, t, flatten=flatten)
         # AUD-09: alerts go out only once the orders are on the wire. notify() can block for
         # up to 45 s and previously ran inside the risk gate above, holding an open book
         # across the call it was alerting about.

@@ -199,9 +199,11 @@ the sources named, each of which is enforced or stated in the tree.
   adapter that can send, and no scheduled task that references `quant_brain/brokers/projectx.py`.
 - Automatic restart of the intraday trader inside a session (`IgnoreNew`; a crash means a
   flat-check by `ops-close` and a person).
-- A governor or session state that any runner publishes. The `risk status` /
-  `session readiness` / `intents recover` commands read state files that no scheduled task,
-  runner or preflight writes yet; the modules behind them are committed but unwired
+- Session state or an intent journal that any runner publishes. `session readiness` and
+  `intents recover` read state that no scheduled task, runner or preflight writes yet.
+  `risk status --scope paper` reads `live/state/governor.json`, which the intraday runner
+  publishes every bar on a persisting (paper, non-dry-run) run since the intraday-governor
+  commit; before the first such run the command reports that nothing is published
   (`docs/RISK.md`).
 - Any command that connects to a venue from `python -m quant_brain`, by design.
 - A dashboard panel for the futures ledger or the twin; the dashboard reads the equity

@@ -74,3 +74,37 @@ which are another track's uncommitted work and not touched here.
 What is NOT done: no runner is wired to the governor; nothing connects to a venue; the
 ProjectX live path is still `NotPermitted` by design. Wiring is a per-venue diff a person
 reviews with the approval file in hand, not something this commit does on its own.
+
+
+## 2026-09-13 - the intraday runner's chain is no longer empty
+
+docs/RISK.md (written today) found both live runners construct `RoutedExecutor(RiskChain())`
+with nothing in the chain: the sleeve's limits were applied by sizing code before an
+OrderIntent existed. The seam the executor's own comment described had nothing in it.
+
+Wired, in `scripts/intraday_trader.py`:
+  - `Trader._arm_governor` on the first bar (nav_open is needed for the dollar limit):
+    `Governor(Limits(max_daily_loss=DAILY_LOSS_LIMIT * nav_open))`, attached through a new
+    `LiveExecutor.attach_governor()`. Same 2.5% the runner already enforces, now ALSO at the
+    chain with a reason code (RISK_DAILY_LOSS) so no code path that forgets `stopped` can
+    send an entry past it.
+  - `Trader._refresh_governor` every bar: daily_pnl (None when a held symbol has no mark at
+    all), positions, MANUAL_HALT tripped once by a HALT file, `publish()` to the PAPER
+    StateStore on persisting runs so `risk status --scope paper` reads it.
+
+One behaviour change, deliberate and flagged for the owner: a held symbol with NO price ever
+seen (not the AUD-05 dropped-bar case, which is marked at the last level) now makes the
+governor refuse NEW entries with DATA_UNAVAILABLE for that bar. Before, entries went through
+on a partial P&L. Flatten is unaffected; the session is not ended.
+
+The defect this exposed before a line of governor was attached: `Trader.step` called
+`self.ex.submit(orders, t)` WITHOUT `flatten=`, so every loss-limit, HALT and 15:38 close-out
+was a MARKET intent. Harmless only while the chain was empty; the first engine added could
+have refused the order that closes the book - AUD-06/08 again, one layer up. The top-level
+flattens (startup, --flatten) did pass the flag. Now `flatten=flatten` is passed and the test
+asserts the loss-limit close-out arrives as a FLATTEN. SimExecutor and the two test fakes
+accept the keyword.
+
+8 tests in tests/test_intraday_governor.py; the 116 existing intraday tests still pass.
+paper_trade.py is NOT wired - its chain is still empty and its daily sleeve has different
+limits; that is the next reviewed diff, not this one.

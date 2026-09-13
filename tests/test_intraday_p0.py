@@ -37,7 +37,7 @@ class FakeExecutor:
         self.to_settle: list[tuple] = []
         self._pending: dict[str, int] = {}
 
-    def submit(self, orders, when):
+    def submit(self, orders, when, flatten=False):
         self.submitted.append(dict(orders))
         for s, q in orders.items():
             self._pending[s] = self._pending.get(s, 0) + q

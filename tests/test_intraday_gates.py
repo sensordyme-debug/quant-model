@@ -21,7 +21,7 @@ class FakeExecutor:
         self.submitted: list[dict] = []
         self.to_settle: list[tuple] = []
 
-    def submit(self, orders, when):
+    def submit(self, orders, when, flatten=False):
         self.submitted.append(dict(orders))
 
     def settle(self, t):
