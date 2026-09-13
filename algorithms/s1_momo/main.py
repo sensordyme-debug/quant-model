@@ -321,6 +321,9 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         self.rebalances = 0
         self.risk_on_days = 0
         self.exposure_sum = 0.0
+        #: D-10. Ranked names `submit_targets` could not express as a whole-share position.
+        #: Summarised at the end of the run so a reader who never opens the log still sees it.
+        self.unsizable = 0
 
         # Rebalancing is driven by the daily SPY bar (on_data), not by a scheduled event.
         #
@@ -374,12 +377,33 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
         """
         equity = float(self.portfolio.total_portfolio_value)
         deltas = {}
+        ref_prices, held_shares = {}, {}
         for ticker, symbol in self.symbols.items():
             price = float(self.securities[symbol].price)
             held = float(self.portfolio[symbol].quantity)
+            ref_prices[ticker], held_shares[ticker] = price, held
             target = 0.0 if price <= 0 else int(weights.get(ticker, 0.0) * equity / price)
             if abs(target - held) * max(price, 0.01) >= self.min_order_value * equity:
                 deltas[symbol] = target - held
+
+        # D-10: the two ways the three lines above drop a ranked name with no order and no
+        # error - an allocation worth less than one whole share, and a missing reference
+        # price (which also suppresses the liquidation of anything already held, because the
+        # band prices that delta at a cent a share). `unsizable_targets` is pure, so this
+        # block cannot move an order: the pre-registered bar for shipping it was that the
+        # control still reproduces OrderListHash a6d6224ce9c70091e5bfa8e96f046bf3.
+        #
+        # Log-only rather than a refusal, and that is a measurement, not timidity. The
+        # tightest target in the champion's 3,690 sessions is 219.5 shares (GLD, 2012-01-27),
+        # so the boundary is 219x away and a throw here would only ever fire on a store
+        # defect - which `store_health.check_daily_store` already FAILs at fetch time. ERROR
+        # level because a sleeve that ranks a name and holds none of it is a wrong book.
+        for hit in sig.unsizable_targets(weights, ref_prices, equity, held_shares):
+            self.unsizable += 1
+            self.error(f"UNSIZABLE {self.time.date()} {hit['ticker']} {hit['reason']} "
+                       f"w={hit['weight']:.4f} px={hit['price']:.4f} "
+                       f"alloc=${hit['notional']:,.0f} shares={hit['shares']:.4f} "
+                       f"held={hit['held']:.0f}")
 
         if self.rebalances <= 6:
             self.log(f"SIZING {self.time} equity={equity:.0f} " + " ".join(
@@ -500,6 +524,10 @@ class S1MomentumRotationAlgorithm(QCAlgorithm):
                   if self.params.margin_budget_cap > 0 else str(self.params.margin_budget))
         self.log(f"max initial margin actually used: {self.max_observed_margin:.3f} "
                  f"(budget {budget})")
+        # D-10. Zero is the claim this run makes about itself: every name the signal ranked
+        # was expressible as whole shares at the price the sizing used. Any other number
+        # means part of the book was never opened, and the UNSIZABLE lines above say which.
+        self.log(f"unsizable ranked names (D-10): {self.unsizable}")
         if self.financing:
             days = max(1, self.fin_debit_days)
             self.log(f"financing: paid ${self.fin_paid:,.2f} earned ${self.fin_earned:,.2f} "

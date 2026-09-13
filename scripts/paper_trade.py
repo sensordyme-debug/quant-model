@@ -436,7 +436,8 @@ class MockAccount:
         return {s: float(closes[s].dropna().iloc[-1]) for s in symbols if s in closes}
 
 
-def plan_orders(targets, positions, prices, net_liq, min_order_value=None):
+def plan_orders(targets, positions, prices, net_liq, min_order_value=None,
+                unsizable=None, unsizable_fn=None):
     """Return [(symbol, delta_shares, price, target_shares, current_shares)] for symbols that move.
 
     The band is `max(MIN_NOTIONAL, min_order_value * net_liq)`, which is the same rule
@@ -444,6 +445,21 @@ def plan_orders(targets, positions, prices, net_liq, min_order_value=None):
     plan the backtest would have produced from the same targets and holdings.
     `scripts/compare_orders.py` asserts that equivalence on every date of the champion's
     sample and is the pre-deploy gate for backlog I-1.
+
+    D-10's `unsizable`, when a list is passed, collects the ranked names the whole-share
+    sizing rule cannot express. It is an out-parameter: the returned plan is bit-identical
+    with or without it, so the I-1 gate is unaffected. This runner already surfaces half of
+    that set (an unpriced symbol comes back as a `delta=None` row below, which the backtest
+    had no equivalent of until D-10); the half it dropped in silence is a target that rounds
+    to zero whole shares.
+
+    `unsizable_fn` is the predicate, supplied by the caller rather than written again here -
+    `algorithms/s1_momo/signals.py:unsizable_targets`, reached through the loaded signal
+    module, so LEAN and this runner share one definition of the boundary instead of two
+    copies that nothing checks agree. That is S-45's lesson applied before the fact: this
+    file is generic over signals, so the alternative was a fourth transcription of a rule
+    that already exists, and a transcription is how `sweep_s21.commission` was wrong for
+    months. A signal module that does not export it simply collects nothing.
     """
     band = MIN_ORDER_VALUE if min_order_value is None else min_order_value
     threshold = max(MIN_NOTIONAL, band * net_liq)
@@ -460,6 +476,8 @@ def plan_orders(targets, positions, prices, net_liq, min_order_value=None):
         delta = target_shares - current
         if delta != 0 and abs(delta) * max(px, 0.01) >= threshold:
             plan.append((sym, delta, px, target_shares, current))
+    if unsizable is not None and unsizable_fn is not None:
+        unsizable.extend(unsizable_fn(targets, prices, net_liq, positions))
     return plan
 
 
@@ -717,8 +735,22 @@ def main() -> int:
     state.update({"equity": net_liq, "equity_high": max(curve), "equity_curve": curve[-2000:]})
     targets, diag = call_signal(sig, closes, as_of, state)
     prices = {s: float(closes[s].dropna().iloc[-1]) for s in set(targets) | set(positions) if s in closes.columns and not closes[s].dropna().empty}
-    plan = plan_orders(targets, positions, prices, net_liq)
+    unsizable = []
+    plan = plan_orders(targets, positions, prices, net_liq, unsizable=unsizable,
+                       unsizable_fn=getattr(sig, "unsizable_targets", None))
     print(f"signal {name} as of {as_of.date()}  targets {targets}")
+    # D-10. Printed and logged before the plan, because it is the one thing about this
+    # rebalance the plan below cannot say: these names were ranked and the sizing rule could
+    # not express them, so they are absent from the order list rather than banded out of it.
+    for hit in unsizable:
+        print(f"  UNSIZABLE {hit['ticker']} {hit['reason']} w={hit['weight']:.4f} "
+              f"px={hit['price']:.4f} alloc=${hit['notional']:,.0f} "
+              f"shares={hit['shares']:.4f} held={hit['held']:.0f}")
+    if unsizable:
+        log_event("unsizable", signal=name, as_of=str(as_of.date()), net_liq=net_liq,
+                  names=[{k: hit[k] for k in ("ticker", "reason", "weight", "price",
+                                              "notional", "shares", "held")}
+                         for hit in unsizable])
     if diag:
         shown = {k: v for k, v in diag.items() if k != "state"}
         print(f"diagnostics {json.dumps(shown, default=str)[:600]}")

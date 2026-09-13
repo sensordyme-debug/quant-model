@@ -4,6 +4,96 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-13 - D-10: the item's premise is arithmetically impossible, the concern behind it is real through a different quantity, and the guard ships inert
+
+**Hypothesis (D-10, opened by D-9).** D-9 shipped the store half of the zero-share boundary
+(`store_health.check_daily_store`) and closed by naming the half it left open: "the store is now
+watched; the ORDER SIZE is not." Its reach argument is one sentence - the champion's smallest
+order is **$1,076** and the worst adjusted price over the 77 symbols a committed run has held is
+**$1,280 (LLY)**, so a zero-share rebalance is "arithmetically reachable on a perfectly clean
+store." New `scripts/sweep_d10.py`, **seven clauses pre-registered in the docstring before the
+first number was read**, 2 DIAGNOSTIC rows under `daily/d10_ordersize`, one LEAN control run
+(`20260913T165131Z`), `tests/test_daily_unsizable.py` (19 tests). Shared code changed in four
+files, all backward compatible; `champion.json`, `live/*`, `margin_budget`, `target_vol`, the
+drawdown cap and every scheduled task untouched. No promotion, no parameter moved.
+
+**(1) There are two silent paths, not one, and the item names only the first.** Read out of the
+shipped source rather than assumed. `submit_targets:385-386` can end a rebalance with a ranked
+name absent from the book three ways: `int()` truncating a sub-one-share allocation
+(**silent**), a non-positive reference price forcing the target to zero (**silent**), and the
+no-trade band (**by design** - S-13/S-32 priced it and ~3,000 of the champion's orders are the
+drift it drops, so a guard that fired on it would cry wolf).
+
+**(2) The item's arithmetic cannot happen, and the reason is a type.** `target` and `held` are
+both `int`, so an order is a *difference of integers* and its notional at the reference price is
+`|delta| * p` - a whole multiple of `p` by construction. Measured: **0 of 5,039 orders** have a
+notional below one share of their own name, and the minimum ratio is exactly **7.0000**, which is
+D-9's 7-share fill. D-10 compares an order in TLT against a price in LLY, a name this book has
+never held. **The stated reachability argument is false.** That does not withdraw the item: the
+quantity that can round to zero is the **target**, and nothing had measured it.
+
+**(3) On the right quantity the margin is 220x, and it is structural rather than lucky.** Over
+the champion's own walk - 3,099 rebalance sessions, 9,127 (session, ranked name) pairs:
+
+| quantity | value | where |
+|---|---|---|
+| min raw target `w x equity / p` | **219.5 shares** | GLD 2012-01-27, w 0.3580, px $167.27, equity $102,557 |
+| min allocation `w x equity` | **$34,934.67** | IWM 2012-02-27 |
+| pairs under 1 / 2 / 10 shares | **0 / 0 / 0** | |
+
+A target zeroes only where the adjusted price **exceeds $34,935**. The sleeve holds at most 3
+names, so an allocation is always a double-digit percentage of equity - that is the mechanism,
+and it is why the pre-registered "under 5x means luck, the guard must refuse" branch did not fire.
+
+**(4) Over the whole store the clean population is empty.** Of 95 daily symbols, **4** carry an
+`adj_max` above the $34,935 floor and all four are D-9's FAILs (SOXS, SPXU, SQQQ, UVXY) - the
+split-factor store defect `check_daily_store` already asserts. **0 clean symbols** reach it. The
+worst clean adjusted price in the store is **GOOG $2,128.31**, which is **16 shares** at the
+champion's tightest allocation, a factor of 16 from the boundary rather than D-10's implied ~1.
+
+**(5) The second silent path is unreachable here, asymmetric where it is reachable, and invisible
+to the gate.** (a) The champion window is **3,690 sessions x 9 names = 33,210 closes, 0 missing**.
+(b) The half the item does not name is worse than the half it does: when the price is missing and
+the name is **already held**, the band scores the liquidation at `max(price, 0.01)`, so closing N
+shares needs `0.01 x N >= 0.01 x equity`, i.e. **N >= equity in shares** - never true, so the
+stale position is *carried* rather than closed. (c) `paper_trade.plan_orders` already surfaced an
+unpriced symbol as a visible `delta=None` row and `submit_targets` had no equivalent, so the
+deployed runner and the backtest **did not agree on this path** - and `compare_orders.py`, the I-1
+gate, cannot see it, because it builds `prices` from LEAN bars and the unpriced case never arises
+inside it. That is the one genuinely new defect in this item.
+
+**(6) Shipped, log-only, against a pre-registered inertness bar - all three legs PASS.**
+`signals.unsizable_targets` is **one** function: LEAN imports it, `sweep_s19.simulate` takes it as
+an out-parameter defaulting to `None`, and `paper_trade.plan_orders` **receives it from the loaded
+signal module** rather than transcribing it, which is S-45's lesson applied before the fact (this
+repo already had four copies of a commission function and `sweep_s21`'s was a different broker for
+months). Log-only rather than a refusal is a measurement, not timidity: at 220x the only thing a
+throw would ever catch is a store defect, which is asserted at fetch time.
+
+| leg | bar | result |
+|---|---|---|
+| guard fires, champion full window | 0 | **0** |
+| offline book with vs without the collector | bit-identical | **True** |
+| LEAN control `20260913T165131Z` | 5,128 orders / `a6d6224ce9c70091e5bfa8e96f046bf3` | **5,128 / a6d6224ce9c70091e5bfa8e96f046bf3**, 0 UNSIZABLE lines, fees $27,199.76, CAR 24.403% |
+| I-1 gate `compare_orders.py` | no regression | **3,689/3,689 dates, 5,021 vs 5,021 orders, +0** |
+
+**(7) Decision.** D-10 is **closed as a guard, not as a fix**: the defect it describes is
+unreachable on this book by a factor of 220 and unreachable on the clean store by a factor of 16,
+which is a different thing to tell the owner than "the defect does not exist". What the run
+actually bought is the runner/backtest disagreement in clause 5c and one shared definition of the
+boundary. Nothing promoted, `champion.json` and `live/*` untouched, no owner decision owed.
+
+**Observed, outside this track and not touched:** `scripts/intraday_backtest.py:585` and `:588`
+carry an uncommitted nested-quote f-string that Python 3.11 rejects (`SyntaxError: f-string:
+expecting '}'`). It fails *collection* of four test files, and `scripts/intraday_launch.py` runs
+this suite as the 09:25 preflight, so as the tree stands the sleeve's preflight would refuse.
+Working-tree only - `git show HEAD:scripts/intraday_backtest.py` is clean - and it belongs to
+`iterate`/`ml`. Filed here so the next run of that track sees it; the 285 tests covering the four
+files D-10 changed all pass.
+
+**Next.** D-10's remaining descendant is clause 5c: the I-1 gate cannot reach the `no_price`
+divergence it now knows about. Filed as **S-46**.
+
 ## 2026-09-13 - S-44: the fee constant was inert where it was named and wrong by a third next door - the S-track's two commission replicas were two different brokers
 
 **Hypothesis (S-44, opened by D-7).** `sweep_s19.py:76` calibrates costs against a 1% cap while

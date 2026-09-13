@@ -140,6 +140,70 @@ def margin_requirement(instrument: str) -> float:
     return min(1.0, BASE_MARGIN_REQ * multiple)
 
 
+#: D-10. The smallest position the daily sleeve can express. LEAN buys whole shares and so
+#: does the IBKR runner, so a ranked name whose allocation is worth less than this is not a
+#: small position - it is no position, and the sizing rule reaches that answer without
+#: raising, logging or placing an order. Named rather than spelled `1` at the call sites,
+#: because it is the boundary `unsizable_targets` below watches.
+MIN_WHOLE_SHARES = 1
+
+
+def unsizable_targets(targets, prices, equity, held=None):
+    """Ranked names the whole-share sizing rule drops in SILENCE (D-10).
+
+    `main.py:submit_targets` (and `scripts/paper_trade.py:plan_orders`, and the offline book
+    in `scripts/sweep_s19.py`) turn a weight into `int(weight * equity / price)`. Two of the
+    three inputs can send that to zero while the weight is positive, and neither path raises,
+    logs or emits an order, so the name is simply absent from the book:
+
+      ``under_one_share``  the allocation buys less than one whole share
+                           (``|weight| * equity < price``). The signal asked for a position
+                           and the sleeve holds none.
+      ``no_price``         the reference price is missing or not positive, which forces the
+                           target to zero. The worse half is what the no-trade band then does
+                           with an EXISTING holding: it prices the liquidation at
+                           ``max(price, 0.01)``, i.e. a cent a share, so the delta cannot
+                           clear ``min_order_value * equity`` and the position is *kept*.
+                           The runner already surfaces this one (`plan_orders` returns a row
+                           with ``delta=None``); the backtest did not.
+
+    The no-trade band is deliberately NOT a reason here. Banding a small rebalancing delta is
+    the sleeve doing what S-13/S-32 priced and kept; these two are the sizing rule failing to
+    represent the signal at all, which is a different thing and the only one worth an alarm.
+
+    `targets` maps ticker to weight, `prices` ticker to the reference price the caller sizes
+    at, `held` (optional) ticker to the share count currently on the book. Returns one dict
+    per hit ordered by ticker - ``ticker, reason, weight, price, notional, shares, held`` -
+    and an empty list when every ranked name is expressible.
+
+    Pure by construction: it reads, it allocates nothing, it places no order. A caller that
+    only logs what comes back leaves its order list bit-identical, which is what lets this
+    ship into a deployed book without owing a promotion gate.
+    """
+    hits = []
+    equity = float(equity)
+    held = held or {}
+    for ticker in sorted(targets):
+        weight = float(targets[ticker])
+        if weight == 0.0 or not np.isfinite(weight):
+            continue
+        raw = prices.get(ticker)
+        price = float(raw) if raw is not None else 0.0
+        notional = abs(weight) * equity
+        hit = {"ticker": ticker, "reason": "", "weight": weight, "price": price,
+               "notional": notional, "shares": float("nan"),
+               "held": float(held.get(ticker, 0.0))}
+        if not np.isfinite(price) or price <= 0.0:
+            hit["reason"] = "no_price"
+        else:
+            hit["shares"] = notional / price
+            if hit["shares"] >= MIN_WHOLE_SHARES:
+                continue
+            hit["reason"] = "under_one_share"
+        hits.append(hit)
+    return hits
+
+
 @dataclass(frozen=True)
 class Params:
     """Tunables. Every one of these is swept in the S-1 sensitivity test."""

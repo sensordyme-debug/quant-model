@@ -121,7 +121,8 @@ def tstat(x) -> float:
 # ------------------------------------------------------------------------------- the book
 
 def simulate(frames: dict, params, lag: int, fill: str, start: str, end: str,
-             slippage_bps: float = 0.0, financing: dict | None = None) -> pd.DataFrame:
+             slippage_bps: float = 0.0, financing: dict | None = None,
+             unsizable: list | None = None) -> pd.DataFrame:
     """Walk the shipped signal day by day and execute it at `fill` on the fill session.
 
     `lag` is the number of *extra* sessions of staleness beyond the backtest's own: 0 is
@@ -140,6 +141,12 @@ def simulate(frames: dict, params, lag: int, fill: str, start: str, end: str,
     one, exactly as `main.py:accrue_financing` does in LEAN - charged before the day's
     sizing, so it compounds against the book rather than being reported beside it. Default
     `None` leaves the S-19 rows bit-identical.
+
+    D-10 adds a second optional argument of the same shape and with the same promise. When
+    `unsizable` is a list, every ranked name this book could not express as a whole-share
+    position is appended to it (`sig.unsizable_targets`, plus the session date). It is an
+    out-parameter and nothing else: the planning loop below is untouched, so the returned
+    book is bit-identical whether it is passed or not.
     """
     closes = frames["close"]
     opens = frames["open"]
@@ -188,6 +195,12 @@ def simulate(frames: dict, params, lag: int, fill: str, start: str, end: str,
             target = 0 if p <= 0 else int(targets.get(t, 0.0) * equity / p)
             if abs(target - held) * max(p, 0.01) >= MIN_ORDER_VALUE * equity:
                 deltas[t] = target - held
+
+        # --- D-10: read-only, after the plan is fixed, so it cannot reach the order list
+        if unsizable is not None:
+            held_now = {t: float(positions.get(t, 0)) for t in tickers}
+            for hit in sig.unsizable_targets(targets, ref, equity, held_now):
+                unsizable.append({"date": index[i], **hit})
 
         # --- execute at the convention's price
         fees = turnover = 0.0
