@@ -1726,7 +1726,34 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
-- **D-9 (`iterate`, opened by D-7 2026-09-13, and the one that can invalidate a CONCLUSION rather
+- **D-10 (`daily`, opened by D-9 2026-09-13): the store is now watched; the ORDER SIZE is not.**
+  D-9 shipped an assertion that fails a symbol whose adjusted price makes a $10k order round to
+  zero shares, and it is a store-side check by construction. The other half of the same boundary
+  is the book: over the 77 symbols a committed run has actually held, the worst adjusted price is
+  **$1,280 (LLY)**, and the champion's **smallest order is $1,076** - below it. A zero-share
+  rebalance is therefore arithmetically reachable on a perfectly clean store, and it fails the
+  same silent way (no order, no position, no error). It has never happened - 7 shares is the
+  closest approach in 5,128 fills, 0 fills at <= 5 - so this is a guard, not a bug: the daily
+  sleeve should refuse or log a target whose notional is below one share of the name it ranks,
+  which is `min_order_value`'s neighbourhood rather than a new mechanism. Cheap, and it belongs
+  to `daily` because it is a sizing rule in that sleeve's runner, not a data check.
+  <!-- added by D-9, 2026-09-13 (iterate). -->
+
+- **D-9 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): both halves shipped - the
+  premise reproduces to the session, and it invalidates NO conclusion.** (a) `store_health.py`
+  gains `check_daily_store`, the `daily` store in `STORES` and `--notional`; it reproduces D-9's
+  table exactly (SOXS 95.2%, UVXY 64.7%, SQQQ 60.5%, SPXU 38.0%; **10,541** zero-share
+  symbol-sessions over 95 symbols) from the bytes on disk alone, FAILs rather than WARNs, and is
+  pinned by 9 new tests (suite 1,509 pass). (b) `scripts/sweep_d9.py`, 6 clauses: the four symbols
+  are in **no** daily strategy universe, and **0 of 172** readable committed LEAN runs filled one
+  across 77 distinct symbols. The single hit is the defect's own signature, found only by
+  inverting the test - `20260908T162819Z d1_data_smoke` **names 15 tickers and filled 14**, UVXY
+  silently untraded since 2012; its PASS verdict is about bar delivery and survives, so the row is
+  marked, not withdrawn. Margin: the champion's smallest fill is **7 shares**, 0 at <= 5. **The
+  assertion is preventive, not remedial.** Opens **D-10** (the order-size half of the same
+  boundary). <!-- closed by D-9, 2026-09-13 (iterate). -->
+
+- **D-9 (original text, kept for the pre-registration) (`iterate`, opened by D-7 2026-09-13, and the one that can invalidate a CONCLUSION rather
   than a cost column): 10,541 stored sessions where a daily order buys ZERO shares, and the
   backtest reports it as no position rather than as an error.** LEAN orders whole shares off the
   ADJUSTED price, and the daily store's adjusted price for the inverse-leveraged sleeve is

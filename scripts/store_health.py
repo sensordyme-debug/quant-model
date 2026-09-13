@@ -34,11 +34,25 @@ is truncated, that is a FAIL** - not because one day matters more than another, 
 means the most recent fetch died and every run from now on quietly samples a half day at the
 live edge of the data. That is an operational fact with an owner and a fix.
 
+The daily store asks a different question (D-9)
+-----------------------------------------------
+The LEAN daily store holds one bar per session, so "is the session whole?" has no meaning there
+and none of the above applies. Its failure mode is the opposite one: the bar is present, clean
+and wrong in a way that produces SILENCE. LEAN orders whole shares off the ADJUSTED price, and
+this repo's fetcher writes split-adjusted prices with `split_factor = 1` on every factor row
+(D-7 / AUD-17), so a reverse-split name carries an adjusted price of $10^11 in its early years.
+A sleeve-sized order then rounds to ZERO shares, LEAN emits no order, and the backtest reports
+no position rather than an error - there is no row for a reader to exclude, because there is no
+row. That is what `check_daily_store` asserts against, and it needs nothing but the bytes on
+disk: no split calendar, no network.
+
 Like `dataquality.py`, this module reports and never repairs. The fetchers
-(`intraday_data.py`, `alpaca_data.py`, `odte_data.py`) are where a refetch belongs.
+(`intraday_data.py`, `alpaca_data.py`, `odte_data.py`, `fetch_data.py`) are where a refetch
+belongs.
 
     python scripts/store_health.py                      # every store, summary + findings
     python scripts/store_health.py --store minute -v    # one store, per-symbol table
+    python scripts/store_health.py --store daily -v     # LEAN daily: tradeability (D-9)
     python scripts/store_health.py --json               # machine-readable
     python scripts/store_health.py --strict             # exit 1 if anything FAILs
 """
@@ -47,6 +61,8 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -77,6 +93,12 @@ SPARSE_FILL = 0.90
 #: How many trading days a store may lag the last closed session before it is called stale.
 #: Two, so that a fetcher that skips a single night is not an alert but a dead one is.
 STALE_DAYS = 2
+
+#: The reference order the daily tradeability check places, in dollars. Not a strategy
+#: parameter: it is the scale at which "can a sleeve buy this symbol at all?" has a stable
+#: answer. $10k is one position of a ten-name book on the champion's $100k start equity, and it
+#: is the size D-7 clause 6 and D-9 quote, so a number printed here is comparable with theirs.
+DAILY_ORDER_NOTIONAL = 10_000.0
 
 #: 0DTE stops being a property of the calendar and starts being a property of the store on this
 #: date: from 2023-05-01 SPY expires every session, so from here a missing file is a missing
@@ -305,6 +327,104 @@ def check_minute_store(store: Path, calendar: SessionCalendar, *, today: dt.date
     return rep, rows
 
 
+# --------------------------------------------------------------------------- LEAN daily store
+
+def adjusted_closes(ticker: str):
+    """What a LEAN backtest in ADJUSTED mode pays per share, read from the bytes on disk.
+
+    `_raw_bars` gives the stored close and `_price_factors` the factor LEAN multiplies it by
+    (`DataNormalizationMode.ADJUSTED`), so this is the engine's own price and not a
+    reconstruction of it. Imported lazily: the live launcher imports this module at 09:25 to
+    check the minute store, and a reporter must never add an import to that path.
+    """
+    from lean_prices import _price_factors, _raw_bars
+    bars = _raw_bars(ticker)
+    return bars["close"] * _price_factors(ticker, bars.index)
+
+
+def check_daily_store(store: Path, calendar: SessionCalendar, *, today: dt.date,
+                      symbols: list[str] | None = None, examples: int = 3,
+                      notional: float = DAILY_ORDER_NOTIONAL) -> tuple[Report, list[dict]]:
+    """Can a sleeve-sized order actually buy a share? (D-9)
+
+    One FAIL per symbol rather than one per session, because the unit of the defect is the
+    symbol: the adjusted price is off by a cumulative split factor that does not vary within an
+    era, so the affected sessions are a span and naming them one at a time says nothing the span
+    does not. FAIL rather than WARN - the doctrine at the top of this module reserves FAIL for a
+    file that is wrong rather than short, and a price no order can transact at is wrong.
+
+    `adj_max` is the number a reader acts on: the smallest order that buys at least one share of
+    that symbol on every stored session. Compare it with the smallest order a strategy places.
+    """
+    rep = Report()
+    rows: list[dict] = []
+    if not store.exists():
+        rep.add("absent", Severity.WARN, store.name, f"no such store: {store}")
+        return rep, rows
+    files = sorted(store.glob("*.zip"))
+    if symbols:
+        want = {s.upper() for s in symbols}
+        files = [p for p in files if p.stem.upper() in want]
+    if not files:
+        rep.add("absent", Severity.WARN, store.name, "no daily zips")
+        return rep, rows
+
+    for path in files:
+        symbol = path.stem.upper()
+        row = {"symbol": symbol, "sessions": 0, "first": None, "last": None,
+               "zero_order": 0, "zero_pct": 0.0, "adj_max": None, "lag_days": None}
+        try:
+            adj = adjusted_closes(path.stem)
+        except Exception as exc:  # noqa: BLE001 - an unreadable store is the finding
+            rep.add("unreadable", Severity.FAIL, symbol, f"{type(exc).__name__}: {exc}"[:90])
+            rows.append(row)
+            continue
+        rep.symbols += 1
+        if len(adj) == 0:
+            rep.add("empty", Severity.FAIL, symbol, "no daily bars at all")
+            rows.append(row)
+            continue
+        rep.rows += len(adj)
+
+        first, last = adj.index[0].date(), adj.index[-1].date()
+        # floor(), because LEAN buys whole shares. A NaN or non-positive price scores 0 shares
+        # rather than raising: it is untradeable for a different reason, and the one thing this
+        # check must not do is skip a symbol because its price was too broken to divide by.
+        shares = pd.Series([0 if (p != p or p <= 0) else math.floor(notional / p) for p in adj],
+                           index=adj.index)
+        dead = shares <= 0
+        row.update(sessions=int(len(adj)), first=str(first), last=str(last),
+                   zero_order=int(dead.sum()), zero_pct=round(float(dead.mean()) * 100, 1),
+                   adj_max=round(float(adj.max()), 2))
+        closed = [d for d in calendar.trading_days(last, today) if d < today]
+        row["lag_days"] = max(0, len(closed) - 1)
+        rows.append(row)
+
+        if dead.any():
+            span = adj.index[dead]
+            rep.add("untradeable", Severity.FAIL, symbol,
+                    f"a ${notional:,.0f} order rounds to ZERO shares on {int(dead.sum())} of "
+                    f"{len(adj)} sessions ({row['zero_pct']:.1f}%), {span[0].date()}.."
+                    f"{span[-1].date()} - adjusted price up to ${row['adj_max']:,.0f}/share; "
+                    f"LEAN emits no order and the backtest reports no position, not an error",
+                    int(dead.sum()))
+
+    live = [r for r in rows if r["adj_max"] is not None]
+    if live:
+        worst = max(live, key=lambda r: r["adj_max"])
+        rep.add("headroom", Severity.INFO, store.name,
+                f"the smallest order that buys >= 1 share of every stored symbol on every "
+                f"session is ${worst['adj_max']:,.0f} ({worst['symbol']}); a strategy whose "
+                f"smallest order is above that is unaffected whatever the adjustment says")
+        clean = [r for r in live if r["zero_order"] == 0]
+        if clean and len(clean) < len(live):
+            ok = max(clean, key=lambda r: r["adj_max"])
+            rep.add("headroom_clean", Severity.INFO, store.name,
+                    f"excluding the {len(live) - len(clean)} failed symbol(s), that falls to "
+                    f"${ok['adj_max']:,.0f} ({ok['symbol']})")
+    return rep, rows
+
+
 # --------------------------------------------------------------------------- 0DTE chain store
 
 def check_odte_store(store: Path, calendar: SessionCalendar, *, today: dt.date,
@@ -414,10 +534,13 @@ def check_theta(rep: Report) -> dict:
 
 # --------------------------------------------------------------------------- CLI
 
+#: `lean_prices` resolves the same path from the same env var; repeated rather than imported so
+#: that listing the stores costs nothing on the live launcher's import path.
 STORES = {
     "minute": REPO / "data" / "minute",
     "minute_alpaca": REPO / "data" / "minute_alpaca",
     "odte": REPO / "data" / "options" / "odte",
+    "daily": Path(os.environ.get("LEAN_DATA", REPO.parent / "Lean" / "Data")) / "equity" / "usa" / "daily",
 }
 
 
@@ -435,6 +558,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--store", nargs="*", choices=sorted(STORES), default=sorted(STORES))
     ap.add_argument("--symbols", nargs="*", default=None, help="limit the minute stores")
     ap.add_argument("--examples", type=int, default=3, help="dates named per finding")
+    ap.add_argument("--notional", type=float, default=DAILY_ORDER_NOTIONAL,
+                    help="reference order size for the daily store's tradeability check")
     ap.add_argument("--theta", action="store_true", help="also probe the Theta Terminal")
     ap.add_argument("--json", action="store_true", help="machine-readable, no table")
     ap.add_argument("--strict", action="store_true", help="exit 1 if anything FAILs")
@@ -452,6 +577,11 @@ def main(argv: list[str] | None = None) -> int:
         if name == "odte":
             rep, rows = check_odte_store(path, CALENDAR, today=today, examples=args.examples)
             cols = ["symbol", "days", "first", "last", "rows", "empty", "truncated"]
+        elif name == "daily":
+            rep, rows = check_daily_store(path, CALENDAR, today=today, symbols=args.symbols,
+                                          examples=args.examples, notional=args.notional)
+            cols = ["symbol", "sessions", "first", "last", "zero_order", "zero_pct",
+                    "adj_max", "lag_days"]
         else:
             rep, rows = check_minute_store(path, CALENDAR, today=today, symbols=args.symbols,
                                            examples=args.examples)

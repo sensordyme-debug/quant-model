@@ -418,3 +418,145 @@ def test_theta_probe_never_raises_and_never_fails_the_run(monkeypatch):
     monkeypatch.setattr(td, "status", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     sh.check_theta(rep)
     assert not rep.failed
+
+
+# ------------------------------------------------- the LEAN daily store's tradeability (D-9)
+#
+# A different defect from everything above. The minute checks ask whether a session is WHOLE;
+# the daily store has one bar per session, so the only question left is whether the bar's price
+# is one an order can transact at. D-7 proved it often is not: this repo's fetcher writes
+# split-adjusted prices with `split_factor = 1`, so a reverse-split name's adjusted price runs to
+# $10^11 and a sleeve-sized order rounds to zero shares. The failure is SILENT - LEAN emits no
+# order at all - which is why these tests pin the count, the span and the scale, not just a flag.
+
+def build_daily_store(tmp_path, spec: dict[str, list[tuple[dt.date, float]]],
+                      factors: dict[str, list[tuple[dt.date, float]]] | None = None):
+    """spec: {symbol: [(date, raw_close), ...]}; factors: {symbol: [(date, price_factor), ...]}.
+
+    Writes LEAN's own layout - `daily/<sym>.zip` holding `<sym>.csv` in deci-cents, and
+    `factor_files/<sym>.csv` - so the test reads through the same `lean_prices` code the engine's
+    ADJUSTED mode mirrors rather than through a stub of it.
+    """
+    import zipfile
+
+    root = tmp_path / "lean"
+    (root / "daily").mkdir(parents=True, exist_ok=True)
+    (root / "factor_files").mkdir(parents=True, exist_ok=True)
+    for sym, bars in spec.items():
+        csv = "\n".join(
+            f"{d:%Y%m%d} 00:00,{int(round(px * sh_scale))},{int(round(px * sh_scale))},"
+            f"{int(round(px * sh_scale))},{int(round(px * sh_scale))},1000000"
+            for d, px in bars)
+        with zipfile.ZipFile(root / "daily" / f"{sym.lower()}.zip", "w") as z:
+            z.writestr(f"{sym.lower()}.csv", csv)
+        rows = (factors or {}).get(sym, [(bars[-1][0], 1.0)])
+        (root / "factor_files" / f"{sym.lower()}.csv").write_text(
+            "\n".join(f"{d:%Y%m%d},{f},1,0" for d, f in rows))
+    return root
+
+
+sh_scale = 10000   # LEAN's deci-cent price scale; `lean_prices.SCALE`
+
+
+DAILY_DAYS = [dt.date(2024, 11, 25), dt.date(2024, 11, 26), FULL, dt.date(2024, 12, 2)]
+
+
+def daily_report(tmp_path, monkeypatch, spec, factors=None, **kw):
+    import lean_prices
+
+    root = build_daily_store(tmp_path, spec, factors)
+    monkeypatch.setattr(lean_prices, "EQUITY", root)
+    return sh.check_daily_store(root / "daily", CALENDAR, today=AFTER, **kw)
+
+
+def flat(price: float) -> list[tuple[dt.date, float]]:
+    return [(d, price) for d in DAILY_DAYS]
+
+
+def test_an_ordinary_price_is_tradeable_and_produces_no_defect(tmp_path, monkeypatch):
+    rep, rows = daily_report(tmp_path, monkeypatch, {"AAA": flat(100.0)})
+    assert not rep.failed
+    assert rep.of(Severity.WARN) == []
+    assert rows[0]["zero_order"] == 0 and rows[0]["sessions"] == 4
+    assert rows[0]["adj_max"] == pytest.approx(100.0)
+
+
+def test_an_adjusted_price_above_the_order_is_untradeable_and_fails(tmp_path, monkeypatch):
+    """The D-9 defect itself: a reverse-split name priced past the order size."""
+    bars = [(d, 100.0 if d == DAILY_DAYS[-1] else 5e10) for d in DAILY_DAYS]
+    rep, rows = daily_report(tmp_path, monkeypatch, {"AAA": bars})
+    assert rep.failed
+    (f,) = [f for f in rep.findings if f.check == "untradeable"]
+    assert f.severity is Severity.FAIL and f.symbol == "AAA" and f.count == 3
+    assert "ZERO shares on 3 of 4" in f.detail
+    assert f"{DAILY_DAYS[0]}..{DAILY_DAYS[-2]}" in f.detail   # the span, not every date
+    assert rows[0]["zero_order"] == 3 and rows[0]["zero_pct"] == 75.0
+
+
+def test_the_price_factor_is_what_makes_a_clean_raw_price_untradeable(tmp_path, monkeypatch):
+    """The mechanism D-7 found: the bar on disk is ordinary, the FACTOR is what LEAN pays.
+
+    Without this the check could be satisfied by reading the stored close alone and would miss
+    every symbol whose adjustment lives in the factor file - which is where LEAN's does.
+    """
+    factors = {"AAA": [(DAILY_DAYS[1], 1e9), (DAILY_DAYS[-1], 1.0)]}
+    rep, rows = daily_report(tmp_path, monkeypatch, {"AAA": flat(100.0)}, factors)
+    assert rep.failed
+    assert rows[0]["zero_order"] == 2          # the two bars on or before the 1e9 factor row
+    assert rows[0]["adj_max"] == pytest.approx(1e11)
+
+
+def test_the_verdict_is_about_the_ORDER_and_not_the_price(tmp_path, monkeypatch):
+    """Same store, two order sizes: $1k cannot buy a $5k share and $10k can.
+
+    Pins that `--notional` is the assertion's scale. A check that hard-coded a price ceiling
+    would call this symbol broken or fine forever, and neither is true of a real book.
+    """
+    spec = {"AAA": flat(5000.0)}
+    assert daily_report(tmp_path, monkeypatch, spec, notional=1_000.0)[0].failed
+    assert not daily_report(tmp_path, monkeypatch, spec, notional=10_000.0)[0].failed
+
+
+def test_adj_max_is_exactly_the_smallest_order_that_always_buys_a_share(tmp_path, monkeypatch):
+    """`adj_max` is the number a reader acts on, so the boundary is pinned rather than implied."""
+    spec = {"AAA": flat(250.0)}
+    rep, rows = daily_report(tmp_path, monkeypatch, spec, notional=250.0)
+    assert not rep.failed and rows[0]["adj_max"] == pytest.approx(250.0)
+    assert daily_report(tmp_path, monkeypatch, spec, notional=249.99)[0].failed
+
+
+def test_the_headroom_line_reports_the_clean_symbols_separately(tmp_path, monkeypatch):
+    """One broken symbol must not hide the headroom of the rest - it is 8 orders of magnitude
+    away, so the store-wide maximum on its own says nothing about a book that never held it."""
+    rep, _ = daily_report(tmp_path, monkeypatch,
+                          {"AAA": flat(100.0), "BBB": flat(400.0), "ZZZ": flat(5e10)})
+    assert "ZZZ" in [f for f in rep.findings if f.check == "headroom"][0].detail
+    assert "$400 (BBB)" in [f for f in rep.findings if f.check == "headroom_clean"][0].detail
+
+
+def test_an_unreadable_daily_zip_fails_instead_of_raising(tmp_path, monkeypatch):
+    import lean_prices
+
+    root = build_daily_store(tmp_path, {"AAA": flat(100.0)})
+    (root / "daily" / "aaa.zip").write_bytes(b"not a zip")
+    monkeypatch.setattr(lean_prices, "EQUITY", root)
+    rep, rows = sh.check_daily_store(root / "daily", CALENDAR, today=AFTER)
+    assert rep.failed and rep.findings[0].check == "unreadable"
+    assert rows[0]["sessions"] == 0
+
+
+def test_an_absent_daily_store_warns_rather_than_crashing(tmp_path):
+    rep, rows = sh.check_daily_store(tmp_path / "nope", CALENDAR, today=AFTER)
+    assert not rep.failed and rep.findings[0].check == "absent" and rows == []
+
+
+def test_the_daily_store_reaches_the_cli_and_strict_exits_one(tmp_path, monkeypatch, capsys):
+    import lean_prices
+
+    root = build_daily_store(tmp_path, {"AAA": flat(5e10)})
+    monkeypatch.setattr(lean_prices, "EQUITY", root)
+    monkeypatch.setitem(sh.STORES, "daily", root / "daily")
+    argv = ["--store", "daily", "--today", str(AFTER)]
+    assert sh.main(argv) == 0                     # a report never breaks somebody's cron
+    assert sh.main([*argv, "--strict"]) == 1
+    assert "untradeable" in capsys.readouterr().out

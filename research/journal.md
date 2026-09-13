@@ -4,6 +4,71 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - D-9 (`iterate` track)
+
+**The store defect is real and reproduces to the session; the conclusions it was filed to
+invalidate do not exist.** D-7 proved the arithmetic - this repo's fetcher writes split-adjusted
+prices with `split_factor = 1`, so LEAN's ADJUSTED mode sees $10^11 a share for a reverse-split
+name and a sleeve-sized order rounds to ZERO whole shares, with no order, no position and no
+error. D-9 filed the two separable jobs. **(a) is shipped**: `store_health.check_daily_store`,
+plus the `daily` store in `STORES` and a `--notional` flag, 9 new tests in
+`tests/test_store_health.py` (36 in that file, suite **1,509 pass / 7 skip**). **(b) is answered**:
+`scripts/sweep_d9.py`, 6 pre-registered clauses, 2 DIAGNOSTIC ledger rows.
+
+**Clause 1 - the assertion reproduces D-9's own table through the shipped checker**, which is the
+only version of that table worth having, because a number in a journal cannot fail a future fetch:
+
+| sym | zero-share sessions | % | published | adj_max |
+|---|---|---|---|---|
+| SOXS | 3,949 / 4,148 | **95.2%** | 95.2% | $500,622,314,194 |
+| UVXY | 2,426 / 3,752 | **64.7%** | 64.7% | $514,500,001,792 |
+| SQQQ | 2,522 / 4,167 | **60.5%** | 60.5% | $9,389,153 |
+| SPXU | 1,644 / 4,326 | **38.0%** | 38.0% | $520,365 |
+
+95 symbols scanned, **10,541** zero-share symbol-sessions at a $10k order - D-9's figure to the
+session. The check reads only the bytes on disk (`close * price_factor`, which is LEAN's own
+ADJUSTED price) so it needs no split calendar and no network, and it FAILs rather than WARNs:
+the doctrine at the top of that module reserves FAIL for a file that is *wrong* rather than
+*short*, and unlike a truncated session there is nothing here for a consumer to exclude by date,
+because there is no row.
+
+**The ledger re-read is a clean negative, answered twice from independent evidence.** Clause 3
+(by code): the only algorithm in the tree naming an affected symbol is `d1_data_smoke` (UVXY);
+`git log -S` over `algorithms/` finds one commit per symbol and neither is a daily strategy
+(`1dc4883` is the intraday `lev_revert` signal, which reads the parquet store, not this one).
+Clause 4 (by tape, which does not trust today's source): **172 of 175** committed LEAN `run_dir`s
+are readable, they fill **77 distinct symbols**, and **0 rows** fill an affected one - 3 rows
+`results/` no longer holds are the clause's stated limit.
+
+**The one hit is the case an intersection cannot see, and it is the defect's own signature.**
+Clause 4b: a zero-share symbol never appears in the order events at all, so an empty intersection
+is *exactly* what a silently untradeable universe member looks like. Reading the other way round -
+algorithms that NAME an affected symbol and whose run filled everything else - finds
+**`20260908T162819Z d1_data_smoke`: names 15 tickers, filled 14. UVXY is the missing one.** The
+D-1 acceptance run allocated 1/15 of $100k to UVXY on 2012-01-03, bought nothing, and passed.
+**Its verdict survives** - D-1's pass criterion is bar delivery (`count >= 3000`; UVXY logged
+3,690 bars) and its equity curve is not a metric anyone quotes - so the row is marked, not
+withdrawn.
+
+**Clause 5, the margin, is what makes the negative structural rather than lucky.** The champion's
+5,128 fills: smallest **7 shares** (GLD), **0** fills at <= 5 shares, tightest per symbol GLD 7 /
+SPY 11 / DIA 12 / TLT 13 / IWM 16. Seven times clear of the boundary.
+
+**The residual is stated rather than hidden.** Clause 2 quotes three ceilings and the binding one
+is not the obvious one: the worst adjusted price over the whole clean store is **$2,128 (GOOG)**,
+but GOOG is stored and never ranked - over the **77 symbols a committed run has actually held** it
+is **$1,280 (LLY)**. The champion's smallest order is **$1,076**, which is *below* that. So a
+zero-share rebalance is arithmetically reachable on the clean store too; it has simply never
+happened. Clause 1's assertion now watches the store, and **nothing watches the order size** -
+filed as D-10.
+
+**Decision: D-9 closed. The assertion is PREVENTIVE, not remedial** - that reclassification is the
+deliverable, because D-9 was filed as the item that could invalidate a conclusion and the honest
+answer is that it invalidates none. Reusable rule: **when a defect's failure mode is silence, an
+empty intersection is not evidence of absence - invert the test and look for what is missing from
+a set that should be complete.** Clause 4 and clause 4b ran on the same 175 rows and only the
+second one found anything.
+
 ## 2026-09-13 - A-16 (`iterate` track)
 
 **The trader's own `--replay` was undercharging the sleeve by 29.72% of its cost line, and the
