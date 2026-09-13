@@ -53,8 +53,15 @@ from quant_brain.markets.futures_cme import instruments as inst  # noqa: E402
 from quant_brain.markets.futures_cme import paths as pa  # noqa: E402
 from quant_brain.markets.futures_cme import topstep as ts  # noqa: E402
 from quant_brain.markets.futures_cme import twin as tw  # noqa: E402
+from quant_brain.research import Experiment, Ledger, Stage  # noqa: E402
 
 STORE = Path("data/futures/ES.parquet")
+LEDGER = Path("research/experiments_futures.jsonl")
+
+#: The family multiplicity is counted over. Every intraday-momentum specification
+#: tried on this data belongs here, so the hundredth faces a harder bar than the
+#: first - which is the entire reason the ledger exists.
+FAMILY = "futures.es.intraday_momentum"
 
 # --- the specification, fixed before the run -------------------------------------------
 # Written down here so it is visibly pre-registered rather than chosen after seeing results.
@@ -112,7 +119,7 @@ def sessions(df: pd.DataFrame, contracts: int = 1) -> list[tw.TwinDay]:
 
 
 def report(days: list[tw.TwinDay], *, target: float, fee: float | None,
-           reps: int, block: int) -> dict:
+           reps: int, block: int, contracts: int = 1) -> dict:
     pnl = np.array([d.pnl for d in days])
     out: dict = {
         "sessions": len(days),
@@ -126,6 +133,30 @@ def report(days: list[tw.TwinDay], *, target: float, fee: float | None,
     t = stats.tstat_hac(pnl, horizon=1)
     out["t_hac"] = t.t
     out["t_threshold_1_trial"] = stats.bonferroni_threshold(1)
+
+    # The honest threshold, sized by what has already been tried in this family. Nothing
+    # here supplies a trial count; the ledger counts, and the only way to face an easier
+    # bar is to have run fewer experiments.
+    ledger = Ledger(LEDGER)
+    experiment = Experiment(
+        hypothesis=("first-thirty-minute momentum on ES, entered 10:00 ET, flat 15:45 ET, "
+                    f"{SYMBOL} x{contracts}"),
+        family=FAMILY,
+        params={"open": OPEN_ET, "signal": SIGNAL_ET, "exit": EXIT_ET,
+                "symbol": SYMBOL, "contracts": contracts, "sessions": len(days)},
+    )
+    verdict = ledger.verdict(experiment, pnl, horizon=1)
+    experiment.metrics = {"mean_per_session": out["mean_per_session"],
+                          "t_hac": out["t_hac"], "sessions": len(days)}
+    experiment.verdict = verdict
+    if not verdict.passed:
+        experiment.stage = Stage.REJECTED
+    ledger.record(experiment)
+    out["experiment_id"] = experiment.experiment_id
+    out["verdict"] = {"passed": verdict.passed, "t": verdict.t,
+                      "threshold": verdict.threshold, "trials": verdict.trials,
+                      "reason": verdict.reason}
+    out["ledger"] = ledger.summary(FAMILY)
 
     twin = tw.TopstepTwin(50_000, profit_target=target, combine_fee=fee,
                           payout_policy=tw.PayoutPolicy(fraction=0.5))
@@ -177,15 +208,20 @@ def main() -> int:
     print(f"{len(df):,} RTH bars -> {len(days)} usable sessions "
           f"({SYMBOL} x{args.contracts})\n")
 
-    r = report(days, target=target, fee=args.fee, reps=args.reps, block=args.block)
+    r = report(days, target=target, fee=args.fee, reps=args.reps, block=args.block,
+               contracts=args.contracts)
 
     print("STRATEGY (pre-specified, not searched)")
     print(f"  mean ${r['mean_per_session']:+,.2f}/session   total ${r['total']:+,.0f}   "
           f"win {r['win_rate']:.1%}")
     print(f"  worst close ${r['worst_session']:,.0f}   "
           f"worst intraday ${r['worst_intraday']:,.0f}")
+    v = r["verdict"]
     print(f"  HAC t = {r['t_hac']:+.2f} against a |t| > {r['t_threshold_1_trial']:.2f} "
           f"threshold at one trial")
+    print(f"  LEDGER: {'PASS' if v['passed'] else 'FAIL'} - |t| > {v['threshold']:.2f} "
+          f"required after {v['trials']} trial(s) in {FAMILY}")
+    print(f"  {r['ledger']}")
     print(f"  {r['sessions']} sessions against the ~2,000 A-4 measured as necessary "
           f"({r['sessions'] / 2000:.0%})\n")
 

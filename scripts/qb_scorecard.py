@@ -183,6 +183,23 @@ def watchdog_trustworthy() -> tuple[bool, str]:
         return False, f"not importable: {exc}"[:120]
 
 
+def _no_trial_override() -> bool:
+    """Does the ledger's verdict expose any way to supply the trial count?
+
+    Checked against the real signature rather than the file text: the module's own docstring
+    contains the string "n_trials" in the sentence explaining that there is no such
+    parameter, and a substring check reported that documentation as a defect.
+    """
+    try:
+        import inspect
+
+        from quant_brain.research.registry import Ledger
+        params = set(inspect.signature(Ledger.verdict).parameters)
+        return not (params & {"n_trials", "trials", "num_trials", "alpha", "override"})
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def ml_corrections() -> dict[str, bool]:
     """Is the statistical machinery AUD-18/19/20 need present AND wired into the ML code?"""
     def has(path: str, needle: str) -> bool:
@@ -195,6 +212,12 @@ def ml_corrections() -> dict[str, bool]:
         "time-aware label guard": has("quant_brain/core/labels.py", "def forward_span_mask"),
         "guard wired into sweep_f1": has("scripts/sweep_f1.py", "forward_span_mask"),
         "HAC adopted by the ML sweeps themselves": has("scripts/sweep_f3.py", "tstat_hac"),
+        # Two dimensions the earlier list had no way to express. The corrections being
+        # PRESENT is not the same as multiplicity being IMPOSSIBLE TO UNDERSTATE, and the
+        # second is the property that actually protects a result.
+        "multiplicity is structural, not an argument": _no_trial_override(),
+        "a research path records trials in the ledger": has(
+            "scripts/futures_topstep_baseline.py", "Ledger"),
     }
 
 
@@ -419,9 +442,10 @@ def build() -> list[Dimension]:
              "selection bias is +0.000. The real exposure is 55 untested specifications "
              "against one window with no multiplicity control (threshold |t| > 3.32)",
              "AUD-20 measured: 0 labels dropped on IBKR, 173 of 190,394 (0.091%) on Alpaca"],
-          "the corrections exist, are tested and are wired for LABELS, but the ML sweeps "
-          "still report the naive t in their own output and apply no multiplicity "
-          "correction; and 15 sweep_* files remain untested"),
+          "59 sweep_*/ml_* scripts exist and NOT ONE imports quant_brain.core.stats: the "
+          "corrections are correct, tested, and used by nothing outside the futures branch. "
+          "Retrofitting them is other agent tracks' work; new research goes through the "
+          "ledger, which is the only path where the trial count cannot be understated"),
 
         D("Deployment safety", 7.0,
           ["09:25 launch gates on the unit suite (E-5) and a replay preflight",
