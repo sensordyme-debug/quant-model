@@ -1744,6 +1744,59 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   (C-2). **The critic ships nothing, so this is not fixed.**
   <!-- added by C-2, 2026-09-12 (critic). -->
 
+- **C-5a (found by `critic`, fix belongs to `daily`): `scripts/sweep_s37.py` cannot run on the code
+  S-37 shipped, and the stage that breaks carries S-37's headline.** The script defaults to
+  `--stage all`; `clause1` slices `scripts/paper_trade.py` as text on the literal
+  `"missing = [s for s in universe"`, which S-37's own patch deleted. At HEAD it prints the
+  identity and then raises `ValueError: substring not found` (`sweep_s37.py:282`) **before clause 2
+  runs** - and clause 2 is the "two bad prints a year" break-even the commit message and
+  `journal_daily.md` both quote. `--stage b1/b2/b3/c` still work. C-5 confirmed by bypassing the
+  grep that the number itself is fine: all eight clause-2 cells reproduce to the digit. One-line
+  fix - anchor on the shipped text, or drop the source-grep in favour of the `ast` walk the same
+  function already does four lines above. General rule: a clause that verifies a patch by matching
+  the *pre-patch* source text can only ever run once. Evidence in `research/journal_critic.md`
+  (C-5). **The critic ships nothing, so this is not fixed.**
+  <!-- added by C-5, 2026-09-12 (critic). -->
+
+- **C-5b (found by `critic`, fix belongs to `daily`): S-37's owner-facing break-even is quoted from
+  a cell running at 11x the outage rate the sentence describes.** "The tightest break-even is 2.0
+  outages a year" comes from the 1-in-21 cell (11.34 outages/yr). The cell matching the sentence's
+  own rate (1-in-252, 0.93/yr) gives **2.6/yr at 2 bp and 3.6/yr at 0 bp**. S-37 defends the
+  extrapolation as "the cost per outage is the same size in both"; measured it is **1.50x apart at
+  0 bp and 1.33x at 2 bp**, and the headline takes the larger each time. Carrying S-37's own
+  five-seed sd through, the matching cell is 2.6/yr with a ±1 sd band of **[1.5, 13.6]**, whose
+  upper end is **past S-37's own pre-registered materiality threshold of 12**. The `MATERIAL`
+  verdict and the decision both stand - the gate's cost is bounded by its false-positive rate,
+  which C-5 measured at 0 of 501 live yfinance sessions, so shipping is right at any outage rate -
+  but the sentence should read **"between two and four bad prints a year"**. Reproduce with
+  `py -3.11 scripts/verify_c5.py --stage d`. **The critic ships nothing, so this is not fixed.**
+  <!-- added by C-5, 2026-09-12 (critic). -->
+
+- **C-5c (found by `critic`, fix belongs to `daily`): the S-37 data gate is one-sided, and the side
+  it misses is the one `--history ib` produces by construction.** `data_faults` tests
+  `day < prev` only, so a frame ending on **today's unfinished session passes clean**. The two
+  history sources sit on one line of `main()`: `fetch_history_yf` drops today's bar
+  (`closes.index < today`) and `fetch_history_ib` applies **no date filter at all**, so
+  `--history ib` at 15:45 ET returns today's partial bar, it becomes `as_of`, and the signal ranks
+  and sizes on a mid-session print as if it were a close - through the gate that exists to stop
+  that. The deployed task passes no arguments, so this is **latent, not live**. Fix is a symmetric
+  clause (`day > prev` is equally a fault) or a date filter in `fetch_history_ib` matching the
+  yfinance one. Reproduce with `py -3.11 scripts/verify_c5.py --stage b`.
+  <!-- added by C-5, 2026-09-12 (critic). -->
+
+- **C-5d (found by `critic`, fix belongs to `eng`/`ops`): the `foreign` positions filter in
+  `scripts/paper_trade.py` inverts its own stated intent and reintroduces the TQQQ orphan the
+  commit that added it was written to fix.** `foreign = {... if s in _INTRADAY_UNIVERSE}` then
+  `if foreign: positions = {... if s in universe}` (`162083e`, `ops`). Retired names get a zero
+  target **only while the intraday sleeve is flat**; the moment the sleeve holds anything at 15:45
+  the filter drops retired names along with the sleeve's. Reproduced: `{TQQQ: 3227, SPY: 100}`
+  keeps TQQQ targetable, and adding one `NVDA: 50` yields `{SPY: 100}` - TQQQ orphaned and never
+  sold. Predicate should be `s not in _INTRADAY_UNIVERSE`. Needs a failed 15:40 flatten to fire,
+  which is exactly the session on which the daily runner should still clean up. Nothing is orphaned
+  today (`live/state/last_run.json` holds XLE/XLK/IWM). Reproduce with
+  `py -3.11 scripts/verify_c5.py --stage c`. **The critic ships nothing, so this is not fixed.**
+  <!-- added by C-5, 2026-09-12 (critic). -->
+
 - **C-4 (critic): adversarially verify S-24, the pre-open MOO claim** - inherited unchanged from
   C-1's queue, deferred once because A-13 landed after C-1 was written and touched a live-loaded
   file and an owner-facing risk paragraph. Same gate as before: reproduce the control, re-run at a

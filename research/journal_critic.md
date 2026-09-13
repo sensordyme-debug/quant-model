@@ -7,6 +7,151 @@ nothing and it ships nothing.
 
 ---
 
+## 2026-09-12 - C-5: S-37 survives. Every number in it reproduces at HEAD, including the attack I expected to land - but the script the journal tells you to reproduce it with crashes before the headline clause runs, the headline is quoted from a cell at 11x the outage rate it describes, and the gate it ships is one-sided in the direction the other history source produces by construction
+
+**Target, and why this one rather than the S-24 the backlog queues as C-4.** S-37 (`8561172`,
+22:00 ET) is the newest claim in the last 24 hours and it outranks the queue on the two things
+this track weighs: it **ships code into `scripts/paper_trade.py`, which IS the live runner**, and
+it changes that runner's response to a bad data frame from *print a warning and rebalance anyway*
+to **`return 3`, i.e. do not trade at all**. That is a change in kind, not degree. No promotion is
+contested: `research/champion.json` is byte-identical to its last commit (`git diff` empty) and
+S-37 records no ledger row, so there is nothing to tag `not promotable`. S-24 stays queued.
+
+**Attack 0 - the deploy gate and the control. BOTH PASS.** `scripts/compare_orders.py` at HEAD:
+**3,689/3,689 decision dates in agreement, 5,021 orders on both sides, PASS**. The offline
+identity reproduces **exactly, twice** - once through `sweep_s37.py --stage a` and once standalone -
+at **22.192150170492% / 5,052 orders, delta 0.00e+00**, the cell nine previous iterations agree on.
+Suite green at **682 passed / 7 skipped** (S-37 claimed 593/6; the difference is tests other tracks
+added since, not a regression). The new `tests/test_paper_dataquality.py` is **17/17**.
+
+**Attack 1 - the one I expected to land, and it FAILED.** S-37 clause 6 measures the gate's
+false-positive rate at **0 of 3,690 sessions on the reference daily store** - and that is not the
+store the runner reads. The scheduled task passes no arguments, so the account runs
+`--history yfinance` and reads a live `yf.download(period="2y")` frame. S-37's own clause 6 says
+so in as many words. Since a false positive now **stops the account trading**, where before it only
+degraded the frame, the live rate is the number that decides whether the patch is net-positive,
+and it had not been measured. So I measured it: `scripts/verify_c5.py --stage a` fetches the frame
+through `paper_trade.fetch_history_yf` itself and walks the **shipped predicate** over every row as
+if it were the last.
+
+| store | sessions | NaN cells in the universe block | gate fires |
+| --- | --- | --- | --- |
+| reference daily (S-37 clause 6) | 3,690 | - | **0 (0.000%)** |
+| **LIVE yfinance, the runner's own** | **501** (2024-09-12 -> 2026-09-11) | **0** | **0 (0.000%)** |
+
+The attack fails cleanly and S-37's conclusion holds on the store it was not tested on. One caveat
+I am stating rather than burying: yfinance backfills, so 0/501 bounds the rate of **persistent**
+NaNs, not the real-time rate at 15:45 ET on the day. `previous_session` also survives its two hard
+cases - `2026-11-27 -> 2026-11-25` (it steps over Thanksgiving rather than subtracting a day) and
+`2028-06-01 -> None` past the calendar's `coverage_end`, the documented fail-open.
+
+**Attack 2 - re-derive every owner-facing number. All of them reproduce, to the digit.** Clause 2's
+full break-even table re-ran at HEAD (20 book simulations, ~25 min) and every cell is identical:
+0.128 / 2.338 / 0.176 / 2.860 CAR points of cost, 0.1376 / 0.2062 / 0.1898 / 0.2522 per outage,
+break-evens 3.6 / 2.4 / 2.6 / 2.0 per year. Clause 3's nine names reproduce exactly too (SPY
++0.245 at 83.6% set churn, XLK -0.562 at 60.8%, GLD -0.619 at 19.3%). Recomputing the t-statistics
+from the seed sds by hand gives **3.095 / 3.850 / 0.900 / 1.241** against the claimed 3.10 / 3.85 /
+0.90 / 1.24. Clause 5's arithmetic holds: hold -0.209 against flatten -2.338 is **11.2x**, and the
+drawdown is **+0.046 against the control** and **+0.602 against the flatten**, with the flatten's
+own drawdown genuinely *below* the control's. S-37's reusable rule - *price a remedy against the
+thing it is supposed to restore, not against the defect it replaces* - is correct and is the best
+thing in the entry.
+
+**So S-37 survives.** Three things still do not.
+
+**(1) The journal's own reproduction instruction is broken at HEAD, and the stage that breaks is
+the one carrying the headline.** `scripts/sweep_s37.py` defaults to `--stage all`. Clause 1 reads
+`scripts/paper_trade.py` as text and slices it on the literal `"missing = [s for s in universe"` -
+a line **S-37's own patch deleted**. At HEAD the script prints the identity and then raises
+`ValueError: substring not found` at `sweep_s37.py:282`, **before clause 2 runs**. Clause 2 is the
+headline. The script is self-invalidating: it verifies the pre-patch source text and ships the
+patch that removes it, so it could only ever run once. `--stage b1`, `b2`, `b3` and `c` still work;
+`a` and the default `all` do not. I confirmed by bypassing the grep that clause 2 is fine - the
+defect is in the harness, not the number. Fix belongs to `daily` and is one line: anchor on the new
+text, or drop the source-grep for the `ast` walk the same function already does four lines above.
+
+**(2) The headline break-even is quoted from a cell running at 11x the outage rate the sentence
+describes, and it carries no error bar although the script computed one.** "MATERIAL: the tightest
+break-even is 2.0 outages a year" and the commit's *"two bad prints a year cost the whole selection
+premium"* both come from the **1-in-21** cell, whose outage rate is **11.34/yr**. The cell that
+matches the sentence's own rate is 1-in-252 at 0.93/yr, and it says **2.6/yr** at 2 bp and
+**3.6/yr** at 0 bp. The entry anticipates this and defends it - *"the cost per outage is the same
+size in both, which is what makes the break-even quotable"* - but measured, it is **1.50x apart at
+0 bp (0.1376 vs 0.2062) and 1.33x at 2 bp (0.1892 vs 0.2522)**, and the headline takes the larger
+of the two every time. Carrying S-37's own five-seed sd through to the quantity being extrapolated
+(`--stage d`):
+
+| cost | rate | ev/yr | pts/outage | ±1 sd | break-even | ±1 sd band |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 bp | 1/252 | 0.93 | 0.1376 | ±0.1529 | 3.6 | [1.7, inf) |
+| 0 bp | 1/21 | 11.34 | 0.2062 | ±0.0666 | 2.4 | [1.8, 3.6] |
+| 2 bp | 1/252 | 0.93 | 0.1892 | ±0.1524 | **2.6** | **[1.5, 13.6]** |
+| 2 bp | 1/21 | 11.34 | 0.2522 | ±0.0655 | **2.0** | [1.6, 2.7] |
+
+The matching cell's **+1 sd break-even is 13.6/yr, past S-37's own pre-registered materiality
+threshold of 12**. So the `MATERIAL` verdict is not robust to being computed in the cell whose rate
+matches the claim - the low-rate cells are underpowered, which S-37 says, but it then quotes the
+high-rate cell's number without inheriting that caveat. **The decision does not change and I am not
+asking for it to**: the point estimate 2.6 is far below 12, and more importantly the gate's *own*
+cost is bounded by its false-positive rate, which attack 1 put at 0/501 on the live store - so
+shipping it is right at any outage rate, including zero. What changes is the sentence the owner
+reads. It should be **"between two and four bad prints a year"**, not "two".
+
+**(3) The gate is one-sided, and the side it misses is the one the other history source produces by
+construction.** `data_faults` tests `day < prev` and nothing else, so a frame ending on **today's
+unfinished session passes clean**. That is not hypothetical. The two history sources sit on one
+line of `main()`; `fetch_history_yf` drops today's bar (`closes.index < today`, line 230) and
+**`fetch_history_ib` applies no date filter at all**. So `--history ib` at 15:45 ET returns today's
+partial bar, it becomes `as_of`, and the signal **ranks and sizes on a mid-session print as if it
+were a close** - through the gate that exists to stop exactly that. Verified: the shipped predicate
+returns `trade` on such a frame. **The deployed path is not affected** (the task passes no
+arguments), so this is latent rather than live, and it is why I am filing it rather than calling
+S-37 wrong. But `--history ib` is a documented option in the runner's own module docstring, and the
+gate's docstring enumerates staleness in one direction only.
+
+**And one pre-existing live-runner defect found three lines above the new gate. Not S-37's** - it
+came in with `162083e` (`ops`), which was written to fix the very thing it now reintroduces:
+
+```python
+foreign = {s: q for s, q in positions.items() if s in _INTRADAY_UNIVERSE}
+if foreign:
+    positions = {s: q for s, q in positions.items() if s in universe}
+```
+
+The comment above it says names the champion retired "now get a zero target", citing the 3,227
+TQQQ left in the account on 2026-09-11. They do - **but only while the intraday sleeve is flat.**
+The moment the sleeve holds anything at 15:45 the filter keeps `s in universe`, which drops the
+retired names along with the sleeve's. Reproduced (`--stage c`): `{TQQQ: 3227, SPY: 100}` leaves
+TQQQ targetable; add a single `NVDA: 50` and it becomes `{SPY: 100}` - **TQQQ orphaned and never
+sold**. The predicate should be `s not in _INTRADAY_UNIVERSE`. The sleeve is flat by 15:40 by
+design, so this needs a failed flatten to fire - which is precisely the session on which you want
+the daily runner to still clean up. `live/state/last_run.json` currently holds XLE/XLK/IWM only, so
+nothing is orphaned right now.
+
+**Ledger hygiene, flagged not fixed.** `fcef1b1` (22:03 ET) has the commit message **"kgkku"** and
+adds `scripts/sweep_a8.py` and `scripts/verify_s33.py` plus three isort-only test edits. No journal
+entry references it. AGENTS.md asks for `"<track>: <name> - <one-line result>"`; this is the first
+commit in the repository's history with no recoverable provenance.
+
+**Decision. S-37 SURVIVES.** The deploy gate passes, the control reproduces, the identity is exact,
+every owner-facing figure re-derives, and the attack aimed at its weakest-looking claim failed on
+the store it was not tested on. Nothing is restored, nothing is tagged `not promotable`,
+`champion.json` is untouched. Three corrections are filed below, none of which changes a trading
+decision.
+
+**What I tried that found nothing** (so the next critic does not repeat it): re-running the
+`compare_orders` gate; re-running the full suite; walking the shipped predicate over 501 live
+sessions and 3,690 stored ones; `previous_session` at a holiday, a Monday, an early close and past
+`coverage_end`; the four fault shapes and the empty frame; re-deriving all four t-statistics, all
+four break-evens, all nine clause-3 cells and clause 5's three drawdown deltas by hand; and
+checking the patch for look-ahead - there is none available to it, since `data_faults` is reachable
+only from `paper_trade.main()`, is not on any backtest or replay path, and reads the wall clock
+only through `previous_session`, which fails open.
+
+**Next (C-6).** S-24, the pre-open MOO claim, inherited from C-1 and deferred twice now.
+
+---
+
 ## 2026-09-12 - C-2: A-13's fixes reproduce on committed code and its headline survives five attacks. Three things do not: clause 2 credits the wrong defect, clause 4's own threshold fails on the window that matters, and the owner-facing tail is 4.7% of the SLEEVE, not of the account. Separately, the deployed sleeve's 09:25 launch gate is failing right now for a reason that has nothing to do with trading
 
 **Target, and why this one rather than the S-24 that C-1 queued.** C-1 left `C-2` pointed at S-24
