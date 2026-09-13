@@ -5,6 +5,153 @@ Newest first. The `options` scope: the Theta store, `scripts/odte_*`, `scripts/t
 
 ---
 
+## 2026-09-13 - O-6: the first PASS this track has produced. The chain's magnitude skill is NOT a restatement of the tape - it is incremental out of sample at all five clocks and cuts the dispersion of a sized book by 4-14%. It is a RISK input, not a return signal, so the cost wall never applies to it. Nothing shipped; the O-track is evidence-only and sizing is not its scope.
+
+**Why this item, when O-5 said the axis was closed and O-4 said the track should not be
+scheduled.** Both of those verdicts are about *collecting an edge*, and both are correct. O-2
+refused the SPY 0DTE credit spread on the options round trip, O-3 closed selection at cover 1.043,
+O-4 disqualified free trade-print feeds, and O-5 moved the same chain signal into SPY - cutting
+the round trip 68x to 3.41 bps - and watched the *directional* edge shrink to match, best cover
+0.963, zero cells above 1. O-5's closing instruction, "do not re-open as a feature, clock, horizon
+or instrument question", is about **direction**, which is what all 20 of its cells traded.
+
+But O-5 printed one number it never examined. Its Gate-0 control was
+**corr(`rn_half`, |forward move|) = +0.540 at t = +60.0** over 8,777 cells, reported only as
+evidence that feature extraction was not broken, and its own closing sentence conceded the chain
+"forecasts magnitude superbly". That is the largest statistic this track has produced, it is about
+**magnitude**, and a magnitude forecast is not a return signal - **it changes position size, and
+sizing is free.** The cost wall that killed O-2/O-3/O-5 cannot reach it. So the last open question
+on this store was never whether the chain knows something. It was whether **what the chain knows
+is already on the tape** - which O-5 could not have answered, because it never regressed the chain
+against the realized tape available at the same instant.
+
+**Theta re-checked live first, as every run on this track does:** `theta_data.py --check` returns
+`listening True serving True`, `history/quote` **HTTP 403 "you only have a FREE subscription"**.
+The store is still frozen at 1,891 sessions ending 2026-09-10. O-6 ran entirely from disk and
+**built no new chain feature and used no new clock** - the chain side is read from O-5's frozen
+cache, not rebuilt.
+
+**Hypothesis.** At a fixed intraday clock, the chain's risk-neutral half-interquartile span
+(`rn_half`) carries information about the magnitude of the **remaining** session's move in SPY
+that is not contained in the realized tape observable at the same instant.
+
+**Design, pre-registered in `scripts/sweep_o6.py`'s docstring before any run.** Target
+`y = log(max(|fwd|, 1e-5))`, where `fwd` is O-5's own forward return (entered one full minute
+after the clock, exited at the 15:50 open, on real consolidated SPY minute bars). Tape baseline,
+all strictly causal at the clock and all from the same Alpaca file O-5 priced its trades on:
+`rv_sofar` (realized vol of 1-minute returns 09:30 -> clock), `rng_sofar` (high-low range so far),
+`rv20` and `absret_1` (strictly prior sessions). Chain predictor `log(rn_half)`, **declared
+positive**. Everything enters in logs, so no predictor is advantaged by the transform. Both models
+are fitted on exactly the feature-complete subset. Five clocks, Bonferroni **|t| > 2.576**,
+Newey-West at 5 lags because realized vol is persistent and OLS t's would be overstated.
+Pre-registered pass for Stage C required **both** a lower OOS RMSE overall **and** two-of-three
+regimes; pre-registered MATERIAL for Stage D was declared in advance as a >= 5% cut in the sd of
+the normalized move or >= 10% fewer 3-sigma breaches.
+
+**Gate 0 reproduces O-5 exactly**: control +0.5396 against the +0.540 on record, t +60.04, n
+8,777.
+
+**Stage A - `rn_half` is the single best predictor of |move| at every clock, beating the tape's
+own nowcast.**
+
+| clock | `rv_sofar` | `rng_sofar` | `rv20` | `absret_1` | **`rn_half`** |
+|---|---|---|---|---|---|
+| 10:00 | 0.352 | 0.351 | 0.298 | 0.113 | **0.401** |
+| 12:00 | 0.346 | 0.319 | 0.259 | 0.100 | **0.403** |
+| 14:00 | 0.403 | 0.351 | 0.292 | 0.146 | **0.442** |
+
+(Pearson on logs; Spearman on the raw target agrees at 0.42-0.47 for `rn_half`.)
+
+**Stage B - incremental in sample, 5 of 5 clocks, and not marginally.** t on the `rn_half`
+coefficient runs **+8.09 to +9.55** against a Bonferroni bar of 2.576, the declared positive sign
+holds 5 of 5, and mean delta-R-squared from adding the chain is **+0.036**.
+
+**Stage C - the decisive stage. Causal, expanding-window, out of sample: 5 of 5 clocks pass
+two-of-three.**
+
+| clock | OOS R2 tape | OOS R2 +chain | d RMSE | DM t | regimes won |
+|---|---|---|---|---|---|
+| 10:00 | 0.1213 | **0.1488** | -1.58% | +3.84 | 3 of 3 |
+| 11:00 | 0.1289 | **0.1583** | -1.70% | +3.54 | 3 of 3 |
+| 12:00 | 0.1087 | **0.1534** | -2.54% | +4.24 | 3 of 3 |
+| 13:00 | 0.1012 | **0.1348** | -1.89% | +3.52 | 2 of 2 available |
+| 14:00 | 0.1570 | **0.1983** | -2.48% | +3.97 | 2 of 2 available |
+
+Out-of-sample explained variance of log|move| rises by **+0.027 to +0.044**, a 23-41% relative
+gain, with Diebold-Mariano t **+3.5 to +4.2** on the squared-error difference. **Stated plainly
+because the table hides it**: at 13:00 and 14:00 the 250-session burn-in plus the shrinking
+feature-complete subset leaves 2016-2019 under the 100-row floor, so "2 of 3" there is **2 of 2
+available**, not 2 of 3 attempted. The three clocks that do have all three regimes win all three.
+
+**Stage D - and here the pre-registered rule passes while one leg of it points the other way.**
+The sd of the normalized move `|fwd| / exp(y_hat)` falls **-4.31 / -8.52 / -10.88 / -14.28 /
+-11.99 %** across the five clocks, so **4 of 5 clear the pre-registered 5% bar** (10:00 misses at
+-4.31% and is reported as a miss). But the **raw** 3-sigma breach count moves the *wrong* way at
+13:00 (+10.4%) and 14:00 (+14.5%). That is not buried: a forecast that tightens the middle while
+fattening the tail is exactly the wrong trade for a sizing rule, and it was worth chasing.
+**Post-hoc, and labelled as such**: `exp(y_hat)` is a conditional geometric mean rather than a
+sigma, and the two models sit at different levels (`mean(z)` 1.6501 tape vs 1.6656 chain at
+13:00), so a fixed 3.0 cut charges the level difference as a tail difference. Rescaling each model
+to `mean(z) = 1` and re-counting gives **-31.6 / -11.1 / -15.1 / -23.0 / -9.1 %** - the right way
+at all five. The pre-registered verdict rests on the sd leg, which is clean; the scaled breach
+numbers are post-hoc and are reported beside the raw ones, never instead of them.
+
+**Three attacks, all pre-committed to code before the write-up, none of which kills it.**
+
+- **Stage E, the stale-chain test.** The store is 5-minute bid/ask *snapshots* stamped at the
+  interval tick, and O-5 enters a full minute later, so a leak would need the stamp to mean
+  something other than it says. Rather than argue from a column name, the gap was widened to a
+  full hour: every predictor read at clock C, target measured from C+60m to 15:50. **Survives 4 of
+  4 pairs at t +7.60 to +10.79.** No sub-hour timing artifact is available to explain this.
+- **Stage F, the harder baseline** - the commonest way an "incremental information" claim is
+  wrong. Added `rv_30m` (realized vol of the last 30 minutes before the clock, the tape's own
+  nowcast and the closest realized analogue of what a 0DTE chain prices) and `rv5`. **Survives 5
+  of 5 in sample and 5 of 5 out of sample** (d RMSE -1.16% to -2.50%, DM t +2.97 to +4.17).
+  **One place where the attack lands and it is recorded**: at 14:00 the harder tape lifts R-squared
+  0.1655 -> 0.2004 and cuts the chain's increment from +0.0455 to +0.0199, t 9.31 -> 6.11. So
+  **about 56% of the 14:00 increment was baseline weakness**, against 6-13% at the other clocks.
+  The finding survives; its size at the last clock does not.
+
+**Decision: PASS on the pre-registered rule - and nothing ships, because shipping is not this
+track's scope.** O-6 measures a forecast, not a trade. The thing it improves is *position size*,
+which lives in the intraday (`iterate`) and `ml` sleeves, and AGENTS.md keeps this track inside
+`scripts/sweep_o*`, `scripts/odte_*` and `scripts/theta_data.py`. No shipped file, no
+runner-loaded file, no config and no `champion.json` was touched, so **no deploy gate is owed**.
+`sweep_o2.py` / `sweep_o3.py` were not even imported this time; the only inputs are O-5's frozen
+parquet and the Alpaca minute store.
+
+**The durable finding, in one line.** Five items on this chain now agree on a single shape:
+**the chain is priced efficiently in direction and informative in magnitude.** O-2, O-3 and O-5
+each measured a directional or premium-harvesting construction and each landed at cover ~= 1 - the
+market charges almost exactly what the signal is worth. O-6 measures the second moment instead,
+where there is nothing to charge, and finds skill that the tape does not already contain and that
+survives a one-hour buffer and a strengthened baseline. **The cost wall was never a statement
+about the chain's information; it was a statement about what can be sold back to the people who
+priced it.**
+
+**What this does and does not change for the human.** It does **not** re-open O-2, O-3 or O-5, and
+it is **not** a reason to trade options. It does add a second, cheaper justification to the VALUE
+ask already in `BLOCKERS.md`: the frozen store now has a demonstrated product, and every session
+after 2026-09-10 that the subscription stays FREE is a session this input cannot be computed for -
+which matters for a *risk* input in a way it never did for a refused trade. Appended there.
+
+**Ledger**: 40 DIAGNOSTIC rows under `options/odte_o6_magnitude` (5 stages x 5 clocks, plus Stage
+A's 25). `python scripts/sweep_o6.py` reruns every number here from O-5's cache in ~90 s.
+
+**Operational**: `py -3.11` still has no pyarrow - run `sweep_o*` on the default `python`.
+
+**Next step, and it is a handoff rather than a continuation.** The O-track has taken this as far as
+its scope allows. The open question is now **the `iterate`/`ml` one**: does an `rn_half`-based size
+scaler beat the sleeve's current realized-vol sizing on the sleeve's own P&L, after costs and
+under the two-of-three rule? That is a different universe (the intraday sleeve is disjoint from
+SPY) and a different file set, so it is filed as **A-15** for whoever owns sizing, not done here.
+The honest caveat travels with it: this is measured on SPY, on a sample tilted volatile by O-3's
+mask (it drops calm sessions preferentially - O-5 measured mean |move| 13.3 bps where it drops out
+against 38.7 bps where it survives), and it has **never** been tested on another underlying,
+because the store has exactly one.
+
+---
+
 ## 2026-09-12 - O-5: the cost wall is not an options-market phenomenon. Moved the same chain signal into the underlying, cut the round trip 68x, and the edge shrank to match it. Refused; nothing shipped.
 
 **Why this item, when O-4 said the track should not be scheduled.** O-4's conclusion was that no

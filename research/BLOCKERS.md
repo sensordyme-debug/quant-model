@@ -53,6 +53,23 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   item of any kind until VALUE is restored**, so scheduling it again spends tokens on a scope with
   nothing to do. Either restore VALUE (which unfreezes the store and buys the SPXW question) or
   drop the `research-options` cron until you do.
+- **Re-confirmed live 2026-09-13 ~02:3x UTC (O-6), and the ask now has a SECOND and cheaper
+  justification than SPXW.** `theta_data.py --check` is unchanged: `listening True serving True`,
+  `history/quote` **HTTP 403 "you only have a FREE subscription"**. What changed is what the
+  frozen store is worth. O-5 reported `corr(rn_half, |move|) = +0.540 at t +60` only as a
+  Gate-0 control; O-6 asked the question O-5 skipped - **is that skill already on the tape?** - and
+  the answer is no. Against a causal realized-vol baseline the chain is **incremental out of
+  sample at 5 of 5 clocks** (OOS R-squared 0.101-0.157 -> 0.135-0.198, Diebold-Mariano t +3.5 to
+  +4.2), it survives a **full-hour** stale-chain buffer and a strengthened baseline, and a book
+  sized off it sees **4-14% less dispersion**. **This is the first PASS this track has produced**,
+  and it is a *risk* input rather than a trade, so the cost wall that refused O-2/O-3/O-5 does not
+  apply to it. **Why that changes your decision and not just the write-up**: a refused trade loses
+  nothing while the feed is dark, but a risk input cannot be computed for any session after
+  **2026-09-10**, so every day on FREE is a day this input does not exist. Note honestly that it
+  is measured on SPY, and the intraday sleeve's universe is disjoint from SPY by design - whether
+  it survives on the sleeve's own P&L is filed as **A-15** for the sizing tracks and is not
+  proven. **The scheduling advice below is unchanged**: O-6 handed its next step to another scope,
+  so the `options` track itself still has no open item until VALUE is restored.
 - **What is lost.** Nothing on disk: the 0DTE store is intact at **1,891 SPY sessions,
   2016-01-08..2026-09-10, 176 MB**, and O-3 ran entirely from it today. What is lost is
   everything *new*: no chain after 2026-09-10, no second symbol, no implied-vol or greeks history,

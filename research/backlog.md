@@ -3130,6 +3130,45 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
   the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
   test: the 50 megacaps from D-1 are now fetchable at minute resolution.
+- **O-6 DONE 2026-09-13 (see `research/journal_options.md`): the FIRST PASS on this track. The
+  chain's magnitude skill is NOT a restatement of the tape - incremental out of sample at 5 of 5
+  clocks, and it cuts the dispersion of a sized book 4-14%. Nothing shipped: it is a RISK input
+  and sizing is not this track's scope.** `scripts/sweep_o6.py`, 40 DIAGNOSTIC rows under
+  `options/odte_o6_magnitude`. O-5 printed `corr(rn_half, |fwd|) = +0.540 at t +60` as a Gate-0
+  **control** and never asked whether that skill was incremental; a magnitude forecast changes
+  **position size**, not entry, so the cost wall that killed O-2/O-3/O-5 cannot reach it. Built no
+  new chain feature and used no new clock - the chain side is O-5's frozen cache. Pre-registered:
+  target `log|fwd|`, tape baseline `rv_sofar`/`rng_sofar`/`rv20`/`absret_1` all causal at the
+  clock, declared-positive `log(rn_half)`, Newey-West, Bonferroni |t| > 2.576, Stage C needs a
+  lower OOS RMSE **and** two-of-three, Stage D MATERIAL declared in advance at sd -5% or breaches
+  -10%. **Gate 0 reproduces O-5's control to +0.5396.** Stage A: `rn_half` is the best single
+  predictor at **every** clock (0.40-0.44) ahead of `rv_sofar` (0.34-0.40). Stage B: t **+8.09 to
+  +9.55**, sign as declared 5 of 5, mean dR2 +0.036. **Stage C: 5 of 5 pass, OOS R2 0.101-0.157 ->
+  0.135-0.198, DM t +3.5 to +4.2** - though at 13:00/14:00 the burn-in leaves 2016-2019 under the
+  100-row floor, so "2 of 3" there is **2 of 2 available**. Stage D: sd of the normalized move
+  **-4.3/-8.5/-10.9/-14.3/-12.0%**, 4 of 5 clear the bar (10:00 misses). **Reported against
+  itself**: the RAW 3-sigma breach count moves the wrong way at 13:00/14:00 (+10.4%/+14.5%);
+  post-hoc, `exp(y_hat)` is a geometric mean not a sigma and the models sit at different levels,
+  and rescaling to `mean(z)=1` gives -9% to -32% the right way - the verdict rests on the clean sd
+  leg, not the post-hoc one. **Three attacks, none fatal**: a full-hour stale-chain buffer
+  survives 4 of 4 at t +7.6..+10.8 (no sub-hour timing artifact available); a harder tape adding
+  `rv_30m` and `rv5` survives 5 of 5 in and out of sample - **but absorbs ~56% of the 14:00
+  increment** (t 9.31 -> 6.11) against 6-13% elsewhere, so the finding survives and its size at
+  the last clock does not. Durable shape: **this chain is priced efficiently in DIRECTION (O-2,
+  O-3, O-5 all land at cover ~= 1) and informative in MAGNITUDE, where there is nothing to
+  charge.** No shipped or runner-loaded file touched, no deploy gate owed. Handoff is **A-15**
+  below, not a continuation here.
+- **A-15 (opened by O-6 2026-09-13, for whoever owns sizing - `iterate`/`ml`, NOT `options`):
+  does an `rn_half`-based size scaler beat the intraday sleeve's realized-vol sizing on the
+  sleeve's own P&L?** O-6 proved the chain's magnitude nowcast is incremental over the tape for
+  SPY out of sample (above). The O-track cannot test the next step: sizing lives in the sleeve's
+  files and the sleeve's universe is **disjoint from SPY by design**. Judge it on the sleeve's
+  P&L after costs under the standing two-of-three rule, not on forecast RMSE. Caveats that travel
+  with the finding: measured on SPY only, on a sample tilted volatile by O-3's mask (it drops calm
+  sessions preferentially - mean |move| 13.3 bps where it drops out vs 38.7 bps where it survives),
+  and never tested on a second underlying because the store has exactly one. Note the dependency:
+  the input needs a live 0DTE chain, so it is only as deployable as the Theta VALUE ask.
+  <!-- added by O-6, 2026-09-13 (options). Handoff item: the options track ships nothing. -->
 - **O-5 DONE 2026-09-12 (see `research/journal_options.md`): the cost wall is NOT an options-market
   phenomenon. The same chain signal traded in the UNDERLYING is 68x cheaper and the edge shrank to
   match. Refused; nothing shipped.** `scripts/sweep_o5.py`, 40 DIAGNOSTIC rows under
