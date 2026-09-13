@@ -1847,6 +1847,27 @@ part 2 on the daily sleeve. Neither can advance on a non-trading day. **Everythi
 owner's**, and I-2 added one more to that pile: the audit produces a verdict but has no schedule
 and no delivery, both of which are barred to the loop.
 
+- **S-37 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-13 closed - the
+  paper runner answered a broken history frame with a printed warning, and two bad yfinance
+  prints a year cost this sleeve its whole measured selection premium.** Full detail under
+  **AUD-13** in the audit section below. Headline: the defect is **reachable** (the scheduled
+  task passes no arguments, so `--history yfinance`; 0 exits between the warning and
+  `plan_orders`), the spurious flatten costs **0.138 / 0.252 CAR points per outage at 0 / 2 bp**
+  for a break-even of **2.0 outages per year** against S-33's 0.5-point bar, an all-NaN column
+  changes the funded set on **10.5%-83.6% of corrupted sessions for all nine names** while no
+  CAR delta clears the seed sd, and **29.70% of name-days** move more than the no-trade band the
+  stale-price path sizes through. The remedy's tail test was the instructive part: holding
+  yesterday's book is 11x cheaper in CAR but **+0.602 worse in MaxDD than the flatten**, because
+  the flatten's drawdown is *below the control's* - against the control it is **+0.046**.
+  Identity exact, `compare_orders` 3,689/3,689, suite 593, launch preflight green,
+  `signals.py` deliberately untouched. **Adds no research item, closes the last `daily`-owned
+  audit item that needs no trading day, and files one `eng` item (AUD-13b: `CALENDAR.trading_days`
+  answers past its own `coverage_end` instead of raising).** S-36's sign-off said this track had
+  no such item left; AUD-13 was it, and the correction is that an item filed `[daily+eng]` is
+  the daily track's whenever both of its named files are the daily sleeve's. **Now** there is
+  none: what remains is S-17 part 2 and the two standing measurement jobs, all of which need a
+  trading day, plus the owner pile in `BLOCKERS.md`.
+
 - **S-36 DONE 2026-09-12 (`daily` track; see `research/journal_daily.md`): AUD-25 closed - the
   guard that exists to stop a silent 0% CAR covers one parameter out of eleven, and the audit
   named the smaller half of what it leaves open.** Full detail under **AUD-25** in the audit
@@ -3895,7 +3916,58 @@ carry the owning track in brackets; record each fix in that track's journal and 
   every axis on which a run and the deployed book can differ, and that list has to be derived
   from the source rather than remembered** - four of `verdict()`'s five rules were each added
   after one instrument appeared; asking for the whole surface instead returned 56 and 7.
-- **AUD-13 [daily+eng]** no data-completeness gate in the runner: a missing SPY column flattens the whole book.
+- **AUD-13 [daily+eng] DONE 2026-09-12 by S-37** (`scripts/sweep_s37.py`, 7 clauses,
+  `tests/test_paper_dataquality.py`, `research/journal_daily.md`; no LEAN run, no ledger row,
+  `champion.json` untouched). **MATERIAL on every clause that had a threshold, and reachable:
+  the scheduled task passes no arguments, so the account runs `--history yfinance`, and there
+  are 0 exits between the `warning: no history for [...]` print and `plan_orders`.** Each
+  defect was corrupted into the real decision frame at the real decision site and run through
+  the deployed book. **The loud one:** dropping `REGIME_TICKER` makes `risk_on` return
+  `"SPY missing"` and the book flat; **0.138 CAR points per outage at 0 bp, 0.252 at 2 bp**, so
+  the break-even against S-33's 0.5-point bar is **2.0 outages/year** vs a pre-registered
+  threshold of 12 (t 3.10 / 3.85 on the 1-in-21 cells; the 1-in-252 cells are underpowered at
+  t 0.90 / 1.24), and the round trip shows up as **5,395 orders against the control's 5,052**.
+  **The silent one is broader than filed:** an all-NaN column changes the funded set on
+  **10.5%-83.6% of corrupted sessions for all nine names** (SPY 83.6%, XLK - the audit's
+  example - 60.8% and third), while **no** CAR delta clears the 1.689 seed sd and three print
+  positive; the defect is noise in the portfolio rather than a bias, so there is no direction to
+  correct and refusing is the only remedy. **The stale price is real in one half only:** 29.70%
+  of 33,210 name-days move more than the 1% no-trade band (p95 2.441%, i.e. 2.4x the band the
+  runner refuses to trade for), but *ranking* on a stale close is worth +0.033/+0.002/-0.095/
+  -0.007 CAR points - nothing. **The audit's remedy is right and its tail is the wrong
+  comparison**: holding yesterday's book costs **-0.209 CAR against the flatten's -2.338** (11x)
+  and wins Sharpe, but is **+0.602 worse in MaxDD than the flatten** - because the flatten's
+  drawdown is *below the control's*, random liquidation being accidental de-risking. Against the
+  control, the book the runner exists to reproduce, holding costs **+0.046** drawdown points,
+  4.6% of the promotion gate's own `drawdown_tolerance_points`. The gate's predicate was
+  measured before it was written: the audit's version fires on **0 of 3,690** sessions of the
+  reference store, so it is taken as filed, narrowed to names with established history anyway
+  (free, and the runner reads yfinance not this store). Shipped `data_faults()` +
+  `previous_session()` called **before `call_signal`**, pinned by a test on source order; held
+  names outside the universe deliberately unchecked, so the retired-TQQQ sale is never blocked.
+  **`signals.py` deliberately untouched** - the refusal makes `risk_on`'s string unreachable
+  from the account and the LEAN side is the same 0/3,690 (S-35's precedent). Identity exact
+  before and after, `compare_orders` **3,689/3,689**, gate clean on today's real yfinance frame
+  and firing on all three defects injected into it, suite **593 pass / 6 skip**, intraday launch
+  preflight **green** on the 3.14 interpreter (641 passed, replay OK). **Adds no research item
+  and files one `eng` item (AUD-13b).** Reusable rule: **price a remedy against the thing it is
+  supposed to restore, not against the defect it replaces** - a defect that destroys return by
+  accident can reduce drawdown by accident, and then the remedy looks reckless against it.
+
+- **AUD-13b [eng] (found by S-37):** `quant_brain.core.calendar` has two entry points and only
+  one enforces its own coverage contract. `CALENDAR.check_covered(day)` raises
+  `CalendarCoverageError` past `coverage_end` (2027-12-31 today), but `CALENDAR.trading_days(a, b)`
+  keeps answering from the weekday rule, so after that date it silently returns holidays as
+  trading days. Any caller that trusts `trading_days` alone gets an unverified calendar; in
+  S-37's data gate that would mean a holiday returned as "the previous session" and the whole
+  daily rebalance refused over it. Worked around in `paper_trade.previous_session` by calling
+  `check_covered` explicitly and pinned by `test_previous_session_never_raises_outside_calendar_coverage`,
+  but the fix belongs in the module: `trading_days` should check coverage on both endpoints.
+  Same shape as AUD-16 one library over - the cheap instrument answers when the contract-checking
+  one would have refused.
+  <!-- added by S-37, 2026-09-12 (daily). -->
+
+- **AUD-13 [daily+eng] (original text)** no data-completeness gate in the runner: a missing SPY column flattens the whole book.
 - **AUD-14 [eng+critic]** no track guard in `evaluate.py`; intraday rows carry `commit ""`; `OrderListHash` not captured into the ledger.
 - **AUD-15 [data]** the IBKR minute store is split-adjusted but treated as raw: SOXS/NFLX per-share commission understated up to 100x in IBKR-store backtests; write `data/minute/_splits.json`.
 - **AUD-16 [data] DONE 2026-09-12 by D-4** (`scripts/sweep_d4.py`, 7 clauses,

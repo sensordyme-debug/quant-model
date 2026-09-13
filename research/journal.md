@@ -4,6 +4,35 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-12 - S-37 / AUD-13 (`daily` track; full entry in `research/journal_daily.md`)
+
+**The paper runner answered a broken history frame with `print("warning: no history for ...")`
+and carried on, and two bad yfinance prints a year cost the whole selection premium this sleeve
+was measured to have.** AUD-13 is three defects in one bullet; each was corrupted into the real
+decision frame at the real decision site and run through the deployed book. The loud one -
+`REGIME_TICKER` missing, `risk_on` returning `"SPY missing"`, the account liquidated under a
+reason that reads like a risk decision - costs **0.138 CAR points per outage at 0 bp and 0.252
+at 2 bp**, so the break-even against S-33's 0.5-point "cosmetic" bar is **2.0 outages a year**
+against a pre-registered threshold of 12 (t 3.10 / 3.85 on the powered cells; the low-rate
+cells are underpowered at t 0.90 / 1.24). The silent one is worse-behaved than the audit says:
+an all-NaN column changes the funded set on **10.5% to 83.6% of corrupted sessions for every
+one of the nine names**, and no CAR delta clears the 1.689 seed sd - the defect is noise in the
+portfolio, not a bias, which is why refusing is the only available remedy. XLK, the audit's
+example, ranks third. The stale-price defect is real only in its sizing half: **29.70% of
+name-days move more than the 1% no-trade band** and p95 is 2.441%, while *ranking* on a stale
+close is worth ±0.1 CAR points, i.e. nothing. The remedy's own tail test was the interesting
+part: holding yesterday's book is 11x cheaper than the spurious flatten (-0.209 vs -2.338 CAR)
+but shows **+0.602 worse MaxDD against it** - because the flatten's drawdown is *below the
+control's*, random liquidation being accidental de-risking. Against the control, which is the
+book the runner exists to reproduce, holding costs **+0.046** drawdown points. Shipped:
+`data_faults()` + `previous_session()` in `paper_trade.py`, called before `call_signal` so a
+fault cannot become an order, with the predicate measured at **0 false positives on 3,690
+sessions** before it was written. `signals.py` deliberately untouched. Identity exact,
+`compare_orders` **3,689/3,689**, suite 593, launch preflight green. Files **AUD-13b [eng]**:
+`CALENDAR.trading_days` keeps answering past `coverage_end` from the weekday rule instead of
+raising, so only `check_covered` enforces the contract. Reusable rule: **price a remedy against
+the thing it is supposed to restore, not against the defect it replaces.**
+
 ## 2026-09-12 - S-36 / AUD-25 (`daily` track; full entry in `research/journal_daily.md`)
 
 **The guard whose docstring says it exists so "the horizon is what is being tested" covers one

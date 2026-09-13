@@ -4,6 +4,152 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-12 - S-37 (AUD-13): two bad prints a year spend the whole selection premium, and the audit's own remedy is right for a reason its tail test gets backwards
+
+**What this iteration is.** S-36 signed off saying the `daily` track had no audit item left that
+needs no trading day. That was wrong about **AUD-13**, which is filed `[daily+eng]`, names the
+daily signal module and the daily runner, and requires nothing from the account. So this one
+took it. It is three defects filed as one bullet, and they are not the same kind of thing: two
+are *silent* - the book holds a different portfolio and nothing in the log says so - and one is
+*loud and wrong*, liquidating the whole account under `regime_reason "SPY missing"`, a string
+that reads like a risk decision.
+
+**Provenance and scope.** New `scripts/sweep_s37.py` (seven clauses pre-registered before the
+first number; console output in `results/s37_stage_{a,b1,b2,b3,c}.txt`), a patch to
+`scripts/paper_trade.py`, `tests/test_paper_dataquality.py` (17 tests) and one line in
+`tests/conftest.py`. **No LEAN run, no ledger row, no strategy parameter changed**, and
+`research/champion.json` was not touched. `paper_trade.py` IS the live runner, so the deploy
+gate is owed here and was run. No shared research code was modified either: `legs_simulate`
+calls `sig.target_weights` by module attribute, so the defect injector installs itself on that
+attribute and corrupts the **real decision frame at the real decision site** - every number
+below is what the shipped signal, the shipped rebalance and the shipped cost model actually do
+with bad data, not what an assumed flatten would cost.
+
+**(1) Identity, and this one the account can reach.** The offline book reproduces the cell eight
+previous iterations agree on **exactly** - 22.192150170492255% / 5,052 orders, delta 0.00e+00 -
+both before and after the patch. The scheduled task "Quant Paper Rebalance" passes **no
+arguments**, so the account runs `--history yfinance`, the path this defect lives on. Walking
+the source from the `warning: no history for [...]` print to `plan_orders` finds **0 exits**:
+the warning was the entire response. With SPY present the signal funds 3 names and reports
+`risk-on`; with the column dropped it funds **0** and reports `SPY missing`. So unlike S-32..S-36
+this is not a preventive report.
+
+**(2) The flatten, priced at an outage rate, and the number the owner can act on.** Dropping
+`REGIME_TICKER` from the decision frame on a random p of sessions, five seeds:
+
+| cost | rate | events/yr | CAR% | cost | per outage | break-even | t |
+|---|---|---|---|---|---|---|---|
+| 0 bp | 1 in 252 | 0.93 | 22.064 | -0.128 | -0.138 | 3.6 /yr | 0.90 |
+| 0 bp | 1 in 21 | 11.34 | 19.854 | -2.338 | -0.206 | 2.4 /yr | 3.10 |
+| 2 bp | 1 in 252 | 0.93 | 20.820 | -0.176 | -0.190 | 2.6 /yr | 1.24 |
+| 2 bp | 1 in 21 | 11.34 | 18.137 | -2.860 | -0.252 | 2.0 /yr | 3.85 |
+
+**MATERIAL: the tightest break-even is 2.0 outages a year** against a pre-registered threshold
+of 12, i.e. **two bad yfinance prints in a year cost 0.5 CAR points** - the entire selection
+premium S-33 measured on this sleeve, spent on a data failure. The low-rate cells are
+underpowered on their own (t 0.90 / 1.24, 13.6 events); **the 1-in-21 cells carry the claim**
+(t 3.10 / 3.85) and the cost per outage is the same size in both, which is what makes the
+break-even quotable. The cost rises with the cost model - 0.138 -> 0.190 at 0 -> 2 bp - so the
+audit's "a full round trip at real spread" is right, and the round trip is visible in the order
+count too: the flatten arm sends **5,395 orders against the control's 5,052**.
+
+**(3) The all-NaN column: the audit's example is the third worst, and the CAR column is the
+wrong one to read.** `target_weights` runs `dropna(axis=1, how="all")` first, so a failed
+download is not an error, it is a smaller universe. Corrupting each traded name in turn, 171
+sessions, 1 in 21, seed 11:
+
+| name | CAR delta | funded set differs | | name | CAR delta | funded set differs |
+|---|---|---|---|---|---|---|
+| SPY | +0.245 | **83.6%** | | XLF | -0.008 | 29.8% |
+| XLK | -0.562 | 60.8% | | IWM | +0.198 | 21.6% |
+| QQQ | -0.291 | 53.2% | | GLD | -0.619 | 19.3% |
+| | | | | XLE | -0.149 | 14.0% |
+| | | | | DIA | +0.094 | 12.9% |
+| | | | | TLT | +0.044 | 10.5% |
+
+**MATERIAL, but not on the column the pre-registration listed first.** The CAR column is a
+single seed and clause 2 measured the seed sd at this rate at **1.689**, so *none* of these CAR
+deltas clears noise and three of them print positive. What clears is the set column: every one
+of the nine names changes the funded set on **10.5% to 83.6%** of corrupted sessions, 10x to
+84x the 1% threshold. That is the finding, and it is a stronger one than a CAR number would
+have been: **the defect is not a bias, it is noise injected into the portfolio**, so there is
+no direction to correct for and the only available remedy is to refuse. The audit names
+XLK->QQQ; XLK is 60.8% and ranks third, behind SPY at 83.6% and QQQ at 53.2%.
+
+**(4) The stale price is real in one of its two halves.** Over 33,210 name-days the one-session
+move on this universe is median **0.593%**, p75 1.134%, p90 1.841%, **p95 2.441%**, p99 4.124%,
+and **29.70% of name-days move more than the 1% no-trade band**. A last-row NaN is
+forward-filled, `paper_trade.py` then sizes shares at that stale close, so the realized weight
+is wrong by the move: at p95 the runner mis-sizes by **2.4x the amount it refuses to trade
+for**. MATERIAL. But *ranking* on a stale close is worth **+0.033 / +0.002 / -0.095 / -0.007**
+CAR points across the four cells - nothing, against a seed sd of 1.7. **The damage is entirely
+in the sizing column and none of it is in the signal**, which the audit filed as one defect.
+
+**(5) The clause that decides the fix, and the reference column that decides the clause.** The
+audit prescribes `exit 3`, i.e. hold yesterday's book for a session. Both responses on the same
+corrupted sessions, five seeds, 1 in 21:
+
+| arm | CAR% | delta | Sharpe | MaxDD% | worst day% | orders |
+|---|---|---|---|---|---|---|
+| control | 22.192 | - | 1.159 | 23.860 | -8.143 | 5,052 |
+| flatten | 19.854 | -2.338 | 1.076 | 23.304 | -8.143 | 5,395 |
+| hold | 21.983 | **-0.209** | 1.150 | 23.906 | -8.143 | 4,921 |
+
+Holding is **11x cheaper** than flattening in CAR and wins Sharpe. The pre-registered tail test
+compared the two arms to each other and **failed** - hold's MaxDD 23.906 is 0.602 points worse
+than flatten's 23.304 - and that test asked the wrong question, because **the flatten arm's
+drawdown is BELOW the control's**: randomly liquidating the book is accidental de-risking, so
+the defect flatters itself in exactly the column the remedy is being judged on. Against the
+book the runner exists to reproduce, holding costs **+0.046 drawdown points**, 4.6% of the
+promotion gate's own `drawdown_tolerance_points` of 1.0 (S-34). The audit's prescription is
+taken, and the tail statement is the corrected one. Worst day is -8.143% in all three arms: no
+outage landed on the worst session in any seed, so neither arm is being priced on a tail event.
+
+**(6) The gate's false positives, counted before the gate was written.** The audit's predicate
+as filed - "any universe column has a NaN close" - fires on **0 of 3,690 sessions** of the
+reference daily store, so the withdrawal condition did not trigger and it is taken as filed.
+The narrowing to names that have already printed a close is kept anyway and is free at 0/3,690:
+the store the runner actually reads is yfinance, not this one, and a universe name added before
+its own inception must not be able to stop the account.
+
+**(7) What shipped, and what was refused.** `data_faults()` returns every fault in one list
+(missing column, all-NaN column, last-row NaN, empty frame, `as_of` older than the previous
+session) and `previous_session()` supplies the clock; the runner calls them **before
+`call_signal`**, which is the whole safety property and is pinned by a test that reads the
+source order. Held-but-untargeted names are deliberately not checked - refusing over the
+retired TQQQ would block the sale this runner exists to make. **`signals.py` was not touched**:
+the runner now refuses before `risk_on` can be reached from the account, the LEAN side is
+covered by clause 6's 0/3,690, and an edit to a live-loaded file that buys nothing measurable
+is refused on S-35's precedent.
+
+**Gates.** Post-patch identity **exact** (delta 0.00e+00, 5,052 orders); `compare_orders.py`
+**3,689/3,689**; the gate run against today's real yfinance frame is **clean** (`as_of`
+2026-09-11 = `previous_session` 2026-09-11) and fires correctly on all three defects injected
+into that same frame; suite **593 pass / 6 skip** on 3.11 and the intraday launch preflight on
+the 3.14 interpreter is **green** (641 passed, replay OK).
+
+**Two things found on the way.** (a) The new test file tripped E-8's
+`test_every_runner_importer_is_classified` - a file importing a live runner must be declared
+gating or not - and it is declared **gating**, because every assertion is on pinned dates and a
+fabricated frame, so it cannot fail for a reason outside the code. That is C-3's rule satisfied
+rather than dodged. (b) **`CALENDAR.trading_days` does not enforce the calendar's own coverage
+contract.** Past `coverage_end` (2027-12-31) it keeps answering from the weekday rule instead
+of raising; only `check_covered` raises. A gate trusting `trading_days` alone would be handed a
+holiday as "the previous session" and would refuse the entire rebalance over it. Worked around
+here by calling `check_covered` explicitly and pinned by a test; filed as **AUD-13b [eng]**
+because the fix belongs in `quant_brain`.
+
+**Reusable rule.** *Price a remedy against the thing it is supposed to restore, not against the
+defect it replaces.* A defect that destroys return by accident can also reduce drawdown by
+accident, and then a remedy that fixes the return looks reckless in the risk column against it.
+Holding costs 0.602 drawdown points against the flatten and 0.046 against the control; only the
+second number is about the remedy.
+
+**Next.** No `daily` audit item remains that needs no trading day - AUD-11's residue is a manual
+edit to a reserved file and stays the owner's or the critic's. What is left for this track is
+S-17 part 2 and the two standing measurement jobs, all of which need a trading day, plus the
+owner pile in `BLOCKERS.md`.
+
 ## 2026-09-12 - S-36 (AUD-25): the guard that exists to stop a silent 0% CAR covers one parameter out of eleven, and the audit named the smaller half of the defect
 
 **What this iteration is.** S-35 named **AUD-25** as the last `daily`-owned audit item that

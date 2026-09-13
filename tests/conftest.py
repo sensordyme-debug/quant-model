@@ -58,6 +58,10 @@ RUNNER_TESTS = frozenset({
     "test_intraday_p0",       # the trader's day-zero path
     "test_intraday_sizing",   # position sizing
     "test_launch_preflight",  # this gate's own failure mapping
+    "test_paper_dataquality", # the daily runner's data gate (AUD-13): every assertion is on
+                              # pinned dates and a fabricated frame, so nothing here can fail
+                              # for a reason outside the code - which is what makes it
+                              # eligible to gate at all (C-3)
     "test_paper_sizing",      # the daily sleeve's runner
     "test_reconcile_state",   # the live book's state reconciliation
 })

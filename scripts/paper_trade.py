@@ -275,6 +275,89 @@ def load_state():
     return state
 
 
+def previous_session(today: "dt.date") -> "dt.date | None":
+    """The last completed US equity session strictly before `today`, or None if unknown.
+
+    `fetch_history_yf` deliberately drops today's unfinished bar, so on any run this is the
+    date the signal's last row is *supposed* to carry. A weekend, a holiday and an early
+    close all differ here and none of them is `today - 1`, which is why this reads the
+    exchange calendar rather than subtracting a day. Returns None - and therefore raises no
+    fault - when the calendar cannot cover the date: a coverage gap must never be the reason
+    the account stops trading (the C-3 rule, from a unit test that read free memory).
+
+    `check_covered` is called explicitly because `trading_days` does NOT enforce the
+    calendar's own coverage contract: past `coverage_end` (2027-12-31 today) it keeps
+    answering from the weekday rule, so it would return a holiday as "the previous session"
+    and this gate would refuse to trade over a date the calendar never verified. Asking the
+    one entry point that raises is what makes the fallback reachable.
+    """
+    try:
+        from quant_brain.markets.equity_us import CALENDAR
+        start = today - dt.timedelta(days=12)
+        CALENDAR.check_covered(start)
+        CALENDAR.check_covered(today)
+        days = CALENDAR.trading_days(start, today - dt.timedelta(days=1))
+        return days[-1] if days else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def data_faults(closes, universe, as_of, prev_session=None) -> list[str]:
+    """AUD-13 / S-37: every way the history frame can be wrong before it becomes an order.
+
+    The runner used to `print("warning: no history for ...")` and carry on. It cannot: the
+    signal treats a defective frame as information, not as an error, and each of the three
+    shapes below produces a *different* wrong book with nothing in the log to distinguish it
+    from a decision.
+
+      * a missing or all-NaN universe column -> `target_weights` runs
+        `dropna(axis=1, how="all")` first, so the name is simply not in the ranking. If the
+        missing one is `REGIME_TICKER`, `risk_on` returns `"SPY missing"` and the whole book
+        is liquidated under a reason that reads like a risk decision.
+      * a NaN in the last row -> `.ffill()` carries yesterday's close forward, so the name is
+        ranked on a stale price AND sized at it (`closes[s].dropna().iloc[-1]` below).
+      * an `as_of` older than the previous session -> the same staleness over every name at
+        once, which no per-column check can see.
+
+    Only names that have already printed a close are required to have one, so a name added to
+    the universe before its own inception cannot stop the account trading. On the reference
+    daily store that narrowing is free - the audit's predicate as filed fires on 0 of 3,690
+    sessions - and it is kept because the store the runner actually reads is yfinance, not
+    this one. Held-but-untargeted names are deliberately NOT checked: they have no price only
+    when they are already being reported as stuck by `plan_orders`, and refusing to trade over
+    one would block the sale this runner exists to make.
+
+    Returns a list of human-readable faults; empty means the frame is usable.
+    """
+    import pandas as pd
+
+    faults = []
+    absent = [s for s in universe if s not in closes.columns]
+    if absent:
+        faults.append(f"no column for {absent}")
+    empty = [s for s in universe if s in closes.columns and closes[s].dropna().empty]
+    if empty:
+        faults.append(f"column is entirely NaN for {empty}")
+    if len(closes):
+        last = closes.iloc[-1]
+        stale = [s for s in universe
+                 if s in closes.columns and s not in empty and pd.isna(last[s])]
+        if stale:
+            faults.append(f"no close in the last row ({closes.index[-1].date()}) for {stale}")
+    else:
+        faults.append("history frame is empty")
+    if prev_session is not None and as_of is not None:
+        # Both sides are normalized to `datetime.date`: `previous_session` returns one and the
+        # frame's index gives a `Timestamp`, and comparing the two raises rather than
+        # returning False. A TypeError here would crash the runner inside the gate that exists
+        # to stop it trading safely, which is the worst place in the file to have one.
+        day = as_of.date() if hasattr(as_of, "date") else as_of
+        prev = prev_session.date() if hasattr(prev_session, "date") else prev_session
+        if day < prev:
+            faults.append(f"as_of {day} is older than the previous session {prev}")
+    return faults
+
+
 def save_state(state, *, scope=None):
     """Persist run state into the scope that produced it.
 
@@ -542,10 +625,22 @@ def main() -> int:
     # longer targets still has a price and can be sold to its zero target.
     fetch_syms = list(universe) + [s for s in positions if s not in universe]
     closes = fetch_history_yf(fetch_syms) if (args.history == "yfinance" or ib is None) else fetch_history_ib(ib, fetch_syms)
-    missing = [s for s in universe if s not in closes.columns or closes[s].dropna().empty]
-    if missing:
-        print(f"warning: no history for {missing}")
-    as_of = closes.index[-1]
+    as_of = closes.index[-1] if len(closes) else None
+    # AUD-13 / S-37: the data-completeness gate, BEFORE the signal is called, so a defective
+    # frame can never become an order. Refusing holds yesterday's book for one session, which
+    # S-37 clause 5 measured against the alternative (the spurious flatten the defect causes)
+    # on the same corrupted sessions; the numbers are in research/journal_daily.md.
+    faults = data_faults(closes, universe, as_of, previous_session(dt.date.today()))
+    if faults:
+        detail = "; ".join(faults)
+        print(f"REFUSED: history is not usable: {detail}")
+        log_event("refused", reason="data_incomplete", faults=faults,
+                  as_of=str(as_of.date()) if as_of is not None else None, source=args.history)
+        notify(f"paper_trade REFUSED: {args.history} history is not usable, no orders sent and the "
+               f"book is unchanged. {detail}")
+        if ib:
+            ib.disconnect()
+        return 3
     state = load_state()
     curve = [float(x) for x in state.get("equity_curve", [])]
     if not curve or str(state.get("as_of")) != str(as_of.date()):
