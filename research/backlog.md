@@ -1984,7 +1984,67 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   concluding the mechanism is absent** - that is what located the target as the active ingredient.
   <!-- closed by A-17, 2026-09-13 (iterate). -->
 
-- **A-18 (`iterate`, opened by A-17 2026-09-13): the harness has no per-session size multiplier,
+- **A-18 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): the linear scoring has no
+  detectable mean bias, and that is TWO LARGE ERRORS CANCELLING - and A-17's feasibility clause was
+  circular.** `--size-schedule` shipped on `scripts/intraday_backtest.py` (inert when absent, exactly
+  inert at k=1.0), `scripts/sweep_a18.py`, 6 pre-registered clauses, 3 arms x 10 years, 2,355 scored
+  OOS sessions, 3 DIAGNOSTIC ledger rows (`intraday/a18_sizing`), 6 new unit tests. **Identity is
+  exact**: today's k=1.0 harness reproduces `results/a8/daily_control.csv` on all 2,434 sessions,
+  0 differing, max |dret| 1.5e-11 bps - so AUD-07's trim did not move this book and the ledger's
+  control is still reproducible. **THE GAP** (`ret_harness - k_t x ret_persisted`): CONST
+  **-$4.34/day** (t -0.16), SLEEVE **+$19.35/day** (t +0.66) - but SE is $27-30/day on a -$232/day
+  book, so a bias up to a quarter of the level is not excluded, and 100% of sessions differ with a
+  gap sd of ~$1,400 and a worst session of **362 bps**. The split is the finding: the **loss-limit**
+  channel is **-$73.69/day** (CONST, 32 sessions) / -$21.84 (SLEEVE, 8) and the **share-rounding +
+  no-trade-band** channel is **+$69.35** / **+$41.19**, i.e. each channel is 5-17x what survives them.
+  **A-17's clause 5 ("0 stopped sessions, limit-aware re-score bit-identical") is an artifact**: it
+  reads the scaled book's low as `k x low` of the UNSCALED book, a series already truncated by the
+  unscaled book's own stop (its low on its 91 stopped sessions averages -2.60%, so x0.7703 = -2.34%
+  can never reach -2.5%). The harness stops the scaled books **32** and **8** times. The rounding
+  channel is **not** a cost saving - costs/day $707 (CONST) against a linear-implied $697, +1.5%, with
+  trades down only 4% for a 23% size cut - so it is `floor()` making the scaled book hold less than
+  its intent. **A-17's headline SURVIVES and strengthens**: ES5 cut **+11.08% -> +12.70%**, CI
+  **[+6.48, +18.84]**, **3/3** regimes, $/day +$92 (t 1.57) -> **+$116 (t 1.76)**, max drawdown
+  53.99 -> **40.54 (-13.45 points)** - **CONFIRMED** - because the mechanism that fires is the loss
+  limit and it fires 4x harder on the flat comparator than on the de-risked arm. q05 cut is the one
+  statistic that weakens (+15.20% -> +8.98%). Year table: harness >= linear in **8 of 10** years and
+  A-17's "negative in 5 of 10" becomes **3 of 10**, still carried by 2018 and 2020. **NOTHING SHIPS**:
+  the book loses money at every exposure (-$296 / -$232 / -$116 per day) and
+  `scripts/intraday_trader.py` has no size-schedule input at all. Opens **A-20**. Reusable rule: **a
+  feasibility check that reads the scaled book's risk off the unscaled book's own path is circular
+  and will always report "inert"**.
+  <!-- closed by A-18, 2026-09-13 (iterate). -->
+
+- **A-20 (`iterate`, opened by A-18 2026-09-13): the harness does not record what a size-scaled book
+  actually HOLDS, and A-18 found a channel worth $41-69/day that only that number can explain.**
+  A-18's rounding channel is not costs (the harness pays 1.5-3.0% MORE than the linear scoring
+  assumes) and is not fewer trades (down 4% for a 23% size cut), so the reading is that `floor()`
+  makes a scaled book carry systematically less than k x its target - half a share is a larger
+  fraction of a smaller position. That reading is inferred, not measured, because `summarize()`
+  reports turnover and never average gross exposure. The work is small: accumulate
+  `sum(|q| * px) / equity` at each bar's mark in `intraday_backtest.run` (it already computes
+  `closes` and `equity` every minute, so this is one line and no new loop) and report mean realized
+  gross. Then re-run A-18's three arms and answer two things A-18 had to leave open: (a) how much of
+  the +$69/day is a book that is simply smaller than it says it is, and (b) whether CONST and SLEEVE
+  carry the SAME shortfall - if they do not, A-17's matched-average-exposure control is matched in
+  INTENT but not in fact, and every "at the same average exposure" sentence on this sleeve needs the
+  realized number beside it. Cheap and it closes the last loose end in A-17/A-18.
+  <!-- added by A-18, 2026-09-13 (iterate). -->
+
+- **A-21 (`iterate`/`eng`, opened by A-18 2026-09-13): the live trader has no size-schedule input,
+  so no A-track sizing result can reach paper however well it scores.** A-18 gave the HARNESS a
+  per-session size multiplier and A-17's arm now clears AGENTS.md rule (c) in it (ES5 cut +12.70%,
+  CI [+6.48, +18.84], 3/3 regimes). `scripts/intraday_trader.py` has no equivalent: `equity_frac` in
+  `live/intraday_config.json` is a constant, and there is nothing that computes a pre-open k_t and
+  hands it to the sizing step. NOT a deployment item and explicitly not one to rush - the book being
+  de-risked still LOSES money at every exposure (-$116/day de-risked against -$232 flat), so there is
+  nothing here worth trading yet. It is listed so the gap is visible when something IS worth
+  trading, and it comes with the two constraints A-18 already knows: the k_t must be computable from
+  strictly pre-open data (A-17's four features are, by construction) and any change to the trader's
+  sizing path owes a `--replay` and a `compare_orders.py` run per AGENTS.md rule (a).
+  <!-- added by A-18, 2026-09-13 (iterate). -->
+
+- **A-18 (original text, kept for the pre-registration) (`iterate`, opened by A-17 2026-09-13): the harness has no per-session size multiplier,
   and A-17 cannot ship without one.** Every A-15/A-17 sizing result is scored by multiplying a
   persisted daily P&L series by k_t. That is exact for costs (slippage is bps of notional,
   commission per share) and exact for the signal (k scales targets and changes no decision), and
@@ -2105,8 +2165,26 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   moot: nothing adopted the 62-name panel, so `f14_flow.parquet` stays pinned to the 56.
   <!-- F-21 closed by the ml track, 2026-09-13. -->
 
-- **F-24 (`ml`, opened by F-21 2026-09-13): print the SLOT-0 DECILE SPREAD beside the rank IC, and
-  stop leading with the IC.** F-21 (5)(6) measured a 24.6% pooled rank-IC improvement arriving with
+- **F-24 DONE 2026-09-13 (`ml`; ADOPTED on its pre-registered rule - the spread now leads, and the
+  IC turned out to rank a SCRAMBLE CONTROL first; see `research/journal_ml.md`).** `ml_f21.tails()`
+  is now `ml_f8.decile_spread()` and was run on every arm this track has frozen (F-8, F-17, F-19,
+  F-20, F-21), against the clean panel's `y_close`, rows pinned per run. Over 12 informative
+  arm-minus-base comparisons (3 exact ties excluded), **sign(d slot-0 spread) agrees with
+  sign(d gross bps) 11/12 at Spearman +0.993; sign(d rank IC) agrees 9/12 at +0.699** -> clause 5
+  PASSES and the spread replaces the IC as the statistic every F-table leads with. The two
+  disagreements are the only two arms this track has argued about: F-17 `auction_only` (d IC
+  -0.00118 says worse, d spread +1.873 bps and d gross +0.538 say better - and it was F-17's best
+  cell at $412/day) and F-21 `wide62` (d IC +0.00251, d spread -1.172, d gross -0.252, with the
+  whole gain in the `middle IC` the book never holds, +208%, reproducing F-21 (6)). The sharpest
+  number: **F-17's `pooled_scrambled` control has the highest full-cross-section rank IC of all
+  five arms (+0.01313 vs base +0.01156)** while its slot-0 spread sits 0.004 bps from base. The IC
+  also misorders F-8's label ladder (h7 +0.01399 > h10 +0.01226 where gross runs 3.293 -> 3.608);
+  the spread is monotone in gross at rank correlation 1.000. `scripts/ml_f23.py --spread`,
+  `data/f1/f23_spread.csv`, 4 tests in `tests/test_ml_f8.py`. No ledger rows: no book was
+  simulated. Unblocks F-25 and opens F-26/F-27.
+  <!-- F-24 closed by the ml track, 2026-09-13. -->
+
+- **F-24 (original statement, retained for the record).** F-21 (5)(6) measured a 24.6% pooled rank-IC improvement arriving with
   a **-6.3% book gross**, on the same rows and the same target, and traced the whole dissociation:
   F-8's `session` book opens one cohort at slot 0 and holds it, so ten of eleven slots' forecast
   quality is never collected, and a decile book is indifferent to every ordering but its own tails.
@@ -2130,9 +2208,56 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   overfitting trap (11 slots x 8 windows), it needs an expanding-window slot screen and a scramble
   control, and it should wait until F-24 has put the spread on the page. <!-- added by F-21,
   2026-09-13 (ml). -->
+  **UNBLOCKED 2026-09-13 by F-24**, which put the per-slot spread on the page and validated it as
+  the lead statistic (11/12 against the money, Spearman +0.993). It inherits F-24's warning intact:
+  slot 0 carries 15.6-17.5 bps and slots 1-10 carry 3-11 bps against a 3.12 bps round trip, so a
+  slot screen is selecting inside a band barely wider than the cost line and the pre-registered
+  prior is that it selects noise. <!-- amended by F-23/F-24, 2026-09-13 (ml). -->
 
-- **F-23 (`ml`, opened by F-20 2026-09-13): the gate must print the |IC| GAP to the candidate each
-  admission displaced.** F-20 (d): a screen is not a property of its candidates. With a
+- **F-23 DONE 2026-09-13 (`ml`; ADOPTED, and the answer is that the gate has never made a readable
+  admission; see `research/journal_ml.md`).** `ml_f17.causal_gate` now records, for every admitted
+  parent, the rival clause 4c dropped against it, that pair's median per-timestamp |Spearman|, the
+  margin over the floor, the candidate's own IC standard error (backed out of the t it already
+  computes) and an **UNRESOLVED / RESOLVED / UNCONTESTED** verdict; `ml_f19`/`ml_f20` inherit it.
+  Re-run over 8 windows on the clean panel: **6 pooled admissions in the gate's entire history -
+  RESOLVED 0, UNRESOLVED 4, UNCONTESTED 2.** All four contested admissions turn on **0.28 to 0.47
+  of the winner's own IC standard error** (`dvol30` over `amihud30` at |rho| 0.876-0.886 in
+  2019/2020/2021, `clv5` over `ofi5` at 0.572 in 2024) - F-20 (d) suspected four and there are no
+  others. Post-hoc and labelled: the two UNCONTESTED ones clear the FLOOR by 0.032 se and 0.0006 se,
+  i.e. they sit at it, which is F-26. Consequence: F-17's `pooled`/`flow_only` and F-20's
+  `flow_only` are assembled entirely from decisions the window cannot make; all were refused on net
+  so no verdict flips, but "the flow family loses money" was never the supported sentence. Identity
+  check passed: the auction restriction admits nothing in 8/8 on the clean panel, reproducing F-19
+  and F-20 from a third script. `scripts/ml_f23.py --gate`, `data/f1/f23_gate.csv`, 14 tests in
+  `tests/test_ml_f23_gate.py`. <!-- F-23 closed by the ml track, 2026-09-13. -->
+
+- **F-26 (`ml`, opened by F-23 2026-09-13): extend F-23's UNRESOLVED rule to the FLOOR comparator,
+  which on today's numbers leaves the gate with ZERO readable decisions in 8 windows.** F-23 (7),
+  post-hoc: its rule only covers an admission that displaced a rival. An admission that displaced
+  nothing is currently reported UNCONTESTED, which reads as safe - and the two the gate has made
+  clear the q50 floor by **+0.00010 on a 0.00316 standard error (0.032 se)** and **+0.00000
+  (0.0006 se)**. They are at the floor, not above it. The rule to pre-register before it is used:
+  an admission whose |IC| margin over the FLOOR is smaller than the candidate's own IC standard
+  error is UNRESOLVED for the same reason a thin rival gap is - the window cannot say the column
+  belongs. It must be pre-registered rather than applied, because it was found after the number was
+  read, and it needs the obvious control: the floor is itself an estimate over 38 incumbents, so
+  the honest comparator may be the floor's own standard error rather than the candidate's, and the
+  two should be measured against each other before either is adopted. Cheap - it reads
+  `data/f1/f23_gate.csv` and adds no fit. <!-- added by F-23, 2026-09-13 (ml). -->
+
+- **F-27 (`ml`, opened by F-23 2026-09-13, and the FIX belongs to `eng`): the env var every F-track
+  run requires makes one test read the wrong minute store.** F-7 established that F-track scripts
+  must run with `INTRADAY_DATA_DIR=data/minute_alpaca` or the cost line is understated by 0.28 bps
+  of turnover. With that variable set, `tests/test_qb_labels.py::test_the_ibkr_store_is_gapless_so_
+  the_guard_is_a_no_op` fails `6 == 0`: it asserts a property of the **IBKR** store and reads
+  `ic.DATA_DIR`, which the variable has repointed. Unset, that file is green 18/18. So the repo
+  suite's green/red state depends on an environment variable one track is required to set, which
+  makes "suite green" a claim nobody can check without knowing the caller's environment. The fix is
+  one line - pin that test to the IBKR path explicitly instead of reading `ic.DATA_DIR` - in a file
+  the `ml` track does not own, so it is filed here and left for `eng`. <!-- added by F-23,
+  2026-09-13 (ml); the file is eng's. -->
+
+- **F-23 (original statement, retained for the record).** F-20 (d): a screen is not a property of its candidates. With a
   bit-identical flow store the gate changed 6 of 8 decisions, and four of them turned on a
   **0.0014 |IC| gap between `dvol30` and `amihud30`, two columns correlated at 0.88**. Nothing in
   F-16's or F-17's output showed that, so F-17 reported a result that was a coin flip and nobody

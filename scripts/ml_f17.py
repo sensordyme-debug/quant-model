@@ -239,22 +239,33 @@ def causal_gate(p: pd.DataFrame, year: int, verbose: bool = True) -> tuple[dict,
                   f"vs {best_n:<10} -> {rows[-1]['verdict_ab']}", flush=True)
 
     surv = sorted([r for r in rows if r["pass_ab"]], key=lambda r: -abs(r["ic"]))
-    admitted, kept_par, dropped_c = {}, {}, {}
+    by_feat = {r["feature"]: r for r in rows}
+    admitted, kept_par, dropped_c, displaced = {}, {}, {}, {}
     for restrict in ("pooled", "flow", "auction"):
         pool = [r for r in surv if restrict == "pooled" or r["store"] == restrict]
-        keep, drops = [], []
+        keep, drops, disp = [], [], {}
         for r in pool:                                              # clause 4c, greedy on |IC|
-            worst = 0.0
+            worst, blocker = 0.0, ""
             for k in keep:
                 cs = f15._per_ts_spearman(wc, r["feature"], k)
                 v = float(np.nanmedian(np.abs(cs))) if len(cs) else np.nan
-                worst = max(worst, v if np.isfinite(v) else 0.0)
+                if np.isfinite(v) and v > worst:
+                    worst, blocker = v, k
             if worst >= CORR_DROP:
                 drops.append((r["feature"], round(worst, 3)))
+                # F-23: an admission is not a property of its candidate. Record, against the
+                # column that blocked this one, WHAT it blocked - the rival's |IC|, the pair's
+                # median per-timestamp |Spearman|, and the |IC| margin the decision turned on.
+                prev = disp.get(blocker)
+                if prev is None or abs(r["ic"]) > abs(prev["rival_ic"]):
+                    disp[blocker] = {"rival": r["feature"], "rival_ic": r["ic"],
+                                     "rival_ic_t": r["ic_t"], "pair_rho": worst,
+                                     "gap": abs(by_feat[blocker]["ic"]) - abs(r["ic"])}
             else:
                 keep.append(r["feature"])
         kept_par[restrict] = keep
         dropped_c[restrict] = drops
+        displaced[restrict] = disp
         admitted[restrict] = [x for c in keep for x in [c] + COMPANIONS[c]]
 
     if verbose:
@@ -265,10 +276,65 @@ def causal_gate(p: pd.DataFrame, year: int, verbose: bool = True) -> tuple[dict,
             print(f"    ADMITTED[{restrict:<8}] parents {kept_par[restrict] or 'none'}"
                   + (f"  (clause 4c dropped {dropped_c[restrict]})"
                      if dropped_c[restrict] else ""))
+            for c in kept_par[restrict]:
+                print("      " + describe_admission(by_feat[c], displaced[restrict].get(c), floor))
     for r in rows:
         r["admitted_pooled"] = r["feature"] in kept_par["pooled"]
         r["dropped_4c"] = r["pass_ab"] and r["feature"] not in kept_par["pooled"]
+        d = displaced["pooled"].get(r["feature"])
+        r["displaced"] = d["rival"] if d else ""
+        r["displaced_ic"] = d["rival_ic"] if d else float("nan")
+        r["displaced_rho"] = d["pair_rho"] if d else float("nan")
+        r["displaced_gap"] = d["gap"] if d else float("nan")
+        r["floor_margin"] = abs(r["ic"]) - floor
+        r["ic_se"] = ic_se(r)
+        r["resolved"] = resolution(r, d)
     return admitted, rows
+
+
+# ------------------------------------------------------------- F-23: is the admission resolvable?
+
+
+def ic_se(r: dict) -> float:
+    """Standard error of a candidate's mean per-timestamp rank IC, backed out of its own t.
+
+    `f16._ic` returns (mean, t) with t = mean / se, so se = |mean| / |t| and no second pass over
+    the window is needed.
+    """
+    m, t = r.get("ic"), r.get("ic_t")
+    if m is None or t is None or not np.isfinite(m) or not np.isfinite(t) or t == 0:
+        return float("nan")
+    return abs(float(m)) / abs(float(t))
+
+
+def resolution(r: dict, d: dict | None) -> str:
+    """F-23's cheap rule, pre-registered by F-23 and first used here.
+
+    An admission whose |IC| margin over the rival it displaced is smaller than the CANDIDATE'S OWN
+    IC standard error is reported as UNRESOLVED rather than as an admission: the gate cannot tell
+    the two columns apart, so the arm downstream is one draw from a coin flip and its result must
+    not be read as a property of the column that happened to win.
+    """
+    if not r.get("admitted_pooled"):
+        return ""
+    if d is None:
+        return "UNCONTESTED"
+    se = ic_se(r)
+    if not np.isfinite(se) or not np.isfinite(d["gap"]):
+        return "UNRESOLVED"
+    return "RESOLVED" if abs(d["gap"]) > se else "UNRESOLVED"
+
+
+def describe_admission(r: dict, d: dict | None, floor: float) -> str:
+    """One line per admission: what it beat, by how much, and whether that margin is readable."""
+    margin = abs(r["ic"]) - floor
+    head = (f"{r['feature']:<14} |IC| {abs(r['ic']):.5f} (se {ic_se(r):.5f}, "
+            f"{margin:+.5f} over the floor)")
+    if d is None:
+        return head + "  displaced nothing -> UNCONTESTED"
+    verdict = "RESOLVED" if (np.isfinite(ic_se(r)) and abs(d["gap"]) > ic_se(r)) else "UNRESOLVED"
+    return (head + f"  displaced {d['rival']:<12} |IC| {abs(d['rival_ic']):.5f} "
+            f"at |rho| {d['pair_rho']:.3f}; gap {d['gap']:+.5f} -> {verdict}")
 
 
 def gate() -> None:

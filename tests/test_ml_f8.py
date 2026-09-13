@@ -350,3 +350,61 @@ def test_clause_7s_pass_rule_is_applied_to_the_maximum_of_a_twenty_cell_search()
         f"the best of {cells} correlated null cells clears t > 2 about {rate:.0%} of the "
         f"time, against the 5% clause 7 assumes")
     assert stats.bonferroni_threshold(cells) == pytest.approx(3.023, abs=0.005)
+
+
+# --------------------------------------------------------------------------------------------
+# F-24: the statistic the book is actually paid on
+# --------------------------------------------------------------------------------------------
+
+def _xs(day, slot, preds, ys):
+    """One decision point: n names, a prediction and a realised demeaned return for each."""
+    ts = _slot_ts(day, slot)
+    return pd.DataFrame({"ts": ts, "sym": [f"S{i}" for i in range(len(preds))],
+                         "pred": preds, "y_close": ys})
+
+
+def test_decile_spread_is_the_top_decile_minus_the_bottom_decile_in_bps():
+    """20 names, decile 0.10 -> k = 2: the spread reads the two tails and nothing between."""
+    y = np.arange(20, dtype=float) / 1e4                      # 0..19 bps, already sorted
+    m = _xs("2024-01-02", 0, np.arange(20, dtype=float), y)
+    out = ml_f8.decile_spread(m, decile=0.10)
+    assert out["spread0_bps"] == pytest.approx((18 + 19) / 2 - (0 + 1) / 2)
+    assert out["spread0_n"] == 1
+
+
+def test_the_decile_spread_ignores_every_ordering_but_its_own_two_tails():
+    """F-24's mechanism: reorder the middle and the rank IC moves while the spread does not."""
+    n, k = 20, 2
+    y = np.arange(n, dtype=float) / 1e4
+    good = _xs("2024-01-02", 0, np.arange(n, dtype=float), y)
+
+    shuffled = np.arange(n, dtype=float)
+    shuffled[k:n - k] = shuffled[k:n - k][::-1]               # tails pinned, middle reversed
+    bad = _xs("2024-01-02", 0, shuffled, y)
+
+    assert (ml_f8.decile_spread(bad, decile=0.10)["spread0_bps"]
+            == pytest.approx(ml_f8.decile_spread(good, decile=0.10)["spread0_bps"]))
+    ic_good = pd.Series(good["pred"]).corr(pd.Series(good["y_close"]), method="spearman")
+    ic_bad = pd.Series(bad["pred"]).corr(pd.Series(bad["y_close"]), method="spearman")
+    assert ic_bad < ic_good - 0.5, "the IC must move a lot where the spread does not move at all"
+
+
+def test_the_spread_separates_slot_0_from_the_slots_the_session_book_never_trades():
+    """`simulate(kind="session")` opens at slot 0 only, so `spread0_bps` is its whole gross."""
+    y = np.arange(20, dtype=float) / 1e4
+    at0 = _xs("2024-01-02", 0, np.arange(20, dtype=float), y)
+    at5 = _xs("2024-01-02", 5, np.arange(20, dtype=float)[::-1], y)   # slot 5 is inverted
+    out = ml_f8.decile_spread(pd.concat([at0, at5], ignore_index=True), decile=0.10)
+
+    assert out["spread0_bps"] > 0 and out["per_slot"].loc[5] < 0
+    assert out["spread_bps"] == pytest.approx(0.0, abs=1e-9)
+    assert out["spread0_bps"] == pytest.approx(out["per_slot"].loc[0])
+
+
+def test_a_cross_section_too_thin_for_a_decile_is_skipped_not_counted():
+    """Below `MIN_XS` names a "decile" is one name and its spread is a single return."""
+    thin = _xs("2024-01-02", 0, np.arange(6, dtype=float), np.arange(6, dtype=float) / 1e4)
+    assert ml_f8.decile_spread(thin)["spread0_n"] == 0
+    wide = _xs("2024-01-03", 0, np.arange(ml_f8.MIN_XS, dtype=float),
+               np.arange(ml_f8.MIN_XS, dtype=float) / 1e4)
+    assert ml_f8.decile_spread(wide)["spread0_n"] == 1

@@ -391,6 +391,62 @@ def f7_scale(sym: str, day) -> float:
 # ------------------------------------------------------------------------------------ reports
 
 
+MIN_XS = 12                        # names needed at a (ts, slot) before a decile spread is defined
+
+
+def decile_spread(m: pd.DataFrame, pred_col: str = "pred", y_col: str = "y_close",
+                  decile: float = DECILE) -> dict:
+    """F-24: the statistic a DECILE book is actually paid on, per slot and pooled.
+
+    Lifted verbatim from `ml_f21.tails()`, which is where it was first computed. F-21 (5)(6) found
+    a 24.6% pooled rank-IC improvement arriving with a -6.3% book gross on the same rows and the
+    same target, and traced the dissociation here: rank IC scores every ordering in the
+    cross-section, a decile book is indifferent to every ordering but its own two tails, and
+    `simulate(kind="session")` opens its only cohort at slot 0. So the IC that every F-run since
+    F-8 has led with can move 24% in the direction OPPOSITE to the money.
+
+    Returns `spread0_bps` (slot 0 only - what the `session` book monetises), `spread_bps` (all
+    slots pooled - what the `cohort_*` books monetise), their t-statistics, `mid_ic` (the rank
+    correlation inside the names the book never holds), and the per-slot mean spread.
+
+    `m` needs `ts`, `pred_col`, `y_col` and either a `slot` column or a timestamp from which one
+    can be derived. Rows with fewer than `MIN_XS` names at a decision point are skipped: a decile
+    of a 6-name cross-section is one name and its "spread" is a single return.
+    """
+    m = m[[c for c in ("ts", "slot", pred_col, y_col) if c in m.columns]].dropna(
+        subset=[pred_col, y_col]).copy()
+    if "slot" not in m.columns:
+        mins = (pd.to_datetime(m["ts"]).dt.hour - 9) * 60 + pd.to_datetime(m["ts"]).dt.minute - 30
+        m["slot"] = ((mins - 25) // 30).astype("int8")
+    spread, slots, mids = [], [], []
+    for (_ts, sl), d in m.groupby(["ts", "slot"], sort=False):
+        n = len(d)
+        if n < MIN_XS:
+            continue
+        k = max(1, int(round(decile * n)))
+        y = d[y_col].to_numpy(float)
+        order = np.argsort(d[pred_col].to_numpy(float), kind="stable")
+        spread.append(float(y[order[-k:]].mean() - y[order[:k]].mean()))
+        slots.append(int(sl))
+        mid = order[k:n - k]
+        if len(mid) > 5:
+            mids.append(float(pd.Series(d[pred_col].to_numpy(float)[mid])
+                              .corr(pd.Series(y[mid]), method="spearman")))
+    sp = np.asarray(spread) * 1e4
+    slots = np.asarray(slots)
+    mi = np.asarray([v for v in mids if v == v])
+    per_slot = pd.Series(sp).groupby(pd.Series(slots)).mean() if len(sp) else pd.Series(dtype=float)
+    s0 = sp[slots == 0]
+    return {"spread0_bps": float(s0.mean()) if len(s0) else float("nan"),
+            "spread0_t": f1.tstat(s0) if len(s0) > 1 else float("nan"),
+            "spread0_n": int(len(s0)),
+            "spread_bps": float(sp.mean()) if len(sp) else float("nan"),
+            "spread_t": f1.tstat(sp) if len(sp) > 1 else float("nan"),
+            "spread_n": int(len(sp)),
+            "mid_ic": float(mi.mean()) if len(mi) else float("nan"),
+            "per_slot": per_slot}
+
+
 def summarize(sess: pd.DataFrame, label: str) -> dict:
     net = sess["net"].to_numpy()
     turn = float(sess["turnover"].mean())
@@ -637,6 +693,7 @@ def run_ic(record_rows: bool = False) -> None:
     frames = load_frames()
     print(f"\n=== IC of each model's prediction against each label, 2019-2026 ===")
     print(f"{'model':<8} " + " ".join(f"{c[2:]:>16}" for c in ycols))
+    spreads = {}
     for lab in [BENCH] + LABELS:
         if lab not in frames:
             continue
@@ -647,6 +704,19 @@ def run_ic(record_rows: bool = False) -> None:
             icm, ict = ic_vs(m, "pred", c)
             cells.append(f"{icm:+.5f}({ict:+.1f})")
         print(f"{lab:<8} " + " ".join(f"{c:>16}" for c in cells))
+        spreads[lab] = decile_spread(m, "pred", "y_close")
+
+    # F-24: the IC above scores every ordering; the book is paid for two tails at one slot.
+    print("\n=== F-24: the DECILE SPREAD on y_close, beside the IC the table above leads with ===")
+    print(f"{'model':<8} {'full IC':>10} {'slot0 spread bps':>18} {'t':>7} "
+          f"{'all-slot spread':>17} {'t':>7} {'middle IC':>11}")
+    for lab, s in spreads.items():
+        fr = frames[lab][["ts", "sym", "pred"]]
+        icm, _ = ic_vs(p.merge(fr, on=["ts", "sym"], how="inner"), "pred", "y_close")
+        print(f"{lab:<8} {icm:>+10.5f} {s['spread0_bps']:>+18.3f} {s['spread0_t']:>+7.2f} "
+              f"{s['spread_bps']:>+17.3f} {s['spread_t']:>+7.2f} {s['mid_ic']:>+11.5f}")
+    print("  slot0 spread = mean top-decile y minus bottom-decile y at the 09:55 decision, bps.\n"
+          "  It is what `simulate(kind=\"session\")` earns before costs; the IC is not.")
 
 
 def main() -> None:

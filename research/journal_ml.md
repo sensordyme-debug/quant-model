@@ -6,6 +6,154 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-13 - F-23 + F-24: the two statistics the decisions were made on were never printed. Once they are: the gate has made SIX admissions in its history and ZERO of them turn on a margin the window can resolve, and the rank IC this track has led with since F-8 ranks F-17's own SCRAMBLED CONTROL above every real arm. The decile spread agrees with the money 11/12 against the IC's 9/12 and at rank correlation +0.993 against +0.699, so it takes over as the lead statistic. No verdict flips; what changes is that four refusals are now known to have been decided on coin flips.
+
+**Hypothesis.** Two prints, one sitting - F-21's amendment to F-23 said they are the same defect at
+two levels and the lower one is the larger hole, and that is exactly how they came out.
+`scripts/ml_f23.py`, 8 clauses pre-registered in the module docstring before a number was read.
+**No model was fitted and no data was pulled**: every arm is read from a prediction file this track
+had already frozen, and the gate is F-17's, unchanged, re-run for the print. Run with
+`INTRADAY_DATA_DIR=data/minute_alpaca`. **No shipped or runner-loaded file was touched**, so no
+deploy gate and no `--replay` is owed. **Nothing was recorded in the ledger** - no book was
+simulated, so there is no run to record; the artifacts are `data/f1/f23_spread.csv` and
+`data/f1/f23_gate.csv`.
+
+---
+
+### F-24 - the statistic the BOOK is paid on
+
+`ml_f21.tails()`'s computation is now `ml_f8.decile_spread()` and runs on every arm this track has
+frozen, against the clean panel's `y_close`, with each run's arms pinned to the rows they all
+carry (clause 1-2). The money column is each run's own frozen `session/<arm>` gross bps (clause 4).
+
+| run | arm | full IC | slot-0 spread bps | all-slot | middle IC | gross bps |
+|---|---|---|---|---|---|---|
+| F-17 | base | +0.01156 | **+17.480** | +10.528 | +0.00380 | 4.256 |
+| F-17 | pooled | +0.00916 | +17.320 | +9.297 | +0.00202 | 4.286 |
+| F-17 | flow_only | +0.01034 | +15.447 | +9.542 | +0.00504 | 3.748 |
+| F-17 | auction_only | +0.01038 | **+19.353** | +10.282 | +0.00079 | **4.795** |
+| F-17 | pooled_**scrambled** | **+0.01313** | +17.484 | +10.513 | +0.00647 | 4.322 |
+| F-21 | base56 | +0.01022 | +16.803 | +10.255 | +0.00245 | 4.023 |
+| F-21 | wide62 | **+0.01273** | **+15.630** | +10.648 | **+0.00754** | **3.771** |
+| F-8 | h1 | +0.00944 | +6.207 | +6.853 | +0.00877 | 1.501 |
+| F-8 | h4 / h7 / h10 / close | +0.00997 / **+0.01399** / **+0.01226** / +0.01979 | +9.906 / +14.583 / +16.099 / +17.480 | | | 2.632 / 3.293 / 3.608 / 4.256 |
+
+**(1) The pre-registered count, clause 5.** 12 informative arm-minus-base comparisons (3 excluded
+as exact ties: F-19's `causal` and `causal_scrambled` and F-20's `auction_only` are bit-identical
+to their bases because those gates admitted nothing).
+
+| statistic | sign agrees with sign(d gross bps) | Spearman with d gross bps |
+|---|---|---|
+| mean per-timestamp rank IC | **9 / 12** | **+0.699** |
+| slot-0 decile spread | **11 / 12** | **+0.993** |
+
+**PASS on clause 5, so the spread replaces the IC as the statistic every F-table leads with.**
+
+**(2) The two disagreements are the only two arms this track has ever argued about.** That is not
+a coincidence and it is the finding.
+
+- **F-17 `auction_only`** - `d IC -0.00118` says the auction gate made the forecast WORSE.
+  `d spread0 +1.873 bps` and `d gross +0.538 bps` say it made the BOOK better. `auction_only` was
+  F-17's best cell at **$412/day, t +1.969**, the number that run's whole discussion turned on, and
+  the statistic F-17 led with pointed the other way.
+- **F-21 `wide62`** - `d IC +0.00251` (+24.6%), `d spread0 -1.172`, `d gross -0.252`. F-21's own
+  dissociation, reproduced to the digit from a different direction, with its mechanism visible in
+  the `middle IC` column: **+0.00245 -> +0.00754, +208%**, exactly the +208% F-21 (6) measured.
+  The whole of the widening's gain is in the names the book never holds.
+
+**(3) The sharpest fact on the page, and it is about the IC itself.** In F-17, the arm with the
+**highest full-cross-section rank IC of all five is `pooled_scrambled`** - the no-information
+control, at **+0.01313 against the real base's +0.01156**. The spread reads the same control at
+**+17.484 against base +17.480**, a difference of 0.004 bps, and correctly says *this is the base*.
+A lead statistic that ranks a scramble control first is not a lead statistic.
+
+**(4) The IC misorders the ladder F-8's conclusion is built on.** F-8's label ladder runs
+h1 -> h4 -> h7 -> h10 -> close with gross **1.501 -> 2.632 -> 3.293 -> 3.608 -> 4.256** bps,
+monotone. The slot-0 spread is monotone with it (**6.207 -> 9.906 -> 14.583 -> 16.099 -> 17.480**,
+rank correlation 1.000). **The IC is not**: h7 **+0.01399** > h10 **+0.01226** where the money goes
+3.293 -> 3.608. F-8's verdict survives - `close` wins on both statistics - but the ladder that made
+the case was read through a statistic that gets one of its four rungs backwards.
+
+**(5) What this does NOT do.** Clause 7: every arm above was already refused on net, and a print
+cannot un-refuse one. `auction_only` looking better on the spread than on the IC does not make
+$412/day at t +1.969 clear a t > 2 hurdle. Nothing is promoted and `champion.json` is untouched.
+
+---
+
+### F-23 - the statistic the GATE's decision is made on
+
+F-17's gate, unchanged, re-run on the clean panel for 8 windows. What is new is that each admitted
+parent now prints the rival clause 4c dropped against it, that pair's median per-timestamp
+|Spearman|, and the |IC| margin the decision turned on - and F-23's rule is applied for the first
+time: **a margin smaller than the winner's own IC standard error is UNRESOLVED, not an admission.**
+
+| year | admitted | \|IC\| | IC se | floor margin | displaced | rival \|IC\| | \|rho\| | gap | gap / se | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2019 | dvol30 | 0.02325 | 0.00298 | +0.00807 | amihud30 | 0.02187 | 0.876 | +0.00138 | **0.46** | UNRESOLVED |
+| 2020 | dvol30 | 0.01801 | 0.00258 | +0.00437 | amihud30 | 0.01699 | 0.879 | +0.00102 | **0.40** | UNRESOLVED |
+| 2021 | dvol30 | 0.01169 | 0.00289 | +0.00202 | amihud30 | 0.01088 | 0.886 | +0.00081 | **0.28** | UNRESOLVED |
+| 2022 | dvol30 | 0.00869 | 0.00316 | **+0.00010** | - | - | - | - | - | UNCONTESTED |
+| 2023 | *none* | | | | | | | | | |
+| 2024 | clv5 | 0.00977 | 0.00262 | +0.00249 | ofi5 | 0.00853 | 0.572 | +0.00124 | **0.47** | UNRESOLVED |
+| 2025 | *none* | | | | | | | | | |
+| 2026 | ofi_sess | 0.00903 | 0.00294 | **+0.00000** | - | - | - | - | - | UNCONTESTED |
+
+**(6) RESOLVED 0, UNRESOLVED 4, UNCONTESTED 2. All four contested admissions - 100% of them - turn
+on a gap of 0.28 to 0.47 of the winning candidate's own IC standard error.** F-20 (d) suspected
+this of four decisions in the flow pool and was right about all four; what F-20 could not see is
+that there are no others. The gate has admitted six columns in its entire history and not one
+admission is a statement about the column that won.
+
+**(7) Post-hoc, and labelled as such: the two UNCONTESTED admissions are not safe either, they
+just fail against a different comparator.** `dvol30` in 2022 clears the q50 floor by **+0.00010 on
+a 0.00316 standard error (0.032 se)** and `ofi_sess` in 2026 by **+0.00000 (0.0006 se)** - both are
+*at* the floor to five decimals, not above it. Read against the floor instead of against a rival,
+**0 of 6 admissions in this gate's history turn on a margin the window can resolve.** F-23's rule
+as written only covers the contested case; extending it to the floor is filed as **F-26** rather
+than asserted here, because it was found after the number was read.
+
+**(8) The consequence for what this track has reported.** Every gated arm it has published -
+F-17's `pooled` and `flow_only`, F-20's `flow_only` - is assembled entirely from decisions the
+window cannot make. They were all REFUSED on net, so no verdict changes and clause 7 forbids
+changing one. What changes is the standing of the refusals: they were refusals of a coin flip, and
+this track has three times written "the flow family loses money" when the honest sentence is "a
+column the gate could not distinguish from its twin loses money". The two are not the same claim
+and only the second is supported.
+
+**(9) One identity check that passed and is worth the line.** The auction restriction admits
+NOTHING in 8 of 8 windows on the clean panel, which is F-19's and F-20's finding reproduced from a
+third script. F-17's dirty-panel gate admitted `auc_osz_adv` and `auc_ofade` in its late windows;
+those admissions do not exist on the clean substrate.
+
+---
+
+**(10) A reproducibility hazard, the mirror image of F-7's.** F-7 established that every F-track
+script must run with `INTRADAY_DATA_DIR=data/minute_alpaca` or the cost line is silently understated.
+Running the **full test suite** with that variable set fails
+`tests/test_qb_labels.py::test_the_ibkr_store_is_gapless_so_the_guard_is_a_no_op` with `6 == 0`,
+because the test asserts a property of the **IBKR** store and reads `ic.DATA_DIR`, which the
+variable has repointed at Alpaca. That single file re-run WITHOUT the variable is green (18/18),
+and it is the only failure in the repo-wide run. So the env var every F-track run requires makes
+one `eng` test read the wrong store, and the suite's green/red state depends on the environment.
+Filed as **F-27**; the fix is one line in a file this track does not own.
+
+**Decision.** F-24 ADOPTED on its pre-registered rule - `ml_f8.decile_spread()` is the shared
+helper, `ml_f8.run_ic` prints it, and every future F-table leads with `slot0_spread_bps`, with the
+rank IC kept beside it as the diagnostic it turned out to be. F-23 ADOPTED as a permanent part of
+the gate's output, with its UNRESOLVED verdict now on every admission `ml_f17.causal_gate` makes,
+inherited by `ml_f19`, `ml_f20` and anything else that calls it. Eighteen tests added
+(`tests/test_ml_f8.py` +4 on the spread, `tests/test_ml_f23_gate.py` 14 on the rule), 34 of 34
+green in the two ml files.
+
+**Next.** **F-26** - extend F-23's rule to the floor comparator, which on (7) reclassifies the two
+UNCONTESTED admissions and would leave the gate with zero readable decisions in 8 windows; that is
+a rule change, so it is pre-registered rather than applied. **F-25** (the slot-selective book) is
+now unblocked, because F-24 put the per-slot spread on the page, and it inherits the warning from
+(2): slots 1-10 carry spreads of 3-11 bps against a 3.12 bps round trip, so the honest prior is
+that a slot screen selects noise.
+
+---
+
 ## 2026-09-13 - F-21: the six new names are the DAILY CHAMPION'S OWN, and `sweep_f1.EXCLUDE` was one list short of saying so - a naive `--build` today would have made six of the champion's instruments tradable here. On the experiment itself the widening makes the FORECAST 24.6% better and the BOOK $51/day worse, because 100% of the gain lands in the ten slots the book never trades and the one slot it does trade gets 7.0% worse. REFUSED, and the IC-vs-P&L dissociation is the finding.
 
 **Hypothesis.** F-19 filed the widening with a stated mechanism - six liquid sector/asset ETFs
