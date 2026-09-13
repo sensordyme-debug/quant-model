@@ -122,6 +122,18 @@ sessions.
 `critic`. The standing S-17 part 2 (measured daily fill slippage against the 15:45 print) is now
 much cheaper than it was, because this iteration built the nine-name 15:45 price store it needs.
 
+**Provenance, because the hash does not say `daily`.** All seven files of this iteration landed
+in **`0193f21`**, whose message is the `eng` track's (`scorecard: name the writer that is missing
+provenance...`). They were staged and awaiting a `.git/index.lock` held by a concurrent track for
+ten minutes; that track then committed **without a pathspec** and swept the whole shared index,
+this iteration included. Nothing is lost or altered - every file above is byte-correct in
+`0193f21` and was verified there - and nothing is rewritten, because another track's work is in
+that commit. This entry is the record instead. The operational lesson is for AGENTS.md's own
+rule: "commit ONLY the files you touched" needs to be **`git commit -- <paths>`** rather than
+`git add <paths> && git commit`, because the second still commits whatever another track has
+staged in the shared index while you were waiting for the lock. `git add -A` is not the only way
+to take someone else's work.
+
 ---
 
 ## 2026-09-12 - S-38 (AUD-11 part 2): the floor was not the estimate, and the two dials with the weakest paper trail are the two that move it most
