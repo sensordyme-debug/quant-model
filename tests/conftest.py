@@ -82,6 +82,8 @@ def run_as_scheduler(script, *args, timeout: int = 120) -> subprocess.CompletedP
 # failure in one of these means the arithmetic of the deployed sleeve is wrong, which is the
 # only thing worth refusing to trade over.
 RUNNER_TESTS = frozenset({
+    # the governor in the live path and the FLATTEN close-out; a failure here must stop the sleeve
+    "test_intraday_governor",
     "test_costs",             # the cost model positions are sized and marked with
     "test_intraday_book",     # book accounting
     "test_intraday_gates",    # halt / approval / time gates
