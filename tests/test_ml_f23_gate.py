@@ -11,11 +11,9 @@ those are F-16's and F-17's and are unchanged.
 """
 from __future__ import annotations
 
+import ml_f17
 import numpy as np
 import pytest
-
-import ml_f17
-
 
 # --------------------------------------------------------------------------------------------
 # the standard error, backed out of the t the gate already computed
