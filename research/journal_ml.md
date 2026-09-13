@@ -6,6 +6,141 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-13 - F-16: the causal gate BEATS the oracle it was built to imitate, and it beats it by admitting nothing in 5 of 8 years. Closest this track has ever come to the hurdle - net t +1.969 against 2.0 - and still REFUSED, because the paired test is +1.42. `lean3` is not confirmed: the causal gate does not pick `auc_ofade` in most years, it picks the column F-15's gate called nothing.
+
+**Hypothesis.** F-15 (7) found that 3 of 19 auction columns turned a -$148/day loss into a +$60/day
+gain, posted the highest gross this track had measured and were the first arm ever positive in the
+low-vol tercile - but the 3 were chosen **after reading the test window**, so `lean3` was a
+selection artefact and F-15 said so in its own closing paragraph. F-16 is the one experiment that
+separates the two readings: take the gate that picked them (F-14 (a)'s redundancy rule plus
+F-15 (a)'s incumbent-floor rule) and **run it inside the walk-forward**, at every retrain, on
+train + validation only. Nothing in the selection path may see the year it trades.
+
+`scripts/ml_f16.py`, **5 ledger rows** under `intraday/f16_causalgate`, per-year gate in
+`data/f1/f16_gate.csv`, admitted sets in `f16_admitted.json`, cells in `f16_arms.csv`. Eight
+clauses pre-registered in the module docstring including clause 0, the prior, written before a
+number of this run was read. No new data pull - `f15_famA.parquet` and `f15_famB.parquet` read
+unchanged. Run with `INTRADAY_DATA_DIR=data/minute_alpaca`. **No shipped or runner-loaded file was
+touched**, so no deploy gate and no `--replay` is owed.
+
+**(1) Clause 1 identity is exact.** `base` reproduces the frozen F-8 model to the printed digit:
+mean rank IC **+0.01030**, gross **4.256** bps, cost **2.724**, net **$305.7/day**, t **+1.474**,
+1,933 sessions, turnover $1,995,861/day.
+
+**(2) The pre-registered floor is nearly degenerate, and that is the first finding.** Clause 4a set
+the floor at the **median** |IC| of the 38 incumbents, recomputed per window. On a train window the
+median incumbent reads 0.0077-0.0135 - far above the 0.002-0.006 F-15 measured for the auction
+family on the pooled test window - so the q50 gate **admits nothing in 5 of the 8 years**:
+
+| test year | window | floor q50 | admitted (q50) | admitted (q25) |
+|---|---|---|---|---|
+| 2019 | 2016-2018 | 0.01485 | *(none)* | `auc_osz_adv` |
+| 2020 | 2016-2019 | 0.01275 | *(none)* | `auc_osz_adv` |
+| 2021 | 2016-2020 | 0.01352 | *(none)* | *(none)* |
+| 2022 | 2016-2021 | 0.01074 | *(none)* | `auc_osz_adv`, `auc_ofade` |
+| 2023 | 2016-2022 | 0.01153 | *(none)* | + `auc_cdrift` |
+| 2024 | 2016-2023 | 0.00766 | **`auc_osz_adv`** | `auc_osz_adv`, `auc_ofade` |
+| 2025 | 2016-2024 | 0.00834 | **`auc_ofade`** (triple) | `auc_osz_adv`, `auc_ofade` |
+| 2026 | 2016-2025 | 0.00853 | **`auc_ofade`** (triple) | `auc_osz_adv`, `auc_ofade` |
+
+Because that made the pre-registered arm a copy of base in most years, a **second specification**
+was added **after** the gate pass was read and is labelled as such throughout and barred from
+clause 5: `q25`, the same rule at the 25th percentile of the same incumbent distribution, still
+computed on train + validation only. It admits 0-3 parents per year and is active in 87% of
+sessions against q50's 35%.
+
+**(3) Clause 8, the secondary deliverable: the causal gate does NOT reproduce the oracle's pick.**
+`auc_ofade` - F-15's survivor, the column the whole `lean3` result rests on - is admitted in
+**2 of 8 years at q50** and 5 of 8 at q25. What the causal gate admits most often is
+**`auc_osz_adv`**, the opening cross size against ADV, which **F-15's own test-window gate rated
+IC -0.00151 at t -0.8, i.e. nothing**, and which reads -0.0065 to -0.0084 on every train window.
+The two gates disagree about which column of the auction tape carries. Mean pairwise Jaccard of the
+admitted parent sets: **+0.393** (q50), **+0.512** (q25); **no column is admitted in every year**.
+Clause 0 predicted `auc_ofade` in >= 6 of 8 and a Jaccard of 0.5-0.8, and was wrong on the first.
+
+**(4) And the book went UP anyway - past the oracle, and further than anything this track has
+fitted.** 1,933 out-of-sample sessions, 2019-2026, one decision, decile 0.10. **Turnover is
+identical in every arm to the dollar (spread $0)**, so every bps column is like-for-like.
+
+| arm | selection | mean rank IC | gross bps | cost bps | net $/day | t | yrs + | worst |
+|---|---|---|---|---|---|---|---|---|
+| base | - | +0.01030 | 4.256 | 2.724 | 306 | +1.474 | 5/8 | -51,431 |
+| **causal (q50)** | **causal, pre-registered** | +0.00939 | **4.795** | 2.732 | **412** | **+1.969** | 5/8 | -45,005 |
+| causal_p25 | causal, post-hoc threshold | +0.01170 | 4.743 | 2.753 | 397 | +1.90 | 5/8 | -39,807 |
+| causal_scrambled | causal, information destroyed | +0.01104 | 4.146 | 2.724 | 284 | +1.36 | 5/8 | -49,652 |
+| lean3 | **oracle, test-set-selected** | +0.00951 | 4.643 | 2.812 | 365 | +1.75 | 5/8 | -45,005 |
+
+`causal`'s **4.795 gross bps is the highest this track has recorded on this label**, above
+F-15 `lean3`'s 4.643 and base's 4.256. Paired per session: `causal - base` **+$106/day at t +1.42**,
+`causal - lean3` **+$46/day at t +0.43**, `causal_scrambled - base` **-$22/day at t -0.33**.
+Clause 0 predicted causal would land *between* base and the oracle at t +1.3 to +1.8. It landed
+**above both**.
+
+**(5) Clause 5: REFUSE, and it fails by 0.031 on the leg it came closest on.** net t **+1.969**
+against 2.0 (**FAIL**), **5/8** years positive (PASS), paired `causal - base` **+1.416** against
+2.0 (**FAIL**). Nothing adopted, nothing promoted, `champion.json` untouched, no deployed file
+changed.
+
+**(6) The pooled t is the wrong number to be impressed by, and the post-run split says so.** An arm
+that *is* base in 5 of 8 years shares 65% of its sessions with base, so base +1.474 -> causal
++1.969 is not an independent test. On the **675 sessions where the gate actually admitted
+something**, the paired effect is **+$303/day at t +1.42** - a large magnitude that does not reach
+significance - and the scramble control on the *same* 675 sessions is **-$63/day at t -0.33**. The
+information, not the width, is what moves it; there just is not enough of it to clear 2.0.
+
+**(7) Why the causal arm beats the oracle, which is the reusable part.** Decompose by year. In
+**2025 and 2026 the causal gate independently rediscovers `lean3`'s exact triple** and the two arms
+are identical to the dollar ($818 and $768). In **2024** it picks `auc_osz_adv` instead and earns
+$1,320 against `lean3`'s $1,086. And in **2019-2023 it admits nothing at all**, which is where
+`lean3` - forced to carry `auc_ofade` in every year - averages $74/day against base's $97, giving
+back **$660/day in 2020 alone** (base $1,273, `lean3` $613). **The causal gate's
+advantage over the oracle is entirely the years it declines to add
+anything.** A gate is not primarily a device for finding columns; it is a device for refusing them
+in the windows where they do not yet carry.
+
+**(8) The tighter floor is the better floor, which confirms F-15 (a) from the other direction.**
+q25 is active in 87% of sessions and worth **+$105/day per active session (t +0.76)**; q50 is
+active in 35% and worth **+$303/day per active session (t +1.42)**. Three times the effect at a
+third of the exposure. Loosening the floor to admit more members of the family diluted it exactly
+as F-15 (a) predicted, measured this time on a causal selection rather than a hand-picked one.
+
+**(9) `lean3`'s headline low-vol result does NOT survive.** Net $/day across terciles of SPY
+trailing 20-session realised vol: base **-133 / +250 / +623**; causal **-121 / +423 / +713**;
+causal_p25 -52 / +327 / +736; scrambled -90 / +185 / +609; lean3 **+103 / +354 / +532**. `causal`
+is the best arm in the mid and high terciles and is the only arm to beat base in both, but it is
+**negative in the low-vol tercile** (-121) like every arm before F-15. F-15 (7)'s "first arm ever
+positive in low vol" was a property of forcing `auc_ofade` into all 8 years, and it is a property
+the causal selection does not have. The forecast is still paid only where there is movement.
+
+**Decision.** **REFUSE.** Nothing deployed, nothing promoted. The F-15 mechanism is **not**
+confirmed as stated - the causal gate does not pick `auc_ofade` in most years - while the broader
+claim it sat inside, that the auction tape adds something the 38-column panel does not have, is
+**strengthened**: a selection that never sees its test year still produces the best gross and the
+best net this track has fitted, and its scramble control produces neither.
+
+**What it changes for the loop.** Three rules.
+**(a) A feature gate earns its keep in the windows where it admits NOTHING.** (7): the causally
+selected arm beats the test-set-selected oracle purely by abstaining in 2019-2023. Any track
+adding features should report how often its gate declines, and treat a gate that always admits
+something as unscreened.
+**(b) Never read the pooled t of an arm whose feature set varies by window.** (6): base +1.474 ->
++1.969 looks like a large move and 65% of those sessions are the same trade. Report the paired
+statistic on the ACTIVE subset, and report how large that subset is.
+**(c) An incumbent floor measured on a TRAIN window is far higher than one measured on a pooled
+TEST window** - median 0.0077-0.0135 against F-15's test-window reading of the same 38. A rule
+calibrated on test-window ICs will be much stricter than intended when it is made causal. (2) cost
+this run its pre-registered arm's power and is the reason `q25` had to be added.
+
+**Next.** **F-17**, and it is now cheap because the machinery exists. The causal gate takes ~16 s
+per window and is the first screen this track has that can rank candidates *without* spending the
+test window. Point it at the **whole candidate space the track has accumulated**: F-14's 19 flow
+columns (`data/f1/f14_flow.parquet`) and F-15's auction family in one pool, per-year floor, per-year
+admission. F-14 refused its flow family **as a family** and F-15 (a)'s rule says a family should be
+admitted at the size its members justify - which for flow may be 1 or 2 columns in some years and
+zero in others, and has never been measured. Both stores are on disk, so it is one file, no data
+pull and roughly 45 minutes. Pre-register the same hurdle and, per (a), pre-register the abstention
+rate as a reported outcome rather than a diagnostic.
+
 ## 2026-09-13 - F-15: the auction tape DOES carry orthogonal, sign-stable signal the panel does not have - and adding all 19 columns of it made the book worse while 3 of them made it better. Refused on the pre-registered arm. The gate is necessary and NOT sufficient: F-14 screened the REDUNDANT, and what beat this run was the WEAK-AND-NUMEROUS.
 
 **Hypothesis.** F-14 closed the supervised class with a sentence and a rule. The sentence: all seven

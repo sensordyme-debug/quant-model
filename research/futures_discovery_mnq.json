@@ -1,0 +1,49 @@
+{
+  "grid": 136,
+  "funnel": {
+    "generated": 136,
+    "duplicate": 0,
+    "too_short": 0,
+    "rejected_statistical": 135,
+    "rejected_cost": 1,
+    "rejected_topstep": 0,
+    "rejected_walkforward": 0,
+    "survived": [],
+    "stopped_because": "",
+    "elapsed": 55.82361259998288
+  },
+  "family": "futures.mnq.threshold_grid.v2",
+  "price_source": "MNQ",
+  "traded": "MNQ",
+  "features_built": [
+    "ret_5",
+    "ret_15",
+    "ret_30",
+    "ret_60",
+    "accel_30",
+    "vwap_dist",
+    "ma_dist_30",
+    "ma_dist_120",
+    "z_60",
+    "rvol_30",
+    "rvol_120",
+    "range_expansion",
+    "vol_of_vol",
+    "rel_volume",
+    "volume_accel",
+    "minutes_from_open",
+    "opening_range_pos"
+  ],
+  "features_refused": {
+    "spread_bps": [
+      "bid",
+      "ask"
+    ],
+    "quote_imbalance": [
+      "bid_size",
+      "ask_size"
+    ]
+  },
+  "trials_before": 0,
+  "trials_after": 136
+}
