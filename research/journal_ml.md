@@ -6,6 +6,148 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-13 - F-19: F-16's result was an artifact of a STALE CACHE. On a rebuilt panel the causal gate admits NOTHING in 8 of 8 windows, so its $412/day arm collapses into base at $258. The panel also predated this track's OWN audit fix from the day before, and the identity check that F-14, F-15, F-16 and F-17 each passed could never have caught it - all four compared themselves to the same stale file.
+
+**Hypothesis.** D-6 (`iterate`) opened F-19 with a narrow claim: `data/f1/panel.parquet` was built
+on 2026-09-11 11:44 and `intraday_common.load_bars` only learned to drop post-early-close bars at
+04:04 today, so 21 half-day sessions carry up to 180 minutes of tape that never traded. D-6 called
+the materiality "unknown rather than zero". It is not zero, and the item was smaller than the
+defect.
+
+`scripts/ml_f19.py`, **2 ledger rows** under `intraday/f19_cleanpanel`, nine clauses pre-registered
+in the module docstring including clause 0, the prior, and clause 9 (the decomposition), which was
+added mid-run when the premise turned out to have two causes rather than one. Run with
+`INTRADAY_DATA_DIR=data/minute_alpaca`. **No shipped or runner-loaded file was touched**, so no
+deploy gate and no `--replay` is owed. What it DID change is `data/f1/panel.parquet`,
+`f15_famA.parquet` and `f15_famB.parquet`, which are now the rebuilt stores; the originals are kept
+beside them as `*.dirty.parquet`.
+
+**(1) The premise holds, and the cache was stale on TWO counts, not one.** Clause 1: the old panel
+holds **1,247 decision rows at or after the session's own close**, on 21 sessions and 50 names, at
+the 13:25 / 13:55 / 14:25 / 14:55 slots; the rebuild holds 0, and adds nothing (the trim is a
+subset, as D-6's clause 7 promised). But the rebuild removes **15,358 rows, 0.965% of the panel**,
+and only 3,144 of them are on an early close. The other 12,214 are on **1,684 ordinary sessions**.
+The cause is on this track's own record: `sweep_f1.build_panel` gained AUD-20's
+`forward_span_mask` in commit c2350a8 on **2026-09-12 16:49** - and the panel was never rebuilt, so
+**F-14 (22:41), F-15 (01:13), F-16 (02:43) and F-17 (04:45) all ran on a pre-AUD-20 cache.**
+AUD-20's own note said it "changes no shipped number"; on the Alpaca panel it removes 13,309 rows.
+Clause 9 separates them with a third build (trim off, span mask on): **AUD-20 alone accounts for
+13,309 of the 15,358 removed rows, AUD-07's calendar trim for the remaining 2,049.**
+
+**(2) Clause 2, the identity check, passes exactly - and that is the problem it exposes.**
+Re-simulating the frozen `f16_preds.parquet` reproduces `f16_arms.csv` to **$0.0000 per day on all
+five arms** (base 305.71, causal 411.60, causal_p25 397.21, causal_scrambled 283.82, lean3 365.44;
+|Δt| 0.000000). So the comparison below is like-for-like. It also means every "base reproduces F-8
+to the printed digit" check this track has run since F-12 was comparing a cached artifact with
+itself. **A reproduction test against a cache cannot detect that the cache is stale.**
+
+**(3) The contamination is not confined to the 21 sessions, and clause 3 was pre-registered on
+that.** Of the 1,576,616 rows present in both panels, **574,287 (36.4%) have at least one changed
+feature, over 1,854 sessions.**
+
+| channel | changed rows | % | sessions |
+|---|---|---|---|
+| `cs_*` (within-timestamp ranks, 9 columns) | 502,040-525,683 | ~32% | - |
+| `y` (the label, demeaned per timestamp) | 512,234 | 32.5% | - |
+| `vol_rel6` / `vol_rel` (20-session same-slot median) | 66,310 / 33,616 | 4.2 / 2.1% | - |
+| `prev_ret` | 23,800 | 1.5% | - |
+| `rvol_ratio` / `m_rvol_ratio` (78-bar roll) | 12,401 / 12,411 | 0.79% | - |
+| family A, any auction column | 22,232 | 15.2% | **427** |
+
+The mechanism is the one clause 3 named in advance: a trailing 20-session median of the *same
+time-of-day slot* carries a fake 13:25 bar forward into the next 20 normal sessions, and a
+within-timestamp rank moves for **every** name when one member's input moves. Family A's 427
+touched sessions is 21 early closes x the 20-session `scale` window, almost exactly.
+
+**(4) The finding. On a clean panel the causal gate admits NOTHING, in every year.**
+
+| year | F-16 (dirty) admitted | F-19 (clean) admitted |
+|---|---|---|
+| 2019-2023 | (none) x5 | (none) x5 |
+| 2024 | `auc_osz_adv` | **(none)** |
+| 2025 | `auc_ofade` | **(none)** |
+| 2026 | `auc_ofade` | **(none)** |
+
+Abstention goes from **5/8 windows to 8/8**. The three admissions that made F-16 a result do not
+survive, and the reason is legible in the gate's own statistics - the candidate weakens and the
+floor rises at the same time:
+
+| year | column | \|IC\| dirty | \|IC\| clean | floor dirty | floor clean |
+|---|---|---|---|---|---|
+| 2024 | `auc_osz_adv` | 0.00842 (t -2.06) | **0.00619** (t -1.53) | 0.00766 | 0.00727 |
+| 2025 | `auc_ofade` | 0.00856 (t -2.68) | **0.00546** (t -1.71) | 0.00834 | **0.00982** |
+| 2026 | `auc_ofade` | 0.00871 (t -2.89) | **0.00603** (t -2.00) | 0.00853 | **0.00903** |
+
+`auc_ofade` loses **30-36% of its \|IC\|**. That is not a coincidence of the rebuild: `auc_ofade` is
+`(early_c / open_px - 1) / scale`, and `scale` is the 20-session trailing vol built from `last_c`,
+the session's last continuous bar - which on an early close **is a post-market print**. Clause 3
+measured `auc_ofade` as the single most contaminated auction column (15.0% of rows). **The one
+column the screen ever admitted was the one most exposed to what was wrong with the data.**
+
+**(5) The book, and F-16's headline is withdrawn.** 1,933 out-of-sample sessions, 2019-2026,
+decile 0.10, turnover spread across arms **$0**. With an empty admitted set in all 8 years,
+`causal` and `causal_scrambled` are not merely close to `base` - they are the **same book to the
+cent**, so only one distinct row was written to the ledger.
+
+| arm | net $/day dirty | net $/day clean | Δ | t dirty | t clean |
+|---|---|---|---|---|---|
+| base | 306 | **258** | -47 | +1.474 | **+1.203** |
+| causal (F-16's arm) | **412** | **258** | **-153** | **+1.969** | **+1.203** |
+| causal_scrambled | 284 | 258 | -25 | +1.364 | +1.203 |
+
+Clean base: gross **4.023** bps, cost **2.720**, edge +0.650, mean rank IC **+0.00971** (was
++0.01030), **5/8** years positive, worst **-63,056**, win 49.0%. Hurdle: net t +1.203 vs 2.0
+(FAIL), 5/8 years (PASS), paired vs base undefined because the arms are identical (FAIL).
+**REFUSE**, as F-16 was refused - but the $412/day and the t +1.969 that made it "the best net this
+track has fitted" were **produced by the stale cache** and are withdrawn.
+
+**(6) Clause 9, and it is the number I would carry forward over everything else here.** The same
+frozen learner, seed, universe, last day and 8 test years, on three panels that differ by ~1% of
+rows:
+
+| panel | net $/day | t | mean rank IC |
+|---|---|---|---|
+| dirty cache (neither fix) | 306 | +1.474 | +0.01030 |
+| + AUD-20 span mask only | **129** | **+0.638** | **+0.01271** |
+| + AUD-07 calendar trim (clean) | 258 | +1.203 | +0.00971 |
+
+The two audits push in **opposite directions and nearly cancel**: -$176/day then +$129/day for a
+net -$47. These are three different fits, not one book with rows deleted, so the honest reading is
+not an attribution but a **sensitivity: the F-8 base book spans $176/day across a 1% change in the
+panel.** F-16's causal-minus-base was +$106/day and F-17's pooled-minus-auction was -$112/day.
+**Both are smaller than the panel's own construction noise.** Note also that the AUD-20-only panel
+has the **highest** mean rank IC of the three (+0.01271) and the **worst** book ($129/day) - IC and
+P&L disagreeing again, as in F-17 (3).
+
+**Decision.** **REFUSE**, nothing adopted, nothing promoted, `champion.json` untouched, no deployed
+file changed. Separately and on clause 6's authority, which needs no hurdle because it is data
+hygiene rather than a result: `panel.parquet`, `f15_famA.parquet` and `f15_famB.parquet` are
+**REPLACED** by the rebuilds (56 names and last day 2026-09-10, pinned to the old panel so the
+comparison isolates the fixes); the originals are kept as `*.dirty.parquet`. **F-16 is superseded**
+and the "best net this track has fitted" line is retired.
+
+**Two items opened rather than assumed.** `f14_flow.parquet` was **not** rebuilt (**F-20**) - F-14
+and F-17 both refused the flow family and a cleaner tape does not rescue a family whose loss was
+traced to one 2020 regime break, but it must be rebuilt before flow is ever reopened. And clause 8:
+the Alpaca store grew **six symbols** (DIA, GLD, TLT, XLE, XLF, XLK, added 01:0x today by another
+track) and one session after the old panel was built. Rebuilding on the whole store would have
+measured the fixes and a 62-name cross-section at once, so the run is pinned to the old 56;
+the wider universe is **F-21**.
+
+**What it changes for the loop.** Three rules.
+**(a) An identity check against a CACHED artifact proves nothing about the pipeline.** (2): four
+consecutive runs passed "base reproduces F-8 to the printed digit" while reading a panel that was
+already a day behind this track's own audit fix. The check must be "the cache is newer than every
+input that builds it", or a rebuild-and-compare. Cheap version: assert the panel's mtime is newer
+than `sweep_f1.py`, `intraday_common.py` and the store.
+**(b) Report a screened column's exposure to the known defects in its own inputs.** (4): the only
+column the gate ever admitted, `auc_ofade`, was the most contaminated one in its family, and it
+lost a third of its |IC| when the contamination went. A screen selects on apparent strength, so it
+selects **for** whatever is inflating it.
+**(c) An effect smaller than the panel's construction noise is not a result.** (6): $176/day of
+spread from a 1% change in the rows. Every F cell this track has ruled on since F-12 is inside
+that. Any future F run states the effect it claims **next to** that number, or re-measures it.
+
 ## 2026-09-13 - F-17: the gate ranks candidates in the WRONG ORDER. Given a wider pool it admitted the five columns with the LARGEST train-window |IC| - |t| 5.7 to 7.7 - and every one of them lost, while the three weakest, barely over the floor, made all the money. The pooled arm finished BELOW its own no-information scramble control. F-16 (a) is confirmed from the adversarial side: the abstention was the product.
 
 **Hypothesis.** F-16 built the first screen this track has that ranks a candidate without spending

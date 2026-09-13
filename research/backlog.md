@@ -1850,8 +1850,45 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   O-track closes and `research-options` should be unscheduled rather than left to spend tokens.
   <!-- added by the 2026-09-13 daily review. -->
 
-- **F-19 (`ml`, opened by D-6 2026-09-13): every F-track panel built before today carries the 21
-  early closes' post-market bars.** `scripts/sweep_f1.py:186,196` build `data/f1/panel.parquet`
+- **F-19 DONE 2026-09-13 (REFUSED on the arm, and it WITHDRAWS F-16; see `research/journal_ml.md`):
+  the panel was stale on two counts and F-16's result does not survive the rebuild.** The cache
+  also predated this track's OWN AUD-20 fix (c2350a8, 2026-09-12 16:49), so F-14/F-15/F-16/F-17 all
+  ran on it; AUD-20 accounts for 13,309 of the 15,358 removed rows and AUD-07's trim for 2,049.
+  Clause 2 PASSED at **$0.0000/day on all five F-16 arms**, which is what makes the comparison
+  valid - and what shows that a reproduction test against a cache can never detect a stale cache.
+  Clause 3: **574,287 of 1,576,616 surviving rows (36.4%) changed, over 1,854 sessions**, through
+  the 20-session same-slot median and the within-timestamp ranks; family A moved on 427 sessions.
+  Clause 4, the finding: **the causal gate admits NOTHING in 8 of 8 years** (F-16: 5/8), because
+  `auc_ofade` loses 30-36% of its |IC| - it is `.../scale`, and `scale` is built from `last_c`,
+  which on an early close is a post-market print. So `causal` = `causal_scrambled` = `base` to the
+  cent: **$258/day at t +1.203**, against F-16's reported $412/day at t +1.969, which is withdrawn.
+  Clause 9: the same learner on three panels differing by ~1% of rows spans **$176/day**, which is
+  larger than every effect this track has ruled on. `panel.parquet`, `f15_famA.parquet` and
+  `f15_famB.parquet` REPLACED by the rebuilds (originals kept as `*.dirty.parquet`); 2 ledger rows
+  under `intraday/f19_cleanpanel`. Opens **F-20** and **F-21**.
+  <!-- closed by F-19, 2026-09-13 (ml). -->
+
+- **F-20 (`ml`, opened by F-19 2026-09-13): `data/f1/f14_flow.parquet` is still built from the
+  pre-AUD-20, pre-AUD-07 tape.** F-19 rebuilt the panel and both auction families but deliberately
+  left the 19-column flow store alone: F-14 and F-17 both REFUSED the flow family, F-17 (4) traced
+  the loss to a single 2020 regime break, and a cleaner tape does not rescue that. The store must
+  be rebuilt before flow is reopened for any reason - including F-18. One command,
+  `ml_f14.build_flow()`-equivalent through the patched loader, ~40 min; pin the universe to the
+  panel's 56 names the way `ml_f19.pin()` does or the cross-section changes underneath it.
+  <!-- added by F-19, 2026-09-13 (ml). -->
+
+- **F-21 (`ml`, opened by F-19 2026-09-13): the Alpaca store grew six symbols and the F panel has
+  never seen them.** DIA, GLD, TLT, XLE, XLF and XLK were added at 01:0x on 2026-09-13 by another
+  track; a full rebuild would put the panel at 62 tradable names. F-19 pinned to the old 56 on
+  purpose, so that it measured the two data fixes and not a new cross-section at the same time.
+  Widening is a real experiment with a stated mechanism - six liquid sector/asset ETFs give the
+  cross-sectional ranks a macro axis the 56 single names do not have - but it must be run as one,
+  against the clean 56-name panel as the control, and it must check AGENTS.md's disjointness rule
+  (DIA is an index vehicle; the daily sleeve's claim on it needs checking before it is traded).
+  <!-- added by F-19, 2026-09-13 (ml). -->
+
+- **F-19 (superseded statement, retained for the record): every F-track panel built before today
+  carries the 21 early closes' post-market bars.** `scripts/sweep_f1.py:186,196` build `data/f1/panel.parquet`
   through `ic.load_bars(...)` and cache it. `load_bars` now trims each session at its own calendar
   close (D-6 / AUD-07), but the cached panel does not know that: on those 21 sessions it holds up
   to 180 minutes of post-13:00 tape resampled by `to_5min` into 5-minute bars that never existed,
@@ -2686,6 +2723,14 @@ and no delivery, both of which are barred to the loop.
   `research/BLOCKERS.md` as O-3/O-4 (2026-09-12); F-15 adds a second track waiting on it and does
   not re-file it.
 
+- **F-16 WITHDRAWN 2026-09-13 by F-19: its $412/day at t +1.969 was an artifact of the stale
+  panel.** On the rebuilt store the gate admits nothing in any of the 8 years, so the causal arm is
+  `base` to the cent at $258/day, t +1.203. The mechanism is in `research/journal_ml.md` under
+  F-19 (4): `auc_ofade` loses 30-36% of its |IC| once the post-close prints leave `scale`. The
+  reusable rule F-16 (a) named - *a gate earns its keep in the windows where it admits nothing* -
+  survives and is in fact strengthened; the BOOK does not. Original entry follows unedited.
+  <!-- withdrawn by F-19, 2026-09-13 (ml). -->
+
 - **F-16 DONE 2026-09-13 (REFUSED; see `research/journal_ml.md`): the causal gate BEATS the oracle
   it was built to imitate, and it beats it by admitting NOTHING in 5 of 8 years. Closest this track
   has ever come to the hurdle - net t +1.969 against 2.0 - and still refused on the paired leg.**
@@ -2725,7 +2770,18 @@ and no delivery, both of which are barred to the loop.
   confirming F-15 (a) from the other side**: q50 is active on 35% of sessions and worth $303/day
   per active session; q25 is active on 87% and worth $105.
 
-- **F-18 (open, and it is now the only open item in the F scope).** F-17 refused the pooled gate and
+- **F-18 (open, but its premise must be re-measured first - F-19, 2026-09-13).** F-18 was written
+  against F-17's admitted sets, and on the clean panel there are none: the gate abstains in 8 of 8
+  windows, so "score the candidate on the validation year instead of the train window" no longer
+  has a dirty-gate result to beat. Two consequences. (i) The |IC| inversion F-18 exists to fix -
+  the five largest train-window |IC| admissions all losing - was measured on flow columns from a
+  store that F-20 says is still stale, so it is not yet known to be real. (ii) F-19 (c) says any
+  effect under ~$176/day is inside the panel's own construction noise, and F-18's whole quarrel is
+  with cells of $100-450/day. Re-run F-18 only after F-20, and state the effect against that
+  number. The original statement follows.
+  <!-- amended by F-19, 2026-09-13 (ml). -->
+
+- **F-18 (original statement).** F-17 refused the pooled gate and
   found why: **the floor ranks candidates in the wrong order.** The five admissions with the largest
   train-window |IC| (|t| 5.7-7.7, all flow) lost; the three smallest (|t| 2.1-2.9, all auction) made
   all the money, and the ranges do not overlap. The defect is that the gate scores a candidate on
@@ -2740,6 +2796,14 @@ and no delivery, both of which are barred to the loop.
   F-17 (b) pre-register the abstention rate as an outcome, and pre-register the discriminating
   prediction: a validation-year floor **abstains in more than 2 of 8 windows** and **declines
   `amihud30` in 2020**. Everything is on disk; no data pull.
+
+- **F-17 amended 2026-09-13 by F-19: every number below was fitted on the stale panel, and its
+  flow half still is.** F-17's REFUSAL stands - a refusal does not become an adoption on cleaner
+  data - but its magnitudes do not. The auction leg is superseded by F-19 (the gate admits nothing,
+  so there is no `auction_only` arm to be $112/day above `pooled`), and the flow leg is unverified
+  until F-20 rebuilds `f14_flow.parquet`. F-17 (c) - print the scramble control's net - is the rule
+  that held up. Original entry follows unedited.
+  <!-- amended by F-19, 2026-09-13 (ml). -->
 
 - **F-17 DONE 2026-09-13 (REFUSED; see `research/journal_ml.md`): the gate ranks candidates in the
   WRONG order, and the pooled arm finished below its own no-information scramble control.** Pooled
