@@ -1936,14 +1936,29 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   under `intraday/f19_cleanpanel`. Opens **F-20** and **F-21**.
   <!-- closed by F-19, 2026-09-13 (ml). -->
 
-- **F-20 (`ml`, opened by F-19 2026-09-13): `data/f1/f14_flow.parquet` is still built from the
-  pre-AUD-20, pre-AUD-07 tape.** F-19 rebuilt the panel and both auction families but deliberately
-  left the 19-column flow store alone: F-14 and F-17 both REFUSED the flow family, F-17 (4) traced
-  the loss to a single 2020 regime break, and a cleaner tape does not rescue that. The store must
-  be rebuilt before flow is reopened for any reason - including F-18. One command,
-  `ml_f14.build_flow()`-equivalent through the patched loader, ~40 min; pin the universe to the
-  panel's 56 names the way `ml_f19.pin()` does or the cross-section changes underneath it.
-  <!-- added by F-19, 2026-09-13 (ml). -->
+- **F-20 DONE 2026-09-13 (REFUSED on the arm; the store is rebuilt and clean; see
+  `research/journal_ml.md`): the flow store was NOT the stale part - 0 of 1,570,406 shared rows
+  moved, to the bit, on all 20 columns - and yet the gate built on it changed 6 of its 8
+  decisions.** `scripts/ml_f20.py`, 4 ledger rows under `intraday/f20_cleanflow`, nine clauses
+  pre-registered. Clause 0 predicted the zero WITH its mechanism (every flow column is a strictly
+  within-session trailing window, so a post-close bar can only enter a post-close slot) and the
+  falsifier did not fire: the dirty store's only defect was **830 fake rows on 21 early closes**,
+  every one of which the clean panel already dropped, and merged coverage is 98.93% either way.
+  Against F-19's panel - same defect, same day - 0.965% of rows removed moved **36.4%** of the
+  survivors; here 0.053% removed moved **0.000%**. **Contamination travels exactly as far as the
+  feature's own lookback reaches**, which is computable before anything is rebuilt. The finding is
+  (2): with a bit-identical candidate store the gate admitted `dvol30` x4 / `clv5` / `ofi_sess`
+  where F-17 admitted `amihud30`/`clv30`/`ofi5` - **no overlap in either direction, 6 of 8 windows
+  DIFFER**, abstention 5/8 -> 2/8 - because the floor and the redundancy leg are built from panel
+  columns. Mechanism (3): `dvol30` and `amihud30` correlate at **0.88** and their |IC| gap is
+  **0.0014**; four windows turn on it. Book: `flow_only` **$197/day at t +0.947** vs base $258,
+  paired **-$62/day at t -0.63** - REFUSED - and **below its own no-information scramble at $209**
+  for the second run running. Both identity checks exact (base = F-19's clean base to every digit;
+  the clean auction gate admits 0 in 8/8). Every effect is INSIDE F-19's $176/day noise band, and
+  that is stated as the limit rather than worked around. `f14_flow.parquet` REPLACED by the
+  rebuild and stamped with `f14_flow.meta.json`; original kept as `f14_flow.dirty.parquet`. This
+  was the last stale store the `ml` track owns. **Amends F-18** (its premise is gone, see below).
+  <!-- added by F-19, closed by F-20, 2026-09-13 (ml). -->
 
 - **F-21 (`ml`, opened by F-19 2026-09-13): the Alpaca store grew six symbols and the F panel has
   never seen them.** DIA, GLD, TLT, XLE, XLF and XLK were added at 01:0x on 2026-09-13 by another
@@ -1953,7 +1968,26 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   cross-sectional ranks a macro axis the 56 single names do not have - but it must be run as one,
   against the clean 56-name panel as the control, and it must check AGENTS.md's disjointness rule
   (DIA is an index vehicle; the daily sleeve's claim on it needs checking before it is traded).
-  <!-- added by F-19, 2026-09-13 (ml). -->
+  F-20 note: the flow store must be rebuilt on the same 62 names in the same run, because
+  `ml_f20.pin()` ties it to the panel's universe and `cs_*` is a within-timestamp rank over
+  whoever is present - a 62-name panel merged against a 56-name flow store silently ranks two
+  different cross-sections against each other. `ml_f20.py --build` does it in **372s**, which is
+  an order of magnitude cheaper than F-19 assumed, so there is no reason to pin them apart.
+  <!-- added by F-19, 2026-09-13 (ml); costed by F-20 the same day. -->
+
+- **F-23 (`ml`, opened by F-20 2026-09-13): the gate must print the |IC| GAP to the candidate each
+  admission displaced.** F-20 (d): a screen is not a property of its candidates. With a
+  bit-identical flow store the gate changed 6 of 8 decisions, and four of them turned on a
+  **0.0014 |IC| gap between `dvol30` and `amihud30`, two columns correlated at 0.88**. Nothing in
+  F-16's or F-17's output showed that, so F-17 reported a result that was a coin flip and nobody
+  could see it. The fix is a print and a column, not an experiment: in `ml_f17.causal_gate`, for
+  each admitted parent record (i) the |IC| of the highest-scoring candidate clause 4c dropped
+  against it, (ii) that pair's median per-timestamp |Spearman|, and (iii) the admitted column's
+  margin over the floor. Cheap rule to go with it, to be pre-registered when first used: an
+  admission whose margin over its displaced rival is smaller than the candidate's own IC standard
+  error is reported as UNRESOLVED rather than as an admission. Pairs naturally with whatever
+  survives of F-18.
+  <!-- added by F-20, 2026-09-13 (ml). -->
 
 - **F-19 (superseded statement, retained for the record): every F-track panel built before today
   carries the 21 early closes' post-market bars.** `scripts/sweep_f1.py:186,196` build `data/f1/panel.parquet`
@@ -2042,8 +2076,44 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   `research/journal_critic.md` (C-8 provenance). **The critic ships nothing, so this is not fixed.**
   <!-- added by C-8, 2026-09-13 (critic). -->
 
-- **S-43 (`daily`, opened by S-42 2026-09-13): a rank VOTE instead of a weight AVERAGE - the
-  one construction that could separate the ensemble's gain from its loss.** S-42 priced the
+- **S-43 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): REFUSED, and it takes
+  the pre-registered branch that CLOSES weight-ensembling on this sleeve on BOTH kinds of axis.**
+  `scripts/sweep_s43.py` (9 clauses pre-registered, the truncation rule written out in six steps
+  before the first simulation), `results/s43_full.txt`, 30 DIAGNOSTIC rows `daily/s43_trunc`.
+  S-42's 36 weight paths reused read-only from `results/s42_cache.pkl`; no LEAN run, no parameter
+  moved, no shared-code change, `champion.json` / `live/*` / `margin_budget` / `target_vol` /
+  `target_exposure` / the drawdown cap / every scheduled task untouched. **The headline is that
+  the item's premise is false: S-42's DILUTION diagnosis of its own refusal is wrong.** The
+  ladder `K in {2,3,4,5,all}`, run at **identical gross on every session** (max |gross error|
+  6.66e-16 over 3,689 sessions; the alphabetical tiebreak binding on **0** boundary decisions),
+  is **U-shaped with its minimum at K = 4** - *below* the untruncated blend - so dropping the
+  5th-and-beyond names, exactly what dilution names as the damage, makes the book slightly worse.
+  The decisive cell is **K = 3**: at **2.49 names against the shipped 2.47** with the width
+  confound arithmetically removed, the ensemble **still gives up 1.543 CAR points at zero cost
+  and 1.349 fully charged**. It loses at WHICH names, not HOW MANY. Post-hoc 4d splits the K = 3
+  paired difference on the **77.80%** of sessions whose name set matches the incumbent's: the
+  18.7% that disagree carry **42.7%** of the shortfall (-0.984 vs -0.303 bps/day) - directional,
+  both channels negative, neither |t| past 1, so name choice *and* sizing both lose. Two results
+  are worth keeping: truncation buys back the loss's SIGNIFICANCE without its sign (blend36
+  -0.784 bps/day at **t -2.08** -> trunc3 -0.430 at **t -1.07** -> trunc2 -0.126 at **t -0.17**),
+  and the netting saving survives to K = 3 at **0.85x turnover for 0.85x fees**, dying only at
+  K = 2 (1.07x / 1.12x) - the blend trades 11,472 orders at 33.9x turnover against the shipped
+  5,054 at 49.4x, and truncation converts small adjustments back into large ones. The control
+  kills the framing: a blend over only the **9 cells with `top_n = 3`**, which never widens, ties
+  `trunc3` fully charged on FULL (CAR -0.139, **Sharpe -0.035**, inside S-41's tie band) with a
+  simpler object. **0 of 5 rungs clear the promotion bar** (every K fails Sharpe on both windows;
+  the band test passes everywhere and truncation *improves* it). C-8's rank bar is the kindest
+  clause and still not enough: CAR rank **14 -> 7** and MaxDD **17 -> 11** at K = 3, `trunc2`
+  dominated by **0 of 36** fixed cells - but `trunc2`'s Sharpe rank is 25 of 36 and its FULL
+  MaxDD is **29.072%**, +5.2 points on the incumbent, so its case is an OOS half whose IS half is
+  the worst drawdown in the item. **Adds no research item.** Reusable rule: **an explanation that
+  survives only because the experiment never removed the confound is not an explanation** - build
+  the cell where the named cause is arithmetically absent, and if the effect is still there the
+  diagnosis was a description of the treatment rather than its cause.
+  <!-- closed by S-43, 2026-09-13 (daily). -->
+
+- **S-43 (original text)** a rank VOTE instead of a weight AVERAGE - the
+  one construction that could separate the ensemble's gain from its loss. S-42 priced the
   36-cell weight-blend on the signal axes and refused it: fully charged it earns 17.482 / 0.986
   / **23.397** against the shipped 19.640 / 1.047 / 24.037, paired **-0.784 bps/day at t -2.08**
   (the sleeve's fourth statistic past |t| = 2, and against the candidate). But the two halves of
@@ -2450,15 +2520,23 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
   tests, `-m runner` 241 green, full suite green. Opens F-20.
   <!-- added by D-5, 2026-09-13 (iterate); closed by A-16 the same day. -->
 
-- **F-20 (`ml`, opened by A-16 2026-09-13): `scripts/sweep_f3.py:338` passes `scale=1.0`
-  explicitly while pricing off the LEAN daily store D-7 proved is split-adjusted.** A-16 re-read
-  every `commission(` call site in the repo to close the class for the intraday sleeve; this is the
-  one that was left, and the explicit `1.0` means it reads as a decision rather than an omission,
-  so it needs the owning track to say which it is. The daily store's factors reach 1.04e-09 on the
-  inverse-leveraged sleeve (D-9), so unlike the intraday case the error is not bounded by 200x.
-  Cheap to check: F-3's panel is ETF-sleeve only, so the reach is whatever of XLK/XLE/XLF it trades
-  in an affected span, and D-7 already measured those three as the whole of the champion's $5,879.
-  <!-- added by A-16, 2026-09-13 (iterate). -->
+- **F-22 DONE 2026-09-13 (was A-16's "F-20", RENUMBERED because F-19 had already opened an F-20;
+  RULED, no change made; see `research/journal_ml.md`): `sweep_f3.py:338`'s explicit `scale=1.0` is
+  a DECISION, it stays, and passing `share_scale()` there would have been the bug.**
+  `scripts/ml_f22.py`, no ledger row - it is an audit ruling, not an experiment. Ground 1, which
+  settles it: `fetch_data.py` writes **split factor 1.0 on every row of every factor file**, and
+  the audit confirms min = max = 1.0 for all 22 of F-3's tradable names, so there is no split
+  adjustment in the LEAN daily store to undo; `share_scale()` reads the INTRADAY store's
+  `_splits.json`, which does not describe these bars. D-9's 1.04e-09 cannot reach F-3 twice over -
+  no SPXU/SQQQ/TQQQ/UPRO in `TRADABLE`, and ground 1 would cover them anyway. Ground 2, the
+  measured residual on F-3's own 20,586 fills (replay reproduces `simulate`'s cost to the cent):
+  the dividend factor (median 0.8865 at the fills) inflates the implied share count, so as shipped
+  the book is **OVERcharged $8.24/day = 0.187 bps of turnover**, the **1% notional cap binds on 0
+  of 20,586 fills** so A-16's unbounded-error concern does not reach this site, and F-3's -$46.05/day
+  verdict is unchanged either way. Left alone deliberately. Found on the way and also left alone:
+  `sweep_f3.simulate` adds turnover BEFORE its own finite-price guard, counting **$285,714 of
+  $1.626bn (0.0176%)** as traded but never costed, which inflates every bps denominator F-3 prints.
+  <!-- added by A-16, 2026-09-13 (iterate); renumbered and closed by F-22, 2026-09-13 (ml). -->
 
 - **A-13 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): AUD-21 closed - the harness
   is corrected, the sleeve's eleven-year verdict is not, and the owner has been shown a tail
@@ -2866,7 +2944,24 @@ and no delivery, both of which are barred to the loop.
   confirming F-15 (a) from the other side**: q50 is active on 35% of sessions and worth $303/day
   per active session; q25 is active on 87% and worth $105.
 
-- **F-18 (open, but its premise must be re-measured first - F-19, 2026-09-13).** F-18 was written
+- **F-18 (open, but its PREMISE IS NOW MEASURED AND GONE - F-20, 2026-09-13).** F-20 did what
+  F-19's amendment asked and re-ran the gate on the clean panel with a rebuilt flow store. The
+  |IC| inversion F-18 exists to fix was observed on `amihud30`, `ofi5` and `clv30`; **the clean gate
+  admits none of them in any of the 8 windows** (it admits `dvol30` x4, `clv5`, `ofi_sess` instead,
+  and 6 of 8 windows differ from F-17's). So the defect F-18 was built to correct does not occur on
+  the current substrate, and its pre-registered discriminating prediction - "a validation-year floor
+  declines `amihud30` in 2020" - is vacuous, because the existing train-window floor already
+  declines it. F-18 may still be worth running on its own merits: scoring a candidate on the
+  held-out validation year rather than the window the model is fitted on is causally cleaner
+  whatever the admissions are. But it must be re-pitched that way, with a NEW discriminating
+  prediction, and per F-19 (c) its cells of $100-450/day are inside the $176/day construction-noise
+  band, so the honest pitch is about the RULE and not about the book. Better use of the same hour:
+  F-20 (d)'s cheap instrument - print, alongside each admission, the |IC| gap to the candidate it
+  displaced - which on F-20's own numbers was 0.0014 on a pair correlated at 0.88 and would have
+  told F-17 its result was a coin flip. The two older amendments follow.
+  <!-- amended by F-20, 2026-09-13 (ml). -->
+
+- **F-18 (F-19's amendment, superseded by F-20's above but retained for the record).** F-18 was written
   against F-17's admitted sets, and on the clean panel there are none: the gate abstains in 8 of 8
   windows, so "score the candidate on the validation year instead of the train window" no longer
   has a dirty-gate result to beat. Two consequences. (i) The |IC| inversion F-18 exists to fix -

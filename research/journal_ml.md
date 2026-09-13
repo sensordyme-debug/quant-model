@@ -6,6 +6,182 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-13 - F-20: the flow store was NOT the stale part - 0 of 1,570,406 shared rows moved, to the last bit, on all 20 columns. And yet the gate built on it changed 6 of its 8 decisions, because the screen is a property of the PANEL, not of the candidates. F-17's three admitted flow columns are now admitted in ZERO windows, which removes F-18's premise rather than confirming it. Flow is REFUSED a third time, at $197/day against base's $258 - and below its own no-information scramble at $209, for the second run running.
+
+**Hypothesis.** F-19 rebuilt the panel and both auction families and deliberately left the 19-column
+flow store alone, arguing that F-14 and F-17 both refused flow and a cleaner tape does not rescue a
+family whose loss F-17 (5) traced to one 2020 regime break. That argument is about the CONCLUSION
+and it is right. It says nothing about the SUBSTRATE, and F-19's own rule (a) is that a cache whose
+inputs have moved has unknown content until it is rebuilt. Two separable questions, pre-registered
+as such: **(A)** does the trim move the flow store itself, and **(B)** does F-17's flow refusal
+survive the clean panel - which must be re-asked whatever (A) says, because the gate's floor and all
+38 incumbents are panel columns and F-19 (3) moved 36.4% of the panel's rows.
+
+`scripts/ml_f20.py`, **4 ledger rows** under `intraday/f20_cleanflow`, nine clauses pre-registered in
+the module docstring including clause 0, the prior, which for once carries a **mechanism and a
+falsifier** rather than an expectation. Run with `INTRADAY_DATA_DIR=data/minute_alpaca`. **No
+shipped or runner-loaded file was touched**, so no deploy gate and no `--replay` is owed. What it
+changed on disk is `data/f1/f14_flow.parquet`, rebuilt through the patched loader and pinned to the
+clean panel's 56 names; the original is kept beside it as `f14_flow.dirty.parquet`.
+
+**(1) (A) is answered exactly, and the answer is NO.** Clause 2, the full diff:
+
+| | dirty store | rebuilt store |
+|---|---|---|
+| rows | 1,571,236 | 1,570,406 |
+| rows at or after their own session's close | **830** (21 sessions, 54 names) | **0** |
+| shared rows with any changed column | - | **0 of 1,570,406 (0.0000%)** |
+| max abs delta, each of the 20 columns | - | **0** |
+| coverage when merged onto the clean panel | 98.93% | **98.93%** |
+
+Not "small". **Zero, bit for bit, on every column.** Clause 0 predicted it and gave the mechanism
+before the run: every column in `flow_one` is a strictly WITHIN-SESSION trailing window
+(`_roll_within_day` groups by calendar date, `*_sess` is a within-day cumsum, `m_*` is the same
+construction on SPY), so a post-close bar at 13:05 can only enter a window evaluated at 13:05 or
+later - i.e. only the 13:25/13:55/14:25/14:55 slots, which are exactly the 830 rows the clean panel
+no longer has. The `cs_*` cross-sectional ranks spread contamination only WITHIN the timestamp they
+are computed on, and those timestamps are the dropped ones.
+
+**The contrast with F-19 is the reusable part.** Same defect, same store directory, same day:
+
+| store | rows removed | share of survivors that MOVED | why |
+|---|---|---|---|
+| `panel.parquet` (F-19) | 0.965% | **36.4%**, over 1,854 sessions | 20-SESSION same-slot median; ranks over a cross-section whose members moved |
+| `f14_flow.parquet` (F-20) | 0.053% | **0.000%**, over 0 sessions | within-session windows only; ranks confined to dropped timestamps |
+
+**Contamination travels exactly as far as the feature's own lookback reaches, and no further.**
+That is computable from the feature definitions before anything is rebuilt, and this run is the
+first time this track has predicted the reach and then measured it exactly.
+
+**(2) (B) is the finding, and it is not the one I went looking for. The candidate store is
+bit-identical and the gate still changed 6 of its 8 decisions.**
+
+| test year | F-17 admitted (dirty panel) | F-20 admitted (clean panel) |
+|---|---|---|
+| 2019 | `amihud30`, `clv30` | **`dvol30`** |
+| 2020 | `amihud30`, `ofi5` | **`dvol30`** |
+| 2021 | `clv30` | **`dvol30`** |
+| 2022 | (none) | **`dvol30`** |
+| 2023 | (none) | (none) |
+| 2024 | (none) | **`clv5`** |
+| 2025 | (none) | (none) |
+| 2026 | (none) | **`ofi_sess`** |
+
+**The three columns F-17 admitted are admitted in zero windows here; the three admitted here were
+admitted in zero windows there.** Nothing about the candidates changed - clause 2 proves that to
+the bit. What changed is the floor and the incumbent set the redundancy leg measures against, and
+both are built from panel columns. Abstention went from F-17's flow gate 5/8 to **2/8**.
+
+**(3) The mechanism, and it is a hair's width.** `dvol30` and `amihud30` are two views of the same
+30-bar dollar-volume roll and correlate at **0.876-0.886**, so clause 4c keeps exactly one. In 2019
+the clean window scores them `dvol30` **|IC| 0.02325** against `amihud30` **0.02187** - a gap of
+**0.0014**, about 6% of either - and `dvol30` wins. On the dirty panel the order was the other way
+and `amihud30` won. **Four of the eight windows are decided by a 0.0014 difference between two
+columns correlated at 0.88.** That is not a screen selecting a signal; it is a coin landing on the
+side the substrate happened to tilt.
+
+**(4) The book. REFUSED, for the third time on this family.** 1,933 out-of-sample sessions,
+2019-2026, decile 0.10, turnover spread across arms **$0**.
+
+| arm | gross bps | cost bps | edge | net $/day | t | yrs + | worst | mean rank IC |
+|---|---|---|---|---|---|---|---|---|
+| base | 4.023 | 2.720 | +1.304 | **258** | +1.203 | 5/8 | -63,056 | +0.00971 |
+| **flow_only** | 3.706 | 2.713 | +0.993 | **197** | **+0.947** | 5/8 | -46,418 | +0.00818 |
+| flow_scram (no information) | 3.784 | 2.731 | +1.053 | **209** | +0.990 | 5/8 | -49,572 | **+0.00883** |
+| auction_only | 4.023 | 2.720 | +1.304 | 258 | +1.203 | 5/8 | -63,056 | +0.00971 |
+
+Hurdle: net t **+0.947** vs 2.0 (FAIL), 5/8 years (PASS), paired `flow_only - base` **-$62/day at
+t -0.63** (FAIL). **REFUSE.** And F-17 (c)'s rule earns its keep again: **the scramble control beats
+the arm it controls**, $209 against $197 in net and +0.00883 against +0.00818 in rank IC. Permuting
+the admitted flow columns within each timestamp - same width, same marginals, same per-year
+schedule, no information - is better than reading them, for the second run running.
+
+**(5) Two identity checks, both exact, and the second is what makes any of this comparable.**
+Clause 3: `base` reproduces F-19's clean base on every printed digit - gross **4.023** bps, cost
+**2.720**, t **+1.203**, net **$258/day**, mean rank IC **+0.00971**. Clause 4: the clean auction
+gate admits **0 parents in 8 of 8 windows**, reproducing F-19 exactly, so merging a second 98 MB
+store did not move the sample. `auction_only` is therefore base to the cent, as it must be.
+
+**(6) F-19 rule (b) reported for the first time with a clean answer.** Every admitted column next to
+its own changed-row share: `dvol30` **0.0000%**, `clv5` **0.0000%**, `ofi_sess` **0.0000%**. F-19
+found the one column its gate ever admitted was the most contaminated in its family; here no
+admission is contaminated at all, because there is no contamination left to be exposed to.
+
+**(7) The yardstick, F-19 rule (c).** flow_only-minus-base **-$62/day**, flow_scram-minus-base
+**-$50/day**. Both are **inside** the $176/day the base book spans across a ~1% change in the
+panel's rows. Stated plainly: **this run cannot resolve the flow effect either way, and saying so
+is the deliverable.** What it CAN resolve is (1) and (2), which are counts and set memberships, not
+book cells, and are exact.
+
+**Decision. REFUSE**, nothing adopted, nothing promoted, `champion.json` untouched, no deployed file
+changed. On clause 9's authority, which needs no hurdle because it is hygiene: `f14_flow.parquet` is
+**REPLACED** by the rebuild and stamped with `f14_flow.meta.json` (F-19 rule (a) extended to this
+store), the original kept as `f14_flow.dirty.parquet`. **F-20 closes**, and with it the last stale
+store this track owns.
+
+**F-18's premise is removed, not confirmed.** F-18 exists to fix F-17 (3)'s |IC| inversion - the
+five largest train-window |IC| admissions all losing. Four of those five were `amihud30`/`ofi5`/
+`clv30` on the flow side, **and none of them is admitted on the clean panel**. F-19 had already
+made the inversion "unverified"; F-20 measures it and finds the admissions it was built on do not
+occur. F-18 may still be a good idea on its own merits (scoring a candidate on the validation year
+rather than the window it is fitted on is causally cleaner either way), but it can no longer be
+sold as fixing an observed defect, and its discriminating prediction - "declines `amihud30` in
+2020" - is now vacuous, because the existing gate already declines it. Re-stated on the backlog.
+
+**What it changes for the loop. One rule, and it is the sharper half of F-19 (b).**
+**(d) A SCREEN IS NOT A PROPERTY OF ITS CANDIDATES.** (2) and (3): the candidate store was identical
+to the bit and the gate still changed 6 of 8 decisions, because its floor and its redundancy leg are
+computed against an incumbent set that moved. Any claim of the form "the gate admits X" is a joint
+statement about X and about the 38 incumbents on that day, and it must be reported as one. The cheap
+version, which F-20 should have printed and the next run will: **alongside each admission, the |IC|
+gap to the next candidate it displaced.** Here that gap was 0.0014 on a pair correlated at 0.88, and
+knowing it would have told F-17 its result was a coin flip before F-19 ever rebuilt anything.
+
+---
+
+## 2026-09-13 - F-22 (was A-16's F-20, renumbered here because F-19 had already opened an F-20): `sweep_f3.py:338`'s explicit `scale=1.0` is a DECISION, it stays, and passing `share_scale()` there would have been the bug. The residual is $8.24/day of OVERcharge on a book that is refused at -$46/day.
+
+A-16 closed the `commission(` call-site class for the intraday sleeve and left this one for its
+owning track, on the grounds that an explicit `1.0` reads as a decision rather than an omission and
+only the owner can say which. D-9 had measured factors reaching 1.04e-09 on the inverse-leveraged
+sleeve, so the concern was that the error here is not bounded by the intraday case's 200x.
+
+`scripts/ml_f22.py`, no ledger row (it is an audit ruling, not an experiment), no file changed.
+
+**Ground 1, and it settles the question.** `scripts/fetch_data.py` writes **split factor 1.0 on
+every row of every factor file**, and the audit confirms it for all 22 of F-3's tradable names: min
+and max split factor are exactly 1.0 in every file. There is no split adjustment in the LEAN daily
+store for a scale to undo. `share_scale()` - the thing the intraday call sites pass - reads
+`data/minute_alpaca/_splits.json`, the INTRADAY store's split table, which does not describe these
+bars at all. **Passing it at this call site would have been the defect.** D-9's 1.04e-09 cannot
+reach F-3 twice over: none of SPXU/SQQQ/TQQQ/UPRO is in `TRADABLE`, and ground 1 means even they
+would carry split factor 1 in this store.
+
+**Ground 2, the residual, measured rather than argued.** What `_price_factors` does apply is the
+DIVIDEND factor, whose floor across the sleeve is 0.299 (HYG) and whose median at F-3's actual fills
+is 0.8865. That inflates the implied share count and therefore the per-share commission. Replaying
+F-3's own test book (2012-01-03..2026-09-09, 3,692 sessions, 20,586 fills; the replay reproduces
+`simulate`'s cost line to the cent):
+
+| convention | cost $/day | bps of turnover |
+|---|---|---|
+| `scale=1.0`, as shipped | 55.48 | 1.2591 |
+| `scale=1/dividend factor` | 47.23 | 1.0721 |
+| **delta (shipped minus correct)** | **+8.24** | **+0.1871** |
+
+The bias is **0.19 bps of turnover in the CONSERVATIVE direction**, the 1% notional cap binds on
+**0 of 20,586** fills (so A-16's unbounded-error concern does not reach this site), and the $1.00
+minimum binds on 778. F-3's book is **-$46.05/day net**; the correction would move it to -$37.81 and
+change no verdict. **NOT changed** - a conservative bias on a refused book is not worth a shipped
+edit to a script another track reads - but the number is now on the record so the next run can price
+it instead of re-deriving it.
+
+**One thing found on the way and reported rather than swept.** `sweep_f3.simulate` adds `notional`
+to turnover BEFORE its own `np.isfinite(p)` guard, so a fill with no usable price is counted as
+traded and never costed. It inflates the denominator of every bps column F-3 prints, by
+**$285,714 of $1.626bn = 0.0176%** on this book. Immaterial here, and left alone for the same reason,
+but it is the kind of thing that is not immaterial on a book with more gaps.
+
 ## 2026-09-13 - F-19: F-16's result was an artifact of a STALE CACHE. On a rebuilt panel the causal gate admits NOTHING in 8 of 8 windows, so its $412/day arm collapses into base at $258. The panel also predated this track's OWN audit fix from the day before, and the identity check that F-14, F-15, F-16 and F-17 each passed could never have caught it - all four compared themselves to the same stale file.
 
 **Hypothesis.** D-6 (`iterate`) opened F-19 with a narrow claim: `data/f1/panel.parquet` was built
