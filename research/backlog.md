@@ -1886,7 +1886,63 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   `research-options` should be unscheduled - an owner action, appended to `BLOCKERS.md`.
   <!-- O-9 closed by the options track, 2026-09-13. -->
 
-- **A-17 (handoff from O-9 2026-09-13, for whoever owns book-level risk - `iterate`/`daily`, NOT
+- **A-17 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): the SHAPE transfers, the
+  SIGNAL does not - and nothing ships.** `scripts/sweep_a17.py`, 9 pre-registered clauses, 4
+  DIAGNOSTIC ledger rows (`intraday/a17_derisk`), 2,355 OOS sessions. O-9's switch **as handed
+  over** - the 5% quantile of SPY's return off four tape features - is **REFUSED**: ES5 cut
+  **+2.72%** against a flat book at the same average exposure, 99% block-bootstrap CI
+  **[-3.50, +8.94]** containing zero, 2 of 3 regimes, and **indistinguishable from dividing by
+  `rv20` with no fitting at all (+2.71%, schedules correlated 0.78)**. Changing ONE thing - the
+  quantile's target, from SPY's open-to-close to **the sleeve's own session return** - clears every
+  condition: ES5 cut **+11.08%**, CI **[+5.76, +16.52]**, **3 of 3** regimes, **max drawdown
+  53.41% -> 42.32% (-11.09 points)**, and the mean is +$92/day BETTER than the matched control at
+  t +1.57, so it is not bought with return. Shelf: **12 of 12** construction cells positive,
+  +9.49%..+13.75%, the pre-registered headline cell near the bottom. Timing placebo: the real cut
+  beats **100% of 200** permutations whose mean is **-7.69%** - a random schedule with the same
+  marginal makes this tail WORSE, which is what kills the scale-mixture explanation. **The limit is
+  the year table: negative in 5 of 10 years, and the pooled figure is carried by 2018 and 2020 - it
+  is a crisis-year tail cutter, not a steady improvement.** A-15's refusal survives and explains
+  the shape: `corr(e, pnl)` is +0.037 while `corr(e, |SPY move|)` is -0.45, so the switch sells
+  forecastable volatility, which this book is not paid for. **NOTHING SHIPS**: persisted-series
+  study, not a harness run (linearity is exactly clean for the passing arm - it stops **0** sessions,
+  so the limit-aware re-score is bit-identical), AGENTS.md rule (c) wants the harness, and the book
+  being de-risked still loses money at every exposure. Opens **A-18** and **A-19**. Reusable rule:
+  **when a transplanted switch fails, price it against the no-fitting version of itself before
+  concluding the mechanism is absent** - that is what located the target as the active ingredient.
+  <!-- closed by A-17, 2026-09-13 (iterate). -->
+
+- **A-18 (`iterate`, opened by A-17 2026-09-13): the harness has no per-session size multiplier,
+  and A-17 cannot ship without one.** Every A-15/A-17 sizing result is scored by multiplying a
+  persisted daily P&L series by k_t. That is exact for costs (slippage is bps of notional,
+  commission per share) and exact for the signal (k scales targets and changes no decision), and
+  it breaks in exactly one place: the daily loss limit is a LEVEL. A-17's passing arm never
+  touches it (0 stopped sessions, limit-aware re-score bit-identical), so the *statistics* are
+  safe - but AGENTS.md rule (c) requires OOS improvement **in the harness** before
+  `live/intraday_config.json` moves, and share ROUNDING is the one nonlinearity neither A-15 nor
+  A-17 has priced. The work is a `--size-schedule <csv>` option on `scripts/intraday_backtest.py`
+  (day -> multiplier, applied to the strategy's target weights before the cap), backward compatible
+  and inert when absent, plus a replay showing k=1.0 reproduces a stored session bit for bit. Then
+  re-run A-17's passing arm end to end and compare the two scorings; the GAP between them is the
+  number that says how much every prior sizing conclusion on this sleeve is worth.
+  <!-- added by A-17, 2026-09-13 (iterate). -->
+
+- **A-19 (`ml`, opened by A-17 2026-09-13): A-17's passing arm is a forecast of THIS BOOK, and a
+  four-feature quantile regression is the weakest possible one.** The finding was not "the tape
+  predicts risk" - O-9's SPY-targeted version failed and matched a no-fitting inverse-vol rule to
+  0.01 points. It was that fitting the SAME four pre-open features to **the sleeve's own 5% return
+  quantile** cuts its ES5 four times as hard (+11.08% vs +2.72%). That is a statement that the
+  sleeve's downside has structure SPY's does not, reachable from pre-open data, and the F-track
+  owns better machinery for it than `scripts/sweep_a17.py`. Worth doing as a quantile target
+  (tau = 0.05 on the sleeve's session return), NOT as a mean forecast - A-15 refused the mean and
+  A-17 did not disturb that refusal. Pre-register the two controls A-17 used, because they are what
+  made its result readable: a matched-average-exposure flat book as the comparator, and a
+  permutation of the exposure schedule as the timing placebo (A-17's placebo mean was **-7.69%**,
+  i.e. a random schedule HURTS this tail, so an arm that merely de-levers will look bad rather than
+  good). Also inherit A-17's limit rather than rediscovering it: the effect is negative in 5 of 10
+  years and carried by 2018 and 2020, so any arm must be judged on the year table, not the pool.
+  <!-- added by A-17, 2026-09-13 (iterate). -->
+
+- **A-17 (original text, kept for the pre-registration) (handoff from O-9 2026-09-13, for whoever owns book-level risk - `iterate`/`daily`, NOT
   `options`): does an inverse-VaR de-risk switch off the REALIZED TAPE cut the intraday sleeve's
   drawdown?** O-9 measured, on SPY and out of sample, that `e_t = min(1, budget_t/|q_hat_t|)` with
   `q_hat` a 5% quantile regression on four tape features (`rv_sofar`, `rng_sofar`, `rv20`,

@@ -4,6 +4,87 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - A-17 (`iterate` track)
+
+**The de-risk switch transfers, but NOT the one O-9 handed over.** O-9's object - a 5% quantile
+regression on SPY's tape, turned into `e_t = min(1, budget_t/|q_hat_t|)` - is **REFUSED on this
+book**: it cuts the sleeve's ES5 **+2.72%** against a flat book at the same average exposure, a
+99% block-bootstrap CI of **[-3.50, +8.94]** that contains zero, and **2 of 3 regimes**. The same
+switch built by *dividing by `rv20`*, with no fitting at all, cuts **+2.71%** - the two agree to
+0.01 points and their exposure schedules correlate **0.78**. Four features and ~2,100 warm-started
+IRLS refits bought one hundredth of a percentage point.
+
+**What passes is the same shape fitted on THIS BOOK'S OWN returns.** `SW_SLEEVE` - identical
+features, identical budget rule, only the quantile's target changed from SPY's open-to-close to
+the sleeve's session return - clears every pre-registered condition:
+
+| arm | mean e | $/day | ES5 % | ES5 cut vs CONST | q05 cut | max dd % | regimes | 99% CI |
+|---|---|---|---|---|---|---|---|---|
+| CONST (comparator) | 0.7703 | -228 | -1.9455 | - | - | **53.41** | - | - |
+| SW_SPY (O-9 as handed over) | 0.7703 | -147 | -1.8925 | +2.72% | +8.06% | 45.07 | 2/3 | [-3.50, +8.94] |
+| SW_INVVOL (no fitting) | 0.7703 | -160 | -1.8927 | +2.71% | +11.23% | 47.38 | 2/3 | [-3.58, +9.27] |
+| **SW_SLEEVE** | 0.7703 | **-136** | **-1.7298** | **+11.08%** | **+15.20%** | **42.32** | **3/3** | **[+5.76, +16.52]** |
+
+2,355 OOS sessions, 2017-04-27..2026-09-09, tau 0.05, 250-session burn-in, expanding one-step-ahead,
+cap 1.0 (cut-only - A-15 already refused levering up on a forecastable quantity). **Drawdown, the
+thing the item asks about: 53.41% -> 42.32%, -11.09 points.** The mean is **not** paid for it:
++$92/day against CONST at t +1.57, i.e. better, not worse, so this is not REFUSED-BY-MEAN.
+
+**The comparator is the whole reason any of this is readable.** This book loses money (-$296/day
+unscaled on these sessions), so a cut-only switch "wins" on every statistic by holding less. Every
+row above is at **one matched average exposure M = 0.7703**, and CONST is a flat book at exactly
+that exposure. The unscaled sleeve (ES5 -2.526%, max dd 64.53%) is context and is never the
+comparator.
+
+**The timing placebo is the leg that makes it believable, and it fired harder than expected.**
+Permuting the exposure schedule across sessions preserves the marginal exactly and destroys only
+the timing: the placebo mean cut is **-7.69%** (5-95 band [-10.13, -4.85]) and the real switch at
++11.08% beats **100% of 200 draws**. A random exposure schedule with the same distribution makes
+this book's tail *worse*. So "any de-levering shrinks a tail" - the scale-mixture story - is not
+what is happening here.
+
+**The shelf is a plateau and the headline cell is not its argmax.** 12 construction cells (burn-in
+250/500 x budget window 60/120/250 x 4 features / tape-only 3): **12 of 12 cut the tail**, range
+**+9.49% .. +13.75%**, median +11.77%. The pre-registered headline cell sits at +11.08%, near the
+BOTTOM - the tape-only three-feature variant beats it in all six of its pairings, which is stated
+and not adopted, because the cell was fixed before the run.
+
+**The limit is a year table, and it is the part to read before anyone gets excited.** ES5 by year
+for `SW_SLEEVE`: 2017 **-19.8**, 2018 **+40.5**, 2019 -8.1, 2020 **+34.6**, 2021 +6.6, 2022 +16.1,
+2023 -5.4, 2024 -1.6, 2025 +13.4, 2026 -2.5. **Negative in 5 of 10 years.** The pooled +11.08% is
+carried by 2018 and 2020, which is not a contradiction - a pooled ES5 over 2,355 sessions IS
+mostly those two years' worst days - but it says plainly what the instrument is: **a crisis-year
+tail cutter, not a steady improvement**. The 2024-2026 regime cell is +2.66%, the weakest of the
+three, and the two refused arms are NEGATIVE there (-10.26%, -10.11%).
+
+**Mechanism, against A-15's refusal.** A-15 refused a magnitude nowcast as a *size* input because
+this book is paid by the volatility SURPRISE, not the forecastable part. That refusal survives
+here and is the reason the effect is a tail effect rather than a mean effect: `corr(e, pnl)` is
+**+0.037** for `SW_SLEEVE` - essentially nothing, which is exactly the point of a cut-only switch
+on a book whose mean is paid by surprise - while `corr(e, |SPY move|)` is **-0.45**, so the switch
+really is cutting on loud days. It sells volatility it can see, and this book is not paid for that.
+
+**NOTHING SHIPS, and the reasons are specific rather than cautious.** (a) This is a persisted-series
+study, not a harness run: the linearity assumption is A-15's, and for `SW_SLEEVE` it is exactly
+clean - the arm stops **0** sessions on the loss limit, so the limit-aware re-score is
+**bit-identical** to the linear one (-1.7298% both ways), which is not true of the two refused arms
+(7 and 6 stops). (b) AGENTS.md rule (c) requires OOS improvement **in the harness** before
+`live/intraday_config.json` moves, and the harness has no per-session size multiplier. (c) Most
+importantly: the book being de-risked still loses money at every exposure. A tail overlay on a
+negative book is a finished piece of research, not a deployment. Opens **A-18** (implement the
+multiplier in the harness and re-score end to end) and **A-19** (the switch's target is the
+sleeve's own return, so it is a forecast of this book - that is a claim the `ml` track can test far
+better than a four-feature quantile regression can).
+
+`scripts/sweep_a17.py`, 9 pre-registered clauses, 4 DIAGNOSTIC ledger rows under
+`intraday/a17_derisk`, artifacts in `results/a17/`. No backtest run, no shipped or scheduled file
+touched, `live/` untouched.
+
+**Reusable rule: when a switch transplanted from another book fails, check it against the
+no-fitting version of itself before concluding the mechanism is absent** - `SW_SPY` and
+`SW_INVVOL` agreeing to 0.01 points is what showed that O-9's estimator was never the active
+ingredient, and that pointed straight at the only thing left to change, which was the target.
+
 ## 2026-09-13 - D-9 (`iterate` track)
 
 **The store defect is real and reproduces to the session; the conclusions it was filed to
