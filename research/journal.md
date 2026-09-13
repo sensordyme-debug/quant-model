@@ -4,6 +4,29 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - S-40 (`daily` track, pointer; full entry in `research/journal_daily.md`)
+
+**The crisis switch is a drawdown instrument that has been read as a return instrument, and its
+shipped cell is the argmax of its own 36-cell grid on the half this repository labels
+out-of-sample (rank 1 of 36, 29.124%) while sitting below the median on the half it labels
+in-sample (rank 24 of 36, 16.488%).** S-38 named `regime_vol_window` (+3.596) and
+`regime_threshold` (+3.016) as the two biggest contributors to selection inflation; S-40 ran the
+joint surface, ablated the switch for the first time since S-1, and walk-forwarded the two dials
+on a selector that sees only a 31-December backtest. The selector picks the shipped cell in **0 of
+11 years** under both a CAR and a Sharpe objective and lands **-1.389 / -1.688 CAR points below
+the grid mean** with the worst drawdown of any book tested (38.185%), so the shipped cell's
+distance above the grid mean is hindsight in full. Turning the switch off is worth **+2.68 CAR at
+t +0.96 fully charged and costs 12.9 points of maximum drawdown** (24.037% -> 36.892%), which the
+promotion gate refuses on its own terms (`max_drawdown_limit: "35%"`, `drawdown_tolerance_points:
+1.0`) - so the switch stays and nothing ships. Two things carry: S-38's FITTED classification of
+these two axes is **wrong** (they are risk dials, so a CAR grid over them measures the dial doing
+its job, and S-38's +1.25 to +2.07 is biased upward by an unmeasured amount), while AUD-11's label
+finding is strengthened rather than weakened - clause 3 is the mechanism behind the percentile.
+The by-product is the only thing worth building: the equal-weight blend of all 36 cells requires
+no selection at all and carries the best Sharpe (1.173) and the lowest drawdown (23.389%) of every
+book in the table. Filed as **S-41**. `scripts/sweep_s40.py`, 7 clauses, 118 DIAGNOSTIC rows under
+`daily/s40_regime`, no LEAN run, `champion.json` and `live/*` untouched.
+
 ## 2026-09-13 - D-5 (`iterate` track)
 
 **AUD-15 CONFIRMED, FIXED and MATERIAL at the largest |t| a cost correction has produced on this

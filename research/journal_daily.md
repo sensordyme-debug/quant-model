@@ -4,6 +4,133 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-13 - S-40: the crisis switch is a drawdown instrument nobody could have tuned, and the shipped cell is the best of 36 on the half labelled out-of-sample and below median on the half labelled in-sample
+
+**What this iteration is.** S-38 closed AUD-11's lower bound and left one number sitting on the
+table: the two biggest contributors to this sleeve's selection inflation, by a wide margin, are
+the two halves of the crisis switch - `regime_vol_window` **+3.596** ("the one dial in the
+parameter set with NO selection record anywhere") and `regime_threshold` **+3.016**, against
+`mom_skip` at +0.074. S-38 measured how far the shipped cell sits above its grid mean, which is a
+statement about hindsight. It never asked the question that decides whether those 6.6 points are
+an asset or an accounting artefact: **could a selector running in real time have found that
+cell?** And, prior to that, **is the switch worth anything at all?** `risk_on` has been in this
+book since S-1 and has never been ablated end to end - S-1 refused the *original* below-median
+filter and a 200-day trend filter, and the crisis multiple that replaced them was adopted on a
+table and never revisited. New `scripts/sweep_s40.py`, seven clauses pre-registered in the
+docstring before the first simulation; console output in `results/s40_full.txt`; 118 DIAGNOSTIC
+rows under `daily/s40_regime`.
+
+**(1) Identity.** `22.192150170492255% / 5,052 orders`, delta `0.00e+00` - the cell S-25, S-26,
+S-28, S-30, S-31, S-32, S-33, S-36, S-37 and S-39 each quote.
+
+**(2) The ablation, and the assertion that licenses the walk-forward.** `regime_threshold = 1e9`
+against a maximum observed `vol / median` of **7.80** makes the gate unreachable, so the switch is
+off; the shipped cell fires on **590 of 3,689** sessions in 29 episodes, and mean gross on those
+sessions is **0.122x against 1.464x** on the rest, which is the vectorized mask agreeing with the
+simulation. Separately, and this is what makes clause 4 exact rather than approximate: at the
+shipped defaults `dd_halve = dd_flat = 9.0` while `drawdown_multiplier`'s `dd = 1 - last/peak` is
+bounded by 1.0, so the overlay returns 1.0 on every session and `equity_curve` - its **only**
+consumer in `target_weights` - cannot reach the weights. Target weights are a pure function of
+(prices, params), so a year-by-year stitch is exact up to the one rebalance at each boundary,
+which clause 4 counts (3 and 4 switches, **<= 0.024 CAR points**) instead of waving at.
+
+**(3) The joint 6x6 surface, zero cost - and the smoking gun for AUD-11.** Where the shipped
+`thr=1.50 win=20` ranks among the 36 cells:
+
+| window | shipped CAR | grid mean | vs mean | percentile | rank |
+| --- | --- | --- | --- | --- | --- |
+| IS 2012-2019 | 16.488% | 17.420% | **-0.932** | 36th | **24 of 36** |
+| FULL 2012-2026 | 22.192% | 20.851% | +1.341 | 64th | 14 of 36 |
+| OOS 2020-2026 | 29.124% | 24.864% | **+4.260** | 100th | **1 of 36** |
+
+**The shipped crisis-switch cell is the argmax of its own grid on the half this repository labels
+out-of-sample, and below the median on the half it labels in-sample.** S-33 and S-38 argued
+AUD-11 from aggregate percentiles; this is the same claim as a single cell, and it is not
+survivable as a coincidence - the chance a cell chosen without reference to 2020-2026 lands rank 1
+of 36 there is 1 in 36. The switch is where AUD-11 lives.
+
+**(4) The walk-forward, which is the hypothesis. The selector never once finds the shipped cell,
+and loses to a coin flip.** Each year Y from 2016, the selector sees only 2012-01-03..(Y-1)-12-31 -
+a backtest anyone could have run on 31 December - and takes that window's argmax. Two objectives,
+because the choice of objective is itself a researcher degree of freedom. 2,684 sessions:
+
+| book (2016-01-04..2026-09-04) | CAR | Sharpe | maxDD |
+| --- | --- | --- | --- |
+| walk-forward, argmax CAR | 21.345% | 1.011 | **38.185%** |
+| walk-forward, argmax Sharpe | 21.046% | 1.000 | **38.185%** |
+| grid equal-weight (all 36) | 22.916% | **1.173** | **23.389%** |
+| grid mean of per-cell CAR | 22.734% | - | - |
+| shipped (hindsight) | 24.705% | 1.228 | 23.860% |
+| off (switch never fires) | 28.021% | 1.169 | 36.619% |
+
+`CAR` picks 1.75/30 -> 1.75/40 -> 2.00/20 -> 1.75/40; `Sharpe` picks 1.75/30 -> 1.75/40 ->
+2.00/20 -> 1.50/60 -> 1.75/40. **The shipped cell is chosen in 0 of 11 years by both.**
+Walk-forward minus grid mean is **-1.389** (CAR) and **-1.688** (Sharpe) CAR points, which is the
+pre-registered **branch (c): selecting this dial in real time is HARMFUL and the shipped cell's
+distance above the grid mean is hindsight in full.** It is worse than that, because the
+walk-forward book also carries the **worst drawdown of the six**, 38.185% - so real-time selection
+is dominated by turning the switch off on both axes at once (+6.675 CAR, -1.565 DD points) and
+dominated by the do-nothing ensemble on risk. The mechanism is visible in the ranks: IS-to-OOS CAR
+across the 36 cells is weakly positive (Spearman **+0.208**, Pearson +0.330) and the IS **top-3
+average +3.625 CAR points above the IS bottom-3** out of sample, so the grid is not pure noise -
+but the **IS argmax specifically pays -2.102 against the grid mean**, and the argmax is the only
+cell a selector takes. Weak rank information plus an argmax is worse than no selection.
+
+**(5) So is the switch worth anything? Yes - and not one point of it is return.** Fully charged
+(2 bp one-way plus IBKR Pro financing on the historical effective fed funds rate, S-22's cell C):
+
+| window | cell | CAR | Sharpe | maxDD | paired vs shipped |
+| --- | --- | --- | --- | --- | --- |
+| FULL | shipped | 19.640% | 1.047 | 24.037% | - |
+| FULL | off | 22.317% | 1.026 | **36.892%** | +1.139 bps/day, **t +0.96** |
+| OOS | shipped | 25.967% | 1.151 | 24.040% | - |
+| OOS | off | 26.759% | 1.045 | **36.909%** | +0.608 bps/day, **t +0.30** |
+
+**Turning the crisis switch off buys +2.68 CAR points at t +0.96 and costs 12.9 points of maximum
+drawdown**, and it costs Sharpe on both windows (-0.021 FULL, -0.106 OOS). The return difference
+is not resolved at |t| >= 2 on either window; the drawdown difference is not a statistic at all,
+it is a fact about 2020-02 and 2022. **The switch is a drawdown instrument that has been read as
+a return instrument, which is why its grid looks so wide: a CAR grid over a risk dial measures
+the risk dial doing its job, exactly the trap S-38 built its FITTED/RISK-POSTURE classification
+to avoid - and S-38 classified both these axes FITTED.** That classification is the one thing in
+S-38 this iteration corrects: `regime_threshold` and `regime_vol_window` are dials that trade
+return against drawdown by construction, so their +3.596 and +3.016 are not cleanly selection
+inflation, and S-38's headline **+1.25 to +2.07** is an over-estimate by an unmeasured amount
+concentrated in those two axes. The *label* finding (AUD-11) survives untouched and is in fact
+strengthened by clause 3; the *size* of the inflation is now known to be biased upward.
+
+**DECISION: keep the switch, ship nothing.** The ablation is refused by the promotion gate on its
+own terms and I did not have to make the call - `champion.json`'s `criteria` carry
+`max_drawdown_limit: "35%"` and `drawdown_tolerance_points: 1.0`, and `off` breaches both (36.892%
+absolute, +12.9 points against the champion). The drawdown cap is the owner's and I do not touch
+it. No parameter moved, `champion.json` untouched, `live/*` and all scheduled tasks untouched, no
+LEAN run.
+
+**(6) The by-product, and it is the only thing here worth building.** The equal-weight blend of all
+36 cells needs **no selection at all** and over the walk-forward span delivers **Sharpe 1.173 and
+maxDD 23.389%** - the best Sharpe and the lowest drawdown of every book in the table, and it beats
+the hindsight-shipped cell's drawdown on FULL (23.389 vs 23.860) and OOS (23.407 vs 23.855).
+Against the shipped cell it gives up return, and the gap is entirely the hindsight: -0.421 bps/day
+at t -0.98 on FULL, -1.304 at t -1.64 on OOS, +0.316 at t +0.74 on IS - the sign flips with the
+window, which is what a hindsight advantage looks like. Filed as **S-41**. It is implementable
+(average the 36 cells' target weights, not their returns) and it converts the sleeve's single most
+fragile decision into one that does not have to be made. What it is NOT is free: the blend holds a
+fractional book on every risk-off boundary, so its turnover and its live tracking need pricing
+before any claim.
+
+**Gates.** No shipped or runner-loaded file touched, so no `--replay` and no `compare_orders.py`
+is owed; `scripts/sweep_s40.py` is new and standalone and imports `sweep_s19`, `sweep_s25` and
+`sweep_s31` read-only. `tests/` unchanged. `research/champion.json`, `live/APPROVED_PAPER.md`,
+`live/HALT*` and the three scheduled tasks untouched.
+
+**Next.** S-41 (the ensemble) is now this track's highest-value open item and needs no trading day
+and no owner. Behind it: S-17 part 2 is still starved (10 fills over 3 sessions, unchanged since
+2026-09-11 - 2026-09-12 planned but placed no orders), and AUD-11's relabel is still a manual edit
+to a reserved file that only the owner or the critic may make - though clause 3 above means the
+replacement text should now cite the switch as the mechanism, not just a percentile.
+
+---
+
 ## 2026-09-13 - S-39 (C-5a/b/c): the gate was one-sided because the fix was assigned to a source that was never fixed - and the frame it admitted is worth nothing, which is why it is a defect
 
 **What this iteration is.** `critic` filed three defects against S-37, all three owned by this
