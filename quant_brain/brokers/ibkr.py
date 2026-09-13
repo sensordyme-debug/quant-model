@@ -24,6 +24,7 @@ submitted amount doubles up (AUD-06). The status flag lied on 2026-09-10; `fills
 from __future__ import annotations
 
 from quant_brain.core.execution import Ack, ExecutionAdapter, OrderIntent, OrderType, Side
+from quant_brain.core.mode import Mode
 
 
 class IBKRAdapter(ExecutionAdapter):
@@ -35,14 +36,19 @@ class IBKRAdapter(ExecutionAdapter):
     """
 
     name = "ibkr"
+    #: PAPER unless the caller says otherwise. IB Gateway's paper and live endpoints differ
+    #: only by port, which is far too small a difference to leave implicit - so the adapter
+    #: assumes the safe one and `live=True` is the thing that has to be written down.
+    requires = Mode.PAPER
 
     def __init__(self, ib, contracts: dict, *, order_ref: str = "",
-                 outside_rth: bool = False, tif: str = "DAY"):
+                 outside_rth: bool = False, tif: str = "DAY", live: bool = False):
         self.ib = ib
         self.contracts = contracts
         self.order_ref = order_ref
         self.outside_rth = outside_rth
         self.tif = tif
+        self.requires = Mode.EXECUTION_READY if live else Mode.PAPER
         self.open: list = []
         #: orderId -> the symbol the CALLER used. `working()` must not re-derive this from
         #: the contract: ib_async's Option('SPY', ...).symbol is 'SPY' for every strike and

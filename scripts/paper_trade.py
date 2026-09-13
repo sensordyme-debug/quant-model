@@ -54,6 +54,7 @@ from quant_brain.core.execution import (  # noqa: E402
     RoutedExecutor,
     Side,
 )
+from quant_brain.core.mode import Authority  # noqa: E402
 from quant_brain.core.risk import RiskChain  # noqa: E402
 
 #: Empty preserves the wire exactly: this runner never set an orderRef, and
@@ -648,6 +649,7 @@ def main() -> int:
             # whole point of the emergency path (AUD-06 / AUD-08).
             routed = RoutedExecutor(RiskChain(),
                                     IBKRAdapter(ib, contracts, order_ref=ORDER_REF),
+                                    authority=Authority.paper("ibkr", "daily"),
                                     on_event=lambda ev, **kw: log_event(ev, **kw))
             trades = [a.handle for a in routed.flatten(held, tag=ORDER_REF) if a.accepted]
             ib.sleep(FILL_WAIT_SECONDS)
@@ -758,7 +760,10 @@ def main() -> int:
     if contracts:
         ib.qualifyContracts(*contracts.values())
     adapter = IBKRAdapter(ib, contracts, order_ref=ORDER_REF)
+    # PAPER. The runner additionally refuses to send anything without a human-created
+    # live/APPROVED_PAPER.md; this is the structural half of the same guarantee.
     routed = RoutedExecutor(RiskChain(), adapter,
+                            authority=Authority.paper("ibkr", "daily"),
                             on_event=lambda ev, **kw: log_event(ev, **kw))
     ref_price = {sym: px for sym, _d, px in live}
     acks = routed.submit([intent_for(args.order_type, sym, delta) for sym, delta, _p in live])

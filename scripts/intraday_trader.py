@@ -45,6 +45,7 @@ APPROVAL = LIVE / "APPROVED_PAPER.md"
 HALT_FILES = [LIVE / "HALT", LIVE / "HALT_INTRADAY"]
 BOOK_FILE = LIVE / "state" / "intraday_book.json"
 from quant_brain.core.execution import OrderIntent, OrderType, Side  # noqa: E402
+from quant_brain.core.mode import Authority  # noqa: E402
 
 ORDER_REF = "INTRADAY"
 LOG = "intraday"
@@ -331,7 +332,12 @@ class LiveExecutor:
                                    outside_rth=False, tif="DAY")
         # An empty chain today. It is the seam: a Topstep or sizing engine is added here and
         # every order in this runner is subject to it, with no call site to remember.
+        # PAPER. This sleeve trades the IBKR paper account and nothing else; the live port
+        # is separately banned by CLAUDE.md and by the absence of an approval file. Stating
+        # it here means a future edit that pointed the adapter at a live socket would be
+        # refused at construction rather than discovered at the first fill.
         self.routed = RoutedExecutor(risk or RiskChain(), self.adapter,
+                                     authority=Authority.paper("ibkr", ORDER_REF),
                                      on_event=lambda ev, **kw: log(ev, **kw))
         self.open = self.adapter.open
 

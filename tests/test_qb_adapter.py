@@ -19,7 +19,19 @@ from quant_brain.core.execution import (
     Side,
     SimulatedAdapter,
 )
+from quant_brain.core.mode import Authority
 from quant_brain.core.risk import RiskChain, RiskDecision, RiskEngine
+
+
+def _routed(risk, adapter, **kw):
+    """A RoutedExecutor in a BACKTEST authority.
+
+    Spelled out rather than defaulted, because the default is RESEARCH and RESEARCH cannot
+    reach any adapter at all - which is the behaviour these tests would otherwise silently
+    depend on not existing.
+    """
+    kw.setdefault("authority", Authority.backtest())
+    return RoutedExecutor(risk, adapter, **kw)
 
 
 class Cap(RiskEngine):
@@ -62,7 +74,7 @@ def _flat(sym="AAPL", qty=10.0):
 def test_a_denied_intent_never_reaches_the_adapter():
     """The property the whole boundary exists for."""
     ad = SimulatedAdapter()
-    ex = RoutedExecutor(RiskChain([Ban("TSLA")]), ad)
+    ex = _routed(RiskChain([Ban("TSLA")]), ad)
     acks = ex.submit([_buy("TSLA"), _buy("AAPL")])
     assert [i.symbol for i in ad.sent] == ["AAPL"]
     assert [a.intent.symbol for a in acks] == ["AAPL"]
@@ -70,7 +82,7 @@ def test_a_denied_intent_never_reaches_the_adapter():
 
 def test_the_adapter_receives_the_reduced_size_not_the_requested_one():
     ad = SimulatedAdapter()
-    ex = RoutedExecutor(RiskChain([Cap(10)]), ad)
+    ex = _routed(RiskChain([Cap(10)]), ad)
     ex.submit([_buy(qty=250)])
     assert [i.quantity for i in ad.sent] == [10]
 
@@ -83,7 +95,7 @@ def test_a_reduction_to_zero_is_a_refusal_however_it_is_spelled():
             return RiskDecision(True, 0.0, ("nothing left",), ("zero",))
 
     ad = SimulatedAdapter()
-    ex = RoutedExecutor(RiskChain([Zero()]), ad)
+    ex = _routed(RiskChain([Zero()]), ad)
     assert ex.submit([_buy()]) == []
     assert ad.sent == []
     assert len(ex.refused) == 1
@@ -95,14 +107,14 @@ def test_no_ordering_of_engines_lets_a_later_one_re_permit():
     for chain in (RiskChain([Ban("TSLA"), permissive]),
                   RiskChain([permissive, Ban("TSLA")])):
         ad.sent.clear()
-        RoutedExecutor(chain, ad).submit([_buy("TSLA")])
+        _routed(chain, ad).submit([_buy("TSLA")])
         assert ad.sent == [], "an engine order let a denial be reversed"
 
 
 def test_every_verdict_is_recorded_including_the_refusals():
     """The refusals are the interesting half and are invisible if only fills are logged."""
     ad = SimulatedAdapter()
-    ex = RoutedExecutor(RiskChain([Ban("TSLA"), Cap(10)]), ad)
+    ex = _routed(RiskChain([Ban("TSLA"), Cap(10)]), ad)
     ex.submit([_buy("TSLA"), _buy("AAPL", 50), _buy("MSFT", 5)])
     assert len(ex.decisions) == 3
     refused = ex.refused
@@ -112,7 +124,7 @@ def test_every_verdict_is_recorded_including_the_refusals():
 
 def test_the_binding_rule_is_reported_not_just_the_refusal():
     ad = SimulatedAdapter()
-    ex = RoutedExecutor(RiskChain([Cap(3)]), ad)
+    ex = _routed(RiskChain([Cap(3)]), ad)
     ex.submit([_buy(qty=100)])
     _, decision, _ = ex.decisions[0]
     assert decision.binding == ("cap",)
@@ -124,7 +136,7 @@ def test_the_binding_rule_is_reported_not_just_the_refusal():
 
 def test_a_flatten_bypasses_every_engine_at_once():
     ad = SimulatedAdapter()
-    ex = RoutedExecutor(RiskChain([Ban("TSLA"), Cap(1)]), ad)
+    ex = _routed(RiskChain([Ban("TSLA"), Cap(1)]), ad)
     ex.submit([_flat("TSLA", 40)])
     assert [(i.symbol, i.quantity) for i in ad.sent] == [("TSLA", 40)], (
         "a flatten was blocked or reduced; a risk layer that can block the exit is not one")
@@ -132,7 +144,7 @@ def test_a_flatten_bypasses_every_engine_at_once():
 
 def test_the_flatten_helper_builds_closing_intents_in_the_right_direction():
     ad = SimulatedAdapter()
-    ex = RoutedExecutor(RiskChain([Ban("TSLA")]), ad)
+    ex = _routed(RiskChain([Ban("TSLA")]), ad)
     ex.flatten({"AAPL": 30, "TSLA": -12, "MSFT": 0})
     got = {(i.symbol, i.side, i.quantity, i.order_type) for i in ad.sent}
     assert got == {("AAPL", Side.SELL, 30, OrderType.FLATTEN),
@@ -142,7 +154,7 @@ def test_the_flatten_helper_builds_closing_intents_in_the_right_direction():
 
 def test_a_venue_rejection_of_a_flatten_is_reported_not_swallowed():
     ad = SimulatedAdapter(reject={"AAPL"})
-    ex = RoutedExecutor(RiskChain(), ad)
+    ex = _routed(RiskChain(), ad)
     acks = ex.flatten({"AAPL": 10})
     assert len(acks) == 1 and not acks[0].accepted
 
@@ -154,7 +166,7 @@ def test_a_venue_rejection_of_a_flatten_is_reported_not_swallowed():
 def test_every_outcome_emits_a_named_event():
     seen = []
     ad = SimulatedAdapter(reject={"MSFT"})
-    ex = RoutedExecutor(RiskChain([Ban("TSLA"), Cap(10)]), ad,
+    ex = _routed(RiskChain([Ban("TSLA"), Cap(10)]), ad,
                         on_event=lambda ev, **kw: seen.append(ev))
     ex.submit([_buy("TSLA"), _buy("AAPL", 50), _buy("MSFT", 5), _buy("NVDA", 5)])
     assert "risk_denied" in seen
@@ -165,7 +177,7 @@ def test_every_outcome_emits_a_named_event():
 
 def test_the_denial_event_carries_the_rule_that_bound_it():
     seen = []
-    ex = RoutedExecutor(RiskChain([Ban("TSLA")]), SimulatedAdapter(),
+    ex = _routed(RiskChain([Ban("TSLA")]), SimulatedAdapter(),
                         on_event=lambda ev, **kw: seen.append((ev, kw)))
     ex.submit([_buy("TSLA")])
     ev, kw = seen[0]
@@ -176,7 +188,7 @@ def test_the_denial_event_carries_the_rule_that_bound_it():
 
 def test_an_executor_without_an_event_sink_still_works():
     ad = SimulatedAdapter()
-    RoutedExecutor(RiskChain(), ad).submit([_buy()])
+    _routed(RiskChain(), ad).submit([_buy()])
     assert len(ad.sent) == 1
 
 
@@ -313,7 +325,12 @@ def test_a_broker_exception_becomes_a_refusal_carrying_the_cause():
 def test_one_bad_symbol_does_not_stop_the_rest_of_the_batch():
     ib = FakeIB(raise_on={"AAPL"})
     ad = IBKRAdapter(ib, {s: FakeContract(s) for s in ("AAPL", "MSFT")})
-    acks = RoutedExecutor(RiskChain(), ad).submit([_buy("AAPL", 1), _buy("MSFT", 1)])
+    # PAPER, not BACKTEST: IBKRAdapter declares what it CAN talk to, not what it happens to
+    # be pointed at. It cannot know this `ib` is a stub, and an adapter that lowered its own
+    # requirement on that basis would be one mock away from being wrong about a real socket.
+    acks = _routed(RiskChain(), ad,
+                   authority=Authority.paper("ibkr")).submit([_buy("AAPL", 1),
+                                                              _buy("MSFT", 1)])
     assert [a.accepted for a in acks] == [False, True]
 
 

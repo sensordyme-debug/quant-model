@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from quant_brain.core.instruments import InstrumentSpec
+from quant_brain.core.mode import Authority, Mode
 
 if TYPE_CHECKING:  # pragma: no cover
     # Import-time circular: risk.py imports OrderIntent from here. The dependency
@@ -225,6 +226,13 @@ class ExecutionAdapter(abc.ABC):
 
     name: str = "adapter"
 
+    #: The lowest `Mode` at which this adapter may be reached. Declared by the adapter
+    #: because only the adapter knows what it talks to: a simulator needs BACKTEST, a paper
+    #: endpoint needs PAPER, a funded prop-firm account needs EXECUTION_READY. Checked when
+    #: a `RoutedExecutor` is CONSTRUCTED, not when an order is sent, so a process that could
+    #: not legitimately trade cannot even assemble the object that would.
+    requires: Mode = Mode.EXECUTION_READY
+
     @abc.abstractmethod
     def submit(self, intent: OrderIntent) -> Ack:
         """Send one intent. Must not raise for an ordinary venue rejection - return an Ack."""
@@ -259,10 +267,23 @@ class RoutedExecutor:
     `decisions` keeps every verdict, allowed or not, so a session can be audited afterwards
     for what was refused and by which rule - the refusals are the interesting half and they
     are invisible if only fills are logged.
+
+    The `authority` answers a question the risk chain does not: the chain decides whether an
+    ORDER is permitted, this decides whether the PROCESS may reach a venue at all. It is
+    checked at construction, so a research job cannot assemble a path to a live account and
+    then discover the problem at the first order.
     """
 
     def __init__(self, risk: RiskEngine, adapter: ExecutionAdapter, *,
-                 on_event=None):
+                 authority: Authority | None = None, on_event=None):
+        # Default RESEARCH rather than something permissive. An omitted authority is a
+        # caller who has not thought about it, and the safe reading of that is "not allowed
+        # to reach anything real" - which makes the omission fail loudly here instead of
+        # quietly at a venue.
+        self.authority = authority or Authority.research()
+        self.authority.require(
+            adapter.requires,
+            what=f"routing orders to the {adapter.name!r} adapter")
         self.risk = risk
         self.adapter = adapter
         self.decisions: list[tuple[OrderIntent, RiskDecision, Ack | None]] = []
@@ -329,6 +350,9 @@ class SimulatedAdapter(ExecutionAdapter):
     """
 
     name = "simulated"
+    #: In-memory. Nothing leaves the process, so BACKTEST is enough - but not RESEARCH,
+    #: because a research context should not be constructing order paths at all.
+    requires = Mode.BACKTEST
 
     def __init__(self, *, reject: set[str] | None = None):
         self.sent: list[OrderIntent] = []
