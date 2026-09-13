@@ -4,6 +4,37 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - S-41 (`daily` track, pointer; full entry in `research/journal_daily.md`)
+
+**The ensemble S-40 filed is worth having, the sentence it was filed on is not, and the two facts
+are independent.** S-41 built the implementable object S-40 could only bound: the equal-weight mean
+of the 36 crisis-switch cells' target **WEIGHTS** - one account, one order list - rather than of
+their returns, executed through the deployed rebalance and fully charged in S-22 cell C. Clause 1b
+is the new licence: the shipped cell's weights are extracted day by day and fed back through the
+same simulator and reproduce the deployed book **to the digit on CAR and order count**. First
+result: weight-averaging and return-averaging are **the same book here**, agreeing to 0.034 CAR
+points and 0.001 Sharpe on all three windows - because the blended target holds at most 3 names and
+on **86.83%** of sessions holds the *identical name set* as the shipped cell, differing only in
+size. The ensemble is a vote on gross, not on which names to own, so there is nothing to net.
+Second, and it withdraws S-41's own premise: S-40's "best Sharpe 1.173" is a **2,684-session** row
+(the 2016-2026 walk-forward span) compared against a **3,689-session** FULL-window 1.159. Span-
+matched, the shipped cell scores **1.228** and the blend **1.174** - the blend never had the best
+Sharpe. The drawdown half survives by luck (the worst drawdown is the 2020 crash, inside both
+spans). Rule, for the second time this month: **a number quoted from a table is a comparison only
+if the row it is compared against has the same session count.** Fully charged the blend gives up
+**-1.096 CAR on FULL and -3.924 on OOS** to buy **0.286 / 0.217 points of drawdown**, at paired t
+-0.92 / -1.64, and it trades **1.26x the orders** at 0.99x the turnover because gross now ratchets
+in 1/36 steps across a fractional risk-off boundary that is live on **39%** of sessions. It fails
+the pre-registered promotion bar on Sharpe and CAR and passes on drawdown and executability (0.002%
+of target weight lost to the no-trade band, bar 10%). **Nothing ships.** But clause 7b is the
+number that matters: against what a real-time selector *actually gets* - not against a cell S-40
+proved unfindable - the blend beats the walk-forward CAR selector by **+1.587 CAR / +0.163 Sharpe /
+-14.858 drawdown points** and the Sharpe selector by +1.886 / +0.174 / -14.858. The blend is not a
+better cell than the one that shipped; it is a better book than *choosing* a cell. Opens **S-42**
+(the same trick on the FITTED axes that are not risk dials). `scripts/sweep_s41.py`, 7 clauses, 21
+DIAGNOSTIC rows under `daily/s41_blend`, one default-inert `weights_fn` on `sweep_s25.legs_simulate`
+(re-proved bit-identical), no LEAN run, `champion.json`, `live/*` and all scheduled tasks untouched.
+
 ## 2026-09-13 - S-40 (`daily` track, pointer; full entry in `research/journal_daily.md`)
 
 **The crisis switch is a drawdown instrument that has been read as a return instrument, and its

@@ -1740,6 +1740,22 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   must be on a *subprocess*, since an in-process import inherits pytest's already-fixed `sys.path`
   and would pass while deployed.
 
+- **S-41 (`daily`, opened by S-40 2026-09-13): ensemble the crisis switch instead of choosing it.**
+  S-40 proved no real-time selector can find the shipped `regime_threshold`/`regime_vol_window`
+  cell (0 of 11 walk-forward years under two objectives, -1.389/-1.688 CAR points below the grid
+  mean, worst drawdown of any book tested at 38.185%), while the **equal-weight blend of all 36
+  cells** - which requires no selection at all - carried the best Sharpe (**1.173**) and the lowest
+  drawdown (**23.389%**) of every book in S-40's table, beating even the hindsight-shipped cell's
+  drawdown on FULL (23.389 vs 23.860) and OOS (23.407 vs 23.855). Build it properly: **average the
+  36 cells' target WEIGHTS, not their returns** (S-40's number is a return-average, which is the
+  right upper bound but not an implementable book), then price turnover, commission and the
+  fractional risk-off boundary it necessarily holds, fully charged in S-22 cell C. The prize is
+  not return - it gives up ~0.42 bps/day against the shipped cell on FULL at t -0.98, and the sign
+  of that gap flips with the window - it is that the sleeve's single most fragile decision stops
+  having to be made. Judge on Sharpe and drawdown against the shipped cell at equal cost, and on
+  whether the blended weights are executable at the deployed order sizes. Needs no trading day and
+  no owner. **Do not touch `margin_budget`, `target_vol`, `target_exposure` or the drawdown cap.**
+  <!-- added by S-40, 2026-09-13 (daily). -->
 - **S-42 (`daily`, opened by S-41 2026-09-13): the same ensemble trick on the axes where a CAR
   grid is a fair instrument.** S-41 built the weight-blend of the crisis switch and it failed the
   promotion bar on return while winning on drawdown - but the switch is a RISK dial, so every

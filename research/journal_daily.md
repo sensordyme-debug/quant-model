@@ -4,6 +4,132 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-13 - S-41: the ensemble is worth having, the reason it was opened is not, and the two facts are independent
+
+**Hypothesis (S-41, opened by S-40).** S-40 proved no real-time selector can find the shipped
+`regime_threshold=1.50 / regime_vol_window=20` cell - a walk-forward argmax over the same 36 cells
+picks it in **0 of 11 years** under either objective - while the equal-weight blend of all 36,
+which requires no selection at all, carried the best Sharpe and the lowest drawdown in S-40's
+table. S-40's blend averaged the 36 cells' **returns**, which is 36 accounts each paying its own
+commission. Build the implementable object: average their target **WEIGHTS**, one account, one
+order list, netting 36 opinions before anything trades, fully charged in S-22 cell C.
+
+New `scripts/sweep_s41.py` (7 clauses pre-registered, `results/s41_full.txt`, 21 DIAGNOSTIC rows
+`daily/s41_blend`). No LEAN run, no parameter moved; `champion.json`, `live/*` and every scheduled
+task untouched. One shared-code change: a default-inert `weights_fn` on the RESEARCH harness
+`sweep_s25.legs_simulate` (S-26/S-28/S-30/S-32 precedent), re-proved bit-identical by clause 1a.
+
+**(1) The licence.** Clause 1a reproduces the deployed cell at `delta 0.00e+00 / +0 orders`
+(CAR 22.192150170492%, 5,052 orders). Clause 1b is the one that matters and is new: the shipped
+cell's weights are **extracted day by day and fed back** through the same simulator, and the
+resulting book matches to the digit on CAR *and* order count. Extraction is the same object the
+in-loop call produces, so a blend of 36 extractions is executed through the deployed rebalance and
+not through a friendlier one. Everything below stands on that; nothing below would have been
+readable without it.
+
+**(2) Weight-averaging and return-averaging turn out to be the same book here.** This was the open
+question the item was built on, and the answer is that the distinction the item worried about does
+not exist on this sleeve:
+
+| window | weight-blend CAR / Sharpe / MaxDD | S-40 return-average | gap |
+| --- | --- | --- | --- |
+| FULL | 20.980 / 1.127 / 23.327 | 20.992 / 1.127 / 23.389 | -0.012 / 0.000 / **-0.062** |
+| IS | 17.451 / 1.146 / 20.273 | 17.485 / 1.147 / 20.250 | -0.034 / -0.001 / +0.023 |
+| OOS | 25.082 / 1.138 / 23.346 | 25.076 / 1.137 / 23.407 | +0.006 / +0.001 / -0.061 |
+
+Three windows, agreement to 0.034 CAR points and 0.001 Sharpe. Clause 4 says why, and it is a fact
+about the book rather than about averaging: the blended target holds at most **3 names**, and on
+**86.83%** of FULL sessions (85.61% OOS) it holds the *identical name set* as the shipped cell and
+differs only in size. On 0.00% of sessions does the shipped cell hold something the blend does not.
+**The ensemble is a vote on GROSS, not on which names to own** - so there is almost nothing to net
+across the 36 opinions, and the return-average's "36 independent rebalances" advantage is worth
+0.03 CAR points because the 36 rebalances are nearly the same rebalance.
+
+**(3) The correction, and it withdraws this item's own opening sentence.** S-41 was opened on "the
+blend carried the best Sharpe (**1.173**) ... beating even the hindsight-shipped cell's drawdown on
+FULL (23.389 vs 23.860)". Those numbers are not from comparable rows. S-40's blend row is
+`grid equal-weight (same span)`, **2,684 sessions** - the 2016-2026 walk-forward span - while
+`shipped` at 1.159/23.860 is **3,689 sessions** of FULL. Put every book on S-40's own span
+(clause 3b):
+
+| 2,684 sessions, zero cost | CAR | Sharpe | MaxDD |
+| --- | --- | --- | --- |
+| shipped | 24.705 | **1.228** | 23.860 |
+| weight-blend36 | 22.932 | **1.174** | 23.327 |
+| off | 28.021 | 1.169 | 36.619 |
+
+My 1.174 reproduces S-40's return-average 1.173 to 0.001 - a third confirmation of clause 2 - but
+the shipped cell on those sessions is **1.228, not 1.159**. **The blend never had the best Sharpe.**
+The drawdown half of the claim survives by luck: the blend's worst drawdown is the 2020 crash,
+which lies inside both spans, so 23.389 really is the same number either way. The Sharpe half does
+not survive and is withdrawn. Reusable rule, and this is the second time this month the same shape
+has bitten (S-40 corrected S-38): **a number quoted from a table is only a comparison if the row it
+is compared against has the same session count.** 2,684 against 3,689 is not a finding, it is a
+span.
+
+**(4) Fully charged, S-22 cell C (2 bp one-way spread + IBKR Pro financing on the historical EFFR).**
+
+| book | FULL CAR / Sharpe / MaxDD | OOS CAR / Sharpe / MaxDD |
+| --- | --- | --- |
+| shipped | 19.640 / 1.047 / 24.037 | 25.967 / 1.151 / 24.040 |
+| weight-blend36 | 18.544 / 1.016 / **23.751** | 22.043 / 1.025 / **23.823** |
+| off | 22.317 / 1.026 / 36.892 | 26.759 / 1.045 / 36.909 |
+
+Paired daily difference against the shipped cell: FULL **-0.396 bps/day t -0.92**, OOS **-1.296
+bps/day t -1.64**. Said out loud as always: neither crosses |t| = 2, and nothing on this sleeve has
+except S-31's arithmetic, S-33's re-selection and S-38's.
+
+**(5) Costing halves the only prize.** The drawdown gain is **-0.533 points** at zero cost on FULL
+and **-0.286** once charged; OOS **-0.509** becomes **-0.217**. The blend's entire claim is about a
+quarter of a drawdown point.
+
+**(6) The netting saving did not happen, and the reason is the mechanism working.** The blend
+trades **1.26x the orders** of the shipped cell at **0.99x the turnover** for **1.01x the fees**
+(6,353 vs 5,054 orders; 434/yr vs 345/yr). More orders, the same turnover: gross now ratchets in
+1/36 steps instead of jumping 0 -> 1, because on **39.01% of FULL sessions (40.19% OOS)** between 1
+and 35 cells are risk-off and the book holds a fractional position no single cell holds. That
+fractional boundary is the smoothing that buys the drawdown point, and its cost is paid in order
+count. Executability is not the constraint anyone expected it to be: only **0.002%** of blended
+target weight (0.005% OOS) falls below the 0.01x no-trade band, against a pre-registered 10% bar,
+and the band is a fraction of equity so the verdict does not move with account size.
+
+**(7) The blend does not lean on the cell that shipped.** Deleting the shipped cell and blending
+the other 35 moves Sharpe by **-0.0013 FULL / +0.0030 IS / -0.0048 OOS** - ties on a 0.05 bar. The
+result is a property of the ensemble, not a costume for the incumbent.
+
+**Decision on the pre-registered bar: NOT a promotion candidate.** Against the shipped cell, fully
+charged, Sharpe FAILS on both windows (1.016 vs 1.047; 1.025 vs 1.151), MaxDD PASSES on both, CAR
+FAILS on both (-1.096 FULL, -3.924 OOS against a -1.0 allowance). Nothing ships, and nothing could
+have: a 36-cell blend is not expressible in one `Params()`.
+
+**And the bar the decision above is the wrong instrument for (clause 7b).** Clause 7 compares the
+blend to the shipped cell, which is correct for a promotion and wrong for a decision, because S-40
+proved the shipped cell is not on the menu - a selector picks it in 0 of 11 years. Against what a
+selector *actually gets*, on the identical 2,684 sessions:
+
+| book | CAR | Sharpe | MaxDD | source |
+| --- | --- | --- | --- | --- |
+| shipped (hindsight) | 24.705 | 1.228 | 23.860 | S-40 |
+| **weight-blend36** | **22.932** | **1.174** | **23.327** | clause 3b |
+| grid mean of per-cell CAR | 22.734 | n/a | n/a | S-40 |
+| walk-forward, CAR selector | 21.345 | 1.011 | **38.185** | S-40 |
+| walk-forward, Sharpe selector | 21.046 | 1.000 | **38.185** | S-40 |
+
+The blend beats the CAR selector by **+1.587 CAR / +0.163 Sharpe / -14.858 drawdown points** and
+the Sharpe selector by **+1.886 / +0.174 / -14.858**, and it edges the grid mean itself (+0.198)
+because rebalancing between the cells is not the same as averaging their accounts. **The blend is
+not a better cell than the one that shipped; it is a better book than choosing a cell.** Both
+sentences are true and together they are the whole result: the shipped cell keeps its place because
+the promotion gate compares to the incumbent, and the ensemble is what this dial should have been
+built as if the question were being asked fresh today.
+
+**Next.** The comparison that would actually move the book is not another blend of this dial - it
+is whether the same ensemble trick pays on the axes S-38 labelled FITTED that are *not* risk dials,
+where a CAR grid is a fair instrument and the drawdown-for-return trade S-40 corrected does not
+confound it. Filed as S-42. A shipped 36-cell blend would also need a signal-level change to
+`algorithms/s1_momo/signals.py` plus its own LEAN run; that is real work and it is not worth doing
+for a quarter of a drawdown point, so it is filed and not started.
+
 ## 2026-09-13 - S-40: the crisis switch is a drawdown instrument nobody could have tuned, and the shipped cell is the best of 36 on the half labelled out-of-sample and below median on the half labelled in-sample
 
 **What this iteration is.** S-38 closed AUD-11's lower bound and left one number sitting on the

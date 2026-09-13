@@ -105,7 +105,8 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
                   lag: int = 0, divs: pd.DataFrame | None = None,
                   hedge: dict | None = None, scale: float = 1.0,
                   diag_out: list | None = None, flat_frac: float = 0.0,
-                  band: float | None = None, skip: dict | None = None) -> pd.DataFrame:
+                  band: float | None = None, skip: dict | None = None,
+                  weights_fn=None) -> pd.DataFrame:
     """S-19's deployed book with the day's P&L split into its two legs.
 
     `mode="both"` is the deployed convention exactly: decide on the closes through i-1, fill
@@ -153,6 +154,16 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
     `p`; it is S-32's placebo, which holds the NUMBER of skipped orders fixed and changes
     only WHICH ones, so "the band buys something" can be separated from "the book trades
     less". Both act on the rebalance plan only, never on a liquidation leg.
+
+    S-41 adds one more default-inert argument, same precedent. `weights_fn` is called as
+    `weights_fn(index[i])` and returns the target weight dict for the session that would
+    otherwise come from `sig.target_weights`; everything downstream - sizing at close[i-1],
+    the no-trade band, the two legs, commission, financing - is untouched, so a supplied
+    weight path is executed through exactly the deployed rebalance. `None` skips the branch
+    entirely and leaves every earlier row bit-identical. It exists because S-41 blends 36
+    parameter cells' WEIGHTS, which no single `Params()` can express; S-41 clause 1b asserts
+    that feeding back the shipped cell's own extracted weights reproduces the shipped book to
+    the digit, and nothing in S-41 may be read if that fails.
     """
     closes, opens = frames["close"], frames["open"]
     tickers = [t for t in sig.traded_universe(params) if t in closes.columns]
@@ -226,8 +237,12 @@ def legs_simulate(frames: dict, params, mode: str, start: str, end: str,
 
         # --- decide, on exactly the information the deployed runner has
         lo = max(0, i - lag - params.history_bars)
-        targets, diag = sig.target_weights(closes.iloc[lo:i - lag], equity_curve, params, state)
-        state = diag.get("state", {})
+        if weights_fn is None:
+            targets, diag = sig.target_weights(closes.iloc[lo:i - lag], equity_curve,
+                                               params, state)
+            state = diag.get("state", {})
+        else:                                              # S-41: a supplied weight path
+            targets, diag = weights_fn(index[i]), {}
         if diag_out is not None:
             # S-28: the sizing diagnostics of the day, for a study about the vol target.
             # Read-only and default-inert, so every S-25/S-26 row stays bit-identical.
