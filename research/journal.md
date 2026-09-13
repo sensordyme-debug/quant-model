@@ -4,6 +4,114 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - D-10 (`daily` track; full entry in `research/journal_daily.md`)
+
+D-9's open half - "the store is now watched; the ORDER SIZE is not" - measured and closed as a
+guard rather than a fix. The item argues reachability from the champion's smallest order ($1,076)
+against the worst adjusted price a committed run has met ($1,280, LLY), and those are not
+comparable quantities: `target` and `held` are both `int`, so an order is a difference of integers
+and its notional is a whole multiple of its own price - **0 of 5,039 orders** fall below one share,
+minimum ratio exactly **7.0000**. The quantity that *can* round to zero is the target, and on it
+the margin is **219.5 shares (220x)**, structurally so, because the sleeve holds at most 3 names
+and its tightest allocation is **$34,935** - a price would have to exceed that to zero a target.
+Over the store, **4 of 95** symbols clear that floor and all four are D-9's FAILs; **0 clean
+symbols** do, the worst being GOOG at $2,128 (16x away). The one new defect is clause 5c: an
+unpriced ranked name was surfaced by `paper_trade.plan_orders` as a `delta=None` row and dropped
+silently by `submit_targets`, a runner/backtest disagreement `compare_orders.py` cannot reach -
+filed as **S-46**. `signals.unsizable_targets` ships as one shared definition (LEAN, the offline
+book, and the runner via the loaded signal module, never a transcription - S-45's lesson) and is
+inert on all three pre-registered legs: **0 fires** on 3,690 sessions, the offline book
+bit-identical, and the LEAN control `20260913T165131Z` still at **5,128 orders /
+`a6d6224ce9c70091e5bfa8e96f046bf3`** with the I-1 gate at 3,689/3,689 and 5,021 vs 5,021 orders.
+Nothing promoted; `champion.json`, `live/*` and the scheduled tasks untouched.
+
+## 2026-09-13 - A-18 (`iterate` track)
+
+**The linear scoring has no detectable mean bias, and that is a coincidence of two large errors
+cancelling - not smallness.** A-18 built the missing piece (`--size-schedule` on
+`scripts/intraday_backtest.py`) and ran A-17's arms end to end: 3 arms x 10 calendar years of the
+deployed config on the Alpaca store, 2,355 scored OOS sessions, `scripts/sweep_a18.py`, 6
+pre-registered clauses, 3 DIAGNOSTIC ledger rows (`intraday/a18_sizing`).
+
+**Clause 2, identity, is exact.** Today's harness at k = 1.0 reproduces `results/a8/daily_control.csv`
+on **all 2,434 sessions**, 0 differing, max |dret| **1.5e-11 bps**, -$307.7508/day both. So AUD-07's
+calendar trim did not move this book, the ledger's control series is still reproducible, and the
+k = 1.0 path is inert - separately pinned exactly on 61 sessions (`results/a18/smoke.log`: identical
+`daily` frame, 0 differing summary keys) and by 6 unit tests in `tests/test_intraday_size_schedule.py`.
+
+**THE GAP, which is the item.** Per session, `ret_harness - k_t * ret_persisted`:
+
+| arm | mean k | gap $/day | t | gap sd $ | max abs gap | sessions differing | trades vs `none` | costs vs linear | stops harness | stops linear |
+|---|---|---|---|---|---|---|---|---|---|---|
+| CONST | 0.7703 | **-4.34** | -0.16 | 1,312 | 362 bps | 100% | -4.1% | +1.5% | **32** | 0 |
+| SLEEVE | 0.7703 | **+19.35** | +0.66 | 1,432 | 310 bps | 100% | -3.6% | +3.0% | **8** | 0 |
+
+Read the mean row honestly: the SE is $27-30/day on a book whose level is -$232/day, so "no
+detectable bias" is the claim and a bias up to about a quarter of the level is **not** excluded.
+
+**The split is the finding, because the two channels are each an order of magnitude bigger than
+what survives them.**
+
+| arm | channel | n | contribution to the gap | mean on those sessions |
+|---|---|---|---|---|
+| CONST | loss limit (scaled book stopped, linear did not) | 32 | **-$73.69/day** | -$5,423 |
+| CONST | share rounding + no-trade band | 2,323 | **+$69.35/day** | +$70 |
+| SLEEVE | loss limit | 8 | **-$21.84/day** | -$6,429 |
+| SLEEVE | share rounding + no-trade band | 2,347 | **+$41.19/day** | +$41 |
+
+**A-17's feasibility clause is circular, and this is the correction.** A-17 reported "0 stopped
+sessions, limit-aware re-score bit-identical" for its passing arm. That test reads the SCALED
+book's intraday low as `k_t x low_t` of the UNSCALED book - a series **already truncated by the
+unscaled book's own stop**. The unscaled book stops on 91 of these 2,355 sessions and its low on
+those days averages **-2.60%** (min -3.04%), so `0.7703 x low` can never reach -2.5% and the check
+must return zero. It is not a measurement. The harness says the scaled books stop **32** (CONST)
+and **8** (SLEEVE) times, and every one of those 40 sessions is a day the unscaled book also
+stopped: a 77%-size book that does not flatten early keeps running and hits the limit later.
+Every A-15/A-17 limit-aware re-score inherits this.
+
+**The rounding channel is NOT a cost saving, so it is the book holding less than it intends.**
+Costs/day: `none` $905, CONST $707, SLEEVE $718, against a linear-implied $697 - the harness pays
+**more** than the linear scoring assumes (+1.5% / +3.0%), while trades fall only **4%** for a 23%
+cut in size. The +$69/day therefore comes from `floor()`: half a share is a bigger fraction of a
+smaller position, so a scaled book carries systematically less than k x the target, and on a book
+that loses money that is worth real dollars.
+
+**A-17's headline survives its own pass rule, and gets slightly stronger.**
+
+| scoring | ES5 cut | q05 cut | d $/day | t | max dd CONST | max dd SLEEVE | dd points | 99% CI |
+|---|---|---|---|---|---|---|---|---|
+| linear (A-17) | +11.08% | +15.20% | +92.28 | +1.57 | 53.41 | 42.32 | -11.09 | [+5.76, +16.52] |
+| **harness** | **+12.70%** | **+8.98%** | **+115.98** | **+1.76** | 53.99 | **40.54** | **-13.45** | **[+6.48, +18.84]** |
+
+**CONFIRMED** by clause 6: cut > 0, >= 5% ECON_MATERIAL, 99% CI excludes zero, q05 cut positive,
+**3 of 3** regimes (2016-2019 +16.35, 2020-2023 +19.61, 2024-2026 +5.20 - the weak regime roughly
+doubles). Note the direction: the harness makes the switch look **better**, because the mechanism
+that fires is the loss limit, and it fires 4x harder on the flat comparator (32 stops) than on the
+de-risked arm (8). The linear scoring is structurally blind to exactly the thing the switch is for.
+The one statistic that goes the other way is **q05, +15.20% -> +8.98%** - one order statistic near
+rank 118, and A-17 had already named ES5 as the primary for that reason.
+
+**Year table, both scorings.** The harness is >= the linear number in **8 of 10** years and A-17's
+"negative in 5 of 10" becomes **3 of 10** (2017 -19.84, 2019 -8.07, 2023 -4.85); 2024 (-1.56 ->
++0.75) and 2026 (-2.54 -> +0.18) flip barely positive, and the big moves are 2022 **+8.62 points**
+and 2020 **+3.24**. A-17's limit stands in substance: still carried by 2018 (+40.3) and 2020 (+37.8).
+
+**NOTHING SHIPS, and two reasons are structural, not cautious.** (1) The book still loses money at
+every exposure on this window: -$296/day unscaled, -$232 flat at M, -$116 de-risked. A tail cutter
+on a losing book is a research finding, not a deployment. (2) `scripts/intraday_trader.py` has no
+size-schedule input at all - the harness now has one, the live path does not - so A-17's arm is not
+deployable without building one, which is its own item with its own replay gate. `--size-schedule`
+is inert when absent, no live or scheduled file was touched, suite green.
+
+**The limit to carry forward.** Both harness arms carry the same `floor()` shortfall at the same
+mean k, so the SLEEVE-vs-CONST cut is a fair comparison - but the harness $/day **levels** are not
+comparable to the linear ones, and the realized (as opposed to intended) average exposure of each
+arm was not measured, because the harness does not record it. Opened as **A-20**.
+
+Reusable rule: **a feasibility check that reads the scaled book's risk off the unscaled book's own
+path is circular and will always report "inert"** - the unscaled book's risk control has already
+truncated the series the check is reading. Measure it in the harness or do not claim it.
+
 ## 2026-09-13 - S-44 (`daily` track; full entry in `research/journal_daily.md`)
 
 D-7's fee-cap item, closed, and it moved the wrong file. `sweep_s19.commission` did cap at 1%
@@ -170,6 +278,15 @@ a set that should be complete.** Clause 4 and clause 4b ran on the same 175 rows
 second one found anything.
 
 ## 2026-09-13 - A-16 (`iterate` track)
+
+> **Correction 2026-09-13 (C-12, found by `critic`; `iterate` accepts it).** The COMMIT MESSAGE of
+> `ff1c061` states clause 2 as "(-9,489 / 215 / $2,498 / flat)". Those figures are the 2026-09-11
+> session replayed at `--equity-frac 1.0 --nav 1000000`, i.e. **4x the size the sleeve trades**;
+> `live/intraday_config.json` carries `equity_frac 0.25`. The entry below is the correct one -
+> **-$2,080 / 36 trades / $227.83** - and today's live gate run agrees with it. Clause 2's
+> conclusion (byte-identical in both arms) is unaffected: only the numbers a reader greps out of
+> the commit body are wrong, and they overstate the sleeve. No history is rewritten (C-6/C-8
+> precedent).
 
 **The trader's own `--replay` was undercharging the sleeve by 29.72% of its cost line, and the
 gate that decides whether the sleeve trades on Monday is a replay.** D-5 taught

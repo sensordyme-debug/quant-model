@@ -1726,7 +1726,41 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
-- **D-10 (`daily`, opened by D-9 2026-09-13): the store is now watched; the ORDER SIZE is not.**
+- **D-10 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): the guard ships inert,
+  and the item's own reachability argument is arithmetically impossible.** `scripts/sweep_d10.py`,
+  7 pre-registered clauses, 2 DIAGNOSTIC rows (`daily/d10_ordersize`), `tests/test_daily_unsizable.py`
+  (19 tests), LEAN control `20260913T165131Z`. **The premise is false by type**: `target` and
+  `held` are both `int`, so an order is a difference of integers and its notional is a whole
+  multiple of its own price - **0 of 5,039 orders** below one share, minimum ratio exactly
+  **7.0000**, and the item compares an order in TLT against a price in LLY, a name this book has
+  never held. **The concern is right through the target instead**, where the margin is **219.5
+  shares (220x)** and structural: at most 3 names held, tightest allocation **$34,935**, so a
+  price must exceed that to zero a target. Store reach: **4 of 95** symbols clear the floor and
+  all four are D-9's FAILs; **0 clean symbols** do (worst GOOG $2,128, 16x away). **The one new
+  defect is the path the item does not name** - an unpriced ranked name is a visible `delta=None`
+  row in `paper_trade.plan_orders` and was dropped in silence by `submit_targets`, and the band
+  then *keeps* any existing holding (it prices the liquidation at a cent a share); `compare_orders.py`
+  cannot reach it, so it is filed as **S-46**. Shipped log-only as `signals.unsizable_targets`,
+  one definition reached by LEAN, `sweep_s19.simulate` and the runner via the loaded signal module
+  (never a transcription - S-45). Inert on all three pre-registered legs: **0 fires** over 3,690
+  sessions, offline book bit-identical, control still **5,128 orders / `a6d6224ce9c70091e5bfa8e96f046bf3`**,
+  I-1 gate 3,689/3,689 at 5,021 vs 5,021. Closed as a guard, **not** as a fix.
+  <!-- closed by D-10, 2026-09-13 (daily). -->
+
+- **S-46 (`daily`, opened by D-10 2026-09-13): the I-1 gate cannot see the one place the runner
+  and the backtest disagree.** `compare_orders.py` asserts that `plan_orders` reproduces
+  `submit_targets` on every date of the champion's sample, and it passes 3,689/3,689 - but it
+  builds its `prices` dict from LEAN bars, so a symbol with no usable price never arises inside
+  it. That is exactly the case where the two implementations differ: the runner returns a visible
+  `(sym, None, px, None, held)` row and the backtest, before D-10, returned nothing at all. D-10
+  closed the silence (both sides now report through `signals.unsizable_targets`) and left the
+  *gate* blind. Cheap and mechanical: give `compare_orders.py` an injected-fault mode that blanks
+  one ranked symbol's price on a subset of dates and asserts the two paths agree on what they do
+  with it, including the asymmetry - a HELD unpriced name is carried, not closed, because the band
+  scores the liquidation at `max(price, 0.01)`. Needs no owner, no trading day and no LEAN run.
+  <!-- added by D-10, 2026-09-13 (daily). -->
+
+- **D-10 (original text, kept for the pre-registration) (`daily`, opened by D-9 2026-09-13): the store is now watched; the ORDER SIZE is not.**
   D-9 shipped an assertion that fails a symbol whose adjusted price makes a $10k order round to
   zero shares, and it is a store-side check by construction. The other half of the same boundary
   is the book: over the 77 symbols a committed run has actually held, the worst adjusted price is
@@ -2395,7 +2429,13 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   `scripts/verify_c11.py`, artifacts in `results/c11/`. Nothing restored, nothing withdrawn.
   <!-- closed by C-11, 2026-09-13 (critic). -->
 
-- **C-12 (found by `critic` 2026-09-13 in C-11, belongs to `iterate`): A-16's commit message
+- **C-12 DONE 2026-09-13 (`iterate` track, alongside A-20): the correction note is in
+  `research/journal.md` at the head of the A-16 entry, naming `ff1c061`'s body, the wrong figures,
+  the right ones (-$2,080 / 36 trades / $227.83) and the `--equity-frac 1.0 --nav 1000000`
+  invocation that reproduces the wrong ones. No history rewritten; clause 2's conclusion stands.**
+  <!-- closed by A-20, 2026-09-13 (iterate). -->
+
+- **C-12 (original text, kept for the record) (found by `critic` 2026-09-13 in C-11, belongs to `iterate`): A-16's commit message
   states the preflight session at 4x the size the sleeve trades; the journal is right.**
   `ff1c061`'s body gives clause 2 as "(-9,489 / 215 / $2,498 / flat)". `research/journal.md` gives
   "-$2,080 / 36 trades / $227.83", and the live gate run today agrees with the journal (**P&L
