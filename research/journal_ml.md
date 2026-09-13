@@ -141,6 +141,17 @@ zero in others, and has never been measured. Both stores are on disk, so it is o
 pull and roughly 45 minutes. Pre-register the same hurdle and, per (a), pre-register the abstention
 rate as a reported outcome rather than a diagnostic.
 
+**Housekeeping, and it is the same defect 560b0bb recorded yesterday.** F-16's commit `98512df`
+swept in another track's files - `research/experiments_futures.jsonl`,
+`research/futures_discovery_{es,mes,mnq}.json` and `scripts/futures_fetch_multi.py` - which the
+futures track had staged in the shared index between my `git add` and my `git commit`. Nothing was
+lost and nothing was rewritten; the files are in the repo under the wrong message. The cause is
+that `git add <mine> && git commit` commits **the whole index**, not the paths just added, so the
+AGENTS.md rule "commit ONLY the files you touched" is not actually enforced by the command the rule
+recommends. **The fix, and the ml track uses it from here: `git commit --only <paths> -m ...`,
+which commits exactly the named paths whatever else a concurrent track has staged.** Worth
+promoting to AGENTS.md by whichever track owns that file.
+
 ## 2026-09-13 - F-15: the auction tape DOES carry orthogonal, sign-stable signal the panel does not have - and adding all 19 columns of it made the book worse while 3 of them made it better. Refused on the pre-registered arm. The gate is necessary and NOT sufficient: F-14 screened the REDUNDANT, and what beat this run was the WEAK-AND-NUMEROUS.
 
 **Hypothesis.** F-14 closed the supervised class with a sentence and a rule. The sentence: all seven
