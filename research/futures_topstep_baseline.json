@@ -1,0 +1,110 @@
+{
+  "sessions": 325,
+  "mean_per_session": 2.3923076923076922,
+  "total": 777.5,
+  "win_rate": 0.5261538461538462,
+  "worst_session": -1091.0,
+  "best_session": 516.5,
+  "worst_intraday": -1106.0,
+  "t_hac": 0.2272488183735498,
+  "t_threshold_1_trial": 1.9599639845400536,
+  "twin": {
+    "p_pass_combine": 0.025,
+    "p_first_payout": 0.0025,
+    "p_liquidated": 1.0,
+    "mean_gross": 0.1065625,
+    "mean_net": null,
+    "median_days_to_pass": 50.5,
+    "p05_min_buffer_funded": 1058.0
+  },
+  "stress": {
+    "losses +50%": {
+      "p_pass_combine": 0.005,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0,
+      "mean_net": null
+    },
+    "cost +$25/day": {
+      "p_pass_combine": 0.0,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0,
+      "mean_net": null
+    },
+    "worst 10d first": {
+      "p_pass_combine": 0.0,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0,
+      "mean_net": null
+    },
+    "-$1,000 shock on day 1": {
+      "p_pass_combine": 0.0,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0,
+      "mean_net": null
+    },
+    "edge decays to zero": {
+      "p_pass_combine": 0.015,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0,
+      "mean_net": null
+    },
+    "intraday 1.5x deeper": {
+      "p_pass_combine": 0.01,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0,
+      "mean_net": null
+    }
+  },
+  "size_sweep": {
+    "0.25": {
+      "p_pass_combine": 0.0,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0
+    },
+    "0.5": {
+      "p_pass_combine": 0.0,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0
+    },
+    "0.75": {
+      "p_pass_combine": 0.005,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0
+    },
+    "1.0": {
+      "p_pass_combine": 0.02,
+      "p_first_payout": 0.0,
+      "p_liquidated": 1.0,
+      "mean_gross": 0.0
+    },
+    "1.5": {
+      "p_pass_combine": 0.06,
+      "p_first_payout": 0.01,
+      "p_liquidated": 1.0,
+      "mean_gross": 4.4155078125
+    },
+    "2.0": {
+      "p_pass_combine": 0.055,
+      "p_first_payout": 0.025,
+      "p_liquidated": 1.0,
+      "mean_gross": 7.6025
+    }
+  },
+  "clustering": {
+    "block_pass": 0.02,
+    "iid_pass": 0.025,
+    "block_paid": 0.0,
+    "iid_paid": 0.005,
+    "pass_premium": 0.005000000000000001,
+    "paid_premium": 0.005
+  }
+}
