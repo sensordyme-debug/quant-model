@@ -3319,7 +3319,45 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   O-3, O-5 all land at cover ~= 1) and informative in MAGNITUDE, where there is nothing to
   charge.** No shipped or runner-loaded file touched, no deploy gate owed. Handoff is **A-15**
   below, not a continuation here.
-- **A-15 (opened by O-6 2026-09-13, for whoever owns sizing - `iterate`/`ml`, NOT `options`):
+- **A-15 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): REFUSED on the MECHANISM,
+  which closes the whole class rather than this one scaler.** `scripts/sweep_a15.py`, eleven
+  clauses pre-registered, no backtest, **4 DIAGNOSTIC rows** under `intraday/active`; nothing
+  shipped, `live/*` untouched, no replay owed. Clause 0 found the item's premise wrong - the
+  sleeve has **no** realized-vol sizing to beat (`orb` 0.12 of equity per position, `vwap_trend`
+  0.10, flat notional), so the tape control was built here and the item split into "does any
+  causal magnitude forecast beat flat sizing" (free) and "does the chain beat it" (paid).
+  Because the control book loses -$324/day, every statistic is gross-matched by an expanding
+  causal prior-mean and reported as `cov(k,pnl) + (mean k - 1)·mean(pnl)`, with PASS on the
+  covariance alone - otherwise "size a losing book down" scores as skill. **Clause 2 holds
+  hugely**: sleeve P&L on realized |SPY move| is **+$2,789/day per 1 sd at t +11.67**, terciles
+  -2,819 / -1,732 / +3,583. **Every causal scaler fails**: tape `rv20` cov -62.5 at t -1.05,
+  `vix_lag` -70.0, chain `rn_half`@10:00 residual over tape **-157.6 at t -1.94, 0 of 2 available
+  regimes**; the only positive variant (strictly pre-open lagged chain residual, +105.9, 3 of 3)
+  is t +1.28 and is not claimed. **The ORACLE says what is being left**: perfect hindsight on
+  magnitude pays **+$550/day** and turns the book -$324/day / Sharpe -0.36 / DD 69.6% into
+  **+$222/day / +0.28 / 40.8%** - the largest improvement anything has produced on this sleeve.
+  **Two pre-registered defences fired and were honoured**: clause 8's linearity bound FAILED (64
+  and 55 NEW 2.5% loss-limit breaches, 2.38%/2.05% against a 2% bound), so the headline moved to
+  a loss-limit-aware book calibrated on the control's own 93 stopped sessions (exactly the 93
+  with `low_ret <= -2.5%`, realizing -2.598%), under which the tape scalers are **free rather
+  than harmful** (+23.5 / +36.7 at t +0.34 / +0.50) and the chain is still -135.9 at t -1.51; and
+  the single scramble landed at -139.5 rather than zero, so a **300-permutation null** was built
+  (mean -11.9, sd 68.8, band [-121.4, +93.1]) - the tape scaler is inside it at z -0.42 and the
+  chain at z -2.12, one of four comparisons, so the chain may not be called helpful and should
+  not be called harmful. **Clause 10 is the finding**: splitting log|move| causally into
+  forecastable and surprise, the sleeve is paid **+$2,651/day per 1 sd of SURPRISE at t +8.41**
+  and **-$230/day per 1 sd of the PREDICTABLE part at t -0.73**; adding the chain moves the
+  explained variance 0.090 -> **0.100** (O-6 reproduces, one point of R²) and the predictable
+  part to -$662 at t -1.93. **90% of the magnitude this sleeve lives on is unforecastable and the
+  10% that is not pays the wrong sign**, which is why all nine beta x band cells are a shelf of
+  negatives. **DO NOT RE-OPEN as a better-magnitude-model question** - a longer chain, a second
+  underlying or an ML nowcast cannot change a verdict that is about which component of volatility
+  pays. Does not touch O-6's own claim, which is about SPY forecast accuracy and reproduces here.
+  Volatility sizing survives only as a RISK dial (free under the correct book), never quoted as a
+  P&L improvement.
+  <!-- closed by A-15, 2026-09-13 (iterate). -->
+
+- **A-15 (original text, kept for the pre-registration) (opened by O-6 2026-09-13, for whoever owns sizing - `iterate`/`ml`, NOT `options`):
   does an `rn_half`-based size scaler beat the intraday sleeve's realized-vol sizing on the
   sleeve's own P&L?** O-6 proved the chain's magnitude nowcast is incremental over the tape for
   SPY out of sample (above). The O-track cannot test the next step: sizing lives in the sleeve's

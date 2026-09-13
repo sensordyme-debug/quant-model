@@ -4,6 +4,107 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - A-15 (`iterate` track)
+
+**REFUSED, and the refusal is a general one: this sleeve is paid +$2,651/day per 1 sd of the
+SURPRISE in market magnitude at t +8.41, and -$230/day per 1 sd of the FORECASTABLE part at
+t -0.73. A perfect magnitude nowcast is worth +$550/day; every causal one is worth nothing,
+because 90% of the magnitude the sleeve lives on cannot be forecast and the 10% that can pays
+the wrong sign.** O-6 handed this track the question of whether the 0DTE chain's `rn_half`
+magnitude nowcast - incremental over the tape at 5 of 5 clocks, DM t +3.5..+4.2 - can SIZE the
+intraday sleeve. `scripts/sweep_a15.py`, eleven clauses pre-registered in the docstring, **no
+backtest** - every number comes off A-8's persisted sleeve P&L (`results/a8/daily_control.csv`,
+2,686 sessions of the shipped config), O-5's frozen chain cache, the Alpaca SPY minute store and
+S-29's VIX series. **4 DIAGNOSTIC ledger rows** under `intraday/active`; nothing shipped, no
+runner-loaded or scheduled file touched, `live/*` untouched, so no replay and no
+`compare_orders.py` is owed.
+
+**Clause 0 finds the item's premise is wrong, and it matters.** A-15 was written as "beat the
+sleeve's realized-vol sizing". The sleeve has no vol sizing: `orb` is a constant 0.12 of equity
+per position, `vwap_trend` 0.10, capped at `per_symbol` 0.15 and `gross` 1.0. The incumbent is
+**flat notional**, so the tape control had to be built here and the item is two questions - does
+**any** causal magnitude forecast beat flat sizing (free), and does the **chain** beat the free
+one (costs the Theta VALUE ask). Clause 1 reproduces A-14's control book to the digit
+(-262.2 / -512.1 / -133.7 by regime, -323.6 full period, 2,686 sessions).
+
+**The trap the test is built around, because the control book loses money.** At -$324/day, any
+scaler averaging below 1 "wins" by turning a losing sleeve down - which is a decision the owner
+already made twice and needs no options data. So `k` is divided by its own **expanding prior
+mean** (causal) and every headline is reported as `mean[(k-1)·pnl] = cov(k,pnl) + (mean k - 1)·
+mean(pnl)`, with the PASS condition on the covariance term alone.
+
+**Clause 2 says the mechanism is real and large.** Sleeve P&L on the realized |SPY open-to-close
+move|: **+$2,789/day per 1 sd at t +11.67**, terciles monotone at -2,819 / -1,732 / **+3,583**
+$/day. A breakout sleeve is exactly the thing a magnitude forecast should size.
+
+**Clauses 3-5: every causal scaler fails, and the hindsight ceiling shows how much is being
+left.**
+
+| scaler (beta 0.30, band [0.5, 2.0]) | n | cov $/day | t | book $/day | Sharpe |
+|---|---|---|---|---|---|
+| flat (the shipped control) | 2,686 | - | - | -323.6 | -0.36 |
+| tape `rv20`, pre-open | 2,686 | **-62.5** | -1.05 | -394.7 | -0.39 |
+| tape `vix_lag`, pre-open | 2,686 | -70.0 | -1.12 | -406.3 | -0.39 |
+| chain `rn_half` @10:00, raw | 1,847 | -168.7 | -1.92 | -554.2 | -0.54 |
+| **chain @10:00, residual over tape** | 1,847 | **-157.6** | -1.94 | -546.4 | -0.55 |
+| chain, pre-open lagged, residual | 2,282 | +105.9 | +1.28 | -208.2 | -0.17 |
+| **ORACLE \|move\| (CEILING, not tradeable)** | 2,686 | **+550.2** | **+9.46** | **+222.0** | **+0.28** |
+
+Perfect hindsight on the session's magnitude turns this book from -$324/day at Sharpe -0.36 into
+**+$222/day at Sharpe +0.28 with drawdown 69.6% -> 40.8%** - the largest single improvement
+anything has produced on this sleeve. No causal version captures any of it. The one positive
+causal variant, the strictly pre-open lagged chain residual, is +$106/day at **t +1.28** and 3 of
+3 regimes, which does not clear and is not claimed.
+
+**Two pre-registered defences fired, and both were honoured rather than written around.**
+(1) Clause 8's linearity bound **FAILED**: linear scaling implies 64 (tape) and 55 (chain) NEW
+2.5% loss-limit breaches, 2.38% and 2.05% of sessions against a 2% bound. So clause 8b becomes
+the headline - a loss-limit-aware book that stops the moment `k·low_ret` crosses the limit,
+calibrated on the control's own 93 stopped sessions (which are **exactly** the 93 with
+`low_ret <= -2.5%` and realize -2.598%, a 0.098-point flatten cost). Under it the tape scalers
+are **free rather than harmful** (+23.5 / +36.7 $/day at t +0.34 / +0.50) and the chain residual
+is still -135.9 at t -1.51: the linear version's harm was partly an artifact of not modelling the
+stop, and modelling it does not rescue the chain. (2) Clause 9's single scramble landed at
+-$139.5, **not** at zero - so one scramble is one draw, not a null. The 300-permutation
+distribution has mean -11.9 and sd 68.8, band [-121.4, +93.1]: the tape scaler is **inside** it
+(z -0.42, indistinguishable from noise) and the chain residual is at z **-2.12**, nominally
+outside but one of four comparisons, with its own sign softening to t -1.51 under the correct
+book. Read honestly: the chain scaler cannot be called helpful, and should not be called harmful
+either.
+
+**Clause 10 is the answer, and it generalizes past the two scalers actually built.** Split
+log|SPY move| by expanding causal OLS into the part a forecast can see and the surprise, then
+pay the sleeve on each:
+
+| forecast built from | var(log\|move\|) explained | PREDICTABLE part | SURPRISE part |
+|---|---|---|---|
+| tape (`rv20`, `vix_lag`) | 0.090 | -$230/day per 1sd, t -0.73 | **+$2,651/day per 1sd, t +8.41** |
+| tape + chain `rn_half` | 0.100 | -$662/day per 1sd, t -1.93 | **+$2,939/day per 1sd, t +8.56** |
+
+The chain buys **one point of R²** on top of the tape - consistent with O-6, which is not
+contradicted anywhere here - and the 10% of magnitude that is forecastable at all pays **nothing,
+leaning negative**. The +$2,789/day of clause 2 lives entirely in the 90% no one can see in
+advance. That is why the sensitivity grid is a shelf of negatives (all nine beta x band cells
+land between -82 and -257 cov for the chain residual, -31 to -102 for the tape): there is no cell
+to find, because the input is the wrong input.
+
+**What this closes and what it does not.** It closes A-15 as posed and, more usefully, closes the
+whole *class*: on this sleeve, **conditioning size on any predictor of realized volatility is
+refused on the mechanism, not on the sample**, so a better magnitude model - a longer chain, a
+second underlying, an ML nowcast - cannot change the verdict, and O-6's finding should not be
+re-proposed as a sizing input for the A-track. It does **not** touch O-6's own claim, which is
+about SPY forecast accuracy and reproduces here. It does **not** say volatility sizing is useless
+generally - under the loss-limit-aware book it is roughly free, so it remains available as a risk
+dial (dispersion, drawdown) as long as nobody quotes it as a P&L improvement. And it leaves one
+number for the owner file: the gap between the ORACLE's +$222/day book and the deployed -$324/day
+is the **entire** remaining value of this sleeve, and it is locked behind a quantity that is by
+construction unforecastable. `live/intraday_config.json` is unchanged at `equity_frac` 0.25 and
+`time_stop` 240.
+
+**Next:** nothing in the A-track. A-14 closed the last item with a stated mechanism and A-15
+closed the last handoff into it; the standing per-session job A-5 part 2 is the only open
+`iterate` work, and it needs live fills, not a sweep.
+
 ## 2026-09-13 - A-14 (`iterate` track)
 
 **The time stop is not pure cost, and the way it fails is worth more than the answer: 9 of 11
