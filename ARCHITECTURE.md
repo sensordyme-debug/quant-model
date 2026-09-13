@@ -41,17 +41,42 @@ purpose.
    +-------------------+-----------------------+
                                    |
                         EXECUTION INTERFACE
-                     OrderIntent -> ExecutionAdapter
+        Signal -> OrderIntent -> RiskChain -> ExecutionAdapter -> venue
                                    |
               +--------------------+--------------------+
               |                                         |
-        BROKER ADAPTERS                          PROP FIRM ADAPTERS
-        ib_async (live)                          interface defined,
-                                                 no live adapter yet
+        quant_brain/brokers/                     PROP FIRM ADAPTERS
+        IBKRAdapter (live, both runners)         interface defined,
+        SimulatedAdapter (research + tests)      no live adapter yet
+```
+
+Alongside the market branches, and used by all of them:
+
+```text
+                       quant_brain/research/
+                                   |
+     +-----------------------------+-----------------------------+
+     |                             |                             |
+  registry.py                  search.py                  core/validation.py
+  Experiment / Ledger          bounded funnel             purged walk-forward
+  Stage ladder                 4 gates in cost order      write-once holdout
+  trials counted from disk     resumable by fingerprint   embargo (k-fold only)
 ```
 
 `*` costs and sizing currently live as constants in `scripts/intraday_common.py`. The ABCs
 they will move behind are the next extraction; see §5.
+
+### The two rules the shape enforces
+
+**Nothing above `quant_brain/brokers/` may import a broker SDK.** Checked structurally:
+`tests/test_qb_adapter.py` walks the AST of every other module and fails on an import of
+`ib_async`, `ib_insync`, `ibapi`, `alpaca` or `polygon`. This is what makes a second venue
+reachable without editing a trading loop.
+
+**There is one path to a venue and it runs through the risk chain.** `RoutedExecutor` is that
+path. A denied intent never reaches an adapter, a reduced intent arrives at the reduced size,
+and no ordering of engines lets a later one re-permit what an earlier one denied. A `FLATTEN`
+bypasses every engine, because a risk layer that can block the exit is not a risk layer.
 
 ---
 
@@ -138,6 +163,48 @@ Profiles are named by **rule shape, never by firm**. A profile called `topstep_5
 source looks authoritative and becomes a liability the first time the rulebook changes.
 `from_dict` rejects unknown keys so a typo'd rule fails loudly instead of silently disabling
 a limit.
+
+---
+
+## 4b. The research engine
+
+`quant_brain/research/` is market-agnostic and is what the Options branch will share when it
+restarts. Three pieces:
+
+**`registry.py` — the ledger.** An append-only JSONL record of every experiment, written
+atomically because six agent tracks share this tree. Its one non-negotiable property is that
+`Ledger.verdict()` has **no `n_trials` parameter**. It counts the distinct experiments already
+recorded in the same family and sizes the Bonferroni threshold from that. Measured: the same
+series faces |t| > 1.96 as the first hypothesis in a family and |t| > 3.66 as the 202nd, with
+nobody asked. A test asserts the signature exposes no `n_trials`, `trials`, `alpha`,
+`override` or `force`, because a keyword like that would be used by exactly the person who
+wants the result to be significant.
+
+Experiment identity is a fingerprint over the hypothesis and parameters, deliberately
+excluding metrics, timestamp and verdict. Re-running a specification is therefore idempotent:
+a search cannot launder its multiplicity by repeating itself, and equally cannot inflate its
+own penalty for nothing. **Rejected experiments stay in the ledger and stay in the
+denominator** — a system that forgets its rejections flatters its survivors.
+
+**`search.py` — the funnel.** Four gates in increasing order of cost: statistics, cost and
+execution, Topstep survival, walk-forward. The order is load-bearing rather than an
+optimisation. Running the statistical gate last would mean the survivors had been pre-selected
+by filters the multiplicity correction cannot see, and the reported t would be a claim about a
+much smaller search than actually happened. Bounded by an experiment budget, a wall-clock
+budget and a machine-pressure check between candidates; resumable because duplicates are
+detected by fingerprint before they run.
+
+**`core/validation.py` — purged walk-forward and the holdout.** Label-horizon purging, and a
+final holdout whose ledger is keyed by a fingerprint of the data, so a second evaluation next
+week from a fresh process is still refused. One finding worth carrying: **under strict
+walk-forward the embargo is structurally vacuous** — every training row precedes the test fold
+by construction, so no embargo width can remove one. It is `purged_kfold` that needs it.
+
+### The promotion ladder
+
+`RESEARCH -> VALIDATION -> CHALLENGER -> PAPER -> CHAMPION`, with `REJECTED` terminal from
+anywhere. Skipping a rung raises. Surviving the funnel promotes a candidate to `VALIDATION`
+and no further; champion straight from research is the failure the ladder exists to prevent.
 
 ---
 
