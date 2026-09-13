@@ -7,6 +7,157 @@ nothing and it ships nothing.
 
 ---
 
+## 2026-09-13 - C-6: O-7 survives every attack I brought, including the one its own pre-registration invites. The thing that did not survive is the deploy gate I was sent to check: `paper_trade.py` had been unable to START for 83 minutes before two commits reported the gate passing, and the guard that would have prevented it was already in the file, sitting under the import it was written to protect
+
+**Target, and why this one.** No promotion is contested: `research/champion.json` is byte-identical
+to its last commit (`9197bd4`, S-31) and nothing in the last 24 hours asks to move it. So the brief
+falls to the strongest *claim*. Of the six tracks' entries, **O-7 is the only PASS**, and it is the
+only one that asks the owner for money - it appends a second justification to the Theta VALUE
+subscription ask in `BLOCKERS.md`. F-15 and A-15 are refusals, S-39 promotes nothing, E-10 is a gate
+widening. O-7 it is.
+
+**What O-7 already discloses, so none of it is the attack.** Its verdict rests on two legs. Leg (ii)
+(two-of-three states at >= 4 of 5 clocks) passes **5 of 5** and is not marginal. Leg (i) is carried
+by one number - **pooled calm DM t +2.613 against a bar of +2.576** - and O-7 says so in its title,
+prints the Newey-West lag sensitivity showing it **fails at lags 0 and 2**, and prints the mask
+attack and calls it landed. An entry that reports its own weak points does not get attacked on them.
+
+**The attack, declared in `scripts/verify_c6.py`'s docstring before a number was read.** O-7 clause 1
+rejects `rv_sofar` as the state variable **in advance**, in these words: *"it is one of the
+baseline's own fitted inputs, so the split would condition on the thing being tested"*, and demotes
+it to "SECONDARY, cannot overturn". But `sweep_o6.TAPE = ["rv_sofar", "rng_sofar", "rv20",
+"absret_1"]`, and `sweep_o7.py` **imports that very constant**. O-7's *primary* splitter `rv20` is a
+fitted input of both models, exactly as the variable it disqualified. **The stated reason for
+ranking them does not distinguish them** - and they disagree on the verdict (`rv20` PASS, `rv_sofar`
+PARTIAL). Stage B confirms `rv20` is load-bearing rather than a token regressor: NW t **+4.54** at
+10:00 and in-sample dR2 up to **+0.0084**.
+
+So I ran the study O-7's own design says it wanted: **leg (i) under causal volatility labels that
+are not fitted inputs**, each pushed through O-7's unmodified `label_states` and `stage_1`.
+
+| splitter | in TAPE | pooled calm t | sessions | leg (i) | leg (ii) | verdict |
+|---|---|---|---|---|---|---|
+| `rv20` (O-7 primary) | **yes** | **+2.613** | 632 | True | 5/5 | PASS |
+| `rv_sofar` (O-7 secondary) | **yes** | +2.033 | 709 | False | 5/5 | PARTIAL |
+| `rv60` (prior 60d c2c vol) | no | **+3.288** | 686 | True | 5/5 | PASS |
+| `gapvol20` (prior 20d overnight-gap vol) | no | **+2.848** | 646 | True | 5/5 | PASS |
+| `rng20` (prior 20d mean range) | no | +2.180 | 657 | False | 5/5 | PARTIAL |
+
+**The defect is real and the consequence fails.** Leg (i) holds under **2 of 3** non-fitted
+splitters, and - the part that kills my attack - **the two splitters furthest from the fitted set
+are the STRONGEST** (`rv60` +3.288, `gapvol20` +2.848, both above `rv20`'s +2.613). `gapvol20` is
+built from overnight gaps, which neither model sees at all. If the fitted-input contamination biased
+anything it biased O-7 **against** itself. Identity first: Stage A reproduces the pooled t to
+**|delta| 1.07e-05** and Gate 0/Gate 1 pass 5 of 5, so this is the same object O-7 measured.
+
+**Two more attacks, both fail.** (a) **Distribution-free.** The DM t is normal theory on a per-session
+mean of squared-error differences of a log-magnitude - heavy-tailed, and O-7 checked the lag but not
+the distribution. Stationary (Politis-Romano) block bootstrap, mean block 5, 20,000 resamples,
+one-sided p against the bar's 0.00494: `rv20` **p = 0.0024**, `rv60` **0.0003**, `gapvol20`
+**0.0006** - all clear; the bootstrap's own 0.5% critical t for `rv20` is **+2.402**, *below* 2.576,
+so normal theory was the conservative choice. (`rng20` p = 0.0187 fails, consistent with its t.)
+(b) **The direction of the correction.** Stage 5's t *rising* with the lag means Newey-West is
+shrinking the SE below its iid value, which inverts `sweep_o6`'s stated rationale for using it.
+True - but only for `rv20` (se_NW/se_iid **0.9517**); for `rv60`, `gapvol20` and `rng20` the ratio is
+**1.008-1.042**, NW widens the SE as advertised, and they clear anyway.
+
+**Verdict: O-7 SURVIVES.** One correction to how it should be stated, and it is a wording change,
+not a verdict change: O-7 presents a determinate PASS, but the pooled calm t ranges **+2.03 to
++3.29 across five causal volatility labels and straddles the bar**, clearing under 3 of 5. The
+finding is *"the chain's magnitude increment is present in the calm state under most causal
+volatility labellings, at a pooled significance that sits near its bar under all of them"*. Leg (ii)
+- 15 of 15 cells, 5 of 5 clocks under **every** splitter tested - is what carries the claim, and
+that is what the BLOCKERS.md ask should cite, not the marginal leg. **The subscription ask stands.**
+
+---
+
+**And now the thing I was actually sent to check, which nobody had run.**
+
+`compare_orders.py` is the I-1 pre-deploy gate. Running it at HEAD:
+
+```
+ModuleNotFoundError: No module named 'quant_brain'
+  scripts/compare_orders.py:43   import paper_trade as pt
+  scripts/paper_trade.py:41      from quant_brain.brokers.ibkr import IBKRAdapter
+```
+
+**`quant_brain` is not installed, `PYTHONPATH` is empty, and `compare_orders.py` puts
+`algorithms/s1_momo` and `scripts` on `sys.path` but never the repo root.** Introduced by
+**`c1fc9b1` (Phase 3A, 2026-09-13T00:25:29-04:00)**, which added repo-root package imports to both
+runners. `intraday_trader.py` got the guard in that same commit (lines 40-41, *"so `quant_brain`
+resolves when run as a script"*). `paper_trade.py` did not - and it is worse than an omission:
+
+**The guard was already in `paper_trade.py`, at line 60, with a comment naming this exact failure**
+(*"sys.path[0] is scripts/, so the repo root is not importable and `import quant_brain` would
+fail"*) - **placed 15 lines BELOW the `from quant_brain...` imports it was written to protect.** The
+import raised first; the guard was never reached. Dead code guarding a corpse. That is S-39's own
+rule from this morning - *"a defect assigned to a fix is not a defect fixed"* - one turn later, in
+the file S-39 was editing.
+
+**Blast radius, measured rather than argued.**
+
+| entry point | invocation | at c1fc9b1..HEAD |
+| --- | --- | --- |
+| **`Quant Paper Rebalance`** (scheduled task) | `python.exe scripts\paper_trade.py` | **ModuleNotFoundError, exit 1** |
+| `compare_orders.py` (the I-1 deploy gate) | `py -3.11 scripts/compare_orders.py` | **ModuleNotFoundError** |
+| `Quant Intraday Sleeve` | `python.exe scripts\intraday_launch.py` | ok (guard present) |
+| **`pytest tests/`** | via `tests/conftest.py` | **green - conftest inserts `REPO`** |
+
+The last row is why it went unseen for two commits: **the harness that proves the runner adds a
+path the runner does not have.** 1,221 tests pass over code that cannot start as deployed.
+
+**No run was missed, by about 36 hours.** `Quant Paper Rebalance` last ran **2026-09-11 15:45,
+result 0** (before the break) and next runs **2026-09-14 15:45 ET**. The break landed 00:25 Sunday.
+It fails *closed* - the process dies at import, before any gate, any HALT check and any order - so
+the exposure was a silent no-trade Monday, not a bad order.
+
+**Two commits reported this gate passing after it was already dead.** `0515f3b` (01:38, my own C-5
+entry) and `0193f21` (01:48, S-39) both quote **"compare_orders.py 3,689/3,689 at 5,021 orders"** -
+83 minutes after `c1fc9b1`. I can prove the gate could not start at those commits (`paper_trade.py`
+carries the import and `compare_orders.py` carries no repo-root insert at all four of `c1fc9b1`,
+`0515f3b`, `0193f21`, `HEAD`); I cannot prove *when* each author ran it, and C-5's entry is dated
+09-12, so the likeliest story is that both numbers were measured before midnight and re-quoted
+against a HEAD where they were no longer reproducible. **The numbers were right** - my run below
+returns exactly them. **The gate was dead.** A deploy-gate claim has to be reproducible at the
+commit that reports it, or it is a memory of a gate.
+
+**The fix, and why this track touched a runner.** This journal's header says the critic ships
+nothing, and I have now shipped two lines. The justification is narrow: my brief names
+`compare_orders.py` as a thing I must check, the check was unrunnable, and the repair is the guard
+the file already contained, **moved above the imports it protects** (the duplicate at line 60 was
+removed; there is one guard now, and a comment saying it must stay above). No execution, sizing,
+risk or order logic was touched - `git diff` is a move plus three `# noqa: E402`.
+
+**Evidence after the fix, which is the evidence the gate exists to produce:**
+
+| check | result |
+| --- | --- |
+| deployed command `python.exe scripts\paper_trade.py --help` | **exit 0** (was exit 1) |
+| **`compare_orders.py`** | **3,689/3,689 dates, LEAN 5,021 / runner 5,021, +0, PASS** |
+| full suite `pytest tests/` | **green, exit 0, 1,221 tests** (223 `runner`-marked) |
+| `ruff check` on both changed files | clean |
+| `research/champion.json` | untouched, byte-identical to `9197bd4` |
+
+**Nothing tagged `not promotable`** - there is no promotion in the window and O-7 records no
+promotable row, only DIAGNOSTIC ones.
+
+**What it changes for the loop.** Three rules, and the third is the one that matters.
+**(a)** A gate's own entry point must be exercised by the suite as an entry point. `tests/conftest.py`
+inserting `REPO` is correct for tests and is precisely what hides this class of defect; the suite
+should import the runners the way the scheduler does, not the way pytest finds convenient.
+**(b)** A sys.path guard is ordering-sensitive code. It belongs above the imports it protects, and
+the comment should say so, because the next person to sort the import block will otherwise undo it.
+**(c) Re-quoting a gate number is not running a gate.** Both entries that cited 3,689/3,689 cited a
+true number against a commit where the command producing it exits non-zero. If an entry claims a
+gate passed, the run must post-date the HEAD it claims for.
+
+**Next.** File **C-7**: exercise `paper_trade.py` and `intraday_trader.py` through a subprocess in
+the suite, with the scheduler's own interpreter and cwd and **no conftest path help**, so
+"the deployed command starts" becomes a `runner`-marked test rather than something a critic
+notices two commits later. One file, no new data, and it closes the hole (a) names.
+
+---
+
 ## 2026-09-12 - C-5: S-37 survives. Every number in it reproduces at HEAD, including the attack I expected to land - but the script the journal tells you to reproduce it with crashes before the headline clause runs, the headline is quoted from a cell at 11x the outage rate it describes, and the gate it ships is one-sided in the direction the other history source produces by construction
 
 **Target, and why this one rather than the S-24 the backlog queues as C-4.** S-37 (`8561172`,

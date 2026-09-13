@@ -1726,6 +1726,62 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
+- **C-7 (found by `critic` 2026-09-13 in C-6, fix belongs to `eng`): the suite proves the runners
+  through a path the scheduler does not have, so "the deployed command starts" is untested.**
+  C-6 found `scripts/paper_trade.py` unable to import for 83 minutes across two commits
+  (`c1fc9b1` added `from quant_brain...` above the sys.path guard that was already in the file),
+  while `pytest tests/` stayed green at 1,221 tests the whole time - because `tests/conftest.py`
+  inserts `REPO` on `sys.path` and the scheduled task does not. The import defect is **fixed**
+  (C-6, gate re-run at 3,689/3,689); the **hole that hid it is not**. Add a `runner`-marked test
+  that launches `paper_trade.py` and `intraday_trader.py` as **subprocesses**, with the
+  scheduler's own interpreter and working directory and **no conftest path help**, asserting
+  `--help` exits 0. Cheap (one file, no data), and it converts a class of outage that currently
+  needs a critic to notice into a gate failure at 09:25. Note for whoever takes it: the assertion
+  must be on a *subprocess*, since an in-process import inherits pytest's already-fixed `sys.path`
+  and would pass while deployed.
+
+- **S-41 (`daily`, opened by S-40 2026-09-13): ensemble the crisis switch instead of choosing it.**
+  S-40 proved no real-time selector can find the shipped `regime_threshold`/`regime_vol_window`
+  cell (0 of 11 walk-forward years under two objectives, -1.389/-1.688 CAR points below the grid
+  mean, worst drawdown of any book tested at 38.185%), while the **equal-weight blend of all 36
+  cells** - which requires no selection at all - carried the best Sharpe (**1.173**) and the lowest
+  drawdown (**23.389%**) of every book in S-40's table, beating even the hindsight-shipped cell's
+  drawdown on FULL (23.389 vs 23.860) and OOS (23.407 vs 23.855). Build it properly: **average the
+  36 cells' target WEIGHTS, not their returns** (S-40's number is a return-average, which is the
+  right upper bound but not an implementable book), then price turnover, commission and the
+  fractional risk-off boundary it necessarily holds, fully charged in S-22 cell C. The prize is
+  not return - it gives up ~0.42 bps/day against the shipped cell on FULL at t -0.98, and the sign
+  of that gap flips with the window - it is that the sleeve's single most fragile decision stops
+  having to be made. Judge on Sharpe and drawdown against the shipped cell at equal cost, and on
+  whether the blended weights are executable at the deployed order sizes. Needs no trading day and
+  no owner. **Do not touch `margin_budget`, `target_vol`, `target_exposure` or the drawdown cap.**
+  <!-- added by S-40, 2026-09-13 (daily). -->
+
+- **S-40 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): the crisis switch is a
+  drawdown instrument that has been read as a return instrument, its shipped cell is unfindable in
+  real time, and S-38's classification of its two dials is corrected.** New `scripts/sweep_s40.py`
+  (7 clauses pre-registered, `results/s40_full.txt`, 118 DIAGNOSTIC rows `daily/s40_regime`); no
+  LEAN run, `champion.json`, `live/*` and all scheduled tasks untouched, no parameter moved.
+  Headline: on the joint 6x6 grid the shipped `thr=1.50 win=20` is **rank 1 of 36 on OOS 2020-2026
+  (29.124%, 100th pct) and rank 24 of 36 on IS 2012-2019 (16.488%, 36th pct)** - AUD-11 as a single
+  cell rather than an aggregate percentile, and the switch is where AUD-11 lives. A walk-forward
+  selector seeing only a 31-December backtest picks it in **0 of 11 years** under both a CAR and a
+  Sharpe objective and lands **-1.389 / -1.688 below the grid mean** with a 38.185% drawdown, so
+  branch (c) fired: real-time selection on this dial is *harmful* and the shipped cell's distance
+  above the grid mean is hindsight in full. First end-to-end ablation of `risk_on` since S-1: **off
+  is +2.68 CAR at t +0.96 fully charged and +12.9 points of maximum drawdown** (24.037% ->
+  36.892%), which the promotion gate refuses on its own terms (`max_drawdown_limit: "35%"` and
+  `drawdown_tolerance_points: 1.0`), so the switch stays and nothing ships. **Correction owed to
+  S-38**: it classified `regime_threshold` and `regime_vol_window` FITTED, but they trade return
+  against drawdown by construction, so a CAR grid over them measures the risk dial doing its job -
+  the same trap S-38's own FITTED/RISK-POSTURE split was built to avoid. S-38's **+1.25 to +2.07**
+  is therefore biased upward by an unmeasured amount concentrated in those two axes; its *label*
+  finding is unaffected and strengthened. Reusable rule: **weak rank information plus an argmax is
+  worse than no selection** - IS-to-OOS Spearman across the 36 cells is +0.208 and the IS top-3
+  beat the IS bottom-3 by +3.625 CAR points out of sample, yet the IS argmax pays **-2.102** against
+  the grid mean, and the argmax is the only cell a selector takes. Opens **S-41**.
+  <!-- added by S-40, 2026-09-13 (daily). -->
+
 - **C-3 (found by `critic`, fix belongs to `eng`): the intraday sleeve's 09:25 launch gate is red,
   and the cause is a unit test that reads the machine's free memory.** On the interpreter the
   Windows task actually runs (`pythoncore-3.14-64\python.exe scripts\intraday_launch.py`),
@@ -4398,6 +4454,18 @@ carry the owning track in brackets; record each fix in that track's journal and 
     on both return and drawdown - so the figures below are right to about one to two CAR points
     and wrong in their label. IBKR paper trading from 2026-09-09 is the only genuinely
     out-of-sample evidence this strategy has."*
+    <!-- S-40, 2026-09-13: the label finding is STRENGTHENED and the size is now known to be
+         BIASED UPWARD, so the text above is still the best available but both halves need a
+         caveat when it is finally written. Strengthened: on the joint 6x6 crisis-switch grid the
+         shipped cell is rank 1 of 36 on 2020-2026 and rank 24 of 36 on 2012-2019 - a single cell
+         carrying the whole claim, which no percentile argument can. Biased upward: S-38 classified
+         `regime_threshold` and `regime_vol_window` FITTED, but both trade return against drawdown
+         by construction (ablating the switch is +2.68 CAR and +12.9 drawdown points), so their
+         +3.596 and +3.016 - the two largest contributors to the +1.25..+2.07 - are partly the risk
+         dial doing its job rather than selection. Re-deriving the estimate with those two axes
+         reclassified RISK-POSTURE is open work; nobody should quote +1.25..+2.07 as tight. -->
+    <!-- S-40, 2026-09-13: still open and still not the daily track's edit to make. -->
+
 
 - **AUD-11 [daily] (original text)** the "OOS 2020-2026" label is a sub-period of full-period parameter selection; relabel or re-select on 2012-2019.
 - **AUD-12 [daily+eng] DONE 2026-09-12 by S-35** (`scripts/sweep_s35.py`, 7 clauses,

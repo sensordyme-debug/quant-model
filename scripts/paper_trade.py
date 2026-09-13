@@ -38,14 +38,23 @@ import math
 import sys
 from pathlib import Path
 
-from quant_brain.brokers.ibkr import IBKRAdapter
-from quant_brain.core.execution import (
+REPO = Path(__file__).resolve().parents[1]
+# Run as `python scripts/paper_trade.py`, sys.path[0] is scripts/, so the repo root is not
+# importable and `import quant_brain` would fail. Added here rather than at the call site so
+# there is one place that knows it. It MUST stay above the `quant_brain` imports below: this
+# block existed from Phase 3A but sat underneath them, so the import it protects raised first
+# and the guard was never reached (C-6).
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from quant_brain.brokers.ibkr import IBKRAdapter  # noqa: E402
+from quant_brain.core.execution import (  # noqa: E402
     OrderIntent,
     OrderType,
     RoutedExecutor,
     Side,
 )
-from quant_brain.core.risk import RiskChain
+from quant_brain.core.risk import RiskChain  # noqa: E402
 
 #: Empty preserves the wire exactly: this runner never set an orderRef, and
 #: ib_async defaults it to "". Named so the choice is visible rather than
@@ -53,12 +62,6 @@ from quant_brain.core.risk import RiskChain
 ORDER_REF = ""
 
 
-REPO = Path(__file__).resolve().parents[1]
-# Run as `python scripts/paper_trade.py`, sys.path[0] is scripts/, so the repo root is not
-# importable and `import quant_brain` would fail. Added here rather than at the call site so
-# there is one place that knows it.
-if str(REPO) not in sys.path:
-    sys.path.insert(0, str(REPO))
 LIVE = REPO / "live"
 LOG_DIR = LIVE / "log"
 STATE_DIR = LIVE / "state"
