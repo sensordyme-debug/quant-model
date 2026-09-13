@@ -715,7 +715,11 @@ def install() -> None:
             print(f"  kept the dirty store as {bak.name}")
         shutil.copy2(src, dst)
         print(f"  installed {src.name} -> {dst.name}")
-    print("\ndone. Every later F run reads a calendar-trimmed panel.")
+    meta = f1.stamp_panel()
+    print(f"  stamped {f1.PANEL_META.name}: code {meta['code']}, "
+          f"{meta['store_files']} store symbols")
+    print("\ndone. Every later F run reads a span-masked, calendar-trimmed panel, and "
+          "`f1.check_panel_fresh()` now says so if that stops being true.")
 
 
 def main() -> None:

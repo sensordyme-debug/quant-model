@@ -177,6 +177,81 @@ def decision_mask(idx: pd.DatetimeIndex) -> np.ndarray:
     return np.isin(mod, [FIRST_DECISION + STEP * BAR * k for k in range(N_DECISIONS)])
 
 
+#: sidecar written next to the panel recording WHAT built it (F-19)
+PANEL_META = OUT / "panel.meta.json"
+
+
+def panel_fingerprint() -> dict:
+    """A hash of every function and constant that decides what a panel row contains.
+
+    Deliberately not a file mtime. An mtime trips on a comment and is then ignored, which is the
+    failure mode that produced F-19 in the first place; this hashes the SOURCE of the builder,
+    the loader and the label mask, so a cosmetic edit is silent and a real one is not.
+    """
+    import hashlib
+    import inspect
+    from quant_brain.core import labels as qb_labels
+
+    srcs = []
+    for fn in (build_panel, features_one, to_5min, slot_volume_median, decision_mask,
+               ic.load_bars, ic.calendar_trim, qb_labels.forward_span_mask):
+        try:
+            srcs.append(inspect.getsource(fn))
+        except (OSError, TypeError):
+            srcs.append(f"<source unavailable: {getattr(fn, '__name__', fn)}>")
+    consts = repr([BAR, HOLD, STEP, FIRST_DECISION, N_DECISIONS, SLOT_LOOKBACK, MARKET,
+                   sorted(EXCLUDE), BASE_FEATS, MKT_FEATS, RESID_FEATS, RANK_FEATS, RANK_OF])
+    store = sorted(ic.DATA_DIR.glob("*.parquet"))
+    return {"code": hashlib.sha256(("\n".join(srcs) + consts).encode()).hexdigest()[:16],
+            "store_dir": str(ic.DATA_DIR), "store_files": len(store),
+            "store_newest": max((q.stat().st_mtime for q in store), default=0.0),
+            "stamped": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
+
+
+def stamp_panel(path: Path | None = None) -> dict:
+    """Record the fingerprint of the code and store that produced the panel at `path`."""
+    fp = panel_fingerprint()
+    meta = {"panel": (path or PANEL).name, **fp}
+    PANEL_META.write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    return meta
+
+
+def check_panel_fresh(loud: bool = True) -> list[str]:
+    """Warn if the cached panel was not built by the code and store now on disk (F-19).
+
+    F-19 found `panel.parquet` a day behind this track's own AUD-20 fix and behind D-6's AUD-07
+    trim, and F-14, F-15, F-16 and F-17 all ran on it - each one passing a "base reproduces F-8
+    to the printed digit" check, because all four were comparing the same stale file with itself.
+    A reproduction test against a cache cannot detect a stale cache.
+
+    Deliberately a WARNING and not an exception: several scripts load the panel mid-run and a
+    hard failure here would cost more than it saves. Returns the reasons so a caller that wants
+    to be strict can be.
+    """
+    if not PANEL.exists():
+        return []
+    now = panel_fingerprint()
+    if not PANEL_META.exists():
+        why = ["no panel.meta.json - this panel predates the F-19 stamp, provenance unknown"]
+    else:
+        was = json.loads(PANEL_META.read_text(encoding="utf-8"))
+        why = []
+        if was.get("code") != now["code"]:
+            why.append(f"builder/loader source changed ({was.get('code')} -> {now['code']})")
+        if was.get("store_dir") != now["store_dir"]:
+            why.append(f"store changed ({was.get('store_dir')} -> {now['store_dir']})")
+        if now["store_files"] != was.get("store_files"):
+            why.append(f"store has {now['store_files']} symbols, panel built on "
+                       f"{was.get('store_files')}")
+        if now["store_newest"] > was.get("store_newest", 0.0) + 1.0:
+            why.append("a store file is newer than the panel")
+    if why and loud:
+        print(f"WARNING: {PANEL.name} may be stale - " + "; ".join(why)
+              + "\n         rebuild with `python scripts/sweep_f1.py --build`. F-19 measured a "
+                "$176/day swing in the base book from exactly this.", flush=True)
+    return why
+
+
 def build_panel(symbols: list[str] | None = None, verbose: bool = True) -> pd.DataFrame:
     """Assemble the modelling panel: one row per (timestamp, symbol) decision point."""
     store = sorted(p.stem for p in ic.DATA_DIR.glob("*.parquet"))
@@ -515,6 +590,7 @@ def main() -> None:
         print(f"building panel from {ic.DATA_DIR} ...")
         panel = build_panel(args.symbols)
         panel.to_parquet(PANEL, index=False)
+        stamp_panel()
         print(f"\npanel: {len(panel):,} rows x {len(FEATURES)} features -> {PANEL}")
         print(f"  {panel['ts'].min()} .. {panel['ts'].max()}  "
               f"{panel['sym'].nunique()} symbols  {panel['day'].nunique():,} sessions")
@@ -522,6 +598,7 @@ def main() -> None:
     if not args.train:
         return
 
+    check_panel_fresh()
     panel = pd.read_parquet(PANEL)
     panel["ts"] = pd.to_datetime(panel["ts"])
     print(f"panel {len(panel):,} rows, {panel['sym'].nunique()} symbols, "

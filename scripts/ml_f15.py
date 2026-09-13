@@ -416,6 +416,7 @@ def build(fams: str = "ab") -> None:
 
 def load_panel(scramble: int | None = None, cols: list[str] | None = None) -> pd.DataFrame:
     """F-8's labelled panel with both alt families MERGED ON (clause 1: never inner-joined)."""
+    f1.check_panel_fresh()          # F-19: a stale cache is invisible to an identity check
     panel = pd.read_parquet(f1.PANEL)
     p = f8.add_labels(panel)
     del panel

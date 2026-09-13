@@ -148,6 +148,17 @@ selects **for** whatever is inflating it.
 spread from a 1% change in the rows. Every F cell this track has ruled on since F-12 is inside
 that. Any future F run states the effect it claims **next to** that number, or re-measures it.
 
+**Rule (a) is enforced, not just written down.** `sweep_f1.panel_fingerprint/stamp_panel/
+check_panel_fresh` write and check `data/f1/panel.meta.json`, which records a SHA of the source of
+`build_panel`, `features_one`, `to_5min`, `slot_volume_median`, `decision_mask`, `ic.load_bars`,
+`ic.calendar_trim` and `qb_labels.forward_span_mask`, plus the store's directory, symbol count and
+newest mtime. `sweep_f1 --train` and `ml_f15.load_panel` (so F-15, F-16, F-17 and everything after)
+call it and print a warning. It hashes **source, not mtimes**, on purpose: an mtime check trips on
+a comment, gets ignored, and then fails to fire on the one edit that mattered - which is how F-19
+happened. Verified both ways: silent on the installed panel, and it fires on a changed builder hash
+and on a store that gained symbols. It is a warning and never an exception, because several
+scripts load the panel mid-run.
+
 ## 2026-09-13 - F-17: the gate ranks candidates in the WRONG ORDER. Given a wider pool it admitted the five columns with the LARGEST train-window |IC| - |t| 5.7 to 7.7 - and every one of them lost, while the three weakest, barely over the floor, made all the money. The pooled arm finished BELOW its own no-information scramble control. F-16 (a) is confirmed from the adversarial side: the abstention was the product.
 
 **Hypothesis.** F-16 built the first screen this track has that ranks a candidate without spending
