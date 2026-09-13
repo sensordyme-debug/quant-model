@@ -38,6 +38,21 @@ import math
 import sys
 from pathlib import Path
 
+from quant_brain.brokers.ibkr import IBKRAdapter
+from quant_brain.core.execution import (
+    OrderIntent,
+    OrderType,
+    RoutedExecutor,
+    Side,
+)
+from quant_brain.core.risk import RiskChain
+
+#: Empty preserves the wire exactly: this runner never set an orderRef, and
+#: ib_async defaults it to "". Named so the choice is visible rather than
+#: accidental, and so a future change to it is one edit.
+ORDER_REF = ""
+
+
 REPO = Path(__file__).resolve().parents[1]
 # Run as `python scripts/paper_trade.py`, sys.path[0] is scripts/, so the repo root is not
 # importable and `import quant_brain` would fail. Added here rather than at the call site so
@@ -428,20 +443,38 @@ def moo_window_ok(when: dt.datetime | None = None) -> bool:
     return when.weekday() < 5 and lo <= when.time() <= hi
 
 
-def build_order(order_type: str, action: str, qty: int):
-    """One IBKR order object per supported --order-type.
+#: The runner's --order-type spellings, as venue-independent intents.
+ORDER_TYPES = {
+    "MKT": OrderType.MARKET,
+    "MOC": OrderType.MARKET_ON_CLOSE,
+    "MOO": OrderType.MARKET_ON_OPEN,
+}
 
-    MKT fills now, MOC at the closing auction, MOO at the opening auction. IBKR has no
-    "MOO" orderType: an opening-auction order is a plain MKT carrying tif="OPG", which is
-    also why it can only be submitted before 09:28 ET.
+
+def intent_for(order_type: str, symbol: str, delta: int) -> OrderIntent:
+    """One OrderIntent per supported --order-type. No broker vocabulary above this line."""
+    if order_type not in ORDER_TYPES:
+        raise ValueError(f"unsupported order type {order_type!r}")
+    return OrderIntent(symbol=symbol, side=Side.of(delta), quantity=abs(delta),
+                       order_type=ORDER_TYPES[order_type], tag=ORDER_REF)
+
+
+def build_order(order_type: str, action: str, qty: int):
+    """Kept as a shim over the adapter's construction, deliberately.
+
+    Its tests pin the exact IBKR objects for MKT, MOC and MOO. Delegating rather than
+    deleting means those tests now certify the adapter's output, which makes them an
+    equivalence proof between the inline construction this runner used to do and the
+    construction it does now - the check that the migration changed nothing on the wire.
     """
-    from ib_async import MarketOrder, Order
-    if order_type == "MKT":
-        return MarketOrder(action, qty)
-    if order_type == "MOC":
-        return Order(action=action, totalQuantity=qty, orderType="MOC", tif="DAY")
-    if order_type == "MOO":
-        return Order(action=action, totalQuantity=qty, orderType="MKT", tif="OPG")
+    from quant_brain.brokers.ibkr import build_ib_order
+    side = Side.BUY if action == "BUY" else Side.SELL
+    return build_ib_order(OrderIntent(symbol="", side=side, quantity=qty,
+                                      order_type=ORDER_TYPES[order_type]
+                                      if order_type in ORDER_TYPES else _reject(order_type)))
+
+
+def _reject(order_type: str):
     raise ValueError(f"unsupported order type {order_type!r}")
 
 
@@ -576,13 +609,16 @@ def main() -> int:
         print(f"FLATTEN: {reason}; closing {len(positions)} positions")
         log_event("flatten", reason=reason, positions=positions)
         if not args.dry_run and ib and positions:
-            trades = []
-            for sym, qty in positions.items():
-                if qty == 0:
-                    continue
-                contract = Stock(IB_SYMBOL_MAP.get(sym, sym), "SMART", "USD")
-                ib.qualifyContracts(contract)
-                trades.append(ib.placeOrder(contract, MarketOrder("SELL" if qty > 0 else "BUY", abs(qty))))
+            held = {s_: q_ for s_, q_ in positions.items() if q_}
+            contracts = {s_: Stock(IB_SYMBOL_MAP.get(s_, s_), "SMART", "USD") for s_ in held}
+            if contracts:
+                ib.qualifyContracts(*contracts.values())
+            # FLATTEN intents: the risk chain cannot reduce or refuse these, which is the
+            # whole point of the emergency path (AUD-06 / AUD-08).
+            routed = RoutedExecutor(RiskChain(),
+                                    IBKRAdapter(ib, contracts, order_ref=ORDER_REF),
+                                    on_event=lambda ev, **kw: log_event(ev, **kw))
+            trades = [a.handle for a in routed.flatten(held, tag=ORDER_REF) if a.accepted]
             ib.sleep(FILL_WAIT_SECONDS)
             for t in trades:
                 log_event("fill", symbol=t.contract.symbol, status=t.orderStatus.status,
@@ -683,18 +719,32 @@ def main() -> int:
         return 3
 
     # ---- execution --------------------------------------------------------------------
+    # Signal -> OrderIntent -> risk -> adapter -> broker. The contracts are qualified up
+    # front because qualification is a connection-time concern, not a per-order one.
+    live = [(sym, delta, px) for sym, delta, px, _tgt, _cur in plan if delta]
+    contracts = {sym: Stock(IB_SYMBOL_MAP.get(sym, sym), "SMART", "USD")
+                 for sym, _d, _p in live}
+    if contracts:
+        ib.qualifyContracts(*contracts.values())
+    adapter = IBKRAdapter(ib, contracts, order_ref=ORDER_REF)
+    routed = RoutedExecutor(RiskChain(), adapter,
+                            on_event=lambda ev, **kw: log_event(ev, **kw))
+    ref_price = {sym: px for sym, _d, px in live}
+    acks = routed.submit([intent_for(args.order_type, sym, delta) for sym, delta, _p in live])
     trades = []
-    for sym, delta, px, tgt, cur in plan:
-        if delta is None:
+    for ack in acks:
+        sym = ack.intent.symbol
+        action = "BUY" if ack.intent.side is Side.BUY else "SELL"
+        qty = int(abs(ack.intent.quantity))
+        if not ack.accepted:
+            log_event("order_rejected", symbol=sym, action=action, qty=qty,
+                      type=args.order_type, reason=ack.reason)
+            print(f"REJECTED {action} {qty} {sym}: {ack.reason}")
             continue
-        contract = Stock(IB_SYMBOL_MAP.get(sym, sym), "SMART", "USD")
-        ib.qualifyContracts(contract)
-        action = "BUY" if delta > 0 else "SELL"
-        order = build_order(args.order_type, action, abs(delta))
-        trade = ib.placeOrder(contract, order)
-        trades.append(trade)
-        log_event("order", symbol=sym, action=action, qty=abs(delta), type=args.order_type, ref_price=px)
-        print(f"sent {action} {abs(delta)} {sym} ({args.order_type})")
+        trades.append(ack.handle)
+        log_event("order", symbol=sym, action=action, qty=qty, type=args.order_type,
+                  ref_price=ref_price.get(sym))
+        print(f"sent {action} {qty} {sym} ({args.order_type})")
     # MKT is expected to fill inside the wait; MOC and MOO fill at an auction that has not
     # happened yet, so the run only confirms that the exchange accepted them.
     ib.sleep(FILL_WAIT_SECONDS if args.order_type == "MKT" else 5)

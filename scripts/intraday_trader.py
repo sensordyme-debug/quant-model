@@ -44,6 +44,8 @@ from base import features  # noqa: E402
 APPROVAL = LIVE / "APPROVED_PAPER.md"
 HALT_FILES = [LIVE / "HALT", LIVE / "HALT_INTRADAY"]
 BOOK_FILE = LIVE / "state" / "intraday_book.json"
+from quant_brain.core.execution import OrderIntent, OrderType, Side  # noqa: E402
+
 ORDER_REF = "INTRADAY"
 LOG = "intraday"
 
@@ -296,13 +298,44 @@ class SimExecutor:
 
 
 class LiveExecutor:
-    def __init__(self, ib, contracts: dict):
-        self.ib, self.contracts = ib, contracts
-        from ib_async import MarketOrder
-        self.MarketOrder = MarketOrder
-        self.open: list = []
+    """The sleeve's order path, now expressed as Signal -> OrderIntent -> risk -> adapter.
 
-    def submit(self, orders: dict[str, int], when):
+    Part 8 / Part 16: strategy code must not name a broker, and a model must not be able to
+    reach a venue except through the risk layer. This class used to build `ib_async` orders
+    inline, which meant both properties were conventions rather than structure. It now holds
+    a `RoutedExecutor` over an `IBKRAdapter`, so the only code that knows what IBKR is lives
+    in `quant_brain.brokers.ibkr`, and the only way to the venue runs through the chain.
+
+    The public surface is deliberately unchanged - `submit(orders, when)`, `pending_qty()`,
+    `settle(t)` - because this sleeve trades live on paper every session and a signature
+    change here is a change to a running system for no gain.
+
+    WHY THE RTH REFUSAL IS NOT A RiskEngine
+    ---------------------------------------
+    It would be tidy to express the outside-RTH refusal as a risk rule. It would also be
+    wrong. A FLATTEN intent bypasses every risk engine by design (AUD-06/08: a risk layer
+    that can block the exit is not a risk layer), and every one of this runner's four
+    end-of-day close-outs is a flatten. Outside RTH an order carries `outsideRth=False` and
+    is QUEUED to the next open with nothing tracking it - which is exactly the AUD-08/09
+    defect, and it is just as dangerous for a flatten as for an entry. So the RTH check stays
+    a submission precondition on the whole batch: it is not a risk opinion about size or
+    ownership, it is the venue mishandling the message.
+    """
+
+    def __init__(self, ib, contracts: dict, risk=None):
+        self.ib, self.contracts = ib, contracts
+        from quant_brain.brokers.ibkr import IBKRAdapter
+        from quant_brain.core.execution import RoutedExecutor
+        from quant_brain.core.risk import RiskChain
+        self.adapter = IBKRAdapter(ib, contracts, order_ref=ORDER_REF,
+                                   outside_rth=False, tif="DAY")
+        # An empty chain today. It is the seam: a Topstep or sizing engine is added here and
+        # every order in this runner is subject to it, with no call site to remember.
+        self.routed = RoutedExecutor(risk or RiskChain(), self.adapter,
+                                     on_event=lambda ev, **kw: log(ev, **kw))
+        self.open = self.adapter.open
+
+    def submit(self, orders: dict[str, int], when, *, flatten: bool = False):
         # AUD-08/09: an order sent outside RTH has outsideRth=False, so IBKR queues it to the
         # next open where nothing is tracking it and the sleeve re-sells it. Refuse and say so.
         now_et = pd.Timestamp(dt.datetime.now(ET))
@@ -317,35 +350,32 @@ class LiveExecutor:
             _notify(f"INTRADAY refused {len(orders)} order(s) outside RTH at "
                     f"{now_et:%H:%M} (session {sess.open_t}-{sess.close_t})", LOG)
             return
-        for s, q in orders.items():
-            o = self.MarketOrder("BUY" if q > 0 else "SELL", abs(q))
-            o.orderRef = ORDER_REF
-            o.outsideRth = False
-            o.tif = "DAY"                 # explicit: an empty TIF makes IBKR emit code 10349, which ib_async mislabels as a cancel
-            tr = self.ib.placeOrder(self.contracts[s], o)
-            self.open.append(tr)
+        intents = [
+            OrderIntent(symbol=s, side=Side.of(q), quantity=abs(q),
+                        order_type=OrderType.FLATTEN if flatten else OrderType.MARKET,
+                        tag=ORDER_REF)
+            for s, q in orders.items() if q
+        ]
+        for ack in self.routed.submit(intents):
+            q = int(round(ack.intent.signed_quantity))
+            if not ack.accepted:
+                log("order_rejected", symbol=ack.intent.symbol, qty=q, reason=ack.reason)
+                continue
             # `t` is the decision bar; scripts/slippage_report.py joins on `id` and prices the
             # fill against the next bar's open, which is what the backtester assumes.
-            log("order", symbol=s, qty=q, id=tr.order.orderId, t=str(when))
+            log("order", symbol=ack.intent.symbol, qty=q, id=ack.handle.order.orderId,
+                t=str(when))
 
     def pending_qty(self) -> dict[str, int]:
         """Signed quantity still working at the broker, per symbol. AUD-06.
 
         Remaining, not submitted: an order half filled has half its size outstanding, and
-        sizing must net only the part that is still on the wire. `tr.fills` is the same
-        source `settle` trusts, deliberately - IBKR's status flag lied on 2026-09-10 and the
-        two must not disagree about what is outstanding.
+        sizing must net only the part that is still on the wire. The arithmetic now lives in
+        the adapter, which is the only layer that should know what a `Trade` is; this keeps
+        the whole-share rounding the sleeve's sizing depends on.
         """
-        out: dict[str, int] = {}
-        for tr in self.open:
-            done = float(sum(f.execution.shares for f in tr.fills))
-            left = float(tr.order.totalQuantity) - done
-            if left <= 1e-9:
-                continue
-            sign = 1 if tr.order.action == "BUY" else -1
-            sym = tr.contract.symbol
-            out[sym] = out.get(sym, 0) + int(round(left)) * sign
-        return {s: q for s, q in out.items() if q}
+        return {s: int(round(q)) for s, q in self.adapter.working().items()
+                if int(round(q))}
 
     def settle(self, t) -> list[tuple[str, int, float, float]]:
         """Collect fills from orders sent earlier; returns (sym, signed_qty, avg_px, commission)."""
@@ -727,7 +757,7 @@ def live(strategy, params, args):
         print(f"account intraday positions: {acct or 'none'}; book: {book.pos or 'empty'}")
         log("flatten_from_account", account_positions=acct, book=book.pos)
         if acct:
-            ex.submit({s: -q for s, q in acct.items()}, None)
+            ex.submit({s: -q for s, q in acct.items()}, None, flatten=True)
             ib.sleep(25)
             for sym, q, px, cost in ex.settle(None):
                 book_fill(book, sym, q, px, cost)
@@ -741,7 +771,7 @@ def live(strategy, params, args):
         return 0 if not left else 2
     if args.flatten:
         if book.pos:
-            ex.submit({s: -q for s, q in book.pos.items()}, None)
+            ex.submit({s: -q for s, q in book.pos.items()}, None, flatten=True)
             ib.sleep(20)
             for sym, q, px, cost in ex.settle(None):
                 book_fill(book, sym, q, px, cost)
@@ -753,7 +783,7 @@ def live(strategy, params, args):
         print(f"WARNING: sleeve book not empty at start ({book.pos}); flattening leftovers first")
         log("stale_book", positions=book.pos)
         if not args.dry_run:
-            ex.submit({s: -q for s, q in book.pos.items()}, None)
+            ex.submit({s: -q for s, q in book.pos.items()}, None, flatten=True)
             ib.sleep(15)
             for sym, q, px, cost in ex.settle(None):
                 book_fill(book, sym, q, px, cost)
@@ -816,7 +846,7 @@ def live(strategy, params, args):
             log("step_error", error=str(exc)[:300], trace=traceback.format_exc()[-1500:])
     # final flatten and report
     if trader.book.pos and not args.dry_run:
-        ex.submit({s: -q for s, q in trader.book.pos.items()}, None)
+        ex.submit({s: -q for s, q in trader.book.pos.items()}, None, flatten=True)
         ib.sleep(20)
         for sym, q, px, cost in ex.settle(None):
             book_fill(trader.book, sym, q, px, cost)

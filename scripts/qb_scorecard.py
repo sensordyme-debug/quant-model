@@ -214,6 +214,59 @@ def execution_abstraction() -> dict[str, bool]:
     }
 
 
+def runners_route() -> dict[str, bool]:
+    """Does each live runner reach its venue through the adapter, or build orders inline?
+
+    Inline construction is the actual defect: it is what makes a second venue unreachable
+    without editing a trading loop. Presence of an `ib_async` order class in a runner is the
+    signature, so this looks for the class names rather than for a comforting import.
+    """
+    out: dict[str, bool] = {}
+    for name in ("intraday_trader.py", "paper_trade.py"):
+        f = REPO / "scripts" / name
+        if not f.exists():
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        # Word-boundary matched, not substring: a bare "Order(" also matches
+        # `ib.cancelOrder(...)`, which is not order construction and made this check report
+        # a migrated runner as unmigrated.
+        builds_inline = bool(re.search(
+            r"(?<![A-Za-z_])(MarketOrder|LimitOrder|StopOrder|Order)\s*\(", text))
+        routes = "RoutedExecutor" in text or "OrderIntent" in text
+        out[f"{name} routes"] = routes and not builds_inline
+    return out
+
+
+def adapter_count() -> int:
+    """How many concrete ExecutionAdapters exist. One is an abstraction nobody has tested."""
+    n = 0
+    for f in (REPO / "quant_brain").rglob("*.py"):
+        text = f.read_text(encoding="utf-8", errors="replace")
+        n += text.count("(ExecutionAdapter)")
+    return n
+
+
+def observability_signals() -> dict[str, bool]:
+    """Can the system tell someone what it is doing, and what it refused to do?
+
+    Deliberately about REFUSALS as much as actions. A log that records fills and not the
+    orders the risk layer stopped is a log that makes the risk layer invisible, which is how
+    a risk layer comes to be disabled by the next person in a hurry.
+    """
+    def has(path: str, needle: str) -> bool:
+        f = REPO / path
+        return f.exists() and needle in f.read_text(encoding="utf-8", errors="replace")
+    wd_ok, _ = watchdog_trustworthy()
+    return {
+        "watchdog reports 6 states": wd_ok,
+        "risk refusals are logged": has("quant_brain/core/execution.py", "risk_denied"),
+        "order path emits events": has("quant_brain/core/execution.py", "_emit"),
+        "runner wires the event sink": has("scripts/intraday_trader.py", "on_event="),
+        "resource snapshot is a CLI": has("quant_brain/core/resources.py", "def snapshot"),
+        "structured JSONL logs": has("scripts/gateway_watchdog.py", "json.dumps"),
+    }
+
+
 def resource_legs() -> tuple[bool, str]:
     from quant_brain.core.resources import plan_workers, snapshot
     s = snapshot()
@@ -235,6 +288,30 @@ def build() -> list[Dimension]:
     state_ok, state_notes = live_state_clean()
     calls = integration_calls()
     wd_ok, wd_note = watchdog_trustworthy()
+
+    # Execution safety, on a ladder that can actually move. The six boundary pieces carry the
+    # base; the last two points are the things that prove the boundary is real rather than
+    # declared - every runner going through it, and more than one adapter behind it.
+    exec_pieces = sum(execution_abstraction().values())
+    routed = runners_route()
+    exec_score = 4.0 + 4.0 * (exec_pieces / max(1, len(execution_abstraction())))
+    if routed and all(routed.values()):
+        exec_score += 0.5
+    if adapter_count() >= 2:
+        exec_score += 0.5
+    exec_score = round(min(10.0, exec_score), 2)
+    unrouted = [k for k, v in routed.items() if not v]
+    exec_weak = (f"{', '.join(unrouted)} still builds broker orders inline, so that path "
+                 f"cannot reach a second venue without editing the trading loop"
+                 if unrouted else
+                 "every runner routes through the adapter and a second adapter exists; the "
+                 "remaining gap is that no PROP-FIRM adapter has been written or exercised "
+                 "against a real venue")
+
+    obs = observability_signals()
+    obs_hits = sum(obs.values())
+    obs_score = round(4.0 + 5.0 * (obs_hits / max(1, len(obs))), 2)
+
     res_ok, res_note = resource_legs()
     wired = sum(calls.values())
     ml = ml_corrections()
@@ -295,19 +372,20 @@ def build() -> list[Dimension]:
           "the 15 sweep_* files that produce most research still have no unit tests; only "
           "the shared harness does"),
 
-        D("Execution safety", 6.0 if sum(execution_abstraction().values()) >= 4 else 4.0,
-          [f"{sum(execution_abstraction().values())}/{len(execution_abstraction())} pieces present"]
-          + [f"  {'yes' if v else 'NO '}  {k}" for k, v in execution_abstraction().items()],
-          "the runners still build ib_async objects inline - OrderIntent is defined and "
-          "tested but no runner emits one, so a second broker or a prop-firm venue is not "
-          "yet reachable without editing the trading loop"),
+        D("Execution safety", exec_score,
+          [f"{exec_pieces}/{len(execution_abstraction())} boundary pieces present"]
+          + [f"  {'yes' if v else 'NO '}  {k}" for k, v in execution_abstraction().items()]
+          + [f"  {'yes' if v else 'NO '}  {k}" for k, v in runners_route().items()]
+          + [f"  {adapter_count()} concrete ExecutionAdapter implementation(s)"],
+          exec_weak),
 
-        D("Observability", 6.0,
-          [f"watchdog emits structured JSONL with 6 states: {wd_note}",
-           "resource snapshot + per-market allocation available as CLIs",
-           "dashboard read-only on 127.0.0.1:8787"],
-          "live alerting is still recorded as DEAD in BLOCKERS.md - the system still cannot "
-          "reliably tell the owner it is broken"),
+        D("Observability", obs_score,
+          [f"{obs_hits}/{len(obs)} signals present",
+           f"watchdog states: {wd_note}"]
+          + [f"  {'yes' if v else 'NO '}  {k}" for k, v in obs.items()]
+          + ["dashboard read-only on 127.0.0.1:8787"],
+          "live alerting remains the gap: the order path and the watchdog are both legible "
+          "now, but nothing pages the owner when the sleeve breaks outside a session"),
 
         D("_Orchestration reliability (not in the brief's twelve; kept for continuity)",
           7.0 if wd_ok else 4.0,
