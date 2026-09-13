@@ -131,8 +131,25 @@ hurdle, and per (b) pre-register the abstention rate again - the prediction that
 readings is that a validation-year floor **abstains MORE than 2 of 8**, and specifically that it
 declines `amihud30` in 2020.
 
-**Housekeeping.** Committed with `git commit --only <paths>` per F-16's note, so the concurrent
-tracks' staged files stayed out of this commit.
+**Housekeeping, and it refines F-16's fix rather than confirming it.** Committed with
+`git commit --only <paths>` per F-16's note, and it did what F-16 claimed: **no other track's code
+file entered `43816d1`** - `quant_brain/*`, `scripts/sweep_{d6,o8,s41}.py`, `tests/*` and the eight
+other modified files all stayed out, where `git add <mine> && git commit` would have swept them in.
+But `--only` is path-level, not hunk-level, so it commits the **whole working-tree content** of a
+named path. `research/backlog.md` is shared, and the eng and options tracks edited it between my
+edit and my commit: **E-11 and O-8's new items are in this commit under my message.** Nothing was
+lost or rewritten. The honest statement of the rule is therefore narrower than F-16 wrote it:
+`--only` protects you from files you did not name; for a shared file you DID name there is no
+protection, and `research/backlog.md` and `research/experiments.jsonl` will always carry whatever
+a concurrent track appended. Worth stating that way in AGENTS.md by whichever track owns it.
+
+**Housekeeping 2: the pre-commit gate flapped, and it was not mine.** `.githooks/pre-commit` runs
+`scripts/qb_check.py`, which lints and tests the **whole working tree** including other tracks'
+in-flight edits. The first commit attempt failed it on `ruff (core + tests)`, `ruff (10 changed
+elsewhere)` and `pytest`; `ruff check scripts/ml_f17.py` passed on its own, and re-running the same
+gate unchanged a few minutes later printed **GATE PASSED**. The failure was another track
+mid-edit. A gate over the shared tree cannot tell whose red it is, so read it, check your own
+files, and retry before assuming you broke something - do not reach for `--no-verify`.
 
 ## 2026-09-13 - F-16: the causal gate BEATS the oracle it was built to imitate, and it beats it by admitting nothing in 5 of 8 years. Closest this track has ever come to the hurdle - net t +1.969 against 2.0 - and still REFUSED, because the paired test is +1.42. `lean3` is not confirmed: the causal gate does not pick `auc_ofade` in most years, it picks the column F-15's gate called nothing.
 
