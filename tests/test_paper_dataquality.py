@@ -14,6 +14,7 @@ The asymmetry that makes refusing the right answer was measured, not assumed - s
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -147,7 +148,10 @@ def test_previous_session_never_raises_outside_calendar_coverage():
 # ---------------------------------------------------- the gate sits before the signal call
 def test_the_gate_is_called_before_the_signal_is():
     """Ordering is the whole safety property: a fault must be unable to become an order."""
-    src = (pt.__file__ and open(pt.__file__, encoding="utf-8").read())
+    # `Module.__file__` is `str | None` (a namespace or frozen module has none), so the guard
+    # is what lets the slice below be read as a string rather than a possible None.
+    assert pt.__file__ is not None, "paper_trade must be loaded from source for this check"
+    src = Path(pt.__file__).read_text(encoding="utf-8")
     body = src[src.index("    # ---- signal ---"):]
     assert body.index("data_faults(") < body.index("call_signal("), \
         "data_faults must run before call_signal, or a defective frame can produce orders"

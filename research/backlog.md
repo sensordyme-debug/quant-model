@@ -3581,13 +3581,27 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   (pandas/numpy) under 3.14 rather than the tests themselves - `-X importtime` on a single
   test would say. Worth it because the launch gate now pays this every morning, and because
   every track's edit-test loop pays it all day.
-- **E-9 Nothing consumes `store_health.py` on a schedule.** E-6 shipped the checker and wired
-  its shape test into `intraday_launch.last_session()`, but the stores are only inspected when
-  somebody runs it. Both minute stores currently FAIL on a truncated last session and nothing
-  says so unprompted. Candidates: a `--strict` call in the daily review, or a WARN-only line in
-  the launch preflight. Must not become a new refusal (E-5's asymmetry).
 
 ## Done
+
+- **E-9 Nothing consumed `store_health.py` on a schedule. DONE 2026-09-12.**
+  `intraday_launch.store_warnings()` runs as preflight step 2a on the existing 09:25 task, over
+  the 16 deployed symbols (2.0 s), and logs `preflight_store` every morning. Filed as wiring;
+  the finding was that **E-6's own fix made the failure it guards against silent** - the shape
+  test walks `last_session()` back to the newest complete session and prints `replay OK` whether
+  that is yesterday or last month. On a copy of the live store with every symbol's last three
+  sessions cut at 12:19, `last_session()` returned 2026-09-08 instead of 2026-09-11 and the
+  morning was otherwise indistinguishable from a healthy one. `store_health`'s own `stale` WARN
+  cannot see it (the store does hold bars stamped yesterday); the new `replay_lag` - closed
+  sessions between the replayed day and today, counted over the trading calendar so a long
+  weekend is not an alert - is the number that can. Report-only by construction: every failure
+  path returns `"skipped"`, and a test walks the launcher's AST for any `if` on the outcome
+  containing a `return`. Both branches proven through the real launcher (healthy -> ok, no
+  alert, exit 0; dead tail -> warn incl. a store_health FAIL, one alert, **exit 0, still
+  trades**), live book/approval/config byte-identical. 3.14 655 passed, 3.11 606 passed/7
+  skipped; `--preflight-only` exit 0 in 1 m 11 s. Also fixed 2 pre-existing pyright errors in
+  `tests/test_paper_dataquality.py` that were failing the shared `qb_check.py` gate for every
+  track.
 
 - **E-8 The launch gate could be tripped by the machine instead of the code. DONE 2026-09-12.**
   Filed as "install pyarrow into 3.11"; it was not a dependency chore. Reproducing it found a

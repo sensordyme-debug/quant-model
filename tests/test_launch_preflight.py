@@ -17,6 +17,7 @@ so nothing here depends on - or re-runs - the real suite except `test_the_real_s
 """
 from __future__ import annotations
 
+import datetime as dt
 import subprocess
 
 import intraday_launch
@@ -305,3 +306,151 @@ def test_no_test_here_calls_the_gate_on_this_repo():
         and not node.args and not node.keywords
     ]
     assert bare == [], f"lines {bare}: pass root=tmp_path, never the no-argument default"
+
+
+# --- E-9: the store report. Runs every morning, and may never stop the sleeve -------------
+#
+# E-6 gave `last_session()` a shape test so the preflight would stop replaying half-days. That
+# fix made the failure it guards against silent: the launcher walks back to the newest session
+# that spans the bell and prints "replay OK" whether that session is yesterday's or last
+# month's. `store_warnings` is the scheduled consumer the checker never had - and because a
+# short store is a *data* finding, not wrong book arithmetic, every test below asserts that
+# the launcher keeps going.
+
+def _calendar():
+    from quant_brain.markets.equity_us import CALENDAR
+    return CALENDAR
+
+
+@pytest.mark.parametrize("day, today, lag", [
+    ("2026-09-11", "2026-09-14", 0),   # normal Monday: Friday's session, nothing in between
+    ("2026-09-11", "2026-09-15", 1),   # one overnight fetch skipped
+    ("2026-09-08", "2026-09-12", 3),   # the dead-fetcher case: 09, 10, 11 all unusable
+    ("2026-09-11", "2026-09-11", 0),   # same day - a re-run, not a lag
+    ("2026-09-04", "2026-09-08", 0),   # Labor Day 2026-09-07 is not a session and must not count
+])
+def test_replay_lag_counts_closed_sessions_not_days(day, today, lag):
+    """Pinned dates against the real calendar: the count is a property of the trading calendar,
+    never of wall-clock days, or a long weekend would raise an alert every Tuesday."""
+    assert intraday_launch.replay_lag(
+        dt.date.fromisoformat(day), dt.date.fromisoformat(today), _calendar()) == lag
+
+
+def test_a_stale_replay_day_warns_but_lets_the_sleeve_trade(tmp_path):
+    """The case E-6 made invisible. No store is needed to see it: the lag is computed from the
+    day `last_session()` chose, which is exactly the thing the shape test silently moves."""
+    outcome, lines = intraday_launch.store_warnings(
+        dt.date(2026, 9, 8), today=dt.date(2026, 9, 12), store=tmp_path / "empty")
+    assert outcome == "warn"
+    assert any("replay_lag" in ln and "2026-09-08" in ln and "3 closed session" in ln
+               for ln in lines), lines
+
+
+def test_a_current_replay_day_is_quiet(tmp_path):
+    """A healthy morning must not alert, or the alert stops being read. `tmp_path/store` does
+    not exist, so the only finding available is the absent-store one - and that is a WARN, not
+    the replay_lag line under test."""
+    _, lines = intraday_launch.store_warnings(
+        dt.date(2026, 9, 11), today=dt.date(2026, 9, 14), store=tmp_path / "store")
+    assert not any("replay_lag" in ln for ln in lines), lines
+
+
+def test_an_absent_store_warns_rather_than_raising(tmp_path):
+    outcome, lines = intraday_launch.store_warnings(
+        dt.date(2026, 9, 11), today=dt.date(2026, 9, 14), store=tmp_path / "nope")
+    assert outcome == "warn"
+    assert any("no such store" in ln for ln in lines), lines
+
+
+def test_no_replay_day_still_reports_the_store(tmp_path):
+    """`day=None` happens when nothing is replayable at all. The lag is unanswerable then, but
+    the store findings are still the operator's best clue, so they must survive."""
+    outcome, lines = intraday_launch.store_warnings(
+        None, today=dt.date(2026, 9, 14), store=tmp_path / "nope")
+    assert outcome == "warn"
+    assert not any("replay_lag" in ln for ln in lines)
+    assert any("no such store" in ln for ln in lines)
+
+
+def test_a_broken_checker_is_skipped_not_fatal(monkeypatch, tmp_path):
+    """The whole point of the asymmetry: if the health check itself breaks, the sleeve trades.
+    A reporter that can crash the launcher is worse than no reporter at all."""
+    import store_health
+
+    def explode(*a, **k):
+        raise RuntimeError("pyarrow went away")
+
+    monkeypatch.setattr(store_health, "check_minute_store", explode)
+    outcome, lines = intraday_launch.store_warnings(
+        dt.date(2026, 9, 11), today=dt.date(2026, 9, 14), store=tmp_path)
+    assert outcome == "skipped"
+    assert "pyarrow went away" in lines[0]
+
+
+def test_an_unimportable_checker_is_skipped(monkeypatch, tmp_path):
+    """E-6 left `last_session()` a fallback for the same reason; the report needs one too."""
+    import builtins
+    real_import = builtins.__import__
+
+    def no_store_health(name, *a, **k):
+        if name == "store_health":
+            raise ImportError("no module named store_health")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_store_health)
+    outcome, lines = intraday_launch.store_warnings(
+        dt.date(2026, 9, 11), today=dt.date(2026, 9, 14), store=tmp_path)
+    assert outcome == "skipped"
+    assert "unavailable" in lines[0]
+
+
+def test_a_store_whose_last_session_died_midday_is_reported(tmp_path):
+    """End to end on a real parquet store, because the finding that matters most - the fetch
+    died at lunch - only exists once there are bars to measure. Built here rather than read
+    from `data/minute`, so the verdict cannot depend on what the D-track fetched last night
+    (E-8: a gating test must state a property of the code)."""
+    pytest.importorskip("pyarrow")
+    import pandas as pd
+
+    store = tmp_path / "minute"
+    store.mkdir()
+    for sym in ("NVDA", "TSLA"):
+        frames = []
+        for day, last in ((dt.date(2026, 9, 10), "15:59"), (dt.date(2026, 9, 11), "12:19")):
+            idx = pd.date_range(f"{day} 09:30", f"{day} {last}", freq="1min", tz="America/New_York")
+            frames.append(pd.DataFrame({"o": 1.0, "h": 1.0, "l": 1.0, "c": 1.0, "v": 1}, index=idx))
+        pd.concat(frames).tz_convert("UTC").to_parquet(store / f"{sym}.parquet")
+
+    outcome, lines = intraday_launch.store_warnings(
+        dt.date(2026, 9, 10), today=dt.date(2026, 9, 11), store=store, symbols=["NVDA", "TSLA"])
+    assert outcome == "warn"
+    assert any("truncated_tail" in ln and "2026-09-11" in ln for ln in lines), lines
+
+
+def test_the_store_report_cannot_change_the_exit_code():
+    """The E-9 requirement, read off the launcher rather than trusted: `store_warnings` is
+    called for its log and its alert, and nothing in the call site may branch to a return."""
+    import ast
+    src = (intraday_launch.REPO / "scripts" / "intraday_launch.py").read_text(encoding="utf-8")
+    assert "preflight_store" in src, "the step must leave a record every morning"
+
+    tree = ast.parse(src)
+    main = next(n for n in ast.walk(tree)
+                if isinstance(n, ast.FunctionDef) and n.name == "main")
+    call = next(n for n in ast.walk(main)
+                if isinstance(n, ast.Call)
+                and getattr(n.func, "id", None) == "store_warnings")
+    # every statement that mentions the outcome must be free of `return` anywhere inside it
+    guilty = [ast.dump(s) for s in ast.walk(main)
+              if isinstance(s, ast.If)
+              and "outcome" in ast.dump(s.test)
+              and any(isinstance(x, ast.Return) for x in ast.walk(s))]
+    assert not guilty, "the store report must never gate the launch"
+    assert call is not None
+
+
+def test_the_store_report_runs_before_the_replay():
+    """So that a replay failure caused by bad data already has its explanation in the log
+    above it, rather than needing a second run to find out."""
+    src = (intraday_launch.REPO / "scripts" / "intraday_launch.py").read_text(encoding="utf-8")
+    assert src.index("store_warnings(day)") < src.index('str(TRADER), "--replay"')

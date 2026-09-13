@@ -1,5 +1,78 @@
 # Journal - eng track (platform engineering). Newest first.
 
+## 2026-09-12 - E-9: E-6's own fix made the failure it guards against silent. A lag number says it.
+
+**Hypothesis.** E-9 was filed as a wiring chore: `store_health.py` exists, nothing runs it on a
+schedule, so call it from something that does. The interesting part is *which number* to report,
+because the obvious ones are already reported by the checker itself.
+
+**What the measurement changed.** E-6 replaced `last_session()`'s `>= 300 bars` guard with a
+shape test so the morning replay would stop picking half-days. That was right, and it made the
+underlying failure **invisible**: the launcher now walks back to the newest session that spans
+the bell and prints `preflight replay OK` whether that session is yesterday's or last month's.
+Proven rather than argued, on a copy of the live IBKR store with every symbol's last three
+sessions cut at 12:19:
+
+| store | `last_session()` | what the morning printed before this change |
+| --- | --- | --- |
+| live, healthy | 2026-09-11 | `preflight replay OK` |
+| last 3 sessions die at 12:19 | **2026-09-08** | `preflight replay OK` |
+
+Indistinguishable. A fetcher that dies mid-session every night degrades the sleeve's research
+data indefinitely and the only scheduled job that touches the store says nothing.
+
+**Why `stale` does not already cover it.** `store_health` has a staleness WARN, and on the
+dead-tail store it **did not fire** - correctly, because the store *does* hold bars stamped
+yesterday. `stale` measures `store.last` against today; the new `replay_lag` measures the newest
+*complete* session against today. They separate exactly where it matters:
+
+| failure | `stale` | `truncated_tail` | `replay_lag` |
+| --- | --- | --- | --- |
+| fetcher stopped entirely | fires | - | fires |
+| last night's fetch died at lunch | - | fires | - |
+| every night's fetch dies at lunch | **-** | fires | **fires (3)** |
+
+The third row is the one nothing could see. Threshold is 2 closed sessions, the same line
+`STALE_DAYS` draws for the same reason: one skipped night is not an alert, a fetcher that is not
+running is. Counted over the trading calendar, not wall-clock days, or Labor Day would raise an
+alert every Tuesday (`test_replay_lag_counts_closed_sessions_not_days` pins that case).
+
+**It reports and cannot refuse.** `store_warnings` returns `(outcome, lines)` and the launcher
+logs, prints and alerts on it without branching. A short store is a *data* finding - excluding a
+bad date is research's job - and E-5's asymmetry says a self-inflicted outage is worse than the
+risk. So a missing module, an unreadable parquet or a calendar that does not cover the day all
+return `"skipped"` rather than raising, and `test_the_store_report_cannot_change_the_exit_code`
+walks the launcher's AST for any `if` on `outcome` containing a `return` (verified non-vacuous
+against a synthetic gating `main`). Scoped to the 16 deployed symbols, **2.0 s**; the 63M-row
+Alpaca store takes 98 s and the 09:25 gate is not where that belongs.
+
+**Verification.** Both branches through the *real* launcher, live state hashed before and after:
+
+| store | outcome | alerts | exit |
+| --- | --- | --- | --- |
+| live | `ok` | none | **0**, replay 2026-09-11, P&L -2,080, 36 trades, flat at end |
+| dead tail | `warn` (replay_lag + truncated_session + a store_health **FAIL**) | 1 | **0**, still trades |
+
+The FAIL in row two is the point: `store_health` calls a dead last session fatal, and the gate
+reports it and launches anyway. `live/state/intraday_book.json`, `live/APPROVED_PAPER.md` and
+`live/intraday_config.json` byte-identical across both runs, no HALT file. Suite **3.14 655
+passed, 3.11 606 passed / 7 skipped** (the new end-to-end parquet test takes `importorskip`, per
+E-8). Full `--preflight-only` **exit 0 in 1 m 11 s**; the new step adds 2 s to a ~71 s gate.
+
+**One thing I fixed outside my own diff.** `qb_check.py` was failing on 2 pyright errors in
+`tests/test_paper_dataquality.py` (daily track, 8561172): `Module.__file__` is `str | None` and
+was sliced directly. Two lines. The gate is shared and was blocking every track; same call E-8
+made. Flagged here rather than left silent.
+
+**Decision.** Ship. Every trading morning now leaves a `preflight_store` record with the
+replayed day and the store's findings, and no path through it can stop the sleeve.
+
+**Next.** E-7 (the suite is 6x slower on 3.14 than 3.11 - 49.9 s inside this morning's gate
+against 19.5 s on 3.11; `-X importtime` on one test would say whether it is pandas/numpy import
+cost). The concrete resume command: `py -3.14 -X importtime -m pytest tests/test_costs.py
+-p no:cacheprovider 2>&1 | sort -t'|' -k2 -rn | head -30`.
+
+
 ## 2026-09-12 - E-8: the gate could stop the sleeve over how much RAM was free at 09:25.
 
 **Hypothesis.** E-8 was filed as a dependency chore: four tests fail on 3.11 for want of

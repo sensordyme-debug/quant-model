@@ -13,6 +13,9 @@ Preflight (any failure -> alert, no trading):
   4. live/APPROVED_PAPER.md present and no HALT file
 Then it runs the trader in the foreground until 15:42 ET and forwards its exit code.
 
+Between 1 and 2 the deployed minute store is *reported on* and never gated (E-9). That step
+cannot change the exit code; see `store_warnings`.
+
     python scripts/intraday_launch.py --preflight-only   # run the gates, never launch
 """
 from __future__ import annotations
@@ -24,13 +27,18 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from intraday_common import LIVE, REPO, UNIVERSE, load_bars, log_event, notify  # noqa: E402
+from intraday_common import DATA_DIR, LIVE, REPO, UNIVERSE, load_bars, log_event, notify  # noqa: E402
 
 PY = sys.executable
 TRADER = REPO / "scripts" / "intraday_trader.py"
 CONFIG = LIVE / "intraday_config.json"       # {"strategy": "active", "equity_frac": 1.0, "params": {...}}
 PYTEST_TIMEOUT = 300                         # suite is ~30 s on 3.14 / ~22 s on 3.11: hang guard
 SUBSET_TIMEOUT = 120                         # the `runner` re-run is ~13 s; only on a failure
+
+#: How many closed sessions the replayed day may sit behind the last closed one before the
+#: preflight says so. 1 is a fetcher that skipped a night; 2+ is a fetcher that is not running.
+#: Matches `store_health.STALE_DAYS`, which draws the same line for the same reason.
+REPLAY_LAG_WARN = 2
 
 
 def config():
@@ -80,6 +88,66 @@ def last_session() -> dt.date | None:
             ok = set(counts[counts >= 300].index)
         complete = ok if complete is None else complete & ok
     return max(complete) if complete else None
+
+
+def replay_lag(day: dt.date, today: dt.date, calendar) -> int:
+    """Closed sessions strictly between the replayed day and today.
+
+    0 on a normal morning (yesterday's session replayed today), 1 if a single overnight fetch
+    was skipped, and one more for every session the store has not caught up on since.
+    """
+    return sum(1 for d in calendar.trading_days(day, today) if day < d < today)
+
+
+def store_warnings(day: dt.date | None, *, today: dt.date | None = None,
+                   store: Path | None = None,
+                   symbols: list[str] | None = None) -> tuple[str, list[str]]:
+    """E-9: report on the minute store the replay just drew from. Never a refusal.
+
+    Returns `(outcome, lines)` with outcome in `{"ok", "warn", "skipped"}`. The caller logs and
+    alerts on it and **must not branch on it**, for the same reason `unit_tests_ok` refuses only
+    on a real assertion failure: a data finding says the store is short, not that the sizing or
+    book arithmetic the trader is about to use is wrong. Excluding a bad date is research's job;
+    stopping the sleeve over one would be a self-inflicted outage. So every failure path in here
+    - a missing module, an unreadable parquet, a calendar that does not cover the day - returns
+    "skipped" rather than raising, and the launcher's exit code is untouched either way.
+
+    Why it exists at all. E-6 gave `last_session()` a shape test so the preflight would stop
+    replaying half-days, and that fix made the failure it guards against **silent**: the
+    launcher now walks back to the newest session that spans the bell and reports "replay OK"
+    with no hint of how old it was. Measured on a copy of the live store with every symbol's
+    last three sessions cut at 12:19, `last_session()` returned 2026-09-08 instead of
+    2026-09-11 and the morning was otherwise indistinguishable from a healthy one. Nothing
+    else on the schedule looks at the stores, so a dead fetcher could degrade the sleeve's
+    research data indefinitely without a word. `replay_lag` is the number that says it.
+
+    Scoped to the deployed universe (16 symbols, ~2.5 s) rather than every store: the 63M-row
+    Alpaca store takes 98 s to check and the 09:25 gate is not where that belongs.
+    """
+    try:
+        import store_health as sh
+        from quant_brain.core.dataquality import Severity
+        from quant_brain.markets.equity_us import CALENDAR
+    except Exception as exc:  # noqa: BLE001 - a reporter must never be why the sleeve stops
+        return "skipped", [f"store health unavailable: {type(exc).__name__}: {exc}"[:160]]
+
+    today = today or dt.date.today()
+    lines: list[str] = []
+    try:
+        if day is not None:
+            lag = replay_lag(day, today, CALENDAR)
+            if lag >= REPLAY_LAG_WARN:
+                lines.append(
+                    f"  WARN  store    replay_lag             the newest COMPLETE session is "
+                    f"{day}, {lag} closed session(s) behind {today} - the overnight fetch has "
+                    f"not run or is dying mid-session; the replay is proving the code against "
+                    f"stale bars")
+        rep, _rows = sh.check_minute_store(store or DATA_DIR, CALENDAR, today=today,
+                                           symbols=symbols or UNIVERSE)
+        lines += [f.line() for f in rep.findings if f.severity is not Severity.INFO]
+    except Exception as exc:  # noqa: BLE001
+        return "skipped", [f"store health did not complete: {type(exc).__name__}: {exc}"[:160]]
+    return ("warn" if lines else "ok"), lines
 
 
 def unit_tests_ok(root: Path = REPO, python: str = PY,
@@ -197,6 +265,20 @@ def main() -> int:
             msg = "INTRADAY preflight FAILED: no stored minute bars to replay"
             print(msg); notify(msg); log_event("intraday", "preflight_failed", reason="no_bars")
             return 2
+
+        # 2a) E-9: say what the store looks like, BEFORE the replay runs on it. Report-only -
+        # it cannot change the exit code, and it is placed here so that when the replay does
+        # fail the reason is already in the log and the alert above it.
+        outcome, lines = store_warnings(day)
+        log_event("intraday", "preflight_store", outcome=outcome, replay_day=str(day),
+                  detail="; ".join(x.strip() for x in lines)[:600])
+        print(f"preflight store {outcome} (replaying {day})")
+        for ln in lines:
+            print(ln)
+        if outcome == "warn":
+            notify("INTRADAY preflight: minute store findings, trading anyway - "
+                   + "; ".join(x.strip() for x in lines)[:300])
+
         res = subprocess.run([PY, str(TRADER), "--replay", str(day)] + common, capture_output=True, text=True, timeout=1200)
         tail = (res.stdout + res.stderr)[-800:]
         if res.returncode != 0 or "replay" not in res.stdout:
