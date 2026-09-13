@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
+import os
 import sys
 import time
 from collections import deque
@@ -46,7 +48,8 @@ for _p in (str(REPO), str(REPO / "scripts")):
 
 import store_health as sh  # noqa: E402
 
-from intraday_common import DATA_DIR, ET, UNIVERSE, load_bars, parquet_path, save_bars  # noqa: E402
+from intraday_common import (DATA_DIR, ET, SPLITS_FILE, UNIVERSE, load_bars,  # noqa: E402
+                            parquet_path, save_bars)
 from quant_brain.markets.equity_us import CALENDAR  # noqa: E402
 
 MAX_REQ_PER_10MIN = 45
@@ -176,7 +179,7 @@ def incomplete_sessions(symbol: str, *, now: dt.datetime | None = None) -> list[
     return sessions_needed(symbol, min(shapes), last_closed_session(now), shapes=shapes, now=now)
 
 
-def repair_symbol(ib, symbol: str, pacer: Pacer) -> int:
+def repair_symbol(ib, symbol: str, pacer: Pacer, *, allow_rebasis: bool = False) -> int:
     """Re-request the months covering any missing or truncated session, ending after the close.
 
     `scripts/intraday_launch.py` preflights by replaying the LAST STORED SESSION, so a short
@@ -197,7 +200,7 @@ def repair_symbol(ib, symbol: str, pacer: Pacer) -> int:
     print(f"  {symbol}: {len(bad)} incomplete {bad[:8]}{' ...' if len(bad) > 8 else ''} "
           f"-> {len(ends)} requests", flush=True)
     for end in ends:
-        fixed += fetch_window(ib, symbol, end, pacer)
+        fixed += fetch_window(ib, symbol, end, pacer, allow_rebasis=allow_rebasis)
     still = incomplete_sessions(symbol)
     print(f"  {symbol}: incomplete after repair: {still}", flush=True)
     return fixed
@@ -210,7 +213,8 @@ def qualify(ib, symbol: str):
     return contract
 
 
-def fetch_window(ib, symbol: str, end: dt.datetime, pacer: Pacer, contract=None) -> int:
+def fetch_window(ib, symbol: str, end: dt.datetime, pacer: Pacer, contract=None,
+                 *, allow_rebasis: bool = False) -> int:
     """One "1 M" request of 1-minute TRADES bars ending at `end`, merged into the store."""
     from ib_async import util
     contract = contract or qualify(ib, symbol)
@@ -233,13 +237,13 @@ def fetch_window(ib, symbol: str, end: dt.datetime, pacer: Pacer, contract=None)
     df = df.rename(columns={"open": "o", "high": "h", "low": "l", "close": "c", "volume": "v"})
     df["date"] = pd.to_datetime(df["date"], utc=True)
     df = df.set_index("date")
-    n = save_bars(symbol, df)
+    n = save_bars(symbol, df, allow_rebasis=allow_rebasis)
     print(f"  {symbol} month ending {end.date()}: {len(df)} bars (store now {n})", flush=True)
     return len(df)
 
 
 def fetch_symbol(ib, symbol: str, months: int, pacer: Pacer, force: bool,
-                 *, legacy_skip: bool = False) -> int:
+                 *, legacy_skip: bool = False, allow_rebasis: bool = False) -> int:
     """Request every month window that is not already complete on disk.
 
     AUD-16: the skip used to be "15 or more sessions of this window are on disk", which is a
@@ -262,9 +266,84 @@ def fetch_symbol(ib, symbol: str, months: int, pacer: Pacer, force: bool,
                     continue
                 print(f"  {symbol} {window_start}..{end.date()}: {len(need)} session(s) "
                       f"missing or truncated ({need[0]} .. {need[-1]})", flush=True)
-        total += fetch_window(ib, symbol, end, pacer, contract)
+        total += fetch_window(ib, symbol, end, pacer, contract,
+                              allow_rebasis=allow_rebasis)
         shapes = store_shapes(symbol)   # later windows must see what this one just merged
     return total
+
+
+def store_span(symbol: str) -> tuple[dt.date, dt.date] | None:
+    """(first, last) stored session for one symbol, or None when nothing is on disk."""
+    shapes = store_shapes(symbol)
+    return (min(shapes), max(shapes)) if shapes else None
+
+
+def split_segments(symbol: str, first: dt.date, last: dt.date,
+                   events: "pd.Series | None" = None) -> list[list]:
+    """Cumulative split factors for one symbol over [first, last], as _splits.json segments.
+
+    AUD-15 / D-5. IBKR's `reqHistoricalData` returns SPLIT-ADJUSTED bars on the basis current at
+    fetch time, so `data/minute` prices a pre-split share at its post-split equivalent exactly as
+    `data/minute_alpaca` does - and per-share commission is then charged on the wrong share count
+    (`intraday_common.share_scale`). The factor this file needs is `raw_close / adjusted_close`,
+    which for a store on the CURRENT basis is the product of every split ratio strictly AFTER the
+    date: a 10-for-1 forward split leaves every earlier day priced at 1/10 of the traded price, so
+    the factor on those days is 10 and `real_shares = adjusted_shares / 10`.
+
+    The derivation is source-agnostic by construction - it needs a split CALENDAR, not a price
+    series - so it is taken from yfinance (no API key, already a dependency of
+    `scripts/fetch_data.py`) rather than from the Alpaca raw/adjusted ratio. `scripts/sweep_d5.py`
+    clause 3 requires the two to agree to the digit before this file is written.
+    """
+    if events is None:
+        import yfinance as yf
+        events = yf.Ticker(symbol).splits
+    ratios: list[tuple[dt.date, float]] = []
+    for stamp, ratio in events.items():
+        d = stamp.date() if hasattr(stamp, "date") else stamp
+        if first < d <= last and float(ratio) > 0:
+            ratios.append((d, float(ratio)))
+    ratios.sort()
+    bounds = [first] + [d for d, _ in ratios]
+    segs = []
+    for b in bounds:
+        f = 1.0
+        for d, r in ratios:
+            if d > b:
+                f *= r
+        segs.append([str(b), float(f)])
+    return segs
+
+
+def write_splits(symbols, *, dry_run: bool = False) -> dict:
+    """Write DATA_DIR/_splits.json for the IBKR store; merges, never replaces.
+
+    Same contract as `alpaca_data.write_splits` (which derives the same numbers from Alpaca's own
+    raw and adjusted daily closes): only the symbols re-derived here move, so a bare run cannot
+    silently drop a name and cost it at scale 1.0.
+    """
+    p = DATA_DIR / SPLITS_FILE
+    try:
+        out = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    except Exception:  # noqa: BLE001 - a corrupt table must not be silently half-kept
+        out = {}
+    kept = len(out)
+    for s in symbols:
+        span = store_span(s)
+        if span is None:
+            print(f"  {s}: nothing on disk, skipped", flush=True)
+            continue
+        segs = split_segments(s, *span)
+        out[s.upper()] = segs
+        shown = ", ".join(f"{d}->{f:g}" for d, f in segs)
+        print(f"  {s:<6} {span[0]} .. {span[1]}  {shown}", flush=True)
+    if not dry_run:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(out, indent=1, sort_keys=True), encoding="utf-8")
+        os.replace(tmp, p)
+        print(f"wrote {p}  ({len(out)} symbols, {kept} were already there)")
+    return out
 
 
 def status():
@@ -291,11 +370,21 @@ def main() -> int:
     ap.add_argument("--legacy-skip", action="store_true",
                     help="AUD-16 comparison only: restore the pre-2026-09-12 count-based skip")
     ap.add_argument("--status", action="store_true")
+    ap.add_argument("--splits", action="store_true",
+                    help="AUD-15: derive and write DATA_DIR/_splits.json from the split calendar, "
+                         "so per-share commission is charged on the real share count. No IBKR "
+                         "connection; run it after any split in the universe.")
+    ap.add_argument("--dry-run", action="store_true", help="with --splits: print, do not write")
+    ap.add_argument("--rebasis", action="store_true",
+                    help="AUD-15: accept bars that disagree with the store where they overlap. Only with --repair, which spans the whole calendar: after a split IBKR rebases the WHOLE adjusted history, so the full span has to be rewritten at once or the file ends up holding two price scales.")
     ap.add_argument("--port", type=int, default=4002)
     ap.add_argument("--client-id", type=int, default=61)
     args = ap.parse_args()
     if args.status:
         status()
+        return 0
+    if args.splits:
+        write_splits(args.symbols or UNIVERSE, dry_run=args.dry_run)
         return 0
     from ib_async import IB
     ib = IB()
@@ -308,10 +397,11 @@ def main() -> int:
         print(f"{s}:", flush=True)
         try:
             if args.repair:
-                repair_symbol(ib, s, pacer)
+                repair_symbol(ib, s, pacer, allow_rebasis=args.rebasis)
             else:
                 fetch_symbol(ib, s, args.months, pacer, args.force,
-                             legacy_skip=args.legacy_skip)
+                             legacy_skip=args.legacy_skip,
+                             allow_rebasis=args.rebasis)
                 # the default run IS a repair for the window it covers (AUD-16); anything left
                 # incomplete is older than --months and needs --repair, so say so rather than
                 # leave it to `status`.

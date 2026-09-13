@@ -179,8 +179,52 @@ def load_bars(symbol: str, start: dt.date | None = None, end: dt.date | None = N
     return df
 
 
-def save_bars(symbol: str, df: pd.DataFrame) -> int:
-    """Merge bars into the store; returns the stored row count."""
+#: A merge is refused when the median |new/old - 1| over the overlapping bars exceeds this and at
+#: least REBASIS_MIN_BARS bars overlap. A split rebases the whole history by a factor of 2..200, so
+#: the statistic it has to separate is ~1.0 against >= 0.5; 2% leaves room for IBKR's own bar
+#: revisions (same source, same venue, typically 0) without coming near a split.
+REBASIS_TOL = 0.02
+REBASIS_MIN_BARS = 10
+
+
+class BasisMismatch(ValueError):
+    """Incoming bars disagree with the stored ones where they overlap (AUD-15)."""
+
+
+def basis_mismatch(old: pd.DataFrame, new: pd.DataFrame) -> dict | None:
+    """The overlap statistic `save_bars` refuses on, or None when the two agree.
+
+    AUD-15: IBKR serves SPLIT-ADJUSTED bars on the basis current at fetch time, so the first
+    incremental fetch after a split returns a history rebased by the split ratio. Merged into a
+    store on the old basis that produces one parquet holding two price scales, silently, with no
+    gap and no duplicate timestamp to find it by - and every feature, position size and per-share
+    commission computed across the seam is wrong by the ratio. The overlap is the only place the
+    two bases are comparable, so it is where the merge has to be checked.
+    """
+    common = old.index.intersection(new.index)
+    if len(common) < REBASIS_MIN_BARS or "c" not in old.columns or "c" not in new.columns:
+        return None
+    a = pd.to_numeric(old.loc[common, "c"], errors="coerce")
+    b = pd.to_numeric(new.loc[common, "c"], errors="coerce")
+    ok = a.notna() & b.notna() & (a != 0)
+    if int(ok.sum()) < REBASIS_MIN_BARS:
+        return None
+    ratio = (b[ok] / a[ok]).astype(float)
+    med = float(ratio.median())
+    dev = float((ratio - 1.0).abs().median())
+    if dev <= REBASIS_TOL:
+        return None
+    return {"overlap": int(ok.sum()), "median_ratio": med, "median_abs_dev": dev,
+            "tolerance": REBASIS_TOL}
+
+
+def save_bars(symbol: str, df: pd.DataFrame, allow_rebasis: bool = False) -> int:
+    """Merge bars into the store; returns the stored row count.
+
+    Raises `BasisMismatch` when the incoming bars disagree with the stored ones where they overlap
+    (AUD-15). Pass `allow_rebasis=True` only when the whole history is being rewritten on one
+    basis - i.e. a full re-fetch after a split, where the disagreement is the point.
+    """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     df = df.copy()
     if df.index.tz is None:
@@ -191,6 +235,15 @@ def save_bars(symbol: str, df: pd.DataFrame) -> int:
         old = pd.read_parquet(p)
         if old.index.tz is None:
             old.index = old.index.tz_localize("UTC")
+        bad = None if allow_rebasis else basis_mismatch(old, df)
+        if bad is not None:
+            raise BasisMismatch(
+                f"{symbol}: incoming bars disagree with the store on {bad['overlap']} overlapping "
+                f"bars (median ratio {bad['median_ratio']:.4g}, median |dev| "
+                f"{bad['median_abs_dev']:.4g} > {bad['tolerance']:.4g}). A split rebases the "
+                f"whole adjusted history, so merging would leave two price scales in one file. "
+                f"Re-fetch the full span and pass allow_rebasis=True, then re-run "
+                f"`intraday_data.py --splits`.")
         df = pd.concat([old, df])
     df = df[~df.index.duplicated(keep="last")].sort_index()
     tmp = p.with_suffix(".parquet.tmp")

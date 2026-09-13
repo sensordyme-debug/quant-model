@@ -1963,6 +1963,41 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
   written first, which D-4's fetcher can now do without freezing the store. After it, **AUD-17**
   [data] (the LEAN daily store writes adjusted prices as raw with split factor 1) is the same
   defect one store over.
+  <!-- AUD-15 closed by D-5 on 2026-09-13; the live next data item is on the D-5 bullet and names
+       AUD-17. -->
+
+- **D-5 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): AUD-15 closed - the IBKR
+  minute store is split-adjusted, `share_scale` was 1.0 for it, and that understated this sleeve's
+  commission by 29.8% of its whole cost line out of 279 of 4,208 symbol-days.** Full detail under
+  **AUD-15** in the audit section below. Headline: the IBKR-store book is **-$2,460/day, not
+  -$1,924/day** (paired **-536.3 at t -4.08**, costs **+548.3**, Sharpe -3.22 -> -4.65, DD 50.60 ->
+  64.70), from **one name** - SOXS, a $3.40 stock on the real tape and a $680 one in the store.
+  Premise proven two ways (the store's own step across all three splits in its span, and a
+  mixed-basis test the audit did not contain: monthly median IBKR/Alpaca ratio inside
+  1.00000..1.00003 for all 16 symbols); table derived from yfinance's split **calendar** and
+  agreeing with the Alpaca table on **4,208/4,208** symbol-days; `save_bars` now refuses a
+  basis-changing merge (16/16 honest re-saves allowed, 16/16 rebasings caught). Suite 1,203 pass,
+  preflight green, and the table is byte-identically inert for `intraday_trader.py --replay`.
+  **The audit's ratio (1/200) is right and both of its levels are wrong**: 0.074 -> 14.706
+  bps/side, not "1.25 versus ~100", because ~100 is the 1% cap and the cap never binds; it also
+  omits a 90-session middle segment and calls NFLX an understatement when it is **over**charged.
+  **Next `iterate` data item that needs no trading day: AUD-17** [data] - the LEAN daily store
+  writes adjusted prices as raw with split factor 1, which is this defect one store over and on the
+  sleeve that actually makes money, so it is worth more than its one-line audit entry suggests;
+  `scripts/fetch_data.py` and `sweep_s19.py`'s 1% cap are both in it. **Opened by D-5: A-16**
+  (below).
+- **A-16 (`iterate`, latent): `intraday_trader.py`'s replay path costs the adjusted store as raw,
+  the same defect D-5 just fixed in the harness.** `intraday_trader.py:295` calls
+  `commission(q, px)` with no `scale` while reading `data/minute`, so a replay of any session in an
+  affected window undercharges it - on SOXS, by 14.63 bps/side. **Unreachable from the deployed
+  task**: `intraday_launch.last_session()` always picks the most recent COMPLETE session, which is
+  days old at worst, and every factor in the current segment is 1.0 - proven by the replay being
+  byte-identical with and without the table (-9,489 / 215 / $2,498 / flat). Left unfixed on purpose:
+  the one-line fix edits a runner-loaded file for a path the runner cannot take, so it needs a
+  `--replay` / `compare_orders.py` gate spent on a latent defect. Worth doing the next time the
+  trader is opened for another reason, and worth doing BEFORE any study that replays a pinned
+  historical session through the live code rather than the harness.
+  <!-- added by D-5, 2026-09-13 (iterate). -->
 
 - **A-13 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): AUD-21 closed - the harness
   is corrected, the sleeve's eleven-year verdict is not, and the owner has been shown a tail
@@ -4402,7 +4437,38 @@ carry the owning track in brackets; record each fix in that track's journal and 
 
 - **AUD-13 [daily+eng] (original text)** no data-completeness gate in the runner: a missing SPY column flattens the whole book.
 - **AUD-14 [eng+critic]** no track guard in `evaluate.py`; intraday rows carry `commit ""`; `OrderListHash` not captured into the ledger.
-- **AUD-15 [data]** the IBKR minute store is split-adjusted but treated as raw: SOXS/NFLX per-share commission understated up to 100x in IBKR-store backtests; write `data/minute/_splits.json`.
+- **AUD-15 [data] DONE 2026-09-13 by D-5** (`scripts/sweep_d5.py`, 8 clauses,
+  `tests/test_intraday_splits.py`, 2 DIAGNOSTIC rows `intraday/active`, `research/journal.md`;
+  nothing under `live/` touched, replay gate run anyway because the patch touches shared code).
+  **CONFIRMED, FIXED and MATERIAL at 6.0x its own threshold - and the audit's ratio is right while
+  both of its levels are wrong.** The store IS adjusted: the close-to-close step across all three
+  splits in its span sits at 1.0 against the raw prediction (NFLX 0.9920 vs 10, SOXS 1.0325 vs
+  0.05, 1.0684 vs 0.1), decided against each symbol's own overnight-gap q99. It is also not
+  **mixed**, which the audit did not check and is the thing that decides whether a factor may be
+  applied at all: the monthly median IBKR/Alpaca close ratio stays in **1.00000..1.00003 for all 16
+  symbols over 14 months and ~101k bars each**, worst deviation 0.00%. Table derived from a split
+  CALENDAR (yfinance) rather than Alpaca's price ratio and agreeing with it on **4,208/4,208
+  symbol-days**, written by the new `intraday_data.py --splits`. **Ceiling, quoted before the P&L
+  column**: SOXS 2025-08-26..2026-03-04 is charged **0.074 bps/side and should be 14.706** (131
+  sessions), SOXS 2026-03-05..2026-07-14 **0.503 -> 5.028** (90 sessions, a segment the audit
+  omits), NFLX 2025-08-26..2025-11-16 **0.416 -> 0.042** (58 sessions, **OVERcharged** - the audit
+  is one-sided). So **279 affected symbol-days, not ~188**, and the error is **14.63 bps/side, not
+  ~100**: the audit's "~100 bp" is the 1% commission cap and the cap never binds at a $3.40 raw
+  price. **Priced on the shipped harness, 263 sessions, paired**: net **-$1,923.8 -> -$2,460.0
+  $/day (-536.3, t -4.08)**, costs **1,839.1 -> 2,387.4 (+548.3, +29.8% of the whole cost line)**,
+  Sharpe -3.22 -> -4.65, DD 50.60 -> 64.70, loss-limit days 10 -> 16, 373 fewer trades - from
+  **6.6% of the symbol-days and one name**. Second half of the fix shipped too: `save_bars` refuses
+  a merge whose overlapping closes disagree (`BasisMismatch`, median |ratio-1| > 2% on >= 10
+  overlapping bars, `allow_rebasis` / `--rebasis` for the deliberate post-split re-fetch), proven on
+  the real store at **16/16 honest re-saves allowed and 16/16 x10 rebasings caught**. Suite **1,203
+  pass / 13 skip**, launch preflight **green**, and the table is **inert for the live path**:
+  `intraday_trader.py --replay 2026-09-11` is byte-identical with and without it (-9,489 / 215 /
+  $2,498 / flat, equal to D-4's recorded replay), because the trader prices the raw tape and never
+  calls `share_scale`. **Files one item (A-16) and closes one audit item.** Reusable rules: **a cost
+  defect's ratio and its level are two claims** - re-derive the level from the store's own prices,
+  and read the *cap* as well as the rate; and **"adjusted" and "adjusted CONSISTENTLY" are different
+  questions**, only the second answered by a second store known to be on the current basis.
+- **AUD-15 [data] (original text)** the IBKR minute store is split-adjusted but treated as raw: SOXS/NFLX per-share commission understated up to 100x in IBKR-store backtests; write `data/minute/_splits.json`.
 - **AUD-16 [data] DONE 2026-09-12 by D-4** (`scripts/sweep_d4.py`, 7 clauses,
   `tests/test_intraday_data_extend.py`, `research/journal.md`; no ledger row, nothing under
   `live/` touched). **Both halves confirmed, both fixed, and the store repaired against the live
