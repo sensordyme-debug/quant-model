@@ -2453,7 +2453,36 @@ and no delivery, both of which are barred to the loop.
   confirming F-15 (a) from the other side**: q50 is active on 35% of sessions and worth $303/day
   per active session; q25 is active on 87% and worth $105.
 
-- **F-17 (open, and it is now the only open item in the F scope).** F-16 built the first screen this
+- **F-18 (open, and it is now the only open item in the F scope).** F-17 refused the pooled gate and
+  found why: **the floor ranks candidates in the wrong order.** The five admissions with the largest
+  train-window |IC| (|t| 5.7-7.7, all flow) lost; the three smallest (|t| 2.1-2.9, all auction) made
+  all the money, and the ranges do not overlap. The defect is that the gate scores a candidate on
+  the window the model is fitted on, where a column that broke once looks strongest (`amihud30`,
+  |t| 6.8 on 2016-2019, -$974/day in 2020). The causal fix costs nothing: **score the candidate on
+  the VALIDATION year alone** - year Y-1, already held out of the model's own fit - with the floor
+  recomputed on that same year. Still strictly causal, and it asks "did this column carry the last
+  time it was out of sample" rather than "how strong is it in sample". Two arms against F-17's
+  admitted sets as the reference: `val_floor` (no fit, ~10 min) and `val_contrib` (rank each
+  candidate by the change in validation-year rank IC when added to the 38; 17 x 8 = 136 fits at
+  ~8 s, ~20 min). Unchanged hurdle (net t > 2.0 AND >= 5 of 8 years AND paired t > 2.0); per
+  F-17 (b) pre-register the abstention rate as an outcome, and pre-register the discriminating
+  prediction: a validation-year floor **abstains in more than 2 of 8 windows** and **declines
+  `amihud30` in 2020**. Everything is on disk; no data pull.
+
+- **F-17 DONE 2026-09-13 (REFUSED; see `research/journal_ml.md`): the gate ranks candidates in the
+  WRONG order, and the pooled arm finished below its own no-information scramble control.** Pooled
+  17 parents (F-14's 11 flow + F-15's 6 auction), per-year causal floor, new within-pool redundancy
+  leg. net t **+1.503** against 2.0, paired `pooled - base` **+0.043** - REFUSED. `pooled` $310/day
+  against `pooled_scrambled` **$319/day**: permuting the admitted columns within each timestamp is
+  not worse than reading them. Clause 1b PASSED - the auction-restricted gate reproduces F-16's
+  admitted sets in all 8 years and its book to the dollar ($412/day, t +1.97), so widening the pool
+  **cost $112/day at t +1.35**. **F-14's open question is answered and the answer is no**:
+  `flow_only`, the flow family admitted at the size its own members justify, is $205/day against
+  base's $306 (paired t -1.22, -$258/day on active sessions), and all of it is 2020 (-$974/day,
+  t -1.90). Abstention fell from 5/8 windows to 2/8 and the book fell with it, which confirms
+  F-16 (a) from the adversarial side. 5 diagnostic ledger rows under `intraday/f17_poolgate`.
+
+- **F-17 DONE - original statement retained for the record.** F-16 built the first screen this
   track has that can rank a candidate **without spending the test window**, and it costs ~16 s per
   retrain window. Point it at the whole candidate space the track has accumulated: **F-14's 19 flow
   columns (`data/f1/f14_flow.parquet`) and F-15's auction family pooled into one candidate set**,
@@ -3519,6 +3548,41 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   t > 2, cut its `gross` in `live/intraday_config.json` to 0.75 and say so in the journal:
   the owner asked for volatility, but not for noise dressed as edge. Also widen the universe
   test: the 50 megacaps from D-1 are now fetchable at minute resolution.
+- **O-8 DONE 2026-09-13 (see `research/journal_options.md`): the 0DTE put wing does NOT forecast
+  the day's DOWNSIDE TAIL. REFUSED on both pre-registered legs, and the declared sign is wrong.**
+  `scripts/sweep_o8.py`, 21 DIAGNOSTIC rows under `options/odte_o8_tail`. There was no open
+  O-item; this one exists because O-5 tested the chain's asymmetry (`rn_skew` at 0.5% of spot,
+  `rn_tail` at 2.0%) for **direction** only, and a conditional mean and a conditional **quantile**
+  are different objects - the first is a tradeable expectation the chain would price away, the
+  second is a physical tail times a pricing kernel, and it has a consumer (a de-risk switch) that
+  A-15's refusal of `rn_half`-as-size does not reach. Target = signed `fwd`, estimator = linear
+  **quantile regression at tau = 0.05**, so the statistical loss and the economic object (a 5%
+  VaR) are the same quantity. The decisive comparison is **M2 (tape + `rn_half` + asymmetry)
+  against M1 (tape + `rn_half`)**, never against the tape - beating only the tape would be O-6
+  found again through a wider door. Measurement side imported unmodified from `sweep_o6`; new
+  solver (no `statsmodels` on this machine) gated against an exact `scipy.optimize.linprog`
+  solution at excess pinball loss **0.0000**, and in-sample calibration 5.20-5.30% at tau=0.05.
+  **Result**: M2 wins **2 of 5** clocks, pooled DM t **-0.401** (wrong side of zero, not merely
+  insignificant), regimes leg 1 of 5. `rn_skew`'s fitted coefficient is **positive at 4 of 5
+  clocks** where the declaration said negative, while `rn_half` is -21.9..-37.1 bps per sd at 5 of
+  5 - a block short of power would still load in the declared direction, so this is a mechanism
+  refusal. Stage A shows why: both asymmetry reads correlate with **|fwd|** (-0.31..-0.34, +0.15
+  ..+0.22 Spearman) and not with signed `fwd` (-0.08..+0.08) - they restate the chain's own width,
+  which M1 already carries. Economic leg null (book 5th-percentile moves -4.1%..+4.1%, no sign, no
+  material cell). Placebo at tau=0.95 does not bite: the block is *worse* there too (pooled t
+  -2.674), upper-tail improvement at 0 of 5 clocks. **The pre-registered secondary read is the
+  only positive and cannot change the verdict**: `rn_half` over the tape alone cuts OOS 5%-VaR
+  pinball loss **-2.96 / -3.43 / -5.79 / -7.21 / -8.03 %** at 10:00..14:00, DM t +2.66 / +2.24 /
+  +2.90 / +2.78 / +3.16 (4 of 5 clear the 2.576 bar; 11:00 does not), with realised breach rate
+  4.39-5.25% against a nominal 5% - so O-6's skill survives a change of target *and* loss
+  function, and grows through the session. Limits stated rather than leaned on: `rn_tail` is
+  exactly 0 on 23.8% of rows (but `rn_skew` is non-zero on 99.8% and fails too), the estimator is
+  linear in levels, and the 2016-2019 regime is under the 100-row floor at the last two clocks -
+  which made leg (ii) easier, and it still failed. **Consequence, pre-registered before the run:
+  the chain's entire content is the one symmetric number O-6 found, and O-4's advice to stop
+  scheduling this scope until Theta VALUE is restored is now UNCONDITIONAL rather than a
+  judgement call.** Nothing shipped, no handoff opened (opening one off a REFUSED result would
+  spend another track's slot on nothing), `sweep_o6.py`/`sweep_o7.py` unmodified.
 - **O-7 DONE 2026-09-13 (see `research/journal_options.md`): O-6's magnitude skill is NOT a
   volatility-regime detector - it is present in **15 of 15** (clock x vol-state) cells and the
   sized-book benefit is **largest in the CALM state**, where a realized-vol sizer is blind. PASS on
@@ -4041,6 +4105,31 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
 - **E-2b Generalize `sweep_s1.py` off S-1.** Explicitly deferred when E-2 shipped; the second
   designated offline item. Needed before any second sleeve can be swept the same way.
 ## Done
+
+- **E-11 The morning gate waited 105 s for 1,003 tests that could not change its answer.
+  DONE 2026-09-13.** E-8 scoped the refusal to the `runner` tests and E-10 stopped a hang
+  reaching round it; both left the verdict being reached *through* the full suite. Measured
+  old against new on eleven repo shapes with real pytest, the verdict differs in **exactly
+  one**: suite failed + marker missing, which refused - i.e. the full suite's only
+  contribution to this gate was a self-inflicted outage of the shape E-5 forbids. It cost
+  **105 s of a 119 s preflight** against a 09:30 open, and the suite grew **1,171 -> 1,470
+  tests / 82 -> 145 s inside 30 hours** under five concurrent tracks, none of which owns that
+  deadline; the 223 deciding tests are flat at ~19 s. So the gate is `-m runner` alone and the
+  rest runs as `full_suite_report`, a daemon thread beside the trader at below-normal
+  priority, logging `suite_report` and alerting - it cannot touch the exit code (AST-pinned,
+  the E-9 shape). Time to the launch decision **118.7 s -> 36.3 s**, replay byte-identical
+  (2026-09-11, P&L -2,080, 36 trades, flat). A missing marker now trades with a **GATE
+  DISARMED** alert, because the test that would catch a broken marker is deselected by it.
+  Found and fixed on the way: `test_the_real_suite_marks_the_trading_path` asserted a
+  repo-wide collect returned 0, and at 06:12 it **refused to trade for real** because the
+  futures track was mid-write on its own test files - the E-8 defect (a gating test whose
+  verdict is a property of the machine) inside the gate's own file. It now reads the
+  selection, not the exit code. Suite 1,470 + 56 in `test_launch_preflight.py`.
+  **Next**, measured rather than guessed: collecting all 1,473 to deselect 1,243 costs
+  **0.89 s**, so the gate's 19 s is execution, and `--durations` puts most of it in
+  `test_launch_preflight.py` itself - the gate's own tests each launch a real pytest
+  subprocess (0.5-2.0 s x ~25). Not urgent at 19 s against a 300 s window, but that is where
+  the number lives if it ever needs to come down.
 
 - **E-10 A hang anywhere in the suite skipped the one refusal that matters. DONE 2026-09-13.**
   E-8 scoped the power to stop the sleeve to the 216 `runner` tests, but that refusal is reached

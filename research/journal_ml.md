@@ -6,6 +6,134 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-13 - F-17: the gate ranks candidates in the WRONG ORDER. Given a wider pool it admitted the five columns with the LARGEST train-window |IC| - |t| 5.7 to 7.7 - and every one of them lost, while the three weakest, barely over the floor, made all the money. The pooled arm finished BELOW its own no-information scramble control. F-16 (a) is confirmed from the adversarial side: the abstention was the product.
+
+**Hypothesis.** F-16 built the first screen this track has that ranks a candidate without spending
+the test window, and closed with a rule: *a gate earns its keep in the windows where it admits
+nothing*. But that gate had never been shown a candidate it was not already expecting to like - six
+parents, one store, one tape. F-17 makes it choose: **17 parents from two disjoint stores in one
+pool** - F-14's 11 own-name flow columns and F-15's 6 own auction columns - per-year floor, per-year
+admission. It answers the question F-14 named and left open: F-14 refused its flow family **as a
+family**, and F-15 (a) says a family should be admitted at the size its members justify, which for
+flow has never been measured.
+
+`scripts/ml_f17.py`, **5 ledger rows** under `intraday/f17_poolgate`, per-year gate in
+`data/f1/f17_gate.csv`, admitted sets in `f17_admitted.json`, cells in `f17_arms.csv`. Eight clauses
+pre-registered in the module docstring including clause 0, the prior. One new leg, clause 4c
+(within-pool redundancy), pre-registered because eleven of the seventeen are one construction at
+three horizons. No new data pull - `f14_flow.parquet`, `f15_famA.parquet`, `f15_famB.parquet` read
+unchanged. Run with `INTRADAY_DATA_DIR=data/minute_alpaca`. **No shipped or runner-loaded file was
+touched**, so no deploy gate and no `--replay` is owed.
+
+**(1) Both identity checks pass, and the second one is the reason this run is comparable rather
+than merely similar.** Clause 1a: `base` reproduces the frozen F-8 model to the printed digit -
+mean rank IC **+0.01030**, gross **4.256** bps, cost **2.724**, net **$305.7/day**, t **+1.474**,
+1,933 sessions. Clause 1b: the pooled gate **restricted to F-16's six auction parents reproduces
+F-16's admitted sets in all 8 years exactly** (none x5, `auc_osz_adv`, `auc_ofade`, `auc_ofade`) and
+its book to the dollar - 4.795 gross bps, **$412/day at t +1.97**, worst -45,005, paired +$106 at
+t +1.42. Merging a 98 MB second store did not move the sample.
+
+**(2) The result, and the control is the headline.** 1,933 out-of-sample sessions, 2019-2026, one
+decision, decile 0.10. **Turnover is identical in every arm to the dollar (spread $0).**
+
+| arm | gate pool | mean rank IC | gross bps | cost bps | net $/day | t | yrs + | worst |
+|---|---|---|---|---|---|---|---|---|
+| base | - | +0.01030 | 4.256 | 2.724 | 306 | +1.474 | 5/8 | -51,431 |
+| **pooled** | **17, pre-registered** | +0.00837 | 4.286 | 2.730 | **310** | **+1.503** | 5/8 | -45,005 |
+| flow_only | 11 flow | +0.00928 | 3.748 | 2.722 | **205** | +1.00 | 5/8 | -51,431 |
+| auction_only | 6 auction (= F-16) | +0.00939 | 4.795 | 2.732 | **412** | +1.97 | 5/8 | -45,005 |
+| pooled_scrambled | 17, information destroyed | +0.01180 | 4.322 | 2.725 | **319** | +1.54 | 5/8 | -55,836 |
+
+**The scramble control beats the arm it controls**: `pooled_scrambled` $319/day against `pooled`
+$310, paired `pooled - pooled_scrambled` **-$16/day at t -0.14**. Permuting the admitted columns
+within each timestamp - same width, same marginals, same per-year schedule, no information - is not
+worse than reading them. Widening the pool cost **$112/day at t +1.35** against F-16's own arm.
+
+**(3) The inversion, which is the finding and is not subtle.** Read the train-window statistics of
+the eight columns the pooled gate admitted, alongside what each cost or earned out of sample:
+
+| year | store | admitted | train |IC| | train |t| | paired vs base, that year |
+|---|---|---|---|---|---|
+| 2019 | flow | `clv30`, `amihud30` | 0.0181, 0.0212 | 6.9, 7.7 | **-51/day** (t -0.21) |
+| 2020 | flow | `ofi5`, `amihud30` | 0.0129, 0.0159 | 5.7, 6.8 | **-974/day** (t -1.90) |
+| 2021 | flow | `clv30` | 0.0145 | 5.8 | +169/day (t +0.61) |
+| 2024 | auction | `auc_osz_adv` | 0.0084 | 2.1 | **+457/day** (t +1.32) |
+| 2025 | auction | `auc_ofade` | 0.0086 | 2.7 | **+468/day** (t +1.22) |
+| 2026 | auction | `auc_ofade` | 0.0087 | 2.9 | -155/day (t -0.42) |
+
+The flow admissions carry **2-3x the |IC| and 3x the |t|** of the auction admissions on the window
+the gate is allowed to read, and they are the ones that lose. There is no overlap in the ranges:
+every flow admission scores above 0.0129, every auction admission below 0.0088. **A floor that
+ranks candidates by their strength on the training window sorts them into exactly the wrong
+order here.** Clause 4c, the new within-pool leg, dropped three more flow columns (`ofi30` |t| 6.4,
+`dvol30` |t| 6.8 and 5.9) - all of them from the losing side, and it still was not enough.
+
+**(4) F-14's open question is answered, and the answer is no.** `flow_only` - the flow family
+admitted at the size its own members justify, which is 1-2 columns in 3 of 8 years and zero in the
+other 5 - is **$205/day against base's $306**, paired **-$101/day at t -1.22**, and **-$258/day on
+the 757 sessions where it is active**. F-14 refused the family as a family; F-15 (a) suggested the
+refusal might be about size. It is not. The flow store does not carry, at 19 columns or at one.
+
+**(5) All of it is one year, and the year is the one that matters.** `flow_only` in 2020:
+**-$974/day at t -1.90**, 45% of sessions up. Base earns $1,273/day in 2020, its best year;
+`flow_only` earns $359. `amihud30` (illiquidity) and `ofi5` were fitted on 2016-2019 and traded
+through the liquidity event those four years contain no analogue of. The remaining two active years
+are noise (-$51 and +$169). The whole flow result is a single regime break, which is also why its
+train-window |t| of 6.8 was meaningless.
+
+**(6) Clause 8(a), pre-registered as an outcome: the wider pool abstains LESS, and that is the
+mechanism of its loss.** `auction_only` abstains in **5 of 8** windows and is active on 35% of
+sessions; `pooled` abstains in **2 of 8** and is active on 74%. Every window where the pooled gate
+is active and the auction gate was not - 2019, 2020, 2021 - is a window it fills with flow. F-16 (a)
+claimed a gate earns its keep by declining; F-17 is the adversarial test of that claim and it holds:
+handed more candidates, the gate declined less, and the book went from $412 to $310.
+
+**(7) Clause 8(b), the paired-on-active statistic.** `pooled` **+$6/day on its 1,432 active sessions
+(t +0.04)**; `auction_only` **+$303/day on 675 (t +1.42)**; `flow_only` **-$258/day on 757
+(t -1.22)**; `pooled_scrambled` +$18/day on 1,432 (t +0.16). The pooled gate's active sessions are
+statistically indistinguishable from its own scramble.
+
+**(8) And it gives up the regime where the book actually earns.** Net $/day across terciles of SPY
+trailing 20-session realised vol: base **-65 / +208 / +626**; pooled **-222 / +519 / +397**;
+auction_only **-53 / +401 / +693**; scrambled +3 / +262 / +564. `pooled` is the only arm that loses
+**more than a third of base's high-vol cell**. F-16's arm improved every tercile it touched;
+diluting it with flow moved the damage into the sessions with movement to trade.
+
+**Decision.** **REFUSE.** net t **+1.503** against 2.0 (FAIL), **5/8** years positive (PASS), paired
+`pooled - base` **+0.043** against 2.0 (FAIL). Nothing adopted, nothing promoted, `champion.json`
+untouched, no deployed file changed. F-16's auction arm is **not** superseded - it is reproduced
+exactly and it remains the best net this track has fitted ($412/day, t +1.97), still below the
+hurdle.
+
+**What it changes for the loop.** Three rules, and the first one retires a method.
+**(a) A train-window |IC| floor is an ANTI-selector when candidates come from stores with different
+regime exposure.** (3): the five admissions with the largest in-window |IC| all lost; the three
+smallest made all the money, and the ranges do not overlap. F-14 (a) + F-15 (a) as a gate is
+finished in this form. Any future screen must score a candidate on data the floor did not see.
+**(b) An abstention rate is a result, not a knob to minimise.** (6): the same gate, same threshold,
+same rule, over a wider pool abstains in 2 of 8 windows instead of 5 and loses $112/day for it.
+Report it, and treat a gate that became more active as a gate that got worse until shown otherwise.
+**(c) Print the scramble control's NET, not only its paired t against base.** (2): `pooled` beats
+base in gross and beats base on paired t, and still finishes **below its own scramble**. A run that
+compared each arm only to `base` would have reported "pooled +$5/day, harmless" and missed that the
+information content is negative.
+
+**Next.** **F-18**, and (a) names it exactly. The gate's defect is that it scores a candidate on the
+window it is fitted on, where a column that broke once looks strongest. The causal fix costs
+nothing: **score the candidate on the VALIDATION year alone** (year Y-1, already held out of the
+model's own fit) instead of on the whole train window, with the floor recomputed the same way on
+the same year. That is still strictly causal - Y-1 < Y - and it asks the question that matters,
+"did this column carry the last time it was out of sample", rather than "how strong does it look
+in sample". Pre-register two arms against F-17's admitted sets as the reference: `val_floor` (the
+minimal fix, no fit, ~10 minutes) and `val_contrib` (rank each candidate by the change in
+validation-year rank IC when it is added to the 38, 17 x 8 = 136 fits at ~8 s, ~20 minutes). Same
+hurdle, and per (b) pre-register the abstention rate again - the prediction that separates the two
+readings is that a validation-year floor **abstains MORE than 2 of 8**, and specifically that it
+declines `amihud30` in 2020.
+
+**Housekeeping.** Committed with `git commit --only <paths>` per F-16's note, so the concurrent
+tracks' staged files stayed out of this commit.
+
 ## 2026-09-13 - F-16: the causal gate BEATS the oracle it was built to imitate, and it beats it by admitting nothing in 5 of 8 years. Closest this track has ever come to the hurdle - net t +1.969 against 2.0 - and still REFUSED, because the paired test is +1.42. `lean3` is not confirmed: the causal gate does not pick `auc_ofade` in most years, it picks the column F-15's gate called nothing.
 
 **Hypothesis.** F-15 (7) found that 3 of 19 auction columns turned a -$148/day loss into a +$60/day
