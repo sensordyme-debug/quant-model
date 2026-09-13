@@ -1744,7 +1744,43 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   (C-2). **The critic ships nothing, so this is not fixed.**
   <!-- added by C-2, 2026-09-12 (critic). -->
 
-- **C-5a (found by `critic`, fix belongs to `daily`): `scripts/sweep_s37.py` cannot run on the code
+- **C-5a/b/c DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`, S-39).** All three
+  fixed in one commit, because C-5a is the script that verifies S-37 and the other two could not
+  be checked without repairing it. **C-5a**: `sweep_s37.py` clause 1 re-anchored on the gate's
+  call site (`faults = data_faults(`) with a guard, so a source-grep can never again be the thing
+  that fails; `--stage a` runs end to end and reproduces clause 2 to the digit. **C-5b**:
+  corrected in place in `journal_daily.md` and `journal.md` to **two to four bad prints a year**;
+  the MATERIAL verdict is unchanged and was never at risk, because the gate's cost is bounded by
+  its false-positive rate (0 of 501 live sessions). **C-5c**: both ends closed -
+  `fetch_history_ib` now applies the same date filter `fetch_history_yf` always had, and
+  `data_faults` reports `day > prev` under its own message rather than as staleness, which is
+  what S-37's "must not double-report" objection was protecting. The finding's own framing was
+  incomplete in a way worth carrying: **the one-sidedness was deliberate** -
+  `tests/test_paper_dataquality.py:104` asserted `== []` for this exact frame and named
+  `fetch_history_ib` as the owner of the fix, which S-37 then did not make, so **a test made the
+  assignment permanent**. Six further tests moved onto the live contract (`as_of ==
+  previous_session(today)`), which they had been violating by one session and which only passed
+  because the clause was one-sided. **Priced before it was closed** (new `scripts/sweep_s39.py`,
+  5 clauses, nine names of Alpaca SIP minute bars, six of them fetched for this, all nine priced
+  on 2,683 of 2,683 sessions): both books fill at the same real 15:45 print, so the only
+  difference is whether the signal saw today's partial bar, and it is worth **-0.049 bps/day at
+  t -0.08** fully charged (22.483% vs the deployed 22.602%, agreeing in both halves) **while
+  rewriting the order list on 76.7% of sessions for 10.2% more orders** - noise in the last row
+  of the ranking window, not fresher information, and the gap widens with the cost model. So it
+  was a defect and not a latent clock change, and the pre-registered branch creates **no
+  owner-facing option**. **By-product, and it is the durable one: S-19's ~1.9-2.1 CAR points are
+  entirely a FILL-MOMENT effect.** S-19 never varied what the signal *reads* - both its rows read
+  `close[i-1]` - and S-39's `bound` cell, which hands the signal `close[i]`, a price 15 minutes
+  after it decides, still loses at -0.141 bps/day (t -0.24). Two controls make the store
+  readable: `partial` fed a flat ratio reproduces `bound` at 0.000e+00, and isolating the fill
+  alone shows S-19's `close[i]` stand-in was pessimistic by ~0.39 CAR points against the real
+  15:45 print. Gates: `compare_orders.py` 3,689/3,689 at 5,021 orders both sides, full `tests/`
+  green on py -3.14 (the launch gate's interpreter), identity exact at 22.192150170492255% /
+  5,052. No LEAN run, no ledger row, no strategy parameter touched, `champion.json` and `live/*`
+  untouched.
+  <!-- closed by S-39, 2026-09-13 (daily). -->
+
+- **C-5a (original text, kept for the pre-registration): `scripts/sweep_s37.py` cannot run on the code
   S-37 shipped, and the stage that breaks carries S-37's headline.** The script defaults to
   `--stage all`; `clause1` slices `scripts/paper_trade.py` as text on the literal
   `"missing = [s for s in universe"`, which S-37's own patch deleted. At HEAD it prints the
@@ -1758,7 +1794,7 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   (C-5). **The critic ships nothing, so this is not fixed.**
   <!-- added by C-5, 2026-09-12 (critic). -->
 
-- **C-5b (found by `critic`, fix belongs to `daily`): S-37's owner-facing break-even is quoted from
+- **C-5b (original text, kept for the pre-registration): S-37's owner-facing break-even is quoted from
   a cell running at 11x the outage rate the sentence describes.** "The tightest break-even is 2.0
   outages a year" comes from the 1-in-21 cell (11.34 outages/yr). The cell matching the sentence's
   own rate (1-in-252, 0.93/yr) gives **2.6/yr at 2 bp and 3.6/yr at 0 bp**. S-37 defends the
@@ -1772,7 +1808,7 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   `py -3.11 scripts/verify_c5.py --stage d`. **The critic ships nothing, so this is not fixed.**
   <!-- added by C-5, 2026-09-12 (critic). -->
 
-- **C-5c (found by `critic`, fix belongs to `daily`): the S-37 data gate is one-sided, and the side
+- **C-5c (original text, kept for the pre-registration): the S-37 data gate is one-sided, and the side
   it misses is the one `--history ib` produces by construction.** `data_faults` tests
   `day < prev` only, so a frame ending on **today's unfinished session passes clean**. The two
   history sources sit on one line of `main()`: `fetch_history_yf` drops today's bar
@@ -3862,15 +3898,36 @@ improves after costs, journal it, and update `live/intraday_config.json` only pe
   touching the champion.
 - **E-2b Generalize `sweep_s1.py` off S-1.** Explicitly deferred when E-2 shipped; the second
   designated offline item. Needed before any second sleeve can be swept the same way.
-- **E-7 Why is the shared test suite 6x slower on 3.14 than on 3.11?** Measured under E-5:
-  the 107 pre-existing tests run in 3.27 s on `py -3.11` but 19.9-24.8 s on
-  `pythoncore-3.14-64\python.exe`, which is the interpreter the "Quant Intraday Sleeve" task
-  uses and therefore the one the preflight budget is spent in. Probably import cost
-  (pandas/numpy) under 3.14 rather than the tests themselves - `-X importtime` on a single
-  test would say. Worth it because the launch gate now pays this every morning, and because
-  every track's edit-test loop pays it all day.
-
 ## Done
+
+- **E-10 A hang anywhere in the suite skipped the one refusal that matters. DONE 2026-09-13.**
+  E-8 scoped the power to stop the sleeve to the 216 `runner` tests, but that refusal is reached
+  *through* the full suite, and `intraday_launch.unit_tests_ok` returned `True, "warn"` on
+  `TimeoutExpired` without ever asking the subset. The whole suite shares one
+  `PYTEST_TIMEOUT = 300`, five tracks commit into one `tests/` directory, and the suite grew
+  **107 -> 1,171 tests (30 s -> 82 s) in a day**, so one hung test in any of the other 955 - a
+  module-level network call, a Theta probe, a deadlock - abandoned the run before a verdict
+  existed and the sleeve traded. Proven with real pytest: a failing `runner` test beside a
+  sleeping file gave `may_trade=True`, and now gives `may_trade=False`; a *passing* runner test
+  beside the same hang still trades, so E-5's asymmetry is intact. The answer was always cheap -
+  `-m runner` deselects the hang, 12 s of the 82 s that timed out - so the fix is a budget of
+  the subset's own (`SUBSET_TIMEOUT`), not a longer suite timeout the other tracks would grow
+  past again. `_runner_subset_passed` became three-valued `_runner_subset_verdict`, because the
+  two call sites have opposite defaults (exit 1 defaults to refuse, timeout defaults to trade)
+  and each must keep its own when the answer is unreadable: the subset may move a verdict only
+  when it can *prove* the trading path's state, never when it is merely silent. 7 tests in
+  `test_launch_preflight.py`; `--preflight-only` exit 0 with live state byte-identical.
+
+- **E-7 Why is the shared test suite 6x slower on 3.14 than on 3.11? ANSWERED 2026-09-13: it is
+  not, and the comparison was never like-for-like.** The filed hypothesis (import cost under
+  3.14) is wrong - `-X importtime` puts pytest's entire import tree at 203 ms - and the 6x was
+  an artefact of *what 3.11 does not run*: it fails 9 tests and skips 7 more for want of a
+  parquet engine, including the two most expensive in the suite (`test_futures_baseline`,
+  10.7 s + 9.2 s on 3.14, ImportError in under a second on 3.11). Deselect the nine files that
+  differ and 3.11 takes 56.7 s against 3.14's 63.1 s - **1.11x** - with fixed pytest launch cost
+  0.31 s vs 0.44 s. Not worth engineering; the interpreter was never the story. The real finding
+  under the timing was the suite's *growth* against a shared gate budget: see **E-10**. (None of
+  the nine 3.11 failures is `runner`-marked, so E-8's narrowing already handles them correctly.)
 
 - **E-9 Nothing consumed `store_health.py` on a schedule. DONE 2026-09-12.**
   `intraday_launch.store_warnings()` runs as preflight step 2a on the existing 09:25 task, over

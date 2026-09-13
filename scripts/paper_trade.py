@@ -247,6 +247,17 @@ def fetch_history_yf(symbols, period="2y"):
 
 
 def fetch_history_ib(ib, symbols, days=500):
+    """Daily closes from IB. C-5c: today's unfinished bar is dropped, as yfinance's is.
+
+    `reqHistoricalData` with `endDateTime=""` returns a bar for the session in progress, so
+    at the deployed 15:45 ET task time the last row of this frame was a *mid-session print*
+    carrying today's date. Nothing downstream could tell it from a close: the signal ranked
+    and sized on it, and `data_faults` passed it because its staleness clause tested only
+    `day < prev`. The two history sources sat on one line of `main()` with opposite
+    conventions, which is the only reason the deployed path (yfinance, no arguments) was
+    never wrong. Both ends are now closed - here at the source, and symmetrically in
+    `data_faults` for any source this runner grows later.
+    """
     from ib_async import Stock, util
     import pandas as pd
     frames = {}
@@ -259,7 +270,14 @@ def fetch_history_ib(ib, symbols, days=500):
             df.index = pd.to_datetime(df.index)
             frames[sym] = df
         ib.sleep(0.3)
-    return pd.DataFrame(frames).sort_index()
+    closes = pd.DataFrame(frames).sort_index()
+    # the same filter `fetch_history_yf` applies, stated once per source rather than shared,
+    # because IB stamps `date` as a plain date and yfinance as a tz-naive Timestamp and the
+    # comparison must be made against each source's own index type.
+    if len(closes):
+        today = pd.Timestamp(dt.date.today())
+        closes = closes[closes.index < today]
+    return closes
 
 
 def load_state():
@@ -333,6 +351,13 @@ def data_faults(closes, universe, as_of, prev_session=None) -> list[str]:
         ranked on a stale price AND sized at it (`closes[s].dropna().iloc[-1]` below).
       * an `as_of` older than the previous session -> the same staleness over every name at
         once, which no per-column check can see.
+      * an `as_of` NEWER than the previous session -> the last row is a session still in
+        progress, so every name is ranked and sized on a mid-session print as if it were a
+        close (C-5c). S-37 left this side out on the argument that it is "a different defect"
+        belonging to the source, and then never fixed the source: `fetch_history_ib` applied
+        no date filter at all while `fetch_history_yf` dropped today, so the hole was held
+        shut by nothing but the deployed task passing no arguments. It is reported here under
+        its own message rather than as staleness, which is what that argument was protecting.
 
     Only names that have already printed a close are required to have one, so a name added to
     the universe before its own inception cannot stop the account trading. On the reference
@@ -370,6 +395,9 @@ def data_faults(closes, universe, as_of, prev_session=None) -> list[str]:
         prev = prev_session.date() if hasattr(prev_session, "date") else prev_session
         if day < prev:
             faults.append(f"as_of {day} is older than the previous session {prev}")
+        elif day > prev:
+            faults.append(f"as_of {day} is newer than the previous session {prev} - the last "
+                          f"row is a session still in progress, not a close")
     return faults
 
 

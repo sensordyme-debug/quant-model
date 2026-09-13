@@ -100,6 +100,34 @@ def ruff_findings(paths: list[str], isolated: bool = False) -> int:
     return int(m.group(1)) if m else (0 if code == 0 else -1)
 
 
+def provenance_gaps(n: int = 40) -> dict[str, int]:
+    """Which writers are producing rows with no provenance, and how many.
+
+    A bare percentage told me coverage had collapsed from 36/40 to 0/40 and nothing about
+    why. It was one newly-arrived writer flooding the tail, not a regression in the two that
+    already stamped it - and a number that cannot distinguish those two situations sends the
+    reader looking in the wrong place. Naming the track makes the finding actionable by
+    whoever owns it.
+    """
+    ledger = REPO / "research" / "experiments.jsonl"
+    if not ledger.exists():
+        return {}
+    rows = [x for x in ledger.read_text(encoding="utf-8", errors="replace").splitlines()
+            if x.strip()]
+    out: dict[str, int] = {}
+    for line in rows[-n:]:
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if d.get("env_key") or (isinstance(d.get("provenance"), dict)
+                                and d["provenance"].get("env_key")):
+            continue
+        who = str(d.get("algorithm") or d.get("track") or "unknown")
+        out[who] = out.get(who, 0) + 1
+    return out
+
+
 def provenance_coverage(n: int = 40) -> tuple[int, int]:
     """(rows with env_key, rows inspected) over the most recent ledger rows."""
     ledger = REPO / "research" / "experiments.jsonl"
@@ -181,6 +209,13 @@ def watchdog_trustworthy() -> tuple[bool, str]:
         return need <= states, f"states {sorted(states)}"
     except Exception as exc:  # noqa: BLE001
         return False, f"not importable: {exc}"[:120]
+
+
+def _gaps_note() -> str:
+    gaps = provenance_gaps()
+    if not gaps:
+        return "none"
+    return ", ".join(f"{k} x{v}" for k, v in sorted(gaps.items(), key=lambda kv: -kv[1]))
 
 
 def _no_trial_override() -> bool:
@@ -394,9 +429,10 @@ def build() -> list[Dimension]:
           8.0 if prov_n and prov_have / prov_n > 0.15 else 6.0,
           [f"provenance on {prov_have}/{prov_n} of the most recent ledger rows",
            "env_key discriminates py311-689198 (LEAN) from py314-5ba485 (harness)",
-           "both ledger writers stamp commit, dirty flag, interpreter and numeric stack"],
-          "older rows predate provenance and cannot be back-filled; the promotion gate does "
-          "not yet REFUSE a cross-env comparison, it only records one"),
+           f"writers producing rows WITHOUT provenance: {_gaps_note()}"],
+          "older rows predate provenance and cannot be back-filled. The tail is currently "
+          "dominated by one writer that does not stamp it at all, so this score is measuring "
+          "that writer rather than a regression in the two that do"),
 
         D("Live safety", 8.0 if p0 == 0 else 4.0,
           [f"open P0 items in the audit: {p0}",

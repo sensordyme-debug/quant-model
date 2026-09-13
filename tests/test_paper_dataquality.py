@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -32,20 +33,20 @@ def good() -> pd.DataFrame:
 
 # ------------------------------------------------------------------ the three defect shapes
 def test_a_healthy_frame_raises_nothing(good):
-    assert pt.data_faults(good, UNIVERSE, good.index[-1], good.index[-2].date()) == []
+    assert pt.data_faults(good, UNIVERSE, good.index[-1], good.index[-1].date()) == []
 
 
 def test_a_missing_column_is_a_fault_not_a_warning(good):
     """`risk_on` returns `regime_reason "SPY missing"` for this frame and the book goes flat."""
     faults = pt.data_faults(good.drop(columns=["SPY"]), UNIVERSE, good.index[-1],
-                            good.index[-2].date())
+                            good.index[-1].date())
     assert len(faults) == 1 and "SPY" in faults[0] and "no column" in faults[0]
 
 
 def test_an_all_nan_column_is_a_fault(good):
     """`target_weights` runs dropna(axis=1, how="all") first, so this is a silent rotation."""
     faults = pt.data_faults(good.assign(XLK=np.nan), UNIVERSE, good.index[-1],
-                            good.index[-2].date())
+                            good.index[-1].date())
     assert len(faults) == 1 and "XLK" in faults[0] and "entirely NaN" in faults[0]
 
 
@@ -53,7 +54,7 @@ def test_a_nan_in_the_last_row_is_a_fault(good):
     """ffill would carry yesterday's close forward and `plan_orders` would size shares at it."""
     frame = good.copy()
     frame.iloc[-1, frame.columns.get_loc("QQQ")] = np.nan
-    faults = pt.data_faults(frame, UNIVERSE, frame.index[-1], frame.index[-2].date())
+    faults = pt.data_faults(frame, UNIVERSE, frame.index[-1], frame.index[-1].date())
     assert len(faults) == 1 and "QQQ" in faults[0] and "last row" in faults[0]
 
 
@@ -85,11 +86,11 @@ def test_a_name_before_its_own_inception_does_not_stop_the_account(good):
     frame = good.copy()
     frame["XLK"] = np.nan
     frame.loc[frame.index[:5], "XLK"] = np.nan     # never printed at all
-    faults = pt.data_faults(frame, UNIVERSE, frame.index[-1], good.index[-2].date())
+    faults = pt.data_faults(frame, UNIVERSE, frame.index[-1], good.index[-1].date())
     assert len(faults) == 1 and "entirely NaN" in faults[0]
     # ...but once it HAS printed, a hole in the last row is a fault again.
     frame.loc[frame.index[10], "XLK"] = 50.0
-    faults = pt.data_faults(frame, UNIVERSE, frame.index[-1], good.index[-2].date())
+    faults = pt.data_faults(frame, UNIVERSE, frame.index[-1], good.index[-1].date())
     assert any("last row" in f for f in faults)
 
 
@@ -98,13 +99,49 @@ def test_a_held_name_outside_the_universe_is_not_checked(good):
     column would block the sale this runner exists to make; `plan_orders` reports it stuck."""
     frame = good.copy()
     frame["TQQQ"] = np.nan
-    assert pt.data_faults(frame, UNIVERSE, frame.index[-1], good.index[-2].date()) == []
+    assert pt.data_faults(frame, UNIVERSE, frame.index[-1], good.index[-1].date()) == []
 
 
-def test_an_as_of_newer_than_the_previous_session_is_fine(good):
-    """`--history ib` keeps today's in-progress bar (AUD-25b). That is a different defect and
-    this gate must not double-report it as staleness."""
-    assert pt.data_faults(good, UNIVERSE, good.index[-1], good.index[-3].date()) == []
+def test_an_as_of_newer_than_the_previous_session_is_a_fault(good):
+    """C-5c. This assertion used to read `== []`, on S-37's argument that an in-progress bar is
+    "a different defect" belonging to `fetch_history_ib` - which S-37 then did not fix, so the
+    hole was held shut only by the deployed task passing no arguments. The source is fixed and
+    the gate is symmetric: a frame whose last row is a session still in progress ranks and
+    sizes every name on a mid-session print, which is exactly what this gate exists to stop."""
+    faults = pt.data_faults(good, UNIVERSE, good.index[-1], good.index[-3].date())
+    assert len(faults) == 1 and "is newer than the previous session" in faults[0]
+
+
+def test_the_two_as_of_faults_do_not_double_report(good):
+    """The half of S-37's argument that was right: the in-progress case must not be announced
+    as staleness, or the log names the opposite defect. Each side has its own message and
+    exactly one of the two can fire."""
+    newer = pt.data_faults(good, UNIVERSE, good.index[-1], good.index[-3].date())
+    older = pt.data_faults(good.iloc[:-1], UNIVERSE, good.index[-2], good.index[-1].date())
+    assert "older than" not in newer[0] and "newer than" not in older[0]
+    assert pt.data_faults(good, UNIVERSE, good.index[-1], good.index[-1].date()) == []
+
+
+def test_fetch_history_ib_drops_todays_unfinished_bar():
+    """C-5c at the source. `reqHistoricalData(endDateTime="")` returns the session in progress,
+    so at 15:45 ET the last row was a mid-session print stamped with today's date. Driven
+    through a fake `ib` so the filter is tested rather than the broker."""
+    class _FakeBar(NamedTuple):          # `util.df` reads bars as records, so this is a tuple
+        date: dt.date
+        close: float
+
+    class _FakeIB:
+        def reqHistoricalData(self, contract, **kw):
+            return [_FakeBar(dt.date.today() - dt.timedelta(days=3), 100.0),
+                    _FakeBar(dt.date.today() - dt.timedelta(days=1), 101.0),
+                    _FakeBar(dt.date.today(), 99.0)]          # the in-progress bar
+        def sleep(self, _):
+            pass
+
+    closes = pt.fetch_history_ib(_FakeIB(), ["SPY"], days=5)
+    assert len(closes) == 2, "today's in-progress bar must not reach the signal"
+    assert closes.index[-1].date() == dt.date.today() - dt.timedelta(days=1)
+    assert 99.0 not in set(closes["SPY"])
 
 
 def test_no_calendar_means_no_staleness_fault(good):

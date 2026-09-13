@@ -4,6 +4,33 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - S-39 (`daily` track; full entry in `research/journal_daily.md`)
+
+**C-5a/b/c closed. The paper runner's data gate was one-sided because S-37 assigned the missing
+half to `fetch_history_ib` and then never fixed it - a test (`test_paper_dataquality.py:104`)
+made the assignment permanent - so `--history ib` at 15:45 ET returned the session in progress,
+the signal ranked on a mid-session print, and the gate that exists to stop exactly that passed
+it. Latent, never live: the deployed task passes no arguments and yfinance drops today's bar.
+Both ends are now closed** - the source filters and the gate reports `day > prev` under its own
+message - **and six existing tests moved onto the live contract (`as_of == previous_session`),
+which they had been violating by one session.** New `scripts/sweep_s39.py` priced the frame the
+hole admitted, on nine names of Alpaca SIP minute bars (six fetched for this, all nine priced on
+2,683 of 2,683 sessions): both books fill at the same real 15:45 print, so they differ only in
+whether the signal saw today's partial bar, and **it is worth -0.049 bps/day at t -0.08 fully
+charged** (22.483% against the deployed 22.602%, agreeing in both halves) **while rewriting the
+order list on 76.7% of sessions for 10.2% more orders.** Noise in the last row of the ranking
+window, not fresher information. The reusable by-product is about S-19: its `bound` companion
+cell hands the signal **close[i], a price 15 minutes after it decides**, and that still loses
+(-0.141 bps/day, t -0.24), so **the ~1.9-2.1 CAR points S-19 attributed to this sleeve's clock
+are entirely a FILL-MOMENT effect - S-19 never varied what the signal reads, both its rows read
+close[i-1]** - and the pre-open question in BLOCKERS.md gains nothing from a fresher input.
+Identity exact (22.192150170492255% / 5,052), `compare_orders.py` 3,689/3,689 at 5,021 orders,
+full suite green on py -3.14. C-5a (the S-37 verification script could not run at HEAD, because
+clause 1 grepped for text S-37's own patch had deleted) and C-5b (the owner-facing break-even
+was quoted from a cell running at 11x its own stated outage rate - it is **two to four** bad
+prints a year, not 2.0; the MATERIAL verdict is unchanged) are fixed and corrected in place.
+Nothing promoted, no strategy parameter touched, `champion.json` untouched.
+
 ## 2026-09-13 - A-15 (`iterate` track)
 
 **REFUSED, and the refusal is a general one: this sleeve is paid +$2,651/day per 1 sd of the
@@ -316,9 +343,11 @@ was measured to have.** AUD-13 is three defects in one bullet; each was corrupte
 decision frame at the real decision site and run through the deployed book. The loud one -
 `REGIME_TICKER` missing, `risk_on` returning `"SPY missing"`, the account liquidated under a
 reason that reads like a risk decision - costs **0.138 CAR points per outage at 0 bp and 0.252
-at 2 bp**, so the break-even against S-33's 0.5-point "cosmetic" bar is **2.0 outages a year**
-against a pre-registered threshold of 12 (t 3.10 / 3.85 on the powered cells; the low-rate
-cells are underpowered at t 0.90 / 1.24). The silent one is worse-behaved than the audit says:
+at 2 bp**, so the break-even against S-33's 0.5-point "cosmetic" bar is ~~2.0~~ **between two
+and four outages a year** (corrected 2026-09-13 by S-39 / C-5b: 2.0 is the 1-in-21 cell, which
+runs at 11x the rate the sentence describes; the matching 0.93/yr cell gives 2.6 at 2 bp and
+3.6 at 0 bp) against a pre-registered threshold of 12 (t 3.10 / 3.85 on the powered cells; the
+low-rate cells are underpowered at t 0.90 / 1.24). The MATERIAL verdict is unchanged. The silent one is worse-behaved than the audit says:
 an all-NaN column changes the funded set on **10.5% to 83.6% of corrupted sessions for every
 one of the nine names**, and no CAR delta clears the 1.689 seed sd - the defect is noise in the
 portfolio, not a bias, which is why refusing is the only available remedy. XLK, the audit's

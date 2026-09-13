@@ -278,8 +278,18 @@ def clause1(frames: dict) -> dict:
           f"--history {default}")
 
     # --- walk the path a corrupt frame takes through the runner, from the source
-    print("\n  what the runner does with a frame missing a universe column:")
-    body = src[src.index("missing = [s for s in universe"):src.index("plan = plan_orders")]
+    # C-5a: this used to anchor on `"missing = [s for s in universe"` - S-37's own PRE-patch
+    # text, which S-37's patch then deleted, so the clause raised `ValueError: substring not
+    # found` at HEAD and took clause 2 (this script's headline) down with it before it ran. A
+    # clause that verifies a patch by matching the text the patch removes can only run once.
+    # Anchored on the gate's call site instead, which is what the walk is about and which the
+    # `--stage b1` ast check independently asserts is still there.
+    ANCHOR = "faults = data_faults("
+    if ANCHOR not in src:                     # never let a source-grep be the thing that fails
+        print("    | (anchor not found in paper_trade.py - see tests/test_paper_dataquality.py)")
+        body = ""
+    else:
+        body = src[src.index(ANCHOR):src.index("plan = plan_orders")]
     for line in body.strip().splitlines():
         print(f"    | {line.strip()}")
     exits = [ln for ln in body.splitlines() if "return 3" in ln or "sys.exit" in ln]

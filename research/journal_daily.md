@@ -4,6 +4,126 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-13 - S-39 (C-5a/b/c): the gate was one-sided because the fix was assigned to a source that was never fixed - and the frame it admitted is worth nothing, which is why it is a defect
+
+**What this iteration is.** `critic` filed three defects against S-37, all three owned by this
+track. C-5c is the one that could cost money, so it is the hypothesis; C-5a and C-5b are closed
+alongside it because C-5a is the script that *verifies* S-37 and I could not re-run S-37's own
+numbers without repairing it first.
+
+**(C-5c) The defect, and the thing the finding did not say.** `scripts/paper_trade.py:main()`
+picks its history on one line:
+
+```
+closes = fetch_history_yf(...) if (args.history == "yfinance" or ib is None) else fetch_history_ib(ib, ...)
+```
+
+and the two sources had **opposite conventions**. `fetch_history_yf` dropped today's unfinished
+bar (`closes.index < today`); `fetch_history_ib` applied **no date filter at all**, so
+`reqHistoricalData(endDateTime="")` at the deployed 15:45 ET task time returned a bar for the
+session **in progress**. That row became `as_of`, the signal ranked on it, `plan_orders` sized
+shares at it - and `data_faults` passed it, because its staleness clause tested `day < prev`
+only. The part the finding did not say, and the part worth carrying: **the one-sidedness was
+deliberate.** `tests/test_paper_dataquality.py:104` asserted `== []` for exactly this frame,
+under the docstring *"That is a different defect and this gate must not double-report it as
+staleness"* - and S-37 then never fixed the source it had just assigned the defect to. The hole
+was held shut by nothing but the deployed task passing no arguments. **A defect assigned to a
+fix is not a defect fixed, and a test can make the assignment permanent.**
+
+**The fix, both ends, because half the argument was right.** `fetch_history_ib` now applies the
+same date filter as `fetch_history_yf` (the source), and `data_faults` reports `day > prev`
+under **its own message** rather than as staleness (the gate) - which is precisely what S-37's
+"must not double-report" objection was protecting, so nothing is given up. A new test asserts
+the two messages are disjoint and that exactly one can fire. **Six existing tests moved**: they
+passed `good.index[-2].date()` as `prev_session` while `as_of` was `good.index[-1]` - an
+off-by-one against the live contract, where `fetch_history_yf` drops today and so the frame's
+last row **IS** `previous_session(today)` (`previous_session`'s own docstring says so, and
+`verify_c5.py --stage b` prints the live frame at `as_of == prev`). They were only ever passing
+because the clause was one-sided.
+
+**(C-5c, the measurement) What the admitted frame actually did to the book - new
+`scripts/sweep_s39.py`, 5 clauses pre-registered in the docstring before the first simulation.**
+Closing the hole was never in question; **what kind of hole it was** was. A 15:45 print of
+session D is *fresher* than the close of D-1, so the frame the gate admitted might well have
+made the book more money - which would make this a latent unauthorized **clock change** (the
+BLOCKERS.md pre-open question, acquired by accident) rather than a latent data corruption. Same
+fix, completely different journal entry, and the loop does not get to guess.
+
+Both books **fill at the same real 15:45 print**, so they are paired to the instant and differ
+in one thing only - whether the signal saw today's partial bar. Decision price is the close of
+the **15:44** ET bar and the fill the close of the **15:45** bar, so nothing reads a price it
+could not have had; both are carried onto the daily store's adjusted scale as a within-day ratio
+`px_adj = close_adj x (px_raw / close_raw)` (S-24's implied-factor trick), which cancels every
+difference between a split-adjusted minute store and a split-and-dividend-adjusted daily one.
+Data: six ETFs (`DIA GLD TLT XLE XLF XLK`) fetched into the Alpaca SIP store to join the three
+already there; **all nine priced on 2,683 of 2,683 sessions**, the same count S-24 found.
+
+**(1) Identity.** `22.192150170492255% / 5,052 orders`, delta `0.00e+00`. **(2) Two controls.**
+`partial` fed a flat ratio reproduces `bound` at max |equity difference| **0.000e+00**, so the
+ratio store injects a price and nothing else; and isolating the *fill* alone, S-19's stand-in
+(close[i]) reads 22.211% against the real 15:45 print's **22.602%**, so S-19's convention was
+mildly pessimistic by ~0.39 CAR points. **(3) The cells**, 2016-2026, fully charged (2 bp +
+IBKR Pro financing):
+
+| cell | signal window ends | CAR | Sharpe | maxDD | orders |
+| --- | --- | --- | --- | --- | --- |
+| deployed | close[i-1] | **22.602%** | 1.145 | 23.887% | 3,617 |
+| partial (the hole) | px[i, 15:44] | 22.483% | 1.147 | 24.346% | 4,009 |
+| bound (impossible) | close[i] | 22.162% | 1.134 | 24.103% | 3,976 |
+
+**THE FRAME THE HOLE ADMITTED IS WORTH -0.049 BPS/DAY AT t -0.08** (-0.032, t -0.05 at 0 bp).
+Not better, not worse, not resolved at |t| >= 2 - which triggers the pre-registered branch that
+creates **no owner-facing option**. Both halves agree (2016-2019 16.466 vs 16.660; 2020-2026
+38.285 vs 38.500).
+
+**(4) And yet it rewrites the order list on 76.7% of sessions** - 1,757 of 2,682 with a
+*different set of names*, only 299 with the same names at different sizes - for **+10.2% more
+orders (4,002 vs 3,630) and no return**. That is the whole finding in one line: the partial bar
+is pure noise (it sits 24-32 bps sd from its own session's close) injected into the last row of
+the ranking window, it flips the top-3 on three sessions in four, and the gap against `deployed`
+**widens with the cost model** (-0.067 CAR at 0 bp, -0.119 fully charged) because the only thing
+it reliably buys is turnover. **A decision input that changes the decision three-quarters of the
+time and the P&L not at all is not fresher information; it is a coin flip with a commission
+bill.**
+
+**(5) The reusable result, and it is about S-19 rather than about C-5c.** `bound` gives the
+signal **close[i] - a price 15 minutes after it decides** - and it still loses, -0.141 bps/day
+at t -0.24. S-19 priced this sleeve's clock at ~1.9-2.1 CAR points and it is easy to read that
+as "fresher data is worth money"; **S-19 never varied what the signal reads.** Both of its rows
+(backtest and deployed) read `close[i-1]` and differ only in where the order *fills*. This is
+the first cell on this sleeve to move the **read** instead, and it is worth **zero even with
+look-ahead**. So the pre-open move in BLOCKERS.md is a **fill-moment** question end to end, and
+nothing about it gets better by giving the signal a fresher input - consistent with S-25, which
+found the payoff is overnight and the intraday content is nil.
+
+**(C-5a) The verification script could not run on the code S-37 shipped.** `sweep_s37.py`
+clause 1 sliced `paper_trade.py` as text on `"missing = [s for s in universe"` - **S-37's own
+pre-patch text, which S-37's patch deleted** - so at HEAD it raised `ValueError: substring not
+found` and took clause 2, the script's headline, down with it before it ran. Re-anchored on the
+gate's call site (`faults = data_faults(`), with a guard so a source-grep can never again be the
+thing that fails, and `--stage a` now runs end to end and reproduces clause 2 to the digit.
+**A clause that verifies a patch by matching the text the patch removes can only ever run once.**
+
+**(C-5b) The owner-facing break-even was quoted from the wrong cell** - corrected in place
+above and in `research/journal.md`: **two to four bad prints a year**, not 2.0. The MATERIAL
+verdict is unchanged and was never at risk.
+
+**Gates.** `scripts/compare_orders.py` **PASS, 3,689/3,689 dates, 5,021 orders both sides**.
+`tests/` **all pass on py -3.14**, the interpreter the 09:25 launch gate runs (`exit=0`); on
+py -3.11 the only four failures are the `futures` track's parquet tests, which fail at HEAD for
+want of `pyarrow` on that interpreter and have nothing to do with this change.
+`tests/test_paper_dataquality.py` is 19 pass, up from 16. No LEAN run, no ledger row, **no
+strategy parameter touched**, `champion.json` untouched, `live/*` and all scheduled tasks
+untouched. The deployed path (yfinance, no arguments) produced an identical frame before and
+after this commit; the new fault is a belt-and-braces assertion that should fire on zero
+sessions.
+
+**Next.** C-4 is the only open non-owner item left on this track's queue and it belongs to
+`critic`. The standing S-17 part 2 (measured daily fill slippage against the 15:45 print) is now
+much cheaper than it was, because this iteration built the nine-name 15:45 price store it needs.
+
+---
+
 ## 2026-09-12 - S-38 (AUD-11 part 2): the floor was not the estimate, and the two dials with the weakest paper trail are the two that move it most
 
 **What this iteration is.** S-33 priced AUD-11 on three of this sleeve's dials, measured the
@@ -199,12 +319,23 @@ this is not a preventive report.
 | 2 bp | 1 in 252 | 0.93 | 20.820 | -0.176 | -0.190 | 2.6 /yr | 1.24 |
 | 2 bp | 1 in 21 | 11.34 | 18.137 | -2.860 | -0.252 | 2.0 /yr | 3.85 |
 
-**MATERIAL: the tightest break-even is 2.0 outages a year** against a pre-registered threshold
-of 12, i.e. **two bad yfinance prints in a year cost 0.5 CAR points** - the entire selection
-premium S-33 measured on this sleeve, spent on a data failure. The low-rate cells are
-underpowered on their own (t 0.90 / 1.24, 13.6 events); **the 1-in-21 cells carry the claim**
-(t 3.10 / 3.85) and the cost per outage is the same size in both, which is what makes the
-break-even quotable. The cost rises with the cost model - 0.138 -> 0.190 at 0 -> 2 bp - so the
+**MATERIAL: between two and four bad prints a year** against a pre-registered threshold of 12.
+~~**the tightest break-even is 2.0 outages a year** ... i.e. two bad yfinance prints in a year
+cost 0.5 CAR points~~ **CORRECTED 2026-09-13 by S-39 (C-5b, found by `critic`).** "2.0 outages
+a year" is the 1-in-21 cell's break-even, and that cell runs at **11.34 outages/yr - 11x the
+rate the sentence itself describes**. The cell matching the sentence's own rate (1-in-252,
+0.93/yr) gives **2.6/yr at 2 bp and 3.6/yr at 0 bp**, so the honest range is two to four. The
+defence offered for quoting across cells - "the cost per outage is the same size in both" - is
+measured at **1.50x apart at 0 bp and 1.33x at 2 bp**, and the original sentence took the
+larger each time. Carrying the five-seed sd through, the matching cell is 2.6/yr with a +/- 1 sd
+band of **[1.5, 13.6]**, whose upper end is past the materiality threshold of 12. **The MATERIAL
+verdict and the decision are unchanged and were never at risk**: the gate's cost is bounded by
+its FALSE-POSITIVE rate, which C-5 measured at 0 of 501 live yfinance sessions, so shipping it
+is right at any outage rate. The low-rate cells are underpowered on their own (t 0.90 / 1.24,
+13.6 events) and **the 1-in-21 cells carry the significance** (t 3.10 / 3.85) - which is exactly
+why the break-even must be read off the matching cell and the t-stat off the powered one, rather
+than both off whichever is more flattering. Reproduce with `py -3.11 scripts/verify_c5.py
+--stage d`, or read the table above, where the 2.6 and 3.6 have always been printed. The cost rises with the cost model - 0.138 -> 0.190 at 0 -> 2 bp - so the
 audit's "a full round trip at real spread" is right, and the round trip is visible in the order
 count too: the flatten arm sends **5,395 orders against the control's 5,052**.
 
