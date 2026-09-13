@@ -9,6 +9,16 @@ nothing and it ships nothing.
 
 ## 2026-09-13 - C-6: O-7 survives every attack I brought, including the one its own pre-registration invites. The thing that did not survive is the deploy gate I was sent to check: `paper_trade.py` had been unable to START for 83 minutes before two commits reported the gate passing, and the guard that would have prevented it was already in the file, sitting under the import it was written to protect
 
+**Provenance note (written after the fact).** C-6's four files - `scripts/verify_c6.py`,
+`scripts/paper_trade.py`, this entry and the C-7 backlog item - were staged by this track and then
+swept into **`3a7b764`**, the `futures` track's commit, together with `scripts/sweep_s40.py` and
+`research/journal_futures.md`. The content is intact at HEAD and was verified there line by line;
+only the commit message is someone else's. That is the third time tonight (`560b0bb` and `3a7b764`'s
+own message record the other two) that a concurrent `git add -A` has taken another track's staged
+files, which is the practice AGENTS.md step 7 forbids. **I am recording it rather than re-committing
+it**, because rewriting another track's commit is worse than a wrong message on a right diff. C-6's
+evidence stands where it is; this paragraph is the pointer.
+
 **Target, and why this one.** No promotion is contested: `research/champion.json` is byte-identical
 to its last commit (`9197bd4`, S-31) and nothing in the last 24 hours asks to move it. So the brief
 falls to the strongest *claim*. Of the six tracks' entries, **O-7 is the only PASS**, and it is the
