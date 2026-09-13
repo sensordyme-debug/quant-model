@@ -19,6 +19,12 @@ the wire until it does (`--legacy-fills` restores the old decision-close fill), 
 already pending exactly as the live trader does, `RISK["nav_frac"]` lets the loss limit be measured
 against account NAV rather than sleeve equity, drawdown is reported on the intraday path as well as
 the end-of-day marks, and turnover is a fraction of average rather than starting equity.
+AUD-07 (2026-09-13): every session is trimmed to ITS OWN calendar close on load, so the 21 early
+closes in the Alpaca store no longer carry their 13:00-15:59 post-market prints as RTH bars
+(`--no-calendar-trim` restores the old store view), and the forced end-of-day fill - a position
+the framework failed to flatten, dumped into whatever bar the store ends on - is counted on every
+run instead of only when A-11's participation cap is set. `--strict-eod` turns that count into a
+non-zero exit.
 Records a line in research/experiments.jsonl with algorithm "intraday/<strategy>".
 """
 from __future__ import annotations
@@ -275,7 +281,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
     # A-11: trailing median volume per (session, minute-of-day), strictly prior sessions only.
     vlim = {s: volume_limits(df) for s, df in bars.items()} if part_cap else {}
     clipped: list = []
-    forced_eod = {"orders": 0, "notional": 0.0}
+    forced_eod = {"orders": 0, "notional": 0.0, "days": set()}
     t0 = time.time()
     for day in days:
         flat_minute = flatten_minute_for(day)
@@ -373,6 +379,7 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             px_eod = last_closes.get(s, closes.get(s, 0.0))
             forced_eod["orders"] += 1
             forced_eod["notional"] += abs(q) * px_eod
+            forced_eod["days"].add(day)
             book.fill(times[-1], s, -q, px_eod, "eod")
             orders_total += 1
         eq_close = book.value({})
@@ -382,6 +389,14 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
                       "stop_minute": stop_minute})
     elapsed = time.time() - t0
     s = summarize(daily, book, equity0, elapsed)
+    # AUD-07: an "eod" fill is the framework failing to flatten inside the session and dumping the
+    # position into the last bar the STORE happens to hold, at a price nothing was worked into.
+    # It was counted only when A-11's participation cap was on, so the harness could close a book
+    # against a post-market print and say nothing. Reported unconditionally now, per AUD-07's
+    # "make the harness count and fail on 'eod' fills"; `--strict-eod` is the failing half.
+    s["forced_eod_orders"] = forced_eod["orders"]
+    s["forced_eod_notional"] = forced_eod["notional"]
+    s["forced_eod_days"] = sorted(str(d) for d in forced_eod["days"])
     if part_cap:
         # what the cap actually did: how much size it refused, and whether it left anything to be
         # dumped into the closing bar (the one fill in the session that cannot be worked).
@@ -389,8 +404,6 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
         got = sum(c["got"] * c["px"] for c in clipped)
         s["clipped_orders"] = len(clipped)
         s["clipped_notional_refused"] = want - got
-        s["forced_eod_orders"] = forced_eod["orders"]
-        s["forced_eod_notional"] = forced_eod["notional"]
     if collect_trades:
         # opt-in because the list is large; A-9 uses it to attribute P&L to (symbol, session)
         s["trades_log"] = book.trades
@@ -451,6 +464,11 @@ def print_summary(name: str, s: dict, label: str = ""):
             ("costs_per_day", "costs/day $", "{:,.0f}"), ("stopped_days", "loss-limit days", "{}")]
     for k, lab, fmt in keys:
         print(f"  {lab:<26}{fmt.format(s[k])}")
+    if s.get("forced_eod_orders"):
+        d = s.get("forced_eod_days") or []
+        print(f"  {'forced eod fills':<26}{s['forced_eod_orders']} on {len(d)} session(s), "
+              f"${s['forced_eod_notional']:,.0f} (AUD-07: not worked, not flattened) "
+              f"{', '.join(d[:5])}{' ...' if len(d) > 5 else ''}")
 
 
 def record(name: str, tag: str, s: dict, params, start, end):
@@ -518,10 +536,20 @@ def main() -> int:
     ap.add_argument("--legacy-atr", action="store_true",
                     help="AUD-21: restore the pre-2026-09-12 atr14, whose bar-0 true range included "
                          "the overnight gap. Only for reproducing an existing ledger row.")
+    ap.add_argument("--strict-eod", action="store_true",
+                    help="AUD-07: exit 2 if any session ended with a position dumped into the last "
+                         "stored bar. Every such fill is a flatten the framework failed to work.")
+    ap.add_argument("--no-calendar-trim", action="store_true",
+                    help="AUD-07: keep bars at or after the session's own calendar close (the 21 "
+                         "early closes in the Alpaca store carry post-market prints). Reproduction "
+                         "of a pre-2026-09-13 ledger row only.")
     ap.add_argument("--tag", default="")
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
+    if args.no_calendar_trim:
+        intraday_common.CALENDAR_TRIM = False
+        print("AUD-07: calendar trim OFF (post-close bars kept), research reproduction only")
     global FILL_MODEL
     if args.legacy_fills:
         FILL_MODEL = "decision_close"
@@ -558,6 +586,10 @@ def main() -> int:
             record(args.strategy, f"{args.tag} [IS<{split}]", s_is, params, start,
                    split - dt.timedelta(days=1))
             record(args.strategy, f"{args.tag} [OOS>={split}]", s_oos, params, split, end)
+        n_eod = s_is.get("forced_eod_orders", 0) + s_oos.get("forced_eod_orders", 0)
+        if args.strict_eod and n_eod:
+            print(f"REFUSED (--strict-eod): {n_eod} forced end-of-day fills")
+            return 2
         return 0
     s = run(strategy, bars, args.equity, params, start, end, args.verbose, feats)
     print_summary(args.strategy, s)
@@ -565,6 +597,10 @@ def main() -> int:
         print(s["daily"][["day", "pnl", "trades", "stopped"]].to_string(index=False))
     if not args.no_record:
         record(args.strategy, args.tag, s, params, start, end)
+    if args.strict_eod and s.get("forced_eod_orders"):
+        print(f"REFUSED (--strict-eod): {s['forced_eod_orders']} forced end-of-day fills on "
+              f"{len(s['forced_eod_days'])} session(s)")
+        return 2
     return 0
 
 

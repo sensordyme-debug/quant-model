@@ -197,8 +197,8 @@ def calendar_trim(df: pd.DataFrame) -> pd.DataFrame:
 
     Two kinds of row go: anything at or after a 13:00 early close, and anything on a full-day
     closure. Deliberately a pure subset of what is passed in - it never fills, shifts or
-    reindexes, so a store that is already correct comes back identical (`is` is not promised,
-    equality is).
+    reindexes - and a frame with no affected day is returned as the SAME object, so the 99.85%
+    of the store that this does not touch costs one set intersection.
 
     Never raises. A loader is on the live path, and a calendar import failure or a date past
     `CALENDAR.coverage_end` must degrade to the pre-AUD-07 behaviour rather than stop the

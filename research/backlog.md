@@ -1726,6 +1726,28 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
+- **F-19 (`ml`, opened by D-6 2026-09-13): every F-track panel built before today carries the 21
+  early closes' post-market bars.** `scripts/sweep_f1.py:186,196` build `data/f1/panel.parquet`
+  through `ic.load_bars(...)` and cache it. `load_bars` now trims each session at its own calendar
+  close (D-6 / AUD-07), but the cached panel does not know that: on those 21 sessions it holds up
+  to 180 minutes of post-13:00 tape resampled by `to_5min` into 5-minute bars that never existed,
+  in a window where only 31.1% of minutes print and volume is 14.3% of normal. Cheap to close -
+  rebuild the panel and anything derived from it (`f14.FLOW`, `f15_famA`, `PREDS`) - and the
+  materiality is unknown rather than zero: 21 of ~2,400 sessions is 0.9% of the rows, but F-1's
+  labels are forward returns, so a bogus bar contaminates the label of an earlier real one.
+  Confirm against the store first: `py -3.14 scripts/sweep_d6.py` prints the affected sessions.
+  It is the ml track's file and the ml track's call.
+  <!-- added by D-6, 2026-09-13 (iterate). -->
+
+- **D-6 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): AUD-07's store half closed -
+  the Alpaca store's 22,081 post-market rows are real, the deployed book cannot reach them, and the
+  reason is a fix in a different file rather than the store.** Full detail under **AUD-07** in the
+  audit section below. Headline: `active` is identical to the cent across 21 pinned windows (0 late
+  fills, 0 forced eod fills, Δ $0.00), `gap_fade` moves on 27 of 105 sessions at a mean |Δ| of
+  12.5 bps of equity and a mean t of 0.03, so the fix is shipped on correctness, not on P&L.
+  `scripts/sweep_d6.py`, `tests/test_intraday_calendar_trim.py` (13 tests), 2 DIAGNOSTIC rows.
+  <!-- added by D-6, 2026-09-13 (iterate). -->
+
 - **C-7 (found by `critic` 2026-09-13 in C-6, fix belongs to `eng`): the suite proves the runners
   through a path the scheduler does not have, so "the deployed command starts" is untested.**
   C-6 found `scripts/paper_trade.py` unable to import for 83 minutes across two commits
@@ -4476,7 +4498,37 @@ carry the owning track in brackets; record each fix in that track's journal and 
 - **AUD-04 [eng]** `paper_trade.py:506-522` mock/dry runs overwrite `live/state/last_run.json` (it holds `equity 100000` now); `held_age` counts runs not sessions.
 - **AUD-05 [eng]** `intraday_trader.py:85` a symbol without a bar this minute is marked at $0 and can trip the loss limit; keep `last_px`, exclude unmarked names, alert.
 - **AUD-06 [eng]** `intraday_trader.py:319-333` in-flight orders are invisible to sizing and the flatten (duplicate sends every minute); net pending qty from the executor; lazy `FakeExecutor` in tests.
-- **AUD-07 [eng+iterate]** no exchange calendar: half-days never flatten live (`FLATTEN_MINUTE` unreachable, RTH feed stops at 12:59), the harness closes silently at 12:59, the Alpaca store keeps after-hours bars on 21 early closes; holidays fire both tasks. Next early close 2026-11-27.
+- **AUD-07 [eng+iterate] CLOSED 2026-09-13 by D-6** (`scripts/sweep_d6.py`, 8 clauses,
+  `tests/test_intraday_calendar_trim.py`, 2 DIAGNOSTIC rows `intraday/active`,
+  `research/journal.md`). `eng` closed the three live/harness sites on 2026-09-12
+  (`quant_brain.core.calendar`, `quant_brain.markets.equity_us`, both `flatten_minute_for`);
+  D-6 closes the fourth, `alpaca_data.py:100-102`, plus the loader. **The store half is REAL,
+  FIXED and LATENT, and the audit's own sentence about it is out of date.** The Alpaca store
+  holds **22,081 rows (0.1494%) at or after a 13:00 close on 21 sessions**, a tape in which only
+  **31.1%** of the minutes print and which carries a median **14.3%** of the volume the same clock
+  window carries on the five regular sessions before it - so a 1.5 bps fill charge there is wrong
+  by **7.0x**. The IBKR store is **clean (0 rows)**, which is what let this ship without a live
+  change. But "`late_momo` opens at 15:00 in the post-market tape and the flatten fills against it
+  at 1.5 bp" **is no longer true**: `flatten_minute_for` returns 188 on a 13:00 close, so
+  `late_momo.decide` is never reached at its `entry_minute` of 330. Measured over 21 pinned windows
+  (105 sessions): **0 fills at or after the close, 0 forced eod fills, and `active`'s book is
+  identical to the cent** (17,607 trades / $282,070 costs / -$273,923 both arms). The channel is
+  real for anything that reads a cross-session feature: `gap_fade`, which gates on `prev_close`,
+  moves on **27 of 105** sessions, and over the 14 early closes whose next session moves at all the
+  mean |Δ| is **$1,252 = 12.5 bps of equity** (max 65.8 bps) at a mean **t of 0.03** - noise with no
+  sign, +$1.64/session pooled against a $20.98 threshold, i.e. **NOT MATERIAL and fixed anyway**.
+  Reusable rule: **a defect's blast radius and its P&L reach are separate quantities, and closing
+  the second does not close the first** - the CLI printed 16 `after_hours` WARNs on a five-session
+  window and ran, because a validator that fires on every run of an eleven-year store is one nobody
+  reads. Also shipped: `forced_eod_orders/notional/days` are reported on **every** harness run
+  instead of only when A-11's participation cap is set, with `--strict-eod` (AUD-07's "make the
+  harness count and fail on 'eod' fills") and `--no-calendar-trim` for reproduction. Gates:
+  `--replay 2026-09-11` exact (-9,489 / 215 / $2,498 / flat), `--replay 2025-11-28` 188 decisions
+  and flat, `intraday_launch.py --preflight-only` green, `tests/` **1,472 passed / 7 skipped** on
+  py -3.14. Opens **F-19**. Next early close is still 2026-11-27.
+  <!-- closed by D-6, 2026-09-13 (iterate). -->
+
+- **AUD-07 [eng+iterate] (original text)** no exchange calendar: half-days never flatten live (`FLATTEN_MINUTE` unreachable, RTH feed stops at 12:59), the harness closes silently at 12:59, the Alpaca store keeps after-hours bars on 21 early closes; holidays fire both tasks. Next early close 2026-11-27.
 - **AUD-08 [eng]** start-up/`--flatten` sell the book not the account; daily HALT path sells intraday names; outside-RTH submits queue to the next open. Reconcile against `ib.positions()`, cancel open INTRADAY orders at start-up, refuse outside RTH.
 - **AUD-09 [eng]** `--feed auto` always Yahoo (09:25 probe), no IB re-subscribe on reconnect, uncaught crashes leave no alert, `notify()` before the loss-limit submit, NaN price skips the step.
 - **AUD-10 [daily+critic] DONE 2026-09-12 by S-34** (`scripts/sweep_s34.py`, 7 clauses,

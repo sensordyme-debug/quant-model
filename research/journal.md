@@ -4,6 +4,109 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - D-6 (`iterate` track)
+
+**AUD-07's store half CONFIRMED, FIXED, and LATENT - and the audit's own sentence about it is no
+longer true, because a fix in a different file closed the P&L reach while leaving the defect
+itself untouched. The Alpaca store holds 22,081 post-market rows wearing an RTH timestamp on 21
+early closes; the deployed sleeve's book is bit-identical with and without them (0 of 105 sessions
+move, Δ = exactly $0), while `gap_fade` - the one strategy that reads a cross-session feature -
+moves on 27 of those sessions by a mean |Δ| of 12.5 bps of equity, up to 65.8 bps, at a mean t of
+0.03.** `scripts/sweep_d6.py`, eight clauses pre-registered in the docstring, 2 DIAGNOSTIC rows
+under `intraday/active`, `tests/test_intraday_calendar_trim.py` (13 tests).
+`live/intraday_config.json`, `live/APPROVED_PAPER.md`, `live/HALT*`, the scheduled tasks and
+`scripts/intraday_trader.py` are untouched; the replay and preflight gates were still run, because
+the patch touches `load_bars`, which the trader imports.
+
+**Clause 2 (premise) - the store is dirty and the live store is not, which is what makes this
+shippable without a live change.** Measured against `quant_brain.markets.equity_us.CALENDAR`:
+
+| store | rows | at/after the session's close | on a full-day closure | sessions |
+|---|---|---|---|---|
+| `data/minute_alpaca` | 14,781,245 | **22,081 (0.1494%)** | 0 | **21** |
+| `data/minute` (IBKR, live) | 1,635,362 | **0** | 0 | 0 |
+
+The IBKR store was fetched RTH-only and already stops at 12:59 on both early closes inside its
+span, so trimming on load cannot change anything the live trader reads. That was pre-registered as
+the condition for shipping at all (clause 8); had it failed, the patch would have been withdrawn
+and re-gated as a live change.
+
+**Clause 3 (tape) - these are not bars, they are a rumour of bars.** Over 310 (symbol, session)
+pairs: only a median **31.1%** of the post-close minutes print at all, and the volume that does
+print is a median **14.3%** of what the same clock window carries on the five regular sessions
+before it (q25 0.083, q75 0.247). The harness charges 1.5 bps of notional for a fill; in that tape
+the charge is wrong by about **7.0x**, and that is before the whole-share fill model pretends a
+market order clears at the next bar's open.
+
+**Clause 4 (reachability) and clause 5 (materiality) - the defect cannot reach the deployed book,
+and the reason is not the store.** Across 21 pinned windows of ±2 sessions around every early
+close (105 sessions, each its own $1M book - exact here, not an approximation, because every
+feature in `base.features` is session-scoped except `prev_close` and the sleeve is flat at every
+close): **0 fills at or after the calendar close, 0 forced end-of-day fills**, and the two arms
+agree to the cent.
+
+| `active` | trades | costs | net |
+|---|---|---|---|
+| post-close bars kept | 17,607 | $282,070 | -$273,923 |
+| session trimmed | 17,607 | $282,070 | -$273,923 |
+| Δ | 0 | $0 | **$0.00** |
+
+**So AUD-07's "`late_momo` opens at 15:00 in the post-market tape and the flatten fills against it
+at 1.5 bp" is out of date, and the correction matters more than the fact.** It was true when
+written. It was closed on 2026-09-12 by `eng`'s calendar-aware `flatten_minute_for`, which returns
+**188** on a 13:00 close, so `run()` sets `targets = {}` from 12:38 and `late_momo.decide` is never
+called at its `entry_minute` of 330. Nothing about the store changed. The bad rows are still there,
+still validated as WARN, still loaded - what changed is that a guard in a different file now stops
+the strategy before it can read them.
+
+**Clause 6 (channel) - what that looks like when the guard is absent, which is the only number
+here worth carrying.** `gap_fade` is not in the deployed `alloc`, but it is the one strategy that
+gates on `prev_close`, and on the session after an early close `prev_close` is the 15:59
+post-market print instead of the 13:00 official close. Same windows, same arms:
+
+| `gap_fade` | trades | costs | net | sessions moved |
+|---|---|---|---|---|
+| post-close bars kept | 760 | $26,580 | -$44,067 | - |
+| session trimmed | 764 | $26,778 | -$43,895 | **27 of 105** |
+
+Pooled, that is +$1.64/session against a pre-registered threshold of $20.98, i.e. **NOT MATERIAL**
+and it would be dishonest to call it anything else. Per affected session it is not small: over the
+**14 of 21** early closes whose next session moves at all, mean Δ **+$15**, sd **$2,083**,
+**t = 0.03**, mean |Δ| **$1,252 = 12.5 bps of equity**, max **$6,584 = 65.8 bps**. The defect
+injects noise with no sign, not a bias. **No P&L test would ever have justified fixing this**, and
+a P&L test is the wrong instrument: the store is wrong on 21 sessions whatever the mean lands on.
+
+**Reusable rule: a defect's blast radius and its P&L reach are separate quantities, and closing the
+second does not close the first.** AUD-07 was filed as one finding across four files; three were
+fixed and the fourth was left because the item read as closed. The evidence that it was not is that
+the shipped CLI on a five-session window printed **16 `after_hours` WARNs and ran anyway** - a
+validator firing on every run of an eleven-year store is a validator nobody reads.
+
+**Shipped.** `intraday_common.calendar_trim` + `CALENDAR_TRIM` (a pure subset, never raises, and
+returns the same object when no day is affected, so the 99.85% of the store it does not touch costs
+one set intersection); `load_bars` trims each session at **its own** `CALENDAR.session(day).close_t`
+rather than a 13:00 literal; `alpaca_data.py` trims at fetch, closing the site AUD-07 names
+(`alpaca_data.py:100-102`), so the store stops growing the defect; `intraday_backtest.py` reports
+`forced_eod_orders/notional/days` on **every** run instead of only when A-11's participation cap is
+set - the one fill in a session that is never worked, and therefore the one that would land in that
+tape - with `--strict-eod` to turn it into a non-zero exit and `--no-calendar-trim` to reproduce a
+pre-2026-09-13 row. The 22,081 rows stay on disk on purpose: the loader is the enforcement point,
+which is source-agnostic, and any overlapping re-fetch now repairs the parquet.
+
+**Gates.** `--replay 2026-09-11` reproduces D-5's recorded figures exactly (**-9,489 / 215 trades /
+$2,498 / flat**); `--replay 2025-11-28`, a real early close, makes **188 decisions** and ends flat
+against 368 on 2025-12-01; `intraday_launch.py --preflight-only` passes every gate; full `tests/`
+**1,472 passed, 7 skipped** on py -3.14 (the launch gate's interpreter); `paper_trade.py --help`
+exits 0 on py -3.11. Clause 1 identity: in-process **-5,653.121423 $/day, 962 trades, $3,510.52
+costs/day** on 2025-11-25..2025-12-02 against the shipped CLI's **-5,653 / 962 / 3,511**. Clause 7:
+`calendar_trim` checked on all 32 symbol-stores of both stores, **0 violations**. The same window
+run through the CLI validates **0 fail, 0 warn** with the trim and **0 fail, 24 warn** without.
+
+**Opens F-19** (`ml`): `data/f1/panel.parquet` is built from `ic.load_bars` by `sweep_f1.py:186`
+and cached, so every F-track panel built before today carries the post-close rows, resampled into
+bogus 5-minute bars on those 21 sessions. Cheap to close - rebuild the panel - but it is the ml
+track's file and the ml track's call.
+
 ## 2026-09-13 - S-41 (`daily` track, pointer; full entry in `research/journal_daily.md`)
 
 **The ensemble S-40 filed is worth having, the sentence it was filed on is not, and the two facts
