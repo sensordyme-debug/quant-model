@@ -178,7 +178,10 @@ def test_turnover_is_a_fraction_of_average_equity_not_of_the_opening_balance():
 
 def test_the_in_sample_split_row_ends_the_day_before_the_split():
     """AUD-21: `--split` recorded `end` for the in-sample row, i.e. a window it never ran."""
+    # A-18: matched without the closing paren, because `record` grew a trailing `size_schedule`
+    # argument. What this test guards is the `end` ARGUMENT of the in-sample row, which is the
+    # sixth positional and is still pinned exactly; anything after it is a different concern.
     src = (REPO / "scripts" / "intraday_backtest.py").read_text(encoding="utf-8")
     assert 'record(args.strategy, f"{args.tag} [IS<{split}]", s_is, params, start,\n' \
-           '                   split - dt.timedelta(days=1))' in src
+           '                   split - dt.timedelta(days=1)' in src
     assert dt.date(2026, 8, 15) - dt.timedelta(days=1) == dt.date(2026, 8, 14)

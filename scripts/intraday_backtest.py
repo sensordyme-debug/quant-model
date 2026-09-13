@@ -19,6 +19,14 @@ the wire until it does (`--legacy-fills` restores the old decision-close fill), 
 already pending exactly as the live trader does, `RISK["nav_frac"]` lets the loss limit be measured
 against account NAV rather than sleeve equity, drawdown is reported on the intraday path as well as
 the end-of-day marks, and turnover is a fraction of average rather than starting equity.
+A-18 (2026-09-13): `--size-schedule <csv>` multiplies the strategy's target weights by a per-session
+constant k_t before the per-symbol and gross caps, so a sizing rule researched as a daily series can
+be re-scored THROUGH the harness (share rounding, the no-trade band and the daily loss limit all
+apply). Inert when absent and exactly inert at k=1.0.
+A-20 (2026-09-13): the harness now records what the book actually HOLDS - mean realized gross
+exposure at every marked bar, the gross it INTENDED at every decision bar, and the shortfall
+between them - because whole-share `floor()` makes a size-scaled book carry less than k x its
+target and no prior column could see it.
 AUD-07 (2026-09-13): every session is trimmed to ITS OWN calendar close on load, so the 21 early
 closes in the Alpaca store no longer carry their 13:00-15:59 post-market prints as RTH bars
 (`--no-calendar-trim` restores the old store view), and the forced end-of-day fill - a position
@@ -122,6 +130,42 @@ SHIPPED_RISK = dict(RISK)
 #: and 0.6% of the IBKR store's are missing, so this is not a corner case. Kept only to reproduce
 #: rows already in research/experiments.jsonl (`--legacy-fills`).
 FILL_MODEL = "next_bar"
+
+
+def load_size_schedule(spec: str | None, column: str | None = None) -> dict[dt.date, float] | None:
+    """A-18: read a per-session size multiplier from a CSV (`day` + one numeric column).
+
+    Every A-15/A-17 sizing result was scored by multiplying a PERSISTED daily P&L series by k_t.
+    That is exact for costs (slippage is bps of notional, commission is per share) and exact for
+    the signal (k scales targets and changes no decision), and it is NOT exact for two things the
+    harness owns: whole-share rounding at the sizing step, and the daily loss limit, which is a
+    LEVEL and therefore stops a scaled book on a different set of sessions. This option is how a
+    sizing claim gets re-scored through those two.
+
+    Returns None when `spec` is absent, which is the shipped behaviour bit for bit.
+    """
+    if not spec:
+        return None
+    p = Path(spec)
+    if not p.exists():
+        sys.exit(f"no size schedule at {p}")
+    df = pd.read_csv(p)
+    if "day" not in df.columns:
+        sys.exit(f"{p}: size schedule needs a 'day' column; found {list(df.columns)}")
+    cols = [c for c in df.columns if c != "day"]
+    if column:
+        if column not in cols:
+            sys.exit(f"{p}: no column {column!r}; found {cols}")
+        col = column
+    elif len(cols) == 1:
+        col = cols[0]
+    else:
+        sys.exit(f"{p}: {len(cols)} multiplier columns {cols}; pass --size-column")
+    k = {d.date(): float(v) for d, v in zip(pd.to_datetime(df["day"]), df[col])}
+    bad = [d for d, v in k.items() if not math.isfinite(v) or v < 0]
+    if bad:
+        sys.exit(f"{p}: {len(bad)} non-finite or negative multipliers, first {bad[0]}")
+    return k
 
 
 def set_slippage(bps: float | None) -> float | None:
@@ -268,9 +312,26 @@ def targets_to_orders(targets: dict[str, float], book: Book, prices: dict[str, f
     return orders
 
 
+def intended_gross(targets: dict[str, float]) -> float:
+    """A-20: the gross weight the sizing step ASKS for, before whole-share rounding.
+
+    Exactly the two clamps `targets_to_orders` applies, in the same order (gross cap first, then
+    the per-symbol cap), and nothing after them. Compared against the gross the book really carries
+    it is the `floor()` shortfall, which is the one nonlinearity a size-scaled book pays and a
+    linear re-scoring of a persisted P&L series cannot see.
+    """
+    cap, gross_cap = RISK["per_symbol_hard_cap"], RISK["gross_hard_cap"]
+    gross = sum(abs(w) for w in targets.values())
+    if not gross:
+        return 0.0
+    scale = min(1.0, gross_cap / gross) if gross > gross_cap else 1.0
+    return sum(min(abs(float(w)) * scale, cap) for w in targets.values())
+
+
 def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | None,
         start: dt.date | None = None, end: dt.date | None = None, verbose: bool = False,
-        feats_all: dict | None = None, collect_trades: bool = False):
+        feats_all: dict | None = None, collect_trades: bool = False,
+        size_schedule: dict | None = None, size_default: float = 1.0):
     feats_all = feats_all if feats_all is not None else {s: features(df) for s, df in bars.items()}
     days = [d for d in sessions(bars) if (start is None or d >= start) and (end is None or d <= end)]
     book = Book(equity0)
@@ -282,9 +343,19 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
     vlim = {s: volume_limits(df) for s, df in bars.items()} if part_cap else {}
     clipped: list = []
     forced_eod = {"orders": 0, "notional": 0.0, "days": set()}
+    # A-18: sessions the schedule does not cover run at `size_default` (1.0 = untouched) and are
+    # counted, so a partially-covered window can never be mistaken for a fully-scaled one.
+    size_missing = 0
     t0 = time.time()
     for day in days:
         flat_minute = flatten_minute_for(day)
+        if size_schedule is None:
+            ksize = 1.0
+        else:
+            ksize = size_schedule.get(day, None)
+            if ksize is None:
+                ksize = size_default
+                size_missing += 1
         # per-session slices (positional views for speed)
         fd = {s: f[f["day"] == day] for s, f in feats_all.items()}
         fd = {s: f for s, f in fd.items() if len(f) >= 30}
@@ -297,6 +368,12 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
         vrow = {s: v.loc[day] for s, v in vlim.items() if day in v.index} if part_cap else None
         eq_open = book.value({s: f["o"].iloc[0] for s, f in fd.items()})
         eq_low = eq_open
+        # A-20: what the book HOLDS against what it ASKED for. `g_*` accumulate over every marked
+        # bar of the session (the exposure a risk reader wants). `d_*` pair each decision bar's
+        # intent with the realized gross of the NEXT bar - the first bar the order can be filled on
+        # - so the ratio is the sizing shortfall and not the one-bar fill latency.
+        g_sum, g_bars, d_real, d_intent, d_bars = 0.0, 0, 0.0, 0.0, 0
+        pend_intent: float | None = None
         stopped = False
         stop_minute = -1
         pending: dict[str, int] = {}
@@ -336,6 +413,17 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             closes = {s: float(fd[s].iloc[j - 1]["c"]) for s, j in cur_rows.items()}
             equity = book.value(closes)
             eq_low = min(eq_low, equity)      # AUD-21: the drawdown path, not just its EOD marks
+            # A-20: realized gross at this bar's mark, on the same price convention `Book.value`
+            # uses (a symbol with no print yet marks at 0, so it contributes nothing either side).
+            g_now = (sum(abs(q) * closes.get(s, 0.0) for s, q in book.pos.items()) / equity
+                     if equity > 0 else 0.0)
+            g_sum += g_now
+            g_bars += 1
+            if pend_intent is not None:      # A-20: the previous bar's ask, now fillable
+                d_real += g_now
+                d_intent += pend_intent
+                d_bars += 1
+                pend_intent = None
             minute = int((t.hour - 9) * 60 + t.minute - 30)
             # 2) risk: daily loss limit, end-of-day flatten. AUD-21: the live limit is a fraction
             # of ACCOUNT NAV, which is the sleeve's equity divided by `nav_frac`.
@@ -349,6 +437,13 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
             else:
                 view = {s: fd[s].iloc[:j] for s, j in cur_rows.items()}
                 targets = strategy.decide(t, view, dict(book.pos), equity, state, params) or {}
+                # A-18: the per-session size multiplier, applied to the WEIGHTS the strategy asked
+                # for and BEFORE the per-symbol / gross caps in targets_to_orders. It changes no
+                # decision - the strategy sees the unscaled book and its own state - so k = 1.0 is
+                # the shipped path with an untouched dict.
+                if ksize != 1.0 and targets:
+                    targets = {s: w * ksize for s, w in targets.items()}
+                pend_intent = intended_gross(targets)   # A-20: scored on the next bar's mark
             # the order placed now fills at the NEXT bar's open, so it is worked in minute + 1
             caps = ({s: part_cap * float(r.get(minute + 1, float("nan")))
                      for s, r in vrow.items()} if vrow is not None else None)
@@ -386,7 +481,12 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
         daily.append({"day": day, "pnl": eq_close - eq_open, "ret": eq_close / eq_open - 1.0, "equity": eq_close,
                       "low": min(eq_low, eq_close),
                       "trades": sum(1 for tr in book.trades if tr["t"].date() == day), "stopped": stopped,
-                      "stop_minute": stop_minute})
+                      "stop_minute": stop_minute,
+                      # A-20: exposure, per session. `bars`/`dec_bars` are carried so a pooled mean
+                      # over sessions is the bar-weighted one and not an average of averages.
+                      "gross": g_sum / g_bars if g_bars else 0.0, "bars": g_bars,
+                      "gross_dec": d_real / d_bars if d_bars else 0.0,
+                      "intent_dec": d_intent / d_bars if d_bars else 0.0, "dec_bars": d_bars})
     elapsed = time.time() - t0
     s = summarize(daily, book, equity0, elapsed)
     # AUD-07: an "eod" fill is the framework failing to flatten inside the session and dumping the
@@ -397,6 +497,9 @@ def run(strategy, bars: dict[str, pd.DataFrame], equity0: float, params: dict | 
     s["forced_eod_orders"] = forced_eod["orders"]
     s["forced_eod_notional"] = forced_eod["notional"]
     s["forced_eod_days"] = sorted(str(d) for d in forced_eod["days"])
+    if size_schedule is not None:
+        s["size_sessions_scaled"] = len(daily) - size_missing
+        s["size_sessions_uncovered"] = size_missing
     if part_cap:
         # what the cap actually did: how much size it refused, and whether it left anything to be
         # dumped into the closing bar (the one fill in the session that cannot be worked).
@@ -438,7 +541,19 @@ def summarize(daily, book: Book, equity0: float, elapsed: float):
         dd_intra = float((path / np.maximum.accumulate(path) - 1.0).min())
     else:
         dd_intra = dd
+    # A-20: bar-weighted pooled exposure. `gross_shortfall_pct` is what the whole-share floor costs
+    # the book as a fraction of the gross it asked for; it is undefined when nothing was intended.
+    gross_x = intent_x = real_dec_x = float("nan")
+    if "bars" in d and d["bars"].sum():
+        gross_x = float((d["gross"] * d["bars"]).sum() / d["bars"].sum())
+    if "dec_bars" in d and d["dec_bars"].sum():
+        nb = d["dec_bars"].sum()
+        real_dec_x = float((d["gross_dec"] * d["dec_bars"]).sum() / nb)
+        intent_x = float((d["intent_dec"] * d["dec_bars"]).sum() / nb)
+    shortfall = (100.0 * (1.0 - real_dec_x / intent_x)) if intent_x and intent_x == intent_x else float("nan")
     return {
+        "gross_realized_x": gross_x, "gross_realized_decision_x": real_dec_x,
+        "gross_intended_x": intent_x, "gross_shortfall_pct": shortfall,
         "max_drawdown_intraday_pct": -dd_intra * 100,
         "sessions": n, "net_profit_pct": total_ret * 100, "cagr_pct": cagr * 100, "sharpe": sharpe,
         "max_drawdown_pct": -dd * 100, "avg_daily_pnl": d["pnl"].mean(), "daily_pnl_std": d["pnl"].std(ddof=1) if n > 1 else 0,
@@ -461,9 +576,17 @@ def print_summary(name: str, s: dict, label: str = ""):
             ("best_day", "best day $", "{:,.0f}"), ("worst_day", "worst day $", "{:,.0f}"),
             ("win_days_pct", "winning days %", "{:.0f}"), ("trades", "trades", "{}"),
             ("trades_per_day", "trades/day", "{:.1f}"), ("turnover_per_day_x", "turnover/day (x equity)", "{:.2f}"),
-            ("costs_per_day", "costs/day $", "{:,.0f}"), ("stopped_days", "loss-limit days", "{}")]
+            ("costs_per_day", "costs/day $", "{:,.0f}"), ("stopped_days", "loss-limit days", "{}"),
+            # A-20
+            ("gross_realized_x", "gross held (x equity)", "{:.4f}"),
+            ("gross_intended_x", "gross intended (x eq)", "{:.4f}"),
+            ("gross_shortfall_pct", "rounding shortfall %", "{:.2f}")]
     for k, lab, fmt in keys:
         print(f"  {lab:<26}{fmt.format(s[k])}")
+    if "size_sessions_scaled" in s:
+        extra = (f" (+{s['size_sessions_uncovered']} uncovered at the default)"
+                 if s["size_sessions_uncovered"] else "")
+        print(f"  {'sessions size-scaled':<26}{s['size_sessions_scaled']}{extra}")
     if s.get("forced_eod_orders"):
         d = s.get("forced_eod_days") or []
         print(f"  {'forced eod fills':<26}{s['forced_eod_orders']} on {len(d)} session(s), "
@@ -471,7 +594,7 @@ def print_summary(name: str, s: dict, label: str = ""):
               f"{', '.join(d[:5])}{' ...' if len(d) > 5 else ''}")
 
 
-def record(name: str, tag: str, s: dict, params, start, end):
+def record(name: str, tag: str, s: dict, params, start, end, size_schedule: str | None = None):
     if "error" in s:
         return
     rec = {"ts": dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ"), "algorithm": f"intraday/{name}",
@@ -485,6 +608,13 @@ def record(name: str, tag: str, s: dict, params, start, end):
                      "Sessions": str(s["sessions"])}}
     if "max_drawdown_intraday_pct" in s:   # AUD-21; "Drawdown" stays EOD so old rows compare
         rec["stats"]["Drawdown Intraday"] = f"{s['max_drawdown_intraday_pct']:.3f}%"
+    if s.get("gross_intended_x") == s.get("gross_intended_x"):   # A-20; NaN when nothing was asked
+        rec["stats"]["Gross Held X"] = f"{s['gross_realized_x']:.4f}"
+        rec["stats"]["Gross Intended X"] = f"{s['gross_intended_x']:.4f}"
+        rec["stats"]["Rounding Shortfall Pct"] = f"{s['gross_shortfall_pct']:.2f}"
+    if size_schedule:   # A-18: a scaled run is not the same experiment as an unscaled one
+        rec["size_schedule"] = size_schedule
+        rec["stats"]["Sessions Scaled"] = str(s.get("size_sessions_scaled", 0))
     if FILL_MODEL != "next_bar":
         rec["fill_model"] = FILL_MODEL
     if RISK != SHIPPED_RISK:
@@ -543,6 +673,15 @@ def main() -> int:
                     help="AUD-07: keep bars at or after the session's own calendar close (the 21 "
                          "early closes in the Alpaca store carry post-market prints). Reproduction "
                          "of a pre-2026-09-13 ledger row only.")
+    ap.add_argument("--size-schedule",
+                    help="A-18: CSV with a 'day' column and a per-session size multiplier. Target "
+                         "weights are multiplied by k_t before the per-symbol and gross caps, so a "
+                         "sizing rule researched as a daily series is re-scored with share rounding "
+                         "and the (level) daily loss limit applied. Sessions the CSV omits run at "
+                         "--size-default and are counted.")
+    ap.add_argument("--size-column", help="A-18: which column of --size-schedule to use")
+    ap.add_argument("--size-default", type=float, default=1.0,
+                    help="A-18: multiplier for sessions the schedule does not cover (default 1.0)")
     ap.add_argument("--tag", default="")
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--verbose", action="store_true")
@@ -575,28 +714,39 @@ def main() -> int:
         sys.exit("no bars in data/minute; run scripts/intraday_data.py first")
     print(f"{len(bars)} symbols, {len(sessions(bars))} sessions on disk")
     feats = {s: features(df, gap_true_range=args.legacy_atr) for s, df in bars.items()}
+    ksched = load_size_schedule(args.size_schedule, args.size_column)
+    if ksched is not None:
+        ks = np.array(list(ksched.values()))
+        print(f"A-18: size schedule {args.size_schedule}"
+              f"{'[' + args.size_column + ']' if args.size_column else ''}: {len(ksched)} sessions, "
+              f"mean k {ks.mean():.4f}, range [{ks.min():.4f}, {ks.max():.4f}]; uncovered sessions "
+              f"run at k={args.size_default:g}")
     if args.split:
         split = dt.date.fromisoformat(args.split)
-        s_is = run(strategy, bars, args.equity, params, start, split - dt.timedelta(days=1), args.verbose, feats)
-        s_oos = run(strategy, bars, args.equity, params, split, end, args.verbose, feats)
+        s_is = run(strategy, bars, args.equity, params, start, split - dt.timedelta(days=1), args.verbose, feats,
+                   size_schedule=ksched, size_default=args.size_default)
+        s_oos = run(strategy, bars, args.equity, params, split, end, args.verbose, feats,
+                    size_schedule=ksched, size_default=args.size_default)
         print_summary(args.strategy, s_is, f"IN-SAMPLE < {split}")
         print_summary(args.strategy, s_oos, f"OUT-OF-SAMPLE >= {split}")
         if not args.no_record:
             # AUD-21: the in-sample row ends the day BEFORE the split, which is the window it ran.
             record(args.strategy, f"{args.tag} [IS<{split}]", s_is, params, start,
-                   split - dt.timedelta(days=1))
-            record(args.strategy, f"{args.tag} [OOS>={split}]", s_oos, params, split, end)
+                   split - dt.timedelta(days=1), args.size_schedule)
+            record(args.strategy, f"{args.tag} [OOS>={split}]", s_oos, params, split, end,
+                   args.size_schedule)
         n_eod = s_is.get("forced_eod_orders", 0) + s_oos.get("forced_eod_orders", 0)
         if args.strict_eod and n_eod:
             print(f"REFUSED (--strict-eod): {n_eod} forced end-of-day fills")
             return 2
         return 0
-    s = run(strategy, bars, args.equity, params, start, end, args.verbose, feats)
+    s = run(strategy, bars, args.equity, params, start, end, args.verbose, feats,
+            size_schedule=ksched, size_default=args.size_default)
     print_summary(args.strategy, s)
     if "daily" in s and args.verbose:
         print(s["daily"][["day", "pnl", "trades", "stopped"]].to_string(index=False))
     if not args.no_record:
-        record(args.strategy, args.tag, s, params, start, end)
+        record(args.strategy, args.tag, s, params, start, end, args.size_schedule)
     if args.strict_eod and s.get("forced_eod_orders"):
         print(f"REFUSED (--strict-eod): {s['forced_eod_orders']} forced end-of-day fills on "
               f"{len(s['forced_eod_days'])} session(s)")
