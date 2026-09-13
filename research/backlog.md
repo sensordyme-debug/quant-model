@@ -1782,7 +1782,7 @@ eleven hypotheses in the last 24 h were refused and nothing was promoted, so the
 favours the four confirmed deployed-path defects and the one free data step over new hypotheses.
 
 1. **C-7** (`eng`) - subprocess the runners in the suite. C-6's live import break hid behind 1,221
-   green tests; this closes the class, one file, no data.
+   green tests; this closes the class, one file, no data. **DONE 2026-09-13 (`eng`).**
 2. **E-12** (`eng`, new below) - make the pre-commit hook refuse a commit whose staged set exceeds
    the paths the author named. Six commits in one night crossed tracks and the sixth moved a file
    the live trader imports.
@@ -1910,8 +1910,24 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   <!-- added by D-6, 2026-09-13 (iterate). -->
 
 - **C-7 (found by `critic` 2026-09-13 in C-6, fix belongs to `eng`): the suite proves the runners
-  through a path the scheduler does not have, so "the deployed command starts" is untested.**
-  C-6 found `scripts/paper_trade.py` unable to import for 83 minutes across two commits
+  through a path the scheduler does not have, so "the deployed command starts" is untested.
+  DONE 2026-09-13 (`eng`; see `research/journal_eng.md`).** `tests/test_runner_entrypoints.py`
+  (gating) and `tests/test_dashboard_entrypoint.py` (not gating) run the deployed commands through
+  `conftest.run_as_scheduler`: absolute script path, repo as cwd, `PYTHONPATH`/`PYTHONHOME`/
+  `PYTHONSTARTUP` stripped, `sys.executable` - which inside the 09:25 gate IS the scheduler's
+  interpreter, since `intraday_launch` runs pytest as `[sys.executable, "-m", "pytest", ...]`.
+  Covers `paper_trade`, `intraday_launch` and `intraday_trader` (spawned by the launcher with the
+  same recipe) as gating; `dashboard` is registered as a task too but cannot make the book wrong,
+  so per E-8 it must not be able to stop the open. Two controls keep it from going vacuous: a
+  scratch script importing `quant_brain` with no guard **must** fail, and the same script with the
+  guard **must** pass. **C-6 reintroduced on the real `paper_trade.py`: exactly 1 F in the gate's
+  237, pytest exit 1 -> `(False, "failed")` -> launcher exit 4 REFUSE, while every other test in
+  the repo stayed green** - which is the defect restated as a measurement. Gate 230/21.2 s ->
+  237/19.9 s (the three entry points cost ~1.4 s); full suite 3.14 green 122 s, new tests green on
+  3.11, `ruff check tests/` clean, `paper_trade.py` md5-verified unchanged after each break.
+  <!-- closed by eng, 2026-09-13. -->
+
+  As filed: C-6 found `scripts/paper_trade.py` unable to import for 83 minutes across two commits
   (`c1fc9b1` added `from quant_brain...` above the sys.path guard that was already in the file),
   while `pytest tests/` stayed green at 1,221 tests the whole time - because `tests/conftest.py`
   inserts `REPO` on `sys.path` and the scheduled task does not. The import defect is **fixed**

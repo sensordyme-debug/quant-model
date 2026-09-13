@@ -1,5 +1,81 @@
 # Journal - eng track (platform engineering). Newest first.
 
+## 2026-09-13 - C-7: 1,470 green tests could not tell whether the deployed command starts.
+
+**Hypothesis.** C-7, the review's #1 eng item: the suite proves the runners through a path Task
+Scheduler does not have, so "the scheduled command starts" is untested. Cheap to close, and it
+converts a class of outage that currently needs a critic to notice into a gate failure at 09:25.
+
+**The hole, measured on the real file rather than argued.** `tests/conftest.py` puts `scripts/`
+*and the repo root* on `sys.path` before any test imports anything. The scheduled task registers
+`<python> "<repo>\scripts\paper_trade.py"` with the repo as cwd, which makes `sys.path[0]` the
+**scripts** directory and leaves the repo root unimportable unless the script says so itself. I
+reproduced C-6 by moving `paper_trade.py`'s one `sys.path` guard back below the `quant_brain`
+import it protects, and ran both paths against that same file:
+
+| path | rc | |
+| --- | --- | --- |
+| subprocess, the scheduler's recipe | **1** | `ModuleNotFoundError: No module named 'quant_brain'` |
+| in-process, conftest's `sys.path` | 0 | `import OK` |
+
+That is the whole of C-6's 83 minutes: the deployed 15:45 command could not start and 1,221
+tests stayed green, because every one of them imported it through the second row.
+
+**What shipped.** `tests/test_runner_entrypoints.py` (gating, added to `conftest.RUNNER_TESTS`)
+and `tests/test_dashboard_entrypoint.py` (not gating), on a shared `conftest.run_as_scheduler`
+helper: absolute script path, repo as cwd, `PYTHONPATH`/`PYTHONHOME`/`PYTHONSTARTUP` stripped,
+`sys.executable` - which is not an approximation, since `intraday_launch` runs the gate as
+`[sys.executable, "-m", "pytest", ...]` and is itself started by the scheduled task, so inside
+the 09:25 gate it **is** the interpreter Task Scheduler registered.
+
+| entry point | how it is launched | gates |
+| --- | --- | --- |
+| `paper_trade.py` | `install_paper_task.ps1`, 15:45 | yes |
+| `intraday_launch.py` | `install_intraday_task.ps1`, 09:25 | yes |
+| `intraday_trader.py` | spawned by the launcher, `[PY, str(TRADER), ...]` - same recipe | yes |
+| `dashboard.py` | `install_dashboard_task.ps1` | **no** |
+
+The dashboard split is E-8 applied, not tidiness: a read-only monitor that will not launch says
+nothing about the book's arithmetic, and a gating test whose verdict is not about the trading
+path is a self-inflicted outage waiting for 09:25. `--help` is the probe because it runs the
+whole module-level import graph and then exits 0 before `main()` - no IB connection, no order,
+nothing written under `live/`.
+
+**Two controls, because without them the file is vacuous.** If the repo root reached
+subprocesses by some route the recipe does not strip - a `.pth`, an editable install, a
+`PYTHONPATH` exported into an agent's shell - every assertion above would pass while measuring
+nothing. So a scratch script that imports `quant_brain` with **no** guard must fail, and the
+same script with the one line `paper_trade.py` carries must pass. The second is not redundant:
+without it, a `quant_brain` broken outright would satisfy the first and the two would agree
+while describing nothing.
+
+**Verification: the chain end to end.**
+
+| | tests | verdict |
+| --- | --- | --- |
+| repo as it stands, `-m runner` | 237 passed, 1,266 deselected | `unit_tests_ok -> may_trade=True, passed`, 19.9 s |
+| C-6 reintroduced on the real `paper_trade.py` | **1 F**, 236 passed | pytest **exit 1** -> `(False, "failed")` -> launcher **exit 4, REFUSE** |
+| C-6 reintroduced, everything else | every other test green | which is the defect, stated as a measurement |
+
+The exit-1 -> refusal step is `test_the_exit_code_mapping_is_total`, unchanged and green. I did
+**not** run the real `--preflight-only` against the deliberate break: `intraday_launch.py:332`
+calls `notify()` on a gate failure, and a false alarm on the owner's phone is not worth a step
+the mapping test already pins.
+
+**Cost.** The gate was 230 tests / 21.2 s at E-11 and is 237 / 19.9 s now - the three entry
+points cost ~1.4 s and the difference is noise. Full suite on 3.14 **green, 122 s**; the new
+tests on 3.11 8 passed; `ruff check tests/` clean. `scripts/paper_trade.py` md5 verified
+identical to its pre-experiment copy and `git diff` empty after each of the two breaks.
+
+**Decision.** Ship. The 09:25 gate now asks whether the command it is about to run can run.
+
+**Next.** Two gaps this leaves, both named rather than guessed. (a) `--help` proves the import
+graph, not that the runner can reach IB Gateway or read `live/intraday_config.json`; the
+launcher's replay preflight covers the intraday half and nothing covers `paper_trade`'s.
+(b) `install_gateway_watchdog.ps1` registers a **PowerShell** script, so the installer scan
+correctly returns nothing for it and the watchdog's startability is out of the table -
+`test_gateway_watchdog` covers that runner, non-gating, which is the right tier for it.
+
 ## 2026-09-13 - E-11: the gate's 105 seconds bought one outage. Eleven repo shapes say so.
 
 **Hypothesis.** E-10's next step, asked as a budget question: the morning gate's worst case is

@@ -35,6 +35,8 @@ Three jobs:
 """
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -45,6 +47,34 @@ SCRIPTS = REPO / "scripts"
 for p in (str(SCRIPTS), str(REPO)):
     if p not in sys.path:
         sys.path.insert(0, p)
+
+
+# Job 1 above is exactly why `run_as_scheduler` exists (C-7). The path help this file gives
+# every test is help the Task Scheduler does not give the runners: it registers
+# `<python> "<repo>\scripts\<name>.py"` with the repo as the working directory, so `sys.path[0]`
+# is `scripts/` and the repo root is NOT importable unless the script says so itself. C-6 found
+# `paper_trade.py` unable to import for 83 minutes while 1,221 tests stayed green, because every
+# one of them imported it through the lines above. Anything asserting "the deployed command
+# starts" has to leave this process.
+#
+# `sys.executable` is the right interpreter, not an approximation: `intraday_launch` runs the
+# gate as `[sys.executable, "-m", "pytest", ...]`, and the launcher is itself started by the
+# scheduled task, so inside the 09:25 gate this IS the interpreter Task Scheduler registered.
+_SCHEDULER_STRIPS = ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP")
+
+
+def run_as_scheduler(script, *args, timeout: int = 120) -> subprocess.CompletedProcess[str]:
+    """Run `script` the way Task Scheduler runs it: absolute path, repo as cwd, no path help.
+
+    The environment is inherited minus the variables that could smuggle the repo root onto
+    `sys.path` behind the script's back, which would make every assertion built on this
+    vacuous. `tests/test_runner_entrypoints.py` proves that it does not.
+    """
+    env = {k: v for k, v in os.environ.items() if k not in _SCHEDULER_STRIPS}
+    return subprocess.run(
+        [sys.executable, str(script), *args],
+        cwd=str(REPO), env=env, capture_output=True, text=True, timeout=timeout, check=False,
+    )
 
 
 # The modules that exercise code the live trader actually executes: sizing, the book, the
@@ -64,6 +94,9 @@ RUNNER_TESTS = frozenset({
                               # eligible to gate at all (C-3)
     "test_paper_sizing",      # the daily sleeve's runner
     "test_reconcile_state",   # the live book's state reconciliation
+    "test_runner_entrypoints", # (C-7) that the deployed command STARTS, proved by subprocess:
+                              # C-6 broke `paper_trade.py`'s import for 83 minutes while the
+                              # whole suite stayed green, because the path help above hid it
 })
 
 # Files that import a runner module but only to *read data through it* (the store loaders) or
