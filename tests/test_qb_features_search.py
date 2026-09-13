@@ -320,3 +320,68 @@ def test_the_funnel_table_renders_every_stage():
     for probe in ("generated", "statistical", "cost", "Topstep", "walk-forward",
                   "SURVIVED", "stopped"):
         assert probe in text
+
+
+# ======================================================================================
+# THE LOOKAHEAD THAT PRODUCED THE ONLY SURVIVOR
+#
+# opening_range_pos took the high and low of the first 30 bars and divided EVERY bar by that
+# range, including the first 30 - so at bar 5 it already knew the extremes of bars 6..29. The
+# causality check missed it because it probed a single index at 80% through the series, where
+# a leak confined to the opening window cannot show.
+#
+# It was the only hypothesis to survive the funnel across 272 candidates on two contracts:
+# t = +6.25 against a 3.56 multiplicity bar, 5/5 walk-forward folds, $140.75 a session on one
+# MNQ. With the feature made causal, the same grid promotes nothing.
+# ======================================================================================
+
+def test_the_opening_range_feature_is_causal_inside_its_own_window(bars):
+    """The specific failure: perturbing a bar inside the opening range moved earlier bars."""
+    feat = next(f for f in fe.library().features if f.name == "opening_range_pos")
+    base = np.asarray(feat.fn(bars), dtype=float)
+    bumped = bars.copy()
+    for col in ("c", "h", "l", "o"):
+        bumped.iloc[20:, bumped.columns.get_loc(col)] *= 1.05
+    after = np.asarray(feat.fn(bumped), dtype=float)
+    assert np.allclose(base[:20], after[:20], equal_nan=True), (
+        "perturbing bar 20 changed a bar before it; the opening range is reading forward")
+
+
+def test_the_opening_range_freezes_after_its_window(bars):
+    """It must still be the OPENING range: fixed once the first 30 bars are done."""
+    feat = next(f for f in fe.library().features if f.name == "opening_range_pos")
+    base = np.asarray(feat.fn(bars), dtype=float)
+    bumped = bars.copy()
+    # A new session high at bar 100 must not redefine the opening range.
+    bumped.iloc[100, bumped.columns.get_loc("h")] *= 2.0
+    after = np.asarray(feat.fn(bumped), dtype=float)
+    assert np.allclose(base[:100], after[:100], equal_nan=True)
+
+
+def test_the_causality_check_probes_early_bars_not_just_late_ones():
+    """A single late probe is what let the leak through; assert the sweep exists."""
+    import inspect
+    src = inspect.getsource(fe.assert_causal)
+    assert "points" in src, "assert_causal no longer sweeps multiple perturbation points"
+
+
+def test_a_leak_confined_to_the_opening_window_is_caught(bars):
+    """The exact shape of the shipped bug, rebuilt, must now fail."""
+    leaky = fe.Feature(
+        "orp_old", "session",
+        lambda d: (d["c"] - d["l"].iloc[:30].min())
+        / (d["h"].iloc[:30].max() - d["l"].iloc[:30].min()),
+        ("h", "l", "c"), 0)
+    with pytest.raises(AssertionError) as e:
+        fe.assert_causal(leaky, bars)
+    assert "not causal" in str(e.value)
+
+
+def test_a_late_only_probe_would_still_miss_it(bars):
+    """Documents WHY the sweep is necessary rather than merely asserting that it is."""
+    leaky = fe.Feature(
+        "orp_old", "session",
+        lambda d: (d["c"] - d["l"].iloc[:30].min())
+        / (d["h"].iloc[:30].max() - d["l"].iloc[:30].min()),
+        ("h", "l", "c"), 0)
+    fe.assert_causal(leaky, bars, at=int(len(bars) * 0.8))     # passes, and that was the bug

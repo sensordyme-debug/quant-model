@@ -42,10 +42,12 @@ from quant_brain.markets.futures_cme import twin as tw  # noqa: E402
 from quant_brain.research import Ledger  # noqa: E402
 from quant_brain.research.search import Limits, search, threshold_hypotheses  # noqa: E402
 
-STORE = Path("data/futures/ES.parquet")
 LEDGER = Path("research/experiments_futures.jsonl")
-FAMILY = "futures.es.threshold_grid"
-SYMBOL = "MES"
+
+#: Price source -> the instrument actually traded. A $50K account with a $2,000 limit cannot
+#: carry an ES point ($50) or an NQ point ($20), so the grid is priced on the parent series
+#: and sized in the micro. The micro is also what the account is permitted at entry.
+TRADED = {"ES": "MES", "NQ": "MNQ", "MES": "MES", "MNQ": "MNQ"}
 OPEN_ET, CLOSE_ET = "09:30", "15:45"
 
 #: Gate thresholds. Named and documented rather than tuned: a gate whose level was chosen
@@ -56,9 +58,9 @@ MIN_PASS_RATE = 0.10     # Topstep survival floor
 MIN_WF_FOLDS = 3         # walk-forward folds that must be positive out of 5
 
 
-def load() -> pd.DataFrame:
-    df = pd.read_parquet(STORE)
-    fdq.require_usable("ES", df, time_col="t")
+def load(store: Path, symbol: str) -> pd.DataFrame:
+    df = pd.read_parquet(store)
+    fdq.require_usable(symbol, df, time_col="t")
     df["t"] = pd.to_datetime(df["t"], utc=True)
     et = df["t"].dt.tz_convert("America/New_York")
     df["day"] = et.dt.date
@@ -83,10 +85,10 @@ def build_features(sessions: list[pd.DataFrame], lib: fe.FeatureSet):
     return out
 
 
-def evaluator(sessions, feats, *, contracts: int, twin_obj):
+def evaluator(sessions, feats, *, contracts: int, twin_obj, symbol: str):
     """Backtest one hypothesis and run every gate that does not need the survivors."""
-    spec = inst.get(SYMBOL).spec
-    sim = ex.ExecutionSimulator(cost=ex.CostModel.for_contract(SYMBOL), symbol=SYMBOL)
+    spec = inst.get(symbol).spec
+    sim = ex.ExecutionSimulator(cost=ex.CostModel.for_contract(symbol), symbol=symbol)
     tick_cost = sim.round_turn_cost(contracts)
 
     def run(h):
@@ -149,45 +151,51 @@ def evaluator(sessions, feats, *, contracts: int, twin_obj):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--price-source", default="ES", choices=sorted(TRADED),
+                    help="which stored contract's bars to build the grid on")
     ap.add_argument("--contracts", type=int, default=1)
     ap.add_argument("--max-experiments", type=int, default=200)
     ap.add_argument("--max-seconds", type=float, default=900.0)
     ap.add_argument("--profit-target", type=float, default=3_000.0)
-    ap.add_argument("--out", type=Path, default=Path("research/futures_discovery.json"))
+    ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    if not STORE.exists():
-        print(f"no futures store at {STORE}")
+    source = args.price_source
+    symbol = TRADED[source]
+    store = Path(f"data/futures/{source}.parquet")
+    family = f"futures.{source.lower()}.threshold_grid.v2"
+    if not store.exists():
+        print(f"no futures store at {store}")
         return 1
 
-    df = load()
+    df = load(store, source)
     sessions = session_frames(df)
     lib = fe.library()
     feats = build_features(sessions, lib)
     supported = [c for c in feats[0].columns]
     refused = lib.missing(set(df.columns))
 
-    print(f"{len(df):,} RTH bars -> {len(sessions)} sessions")
+    print(f"{source} store: {len(df):,} RTH bars -> {len(sessions)} sessions, sized in {symbol}")
     print(f"features: {len(supported)} built, {len(refused)} REFUSED "
           f"({', '.join(refused) or 'none'})")
     print(f"  families: {ties(lib.families())}\n")
 
-    hyps = threshold_hypotheses(supported, family=FAMILY)
+    hyps = threshold_hypotheses(supported, family=family)
     twin_obj = tw.TopstepTwin(50_000, profit_target=args.profit_target,
                               payout_policy=tw.PayoutPolicy(fraction=0.5))
     ledger = Ledger(LEDGER)
-    before = ledger.trials(FAMILY)
+    before = ledger.trials(family)
 
     fun = search(hyps, ledger=ledger,
                  evaluate=evaluator(sessions, feats, contracts=args.contracts,
-                                    twin_obj=twin_obj),
+                                    twin_obj=twin_obj, symbol=symbol),
                  limits=Limits(max_experiments=args.max_experiments,
                                max_seconds=args.max_seconds, min_sessions=100))
 
     print(f"FUNNEL  ({len(hyps)} hypotheses in the grid)")
     print(fun.table())
-    print(f"\n  ledger: {ledger.summary(FAMILY)}")
-    print(f"  trials in {FAMILY}: {before} -> {ledger.trials(FAMILY)}")
+    print(f"\n  ledger: {ledger.summary(family)}")
+    print(f"  trials in {family}: {before} -> {ledger.trials(family)}")
     if fun.survived:
         print("\n  SURVIVED to the holdout:")
         for name in fun.survived:
@@ -195,12 +203,14 @@ def main() -> int:
     else:
         print("\n  Nothing survived. That is a result, not a failure of the loop.")
 
+    args.out = args.out or Path(f"research/futures_discovery_{source.lower()}.json")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps({
-        "grid": len(hyps), "funnel": fun.__dict__, "family": FAMILY,
+        "grid": len(hyps), "funnel": fun.__dict__, "family": family,
+        "price_source": source, "traded": symbol,
         "features_built": supported, "features_refused": {k: list(v) for k, v in
                                                           refused.items()},
-        "trials_before": before, "trials_after": ledger.trials(FAMILY),
+        "trials_before": before, "trials_after": ledger.trials(family),
     }, indent=2, default=str), encoding="utf-8")
     print(f"\nwritten to {args.out}")
     return 0

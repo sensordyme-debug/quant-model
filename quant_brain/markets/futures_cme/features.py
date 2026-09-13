@@ -214,16 +214,36 @@ def _minutes_from_open(df):
 
 
 def _opening_range_pos(df):
+    """Position within the opening range, using only bars that have already happened.
+
+    THE BUG THIS REPLACES, because it is worth keeping in front of whoever reads this next.
+    The first version took the max and min of the first 30 bars and divided every bar of the
+    session by that range - INCLUDING the first 30. So at bar 5 the feature already knew the
+    high and low of bars 6 through 29. It is a small window and an easy thing to write.
+
+    It was not a small effect. It was the only hypothesis to survive the discovery funnel
+    across 272 candidates on two contracts, at t = +6.25 against a 3.56 multiplicity bar,
+    5 of 5 walk-forward folds positive, and $140.75 per session on a single MNQ - roughly 70
+    NQ points of daily edge, which is the number that gave it away. A leak reads exactly like
+    a strong edge, and the stronger it reads the more likely that is what it is.
+
+    Now expanding: at bar i the range covers bars 0..min(i, 29), so the denominator can only
+    use information that exists at i. After bar 30 it is the fixed opening range, which is
+    what the feature was always meant to be.
+    """
     import pandas as pd
     h = pd.Series(df["h"].to_numpy(dtype=float), index=df.index)
     low = pd.Series(df["l"].to_numpy(dtype=float), index=df.index)
     c = _c(df)
     n = min(30, len(df))
-    hi, lo = h.iloc[:n].max(), low.iloc[:n].min()
-    rng = hi - lo
-    if rng <= 0:
-        return pd.Series(0.0, index=df.index)
-    return (c - lo) / rng
+    # Expanding within the opening window, frozen at its close.
+    hi = h.expanding().max()
+    lo = low.expanding().min()
+    if len(df) > n:
+        hi.iloc[n:] = hi.iloc[n - 1]
+        lo.iloc[n:] = lo.iloc[n - 1]
+    rng = (hi - lo).replace(0.0, float("nan"))
+    return ((c - lo) / rng).fillna(0.0)
 
 
 # =====================================================================================
@@ -233,18 +253,37 @@ def _opening_range_pos(df):
 def assert_causal(feature: Feature, df, *, at: int | None = None) -> None:
     """Verify empirically that a feature does not read the future.
 
-    Perturbs one late bar and checks that no earlier value of the feature moves. Arithmetic
-    review does not catch a centred rolling window or a wrong `closed` argument; this does.
-    """
-    import numpy as np
+    Perturbs a bar and checks that no EARLIER value of the feature moves. Arithmetic review
+    does not catch a centred rolling window or a wrong `closed` argument; this does.
 
+    WHY IT SWEEPS RATHER THAN PROBING ONCE
+    The first version tested a single index at 80% through the series, and that is how
+    `opening_range_pos` shipped with a lookahead: its leak was confined to the first 30 bars,
+    so a perturbation at bar 310 could not possibly reveal it, and the check passed with a
+    clean bill of health on a feature that already knew the future. A single probe only tests
+    the window it lands in. This sweeps early, middle and late, and the early points are the
+    ones that earned their place.
+    """
     if not feature.available(set(df.columns)):
         return
     n = len(df)
-    at = at if at is not None else max(feature.warmup + 2, int(n * 0.8))
-    if at >= n - 1 or at <= 0:
-        raise ValueError(f"{feature.name}: frame of {n} rows is too short to test causality "
-                         f"at index {at}")
+    if at is not None:
+        points = [at]
+    else:
+        # Deliberately weighted toward the start. Session-anchored features - opening ranges,
+        # first-N-bar statistics, anything with a warm-up - leak there and nowhere else.
+        candidates = [3, 5, 10, 20, 31, feature.warmup + 2,
+                      int(n * 0.25), int(n * 0.5), int(n * 0.8)]
+        points = sorted({p for p in candidates if 0 < p < n - 1})
+    if not points:
+        raise ValueError(f"{feature.name}: frame of {n} rows is too short to test causality")
+    for point in points:
+        _assert_causal_at(feature, df, point)
+
+
+def _assert_causal_at(feature: Feature, df, at: int) -> None:
+    import numpy as np
+
     base = np.asarray(feature.fn(df), dtype=float)
     bumped = df.copy()
     for col in ("c", "h", "l", "o"):
@@ -261,8 +300,9 @@ def assert_causal(feature: Feature, df, *, at: int | None = None) -> None:
         first = int(np.argmax(differs))
         raise AssertionError(
             f"{feature.name} is not causal: perturbing bar {at} changed the value at bar "
-            f"{first} ({head_base[first]} -> {head_after[first]}). A centred or "
-            f"forward-looking window is the usual cause.")
+            f"{first} ({head_base[first]} -> {head_after[first]}). A centred window, a wrong "
+            f"`closed` argument, or a session-anchored statistic applied inside its own "
+            f"anchoring window are the usual causes.")
 
 
 def audit_causality(fs: FeatureSet, df) -> dict[str, str]:
