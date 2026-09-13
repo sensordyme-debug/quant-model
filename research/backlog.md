@@ -1875,7 +1875,29 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
   validated by moving its windows. **Opened by it: A-14** (below) - the time-stop ordering is the
   only monotone structure this sleeve has produced and it deserves the one test A-8 could not
   give it, an out-of-sample split rather than a three-regime paired table.
-- **A-14 (`iterate`, opened by A-8 2026-09-12): is the time stop pure cost, or is `stop368` the
+- **A-14 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): REFUSED - the time stop is
+  NOT pure cost, `stop368` is one regime, and the split test was the wrong instrument to say so.**
+  `scripts/sweep_a14.py`, eight pre-registered clauses, **no backtest** (every number off A-8's
+  persisted series plus S-29's VIX file), 4 DIAGNOSTIC rows under `intraday/active`, nothing
+  shipped so no replay owed. Identity holds on all 14 checks. IS 2016-2023 selects `stop368`
+  honestly at **+565.3 $/day, t +2.93**; OOS 2024-2026 is **-76.3 at t -0.24** - but clause 5
+  vetoes reading that as a refutation: the OOS half detects only **$625/day at 2 se**, needs
+  **939 sessions (3.7 y)** against its 674, and the block-bootstrap CI [-733, +584] contains both
+  zero and the IS estimate. **Clause 6 decides it instead, and needs no power**: 91.8% of the
+  $1.086M cumulative difference is 2020-2023, the best **27 sessions (top 1%) are 107.8%** of it,
+  the **median session is -$225.9**, only **47.4%** of sessions are positive, and dropping the
+  best 1% turns +404.3 into **-31.7**. So on the typical session the shipped 240-minute stop is
+  mildly helpful and the whole gain is a bet on the next crash. Clause 7 names the mechanism and
+  kills it: **+$59 per lagged VIX point at t +2.57** with IS terciles monotone
+  (+85.8/+475.7/+1,134.2), against **t +0.56** and unordered terciles out of sample, and the
+  VIX-conditional rule earns **+$9.5/day at t +0.04** on the withheld half. **The A-track closes
+  on evidence**: A-8 was the last item with a stated mechanism, A-14 was the last question A-8
+  left, and the sleeve's best remaining lever is a bet on the next 2020. Only A-5 part 2 stands
+  between the loop and the Current objective's "say it cannot be validated" instruction.
+  Reusable rule: when a paired mean is positive and its median is negative the mean is a tail
+  statistic - quote median, positive-session share and trimmed mean **before** the t.
+- **A-14 (original text, kept for the pre-registration): is the time stop pure cost, or is
+  `stop368` the
   2020-2023 regime?** A-8's grid is monotone in `time_stop` and the extreme cell turns an
   eleven-year loss into zero at half the drawdown, but its whole significance is one regime
   (2020-2023, paired +$990.7/day at t +2.80) and the newest regime disagrees in sign (-$76.3,

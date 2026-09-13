@@ -4,6 +4,183 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - A-14 (`iterate` track)
+
+**The time stop is not pure cost, and the way it fails is worth more than the answer: 9 of 11
+years are positive, the median session is -$226, and 27 sessions carry 108% of the money.**
+A-8 left the ORB `time_stop` ladder monotone with no interior optimum - -$954 / -$340 / -$324 /
+-$160 / **+$81** per day at 120 / 180 / 240 (shipped) / 300 / 368 - and refused the best cell
+because its whole significance was one regime (+990.7 at t +2.80 on 2020-2023 against -76.3 at
+t -0.24 on 2024-2026). A-14 is the test A-8's three-regime rule could not run: fit nothing, select
+on 2016-2023, score on 2024-2026. `scripts/sweep_a14.py`, eight clauses pre-registered in the
+docstring, **no backtest** - every number comes off A-8's persisted series
+(`results/a8/daily_<cell>.csv`) and S-29's `data/regime/vix.csv`. **4 DIAGNOSTIC ledger rows**
+under `intraday/active`; nothing shipped, no runner-loaded or scheduled file touched, `live/*`
+untouched, so no replay and no `compare_orders.py` is owed.
+
+**Clause 1 holds on all 14 checks to the published digit** - control book -262 / -512 / -134 $/day
+by regime, `stop368` paired +139.9 / +990.7 / -76.3 at t +0.91 / +2.80 / -0.24, full-period paired
++404.28 against the journal's +405, book +$80.71/day at t +0.25, Sharpe 0.14, DD 40.17%. The
+files are the ones A-8 reported.
+
+**Clause 2 selects honestly and selects the same cell.** On 2016-2023 alone the ladder is
+-489.9 / +33.5 / 0 / +170.8 / **+565.3** $/day paired, `stop368` at **t +2.93** - so the cell is a
+real in-sample winner past 2 sigma, not a cell that only looks good because the OOS half was in
+the sample. Its IS book is the only positive one on the ladder (+$178/day, Sharpe +0.23, DD 32.8%
+against the control's -$387, -0.47, 60.8%).
+
+| | IS 2016-2023 | OOS 2024-2026 |
+|---|---|---|
+| sessions | 2,012 | 674 |
+| paired d$/day | **+565.3** | **-76.3** |
+| t | +2.93 | -0.24 |
+| block-bootstrap 95% CI | - | [-733, +584] |
+
+**Clauses 3 and 4 fail, and clause 5 says that on its own this proves nothing.** OOS is -$76/day
+at t -0.24, bootstrap one-sided p 0.602, and the book is worse than the control (-$210 vs -$134,
+Sharpe -0.09 vs -0.10; the only thing it wins is drawdown, 40.2% against 43.5%). But the OOS half
+can only detect **$625/day at 2 se** and the IS estimate is **+565** - *below* its own detection
+floor. Resolving the IS number needs **939 sessions (3.7 years)** and the withheld half has 674.
+The two CI conventions even disagree about whether the IS estimate is excluded (normal upper
++535.9, so yes by $29/day; stationary bootstrap upper +584.4, so no), and the bootstrap is the one
+that respects the serial dependence in daily P&L, so clause 5 is read as **not rejected**. A split
+test that was cheap and correct to run turns out to be the wrong instrument for this question, and
+saying so is the point of pre-registering a power clause.
+
+**Clause 6 decides it, and needs no power to do so, because it is a statement about where the
+money is.** 91.8% of the $1,085,905 cumulative difference is 2020-2023; the best **27** sessions
+(top 1%) are **107.8%** of it, so the other 2,659 sessions are net negative together. Read as a
+shape rather than a share, the same fact is brutal:
+
+| | mean $/day | median $/day | positive sessions | mean less the best 1% |
+|---|---|---|---|---|
+| full 2016-2026 | +404.3 | **-225.9** | 47.4% | **-31.7** |
+| IS 2016-2023 | +565.3 | -149.0 | 48.0% | +112.8 |
+| OOS 2024-2026 | -76.3 | -527.3 | 45.4% | -452.8 |
+
+On the typical session the 240-minute stop is mildly **helpful**. The entire advertised +$405/day
+is 27 days of letting a breakout run through a crash. That is a lottery ticket, not a cost, and it
+is exactly the payoff shape a paired t-test on 2,686 daily numbers is worst at describing. Between
+regimes, 2020-2023 vs 2024-2026 is z **+2.26** and 2016-2019 vs 2020-2023 is z **-2.21** - the
+three means are not draws from one distribution.
+
+**Clause 7 finds the mechanism, confirms it is volatility, and then watches it fail out of
+sample.** On the prior session's VIX close (strictly causal, lagged one session) the daily
+difference regresses at **+$59 per VIX point at t +2.57** full period, +58.6 at t +2.37 in sample,
+and the IS terciles are monotone: **+85.8 / +475.7 / +1,134.2** $/day at t +0.66 / +1.72 / +2.31.
+Out of sample the slope is +39.1 at **t +0.56** and the terciles are not even ordered
+(+186.8 / -217.3 / +160.6). The conditional rule this suggests - hold to the 15:38 flatten only
+when the prior VIX close is above its IS median of 17.02, keep the shipped stop otherwise - is
+worth **+$9.5/day at t +0.04** over the withheld half, on 293 of 674 sessions. The mechanism is
+real, it is volatility, and it is not harvestable by a rule chosen before seeing the outcome.
+
+**The A-track closes on evidence rather than exhaustion.** A-8 was the last item with a stated
+mechanism and A-14 was the last question A-8 left; the answer is that the ORB sleeve's best
+remaining lever is a bet on the next 2020, and the deployed book is at t +0.25 over eleven years.
+`live/intraday_config.json` stays at `time_stop` 240 and `equity_frac` 0.25, and the Current
+objective's instruction - say the sleeve cannot be validated rather than find a twelfth lever -
+now has nothing left standing in its way except A-5 part 2's fill constant.
+
+**Standing job, re-quoted (Saturday, no new fills since 2026-09-11):** `slippage_report.py` - 66
+fills over 2 sessions, **+2.21 bps** notional-weighted, se 0.80, |measured - shipped| / se = **0.88**,
+still short of the 2 se bar; ~145 fills (~4.4 sessions) are needed. Unchanged, and unchangeable
+until the market reopens.
+
+**What it changes for the loop:** when a paired mean is positive and its median is negative, the
+mean is a tail statistic and the t-test on it is describing the wrong object - quote the median,
+the positive-session share and the trimmed mean **before** the t, on any daily-difference table.
+And second: a pre-registered power clause is worth as much as a pre-registered decision clause,
+because without it this iteration would have reported "refused out of sample at t -0.24" about a
+half that could never have seen the effect it was testing for.
+
+## 2026-09-12 - A-8 (`iterate` track)
+
+**The entry window and the time stop move nothing on this sleeve, and the one constant that does
+move it is the one the event study said would not.** `entry_after` / `entry_before` / `time_stop`
+have sat at **15 / 150 / 240** through every A-track iteration since A-1 and had never been asked
+a question; the backlog parked A-8 on A-4's power calculation (260 IBKR sessions cannot resolve a
+sleeve at Sharpe 0.62) and that objection expired when `data/minute_alpaca` reached **2,686
+sessions** of consolidated SIP bars on the same 16 names. `scripts/sweep_a8.py` runs the
+pre-registered grid on that store - eleven cells, each the deployed config (`alloc` ORB 1.0,
+`per_symbol` 0.15, `gross` 1.5, `disaster_atr` 4.0, i.e. `live/intraday_config.json` exactly) with
+**one** minute constant moved, one backtest per (cell, calendar year) from a fresh $1M book. It
+was run in four batches across the day because a cell costs ~4 minutes of wall clock per year and
+the whole grid does not fit under the 40-minute per-command ceiling; `--combine` reads the
+persisted batches back into one table, and every result below is from that combined run
+(`results/a8/combined.log`, 36 DIAGNOSTIC ledger rows under `intraday/active`).
+
+**THE VERDICT IS REFUSED: 0 OF 11 CELLS PASS CLAUSES 2-4.** Not one cell reaches "paired daily
+difference positive at t > 2 in two of the three regimes", not one produces a book that is
+positive at t > 2 in two regimes, and the two cells that get a single regime past t = 2
+(`before120` at +2.14 on 2024-2026, `stop368` at +2.80 on 2020-2023) are contradicted by another
+regime of their own. The control is the deployed book at **-$324/day, t -1.32, Sharpe -0.36,
+DD 69.6%, 34.9 trades/day, $913/day of costs** over the eleven years.
+
+**Clause 1 (identity) holds in decisions and cannot hold in P&L, and that is not a defect.** The
+control reproduces A-12's control **exactly where the framework decides** - sessions
+1,006 / 1,006 / 674 and trades/day **27.3 / 39.4 / 39.1** in the three regimes, identical to the
+printed precision - and differs in P&L (-262.2 / -512.1 / -133.7 against A-12's -287 / -522 / -112,
+pooled **+$7.6/day**). Four commits have changed this harness since A-12 ran: `f1c9968` (A-13's
+six bias fixes), `1311586` (the calendar-aware flatten, AUD-07), `25d30db` (the validation gate)
+and `9d67bef`. So the "same $/day" half of the clause was void before the grid started, and the
+check that survives is the decision-level one plus this: A-8's control on 2024-2026 (**-$133.7**)
+agrees with **A-13's own recorded control cell (-$133)** rather than with A-12's -$112, which ties
+this grid to the current harness's most recently measured control.
+
+**The entry window is dead in both directions, and the post-hoc window kills it most cleanly.**
+Stage 1's event study (44,219 round trips, `--attribute`) found exactly one positive entry-minute
+bucket out of six - **90-119 minutes, +$43.2/trip at t +2.27, z +3.31 against the pooled
+-$20.1/trip** - with 30-44, 45-59, 60-89 and 120-150 all negative at t -1.97 to -2.90. Clause 6
+let that be isolated as a labelled post-hoc cell, `win90_119`, so that the *strongest* form of the
+hypothesis was priced rather than left as an anecdote. It does not survive: the paired difference
+is **-85.5 / +305.8 / -0.5 $/day at t -0.47 / +0.90 / -0.00**, the book is **-$241/day** with the
+worst single-regime t on the whole page (**-2.20** on 2016-2019), and it reaches that on
+**21.8 trades/day against the control's 34.9** - it is a 37% turnover cut that buys nothing. The
+six pre-registered cells agree: `after30/45/60` are 0/3 on clause 2 and `before60/90/120` are
+0/3, 0/3 and 1/3, and every one of the six fails the trade-reduction falsification (clause 3) in
+at least two regimes. A bucket that pays at the trip level does not pay when it is the only
+bucket traded, which is the whole content of clause 3.
+
+**The one real finding is the time stop, and it is the cell the trip-level table would have told
+you to skip.** `attr_timestop.csv` reads like a forecast: trips closed *by* the 240-minute stop
+earn **+$1,057/trip** and trips that exit on their own terms lose **-$1,083/trip**, and the
+hold-time ladder rises monotonically from -$1,059/trip at 0-14 minutes to +$1,238 at 200+. That is
+a composition artifact - a trip survives to the time stop *because* it has not been stopped out -
+and the grid is the only thing that can price it. It does, and the ordering is **monotone in stop
+length with no interior optimum**:
+
+| cell | $/day | t | Sharpe | DD % | tr/day | costs/day |
+|---|---|---|---|---|---|---|
+| `stop120` | **-954** | -5.27 | -1.57 | 95.3 | 50.2 | 1,239 |
+| `stop180` | -340 | -1.48 | -0.40 | 67.5 | 34.8 | 911 |
+| control (240) | -324 | -1.32 | -0.36 | 69.6 | 34.9 | 913 |
+| `stop300` | -160 | -0.58 | -0.13 | 49.1 | 35.0 | 943 |
+| `stop368` (= the flatten) | **+81** | +0.25 | +0.14 | 40.2 | 35.1 | 998 |
+
+Removing the time stop entirely - letting a breakout run to the framework's own 15:38 flatten -
+is worth **+$405/day paired** (+139.9 / +990.7 / -76.3 by regime, **t +0.91 / +2.80 / -0.24**),
+turns the sleeve's eleven-year loss into roughly zero, and **halves the drawdown from 69.6% to
+40.2%**. It is the best cell on the page and it is still refused, on three grounds that matter
+more than the headline: clause 2 is **1 of 3** and the sign **flips in the most recent regime**,
+clause 4 is 0 of 3, and +$81/day on a $1M book is 0.2 bps a session - indistinguishable from
+zero at t +0.25. What it is *not* is a trade-reduction artifact: turnover is **35.1 against 34.9
+trades/day** and costs *rise* ($998 vs $913), so `stop300`/`stop368` are exempt from clause 3 and
+both pass it trivially. Tightening the stop is unambiguous in the other direction:
+**`stop120` loses -$630/day paired at t -5.27**, the largest and most significant number in the
+whole study, on 50.2 trades/day - the stop is a cost, and the shipped 240 is 5 minutes of
+arbitrary history sitting two cells away from the only value that is not.
+
+**Nothing shipped and nothing could.** `live/intraday_config.json` is untouched; no shipped,
+runner-loaded or scheduled-task file was modified, so no `--replay` or `compare_orders.py` is owed
+(AGENTS.md rule a). The sleeve already runs at `equity_frac` 0.25 as a plumbing test because
+A-10/A-11 found it negative in every regime, and A-8 does not change that: the best window this
+grid can build is a book at t +0.25. **A-8 was the last A-track item with a stated mechanism and a
+permitted instrument, so the honest report is the one the Current objective asked for - the ORB
+sleeve cannot be validated on 2,686 sessions by moving its windows.** The reusable rule is that
+**an event study on round trips cannot price a parameter that decides which round trips exist**:
+the entry-bucket table pointed at a cell that turned out to be the second-worst on the page, and
+the exit table pointed away from the only cell that moved the book, both for the same reason.
+
 ## 2026-09-12 - S-38 / AUD-11 part 2 (`daily` track; full entry in `research/journal_daily.md`)
 
 **S-33 called its +0.974 a floor because five dials were unpriced; run all eight, the estimate
