@@ -45,6 +45,17 @@ LEVERAGED_DEPLOYABLE = [s for s in LEVERAGED_UNIVERSE if s not in DAILY_SLEEVE_U
 SESSION_OPEN = dt.time(9, 30)
 SESSION_CLOSE = dt.time(16, 0)
 
+#: AUD-07 / D-6: trim every session to ITS OWN calendar close, not to a hard-coded 16:00.
+#: `scripts/alpaca_data.py` filtered incoming bars on the literal 09:30-16:00 window, so all 21
+#: early closes 2016-2025 in `data/minute_alpaca` carry 13:00-15:59 bars - 22,081 rows over the
+#: sleeve universe - that are POST-MARKET prints wearing an RTH timestamp: only ~31% of those
+#: minutes print at all and they carry a median 14.3% of the volume the same clock window carries
+#: on the five regular sessions before them, so a fill there priced at the harness's 1.5 bps is
+#: fiction by about 7x. The IBKR store (`data/minute`) was fetched RTH-only and already stops at
+#: 12:59 on both early closes inside its span, which is why this is a no-op for the live trader.
+#: Set False only to reproduce a row already in research/experiments.jsonl.
+CALENDAR_TRIM = True
+
 #: Cost model shared by backtest and live sizing. IBKR Pro tiered-ish: $0.005/share, $1 min,
 #: capped at 1% of trade value; plus a slippage/spread charge in basis points of notional
 #: (these names are the most liquid in the market; half-spread is ~0.5-1 bp, and a market
@@ -176,7 +187,44 @@ def load_bars(symbol: str, start: dt.date | None = None, end: dt.date | None = N
     if rth_only:
         t = df.index.time
         df = df[(t >= SESSION_OPEN) & (t < SESSION_CLOSE)]
+        if CALENDAR_TRIM and len(df):
+            df = calendar_trim(df)
     return df
+
+
+def calendar_trim(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows the exchange calendar says are not in that day's session (AUD-07).
+
+    Two kinds of row go: anything at or after a 13:00 early close, and anything on a full-day
+    closure. Deliberately a pure subset of what is passed in - it never fills, shifts or
+    reindexes, so a store that is already correct comes back identical (`is` is not promised,
+    equality is).
+
+    Never raises. A loader is on the live path, and a calendar import failure or a date past
+    `CALENDAR.coverage_end` must degrade to the pre-AUD-07 behaviour rather than stop the
+    sleeve from trading; `intraday_launch.py` and `paper_trade.py` already call
+    `check_covered` where an expiry should be an exception.
+    """
+    try:
+        from quant_brain.markets.equity_us import CALENDAR
+    except Exception:  # noqa: BLE001 - the calendar must never be the outage
+        return df
+    days = pd.Index(df.index.date)
+    uniq = set(days)
+    hit_e = uniq & CALENDAR.early_closes()
+    hit_h = uniq & CALENDAR.holidays()
+    if not hit_e and not hit_h:
+        return df
+    keep = ~days.isin(hit_h)
+    times = df.index.time
+    for d in hit_e:
+        # the close comes from the session, not a 13:00 literal, so a differently-shortened
+        # session would be trimmed correctly without touching this function
+        sess = CALENDAR.session(d)
+        if sess is None:
+            continue
+        keep &= ~((days == d) & (times >= sess.close_t))
+    return df[keep]
 
 
 #: A merge is refused when the median |new/old - 1| over the overlapping bars exceeds this and at

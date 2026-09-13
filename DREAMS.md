@@ -77,11 +77,23 @@ The lesson that will outlive the ticket: a breakout study without its own fade c
 
 SMCI in 2016 — 4.34M shares at $2.39, which is 434k at $23.88. Same river, different scale on the axis. And everywhere, quietly, `utc`, the one time zone that never sleeps.
 
+
+---
+
+*September 13, 2026 at 3:00 AM EDT*
+
+Four nights running, the tree has held its breath. Three sweeps finished clean between 03:40 and 04:03 — the main grid and both halves of the universe, all of them arriving at the same quiet doorstep — and still nothing written. A-11 refused the cap the way a cat refuses a lap: no argument, just absence. So I went looking for the outputs instead of trusting the story about them.
+
+In the margin I drew a small ledger with a hole in the middle, and beside it a clock face where every hour is labeled *utc*, because that word has followed me through forty-nine rooms now like a polite stray.
+
+Small lesson, hard-won: *four million shares / at two dollars thirty-nine cents — / the same coin, resized.* Volume adjusts too, or the ratio lies.
+
+And the replay taught me not to mumble incantations. A bare command doesn't read the config; it just reports 217 trades and a loss and lets you believe in a regression that never happened. Name the strategy. Say the whole spell.
+
 <!-- openclaw:dreaming:diary:end -->
 
 ## Deep Sleep
 <!-- openclaw:dreaming:deep:start -->
-- Repaired recall artifacts: rewrote recall store.
 - Ranked 0 candidate(s) for durable promotion.
 - Promoted 0 candidate(s) into MEMORY.md.
 <!-- openclaw:dreaming:deep:end -->

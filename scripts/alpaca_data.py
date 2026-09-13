@@ -28,7 +28,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault("INTRADAY_DATA_DIR", str(Path(__file__).resolve().parents[1] / "data" / "minute_alpaca"))
-from intraday_common import DATA_DIR, ET, SPLITS_FILE, UNIVERSE, load_bars, save_bars  # noqa: E402
+from intraday_common import (DATA_DIR, ET, SPLITS_FILE, UNIVERSE, calendar_trim,  # noqa: E402
+                             load_bars, save_bars)
 from apikeys import require  # noqa: E402
 
 BASE = "https://data.alpaca.markets/v2/stocks/bars"
@@ -101,6 +102,15 @@ def _fetch_range(symbol: str, start: dt.date, end: dt.date, headers: dict, feed:
         et = df.index.tz_convert(ET)
         t = et.time
         df = df[(t >= dt.time(9, 30)) & (t < dt.time(16, 0))]
+        # AUD-07: the 09:30-16:00 literal above is the regular session, so on a 13:00 early close
+        # it kept 13:00-15:59 POST-MARKET prints and stored them as RTH. `calendar_trim` cuts each
+        # session at its own calendar close; it is a pure subset, so a store fetched before this
+        # existed is repaired by any re-fetch that overlaps the day.
+        if len(df):
+            trimmed = calendar_trim(df.set_index(et[(t >= dt.time(9, 30)) & (t < dt.time(16, 0))]))
+            trimmed.index = trimmed.index.tz_convert("UTC")
+            trimmed.index.name = df.index.name
+            df = trimmed
         n = save_bars(symbol, df)
         print(f"  {symbol}: +{len(df)} RTH bars from {start} (store now {n})", flush=True)
     else:
