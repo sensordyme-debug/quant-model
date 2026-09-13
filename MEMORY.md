@@ -3,6 +3,60 @@
 Long-lived facts the loop should not have to rediscover. Newest section first.
 Daily raw notes live in `memory/YYYY-MM-DD.md`.
 
+## A screen must be scored on data its own threshold never saw (learned 2026-09-13, F-16 -> F-17)
+
+- **A train-window |IC| or |t| floor is an ANTI-selector once candidates come from stores with
+  different regime exposure.** F-17 handed F-16's gate 17 parents from two disjoint stores. It
+  admitted the five columns with the largest in-window |IC| (|t| 5.7-7.7) and **every one lost**;
+  the three weakest (|t| 2.1-2.9) made all the money, and **the two ranges do not overlap**. The
+  mechanism: a large in-window |t| on a store whose span contains one regime break is a measurement
+  of that break, not of skill. `amihud30` and `ofi5` scored |t| 6.8 on 2016-2019 and lost $974/day
+  in 2020. Any future screen must rank a candidate on data the floor did not read.
+- **An abstention rate is a result, not a knob to minimise.** Same gate, same threshold, wider pool:
+  abstained in 2 of 8 windows instead of 5, and lost $112/day for it ($412 -> $310). Report it, and
+  treat a gate that became more active as a gate that got worse until shown otherwise.
+- **Print the scramble control's NET, not only its paired t against base.** F-17's pooled arm beat
+  base on gross *and* on paired t and still finished **below its own information-destroyed scramble**
+  ($310 vs $319). A run that compared each arm only to `base` would have reported it harmless.
+
+## A number quoted from a table is only a comparison if the rows share a session count (learned 2026-09-13, S-40 -> S-41; second instance of S-38 -> S-40)
+
+- S-41 was opened on "the blend carried the best Sharpe 1.173 against the shipped cell's 1.159".
+  The blend row was **2,684 sessions** (a walk-forward span) and the 1.159 was **3,689** (FULL).
+  Span-matched, the shipped cell is **1.228** and the blend 1.174 - the claim reversed and was
+  withdrawn. The drawdown half of the same sentence survived only because the 2020 crash lies inside
+  both spans. **Before comparing two rows, print both session counts.** This shape has now bitten
+  twice in one month on the same sleeve.
+- Related, and it is a separate fact: **a promotion gate and a decision are different instruments.**
+  The blend fails against the incumbent on CAR and Sharpe, and beats what a real-time selector
+  actually gets by **+1.6 CAR / +0.16 Sharpe / -14.9 drawdown points**, because S-40 showed a
+  walk-forward argmax picks the shipped cell in **0 of 11 years**. Both sentences are true.
+
+## Re-quoting a gate number is not running a gate (learned 2026-09-13, C-6)
+
+- `scripts/paper_trade.py` could not import for 83 minutes and **two commits reported its deploy
+  gate passing in that window**, quoting a number that was true when measured and unreproducible at
+  the HEAD they claimed it for. **If an entry claims a gate passed, the run must post-date the HEAD
+  it claims.**
+- **A sys.path guard is ordering-sensitive code.** The guard was already in the file, 15 lines
+  *below* the `from quant_brain...` import it was written to protect. It must sit above the imports
+  it protects, with a comment saying so, or the next import sort silently undoes it.
+- **`tests/conftest.py` inserting `REPO` on `sys.path` hides this entire defect class.** 1,221 tests
+  stayed green over a runner that could not start as deployed. A gate's own entry point has to be
+  exercised **as an entry point** - subprocess, the scheduler's interpreter and cwd, no conftest help.
+
+## In a tree six tracks share, `git add -A` loses authorship - and once it lost a live file (learned 2026-09-13)
+
+- Six commits in one night carried another track's staged files. Five were bookkeeping. The sixth
+  (`11f0308`) committed D-6's `scripts/intraday_common.py` calendar-trim fix - **a file the live
+  trader imports** - under a garbled message from an unrelated cron, 97 minutes before the owning
+  track's own commit.
+- `AGENTS.md` step 7 already forbids `git add -A`. **The missing half: after clearing a stale
+  `.git/index.lock`, inspect what is already staged before committing.** A killed process leaves its
+  staged files behind for whoever commits next.
+- Record the drift rather than rewriting another track's commit. Rewriting history over a wrong
+  message on a right diff is the worse of the two failures.
+
 ## Price the harness before pricing the strategy (learned 2026-09-11/12, S-17 + S-19 + S-21 + S-22)
 
 - **LEAN charges neither spread nor financing, and cannot express the deployed runner's clock.**

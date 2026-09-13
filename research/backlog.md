@@ -1726,6 +1726,79 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
 
 ## Open (highest value first)
 
+**Priority set at the 2026-09-13 review (`research/reports/2026-09-13.md`), in order.** Ten of
+eleven hypotheses in the last 24 h were refused and nothing was promoted, so the ranking below
+favours the four confirmed deployed-path defects and the one free data step over new hypotheses.
+
+1. **C-7** (`eng`) - subprocess the runners in the suite. C-6's live import break hid behind 1,221
+   green tests; this closes the class, one file, no data.
+2. **E-12** (`eng`, new below) - make the pre-commit hook refuse a commit whose staged set exceeds
+   the paths the author named. Six commits in one night crossed tracks and the sixth moved a file
+   the live trader imports.
+3. **A-16** (`iterate`) - the replay path still costs the adjusted store as raw. D-5 fixed the
+   harness; the replay preflight is the gate that decides whether the sleeve trades on Monday.
+4. **F-19** (`ml`) - rebuild the F panels before F-18. Forward labels mean a bogus bar contaminates
+   an earlier real one, so nothing fitted on the current panel is worth reading.
+5. **OWNER-3's free step** (`futures`, filed as P-1 below) - probe QuantConnect CME depth before any
+   further discovery runs. 544 hypotheses and 0 survivors on 395 sessions is the data speaking.
+6. **C-4** (`critic`) - S-24, the pre-open MOO claim, twice deferred. It is the claim behind the
+   ~1.9 CAR-point owner ask, so attack it before the owner is asked to move a scheduled task.
+7. **O-9** (`options`, new below) - cost O-8's VaR result as a de-risk switch. The only consumer
+   A-15 did not close, and OWNER-5 currently has no live justification.
+8. **S-42** (`daily`) - the ensemble trick on the FITTED non-risk axes. Do not build the shipped
+   36-cell blend; it is a `signals.py` change plus a LEAN run for a quarter of a drawdown point.
+9. **F-18** (`ml`), then the standing measurements **A-5 part 2** and **S-17 part 2**.
+
+Deprioritised at this review: every remaining O-item except O-9 (the scope is empty until the Theta
+VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels until item 5 answers.
+<!-- priority block added by the 2026-09-13 daily review. -->
+
+- **P-1 (`futures`, opened by the 2026-09-13 review from OWNER-3): does a free QuantConnect account
+  hold deeper CME history than IBKR's 2-4 years?** This is the last step on the futures branch that
+  does not need the owner, and it gates everything else on the track. OWNER-3 is explicit that the
+  binding constraint is depth, not breadth: ES and NQ reach **395 sessions**, MES and MNQ **317**
+  (MESU5/MNQU5 have aged out of IBKR retention), against the **~2,000** A-4 measured as necessary to
+  resolve an intraday edge to this repo's standard - 20%, with no 2020 crash and no 2022 rate shock
+  in any of it. The four-contract funnel already answered on that sample: **544 hypotheses, 0
+  survivors**, and the session produced its own cautionary case when a lookahead manufactured a *t*
+  of +6.25 that cleared a 3.56 multiplicity bar. Deliverable is a measurement, not a strategy: for
+  ES/NQ/MES/MNQ, the earliest minute bar a free QC account serves, and whether it is continuous or
+  per-contract. If it comes back short, OWNER-3 escalates to a buy decision - and that decision
+  should be made against a specific result worth confirming, not as insurance.
+  <!-- added by the 2026-09-13 daily review. -->
+
+- **E-12 (`eng`, opened by the 2026-09-13 review): the pre-commit hook should refuse a commit whose
+  staged set exceeds the paths the author named.** Six commits on 2026-09-12/13 carried another
+  track's staged files - `560b0bb` and `0193f21` (S-39's), `3a7b764` (C-6's four files), `98512df`
+  (the futures multi-contract fetcher plus 408 ledger lines), `0515f3b` (`sweep_o7.py`), and
+  `11f0308`, in which the Memory Dreaming cron committed D-6's `scripts/intraday_common.py`
+  calendar-trim fix - **a file `intraday_trader.py` imports** - under the message "vcjikyftr", 97
+  minutes before the owning track's own commit. Five were bookkeeping; the sixth was not.
+  `AGENTS.md` step 7 already forbids `git add -A`, so the rule is not the gap: the gap is that after
+  clearing a stale `.git/index.lock` a killed process's staged files are left behind for whoever
+  commits next, and nothing checks. Cheap and mechanical - the hook already runs; have it compare
+  `git diff --cached --name-only` against the paths passed to `--only` and refuse the difference with
+  the offending list printed. Note F-17's housekeeping finding while you are in there: `--only`
+  protects unnamed files, **not shared named ones**.
+  <!-- added by the 2026-09-13 daily review. -->
+
+- **O-9 (`options`, opened by the 2026-09-13 review from O-8): cost `rn_half`'s VaR skill as a
+  DE-RISK switch, which is the one consumer A-15 did not close.** O-8's primary leg refused the put
+  wing as a tail forecaster (pooled DM t **-0.401**, declared sign wrong at 4 of 5 clocks), but its
+  secondary read is positive and monotone: `rn_half` cuts the OOS 5% VaR loss **-3.0% to -8.0%,
+  rising through the day, at 5 of 5 clocks**. Every prior consumer of this signal is closed - O-6/O-7
+  proved magnitude skill, A-15 refused it as a **size** input on mechanism (the sleeve is paid by the
+  volatility *surprise*, +$2,651/day per sd at t +8.41, against -$230/day at t -0.73 for the
+  forecastable part), and OWNER-5 records that the VALUE-tier ask has therefore lost its stated
+  justification. A drawdown-avoidance switch is a different functional: it is paid by the lower
+  quantile alone, which is exactly what O-8 measured skill in. Run it off the **frozen** cache -
+  no new Theta call, so this is answerable with the subscription lapsed. Pre-register the control
+  that matters: a switch that de-risks on average "wins" on a book that loses money, so quote every
+  headline against an unconditional de-risk of the same average exposure, as A-15 did with its
+  expanding prior mean. If it clears, it is the fresh reason OWNER-5 asks for; if it does not, the
+  O-track closes and `research-options` should be unscheduled rather than left to spend tokens.
+  <!-- added by the 2026-09-13 daily review. -->
+
 - **F-19 (`ml`, opened by D-6 2026-09-13): every F-track panel built before today carries the 21
   early closes' post-market bars.** `scripts/sweep_f1.py:186,196` build `data/f1/panel.parquet`
   through `ic.load_bars(...)` and cache it. `load_bars` now trims each session at its own calendar
