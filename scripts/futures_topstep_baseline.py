@@ -48,6 +48,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from quant_brain.core import stats  # noqa: E402
+from quant_brain.markets.futures_cme import dataquality as fdq  # noqa: E402
 from quant_brain.markets.futures_cme import execution_sim as ex  # noqa: E402
 from quant_brain.markets.futures_cme import instruments as inst  # noqa: E402
 from quant_brain.markets.futures_cme import paths as pa  # noqa: E402
@@ -71,8 +72,20 @@ EXIT_ET = "15:45"        # flat before the close, comfortably inside Topstep's r
 SYMBOL = "MES"           # the micro: an ES point is $50, which a $2,000 MLL cannot carry
 
 
-def load(store: Path = STORE) -> pd.DataFrame:
+def load(store: Path = STORE, *, validate: bool = True) -> pd.DataFrame:
+    """Read the futures store, refusing to proceed on one that is not usable.
+
+    The gate runs on the RAW store before any filtering, because the hazards it looks for -
+    a backwards roll, an impossible move inside one contract, a crossed book - are exactly
+    the ones that survive an RTH filter and then quietly become P&L.
+    """
     df = pd.read_parquet(store)
+    if validate:
+        report = fdq.require_usable(str(store.stem), df, time_col="t")
+        for f in report.findings:
+            print(f.line())
+        print(f"  {report.summary()}")
+        print()
     df["t"] = pd.to_datetime(df["t"], utc=True)
     df = df.sort_values("t").reset_index(drop=True)
     et = df["t"].dt.tz_convert("America/New_York")

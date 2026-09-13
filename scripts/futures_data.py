@@ -392,6 +392,18 @@ def fetch(args) -> int:
                  .sort_values("t")
                  .reset_index(drop=True))
         path = STORE / f"{sym}.parquet"
+        # Validate at the boundary where data enters, not where it is consumed. A store that
+        # is written and only checked later is a store that has already been researched on
+        # by the time anyone notices: the roll-stitching hazards this looks for survive an
+        # RTH filter and then quietly become P&L. Refuses to write a broken store at all.
+        from quant_brain.markets.futures_cme.dataquality import check_futures_frame
+        report = check_futures_frame(sym, out, time_col="t")
+        for finding in report.findings:
+            print(finding.line())
+        print(f"  {report.summary()}")
+        if report.failed:
+            print(f"REFUSED to write {path}: the fetched series is not usable")
+            continue
         out.to_parquet(path, index=False)
         days = out["t"].dt.tz_convert("America/New_York").dt.date.nunique()
         print(f"[f2] {sym}: wrote {len(out):,} bars / {days} days "

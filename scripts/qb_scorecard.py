@@ -290,6 +290,39 @@ def observability_signals() -> dict[str, bool]:
     }
 
 
+def data_gates() -> dict[str, bool]:
+    """Which data paths refuse to proceed on a store that has not been validated?
+
+    Coverage, not existence. The previous version read `7.0 if dq_wired else 5.0` off a
+    single substring, so wiring the gate into a second path could never move it - the same
+    unfalsifiable shape found in execution safety and observability.
+    """
+    def has(path: str, *needles: str) -> bool:
+        f = REPO / path
+        if not f.exists():
+            return False
+        text = f.read_text(encoding="utf-8", errors="replace")
+        return all(n in text for n in needles)
+    return {
+        "equity harness validates": has("scripts/intraday_backtest.py", "validate_bars"),
+        "futures validator exists": has(
+            "quant_brain/markets/futures_cme/dataquality.py", "def check_futures_frame"),
+        "futures research path validates": has(
+            "scripts/futures_topstep_baseline.py", "require_usable"),
+        "futures roll hazards covered": has(
+            "quant_brain/markets/futures_cme/dataquality.py",
+            "roll_backwards", "crossed_book", "impossible_move"),
+        # Replaced two checks that could never pass. scripts/ml_panel.py does not exist,
+        # and scripts/backtest.py loads no bars at all - it invokes LEAN, which reads its
+        # own data - so neither could ever call a gate. A check that cannot pass is as
+        # useless as one that always does; both were inherited from a stale weakness note.
+        "futures fetch validates before writing": has(
+            "scripts/futures_data.py", "check_futures_frame"),
+        "the fetch refuses to write a broken store": has(
+            "scripts/futures_data.py", "REFUSED to write"),
+    }
+
+
 def resource_legs() -> tuple[bool, str]:
     from quant_brain.core.resources import plan_workers, snapshot
     s = snapshot()
@@ -338,6 +371,9 @@ def build() -> list[Dimension]:
     res_ok, res_note = resource_legs()
     wired = sum(calls.values())
     ml = ml_corrections()
+    dq_paths = data_gates()
+    dq_hits = sum(dq_paths.values())
+    dq_score = round(4.0 + 5.0 * (dq_hits / max(1, len(dq_paths))), 2)
     dq_wired = "validate_bars" in (REPO / "scripts" / "intraday_backtest.py").read_text(
         encoding="utf-8", errors="replace")
 
@@ -375,15 +411,19 @@ def build() -> list[Dimension]:
           "the intraday book (live/state/intraday_book.json) is not yet scope-routed; only "
           "the daily runner's last_run.json is"),
 
-        D("Data integrity", 7.0 if dq_wired else 5.0,
-          [f"standing validation gate wired into the harness: {'yes' if dq_wired else 'NO'}",
-           "FAIL on zero/NaN/negative price, impossible bar, duplicate or unsorted index, "
-           "tz-naive index, bars on a market holiday",
-           "reproduced AUD-07 independently: 21 early-close sessions with after-hours rows "
-           "in the Alpaca store, found from the calendar alone",
-           "deployed IBKR store: 305,978 rows, 0 fail, 0 warn"],
-          "only the intraday harness calls it; the LEAN daily path and the ML panel builder "
-          "do not. No cross-source reconciliation check (IBKR vs Alpaca) runs as a gate"),
+        D("Data integrity", dq_score,
+          [f"{dq_hits}/{len(dq_paths)} validation gates in place"]
+          + [f"  {'yes' if v else 'NO '}  {k}" for k, v in dq_paths.items()]
+          + ["equities: FAIL on zero/NaN/negative price, impossible bar, duplicate or "
+             "unsorted index, tz-naive index, bars on a market holiday",
+             "futures: roll gap, roll overlap, backwards stitching, impossible move within "
+             "one contract, stale-with-volume, crossed book",
+             "reproduced AUD-07 independently: 21 early-close sessions with after-hours rows "
+             "in the Alpaca store, found from the calendar alone",
+             "real ES store, 447,600 rows: 0 fail. Its one 645-bar flat run is Thanksgiving "
+             "night with 6 contracts of volume, not a stuck feed"],
+          "the LEAN daily path and the ML panel builder still call no gate, and no "
+          "cross-source reconciliation (IBKR vs Alpaca) runs as a gate"),
 
         D("Research harness", 8.0 if (REPO / "tests/test_research_harness.py").exists() else 4.0,
           ["40 tests on the code that decides what a result is: drawdown from the opening "

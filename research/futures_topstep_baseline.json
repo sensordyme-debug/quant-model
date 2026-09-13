@@ -18,13 +18,13 @@
   },
   "ledger": "1 experiment(s) across 1 famil(y/ies) [rejected=1]",
   "twin": {
-    "p_pass_combine": 0.02,
+    "p_pass_combine": 0.01,
     "p_first_payout": 0.0,
     "p_liquidated": 1.0,
     "mean_gross": 0.0,
     "mean_net": null,
-    "median_days_to_pass": 55.0,
-    "p05_min_buffer_funded": 1496.25
+    "median_days_to_pass": 58,
+    "p05_min_buffer_funded": 1579.5
   },
   "stress": {
     "losses +50%": {
