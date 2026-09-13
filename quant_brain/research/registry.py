@@ -284,12 +284,27 @@ class Ledger:
         if not self.path.exists():
             return []
         out: list[Experiment] = []
+        retracted: dict[str, str] = {}
         for line in self.path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                try:
-                    out.append(Experiment.from_dict(json.loads(line)))
-                except (json.JSONDecodeError, KeyError):
-                    continue    # a malformed row must not hide the rest of the history
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue        # a malformed row must not hide the rest of the history
+            if "_retraction" in d:
+                retracted[d["_retraction"]] = d.get("why", "")
+                continue
+            try:
+                out.append(Experiment.from_dict(d))
+            except KeyError:
+                continue
+        # Applied on read so the original rows stay byte-identical on disk. A retracted
+        # experiment is still a trial; only its verdict is withdrawn.
+        for e in out:
+            if e.experiment_id in retracted:
+                e.stage = Stage.REJECTED
+                e.notes = f"RETRACTED: {retracted[e.experiment_id]}"
         return out
 
     def family(self, family: str) -> list[Experiment]:
@@ -370,6 +385,52 @@ class Ledger:
         return Verdict(metric=float(getattr(t, "mean", float("nan"))), t=value,
                        threshold=float(threshold), trials=n, horizon=horizon,
                        passed=passed, reason=reason)
+
+    def retract(self, experiment_id: str, *, why: str) -> None:
+        """Withdraw a recorded result without deleting it.
+
+        A research platform has to be able to say "this was wrong, and here is why" - and it
+        has to do so without erasing the original, because the original is still a trial and
+        still belongs in the denominator of every later correction.
+
+        So a retraction is an APPENDED record, not an edit. `all()` applies it by moving the
+        experiment to REJECTED and stamping the reason into its notes; the original row stays
+        on disk exactly as written, and `trials()` is unchanged.
+
+        The case this was built for: a hypothesis that survived the funnel at t = +6.25 and
+        was later shown to be produced by a lookahead in the feature library. Deleting it
+        would have hidden a real trial; leaving it as a survivor would have let a readiness
+        check count an artefact as evidence.
+        """
+        if not why.strip():
+            raise ValueError("a retraction must say why; an unexplained one is a deletion "
+                             "with extra steps")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps({"_retraction": experiment_id, "why": why,
+                           "when": dt.datetime.now().astimezone().isoformat(
+                               timespec="seconds")}, sort_keys=True)
+        line += chr(10)
+        with _file_lock(self.path):
+            with self.path.open("a", encoding="utf-8") as fh:
+                fh.write(line)
+                fh.flush()
+                os.fsync(fh.fileno())
+
+    def retractions(self) -> dict[str, str]:
+        """experiment_id -> why, for every withdrawn result."""
+        if not self.path.exists():
+            return {}
+        out: dict[str, str] = {}
+        for raw in self.path.read_text(encoding="utf-8").splitlines():
+            if not raw.strip():
+                continue
+            try:
+                d = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if "_retraction" in d:
+                out[d["_retraction"]] = d.get("why", "")
+        return out
 
     def summary(self, family: str | None = None) -> str:
         rows = self.family(family) if family else self.all()

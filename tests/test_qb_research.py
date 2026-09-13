@@ -396,3 +396,69 @@ def test_a_stale_lock_is_broken_rather_than_deadlocking(tmp_path):
     with _file_lock(led.path, timeout=0.2):
         pass
     assert _time.monotonic() - started < 5.0, "a stale lock deadlocked the loop"
+
+
+# ======================================================================================
+# RETRACTION
+#
+# A research platform has to be able to say "this was wrong, and here is why" without
+# erasing the record. The case this was built for: a hypothesis that survived the funnel at
+# t = +6.25 and was later shown to be produced by a lookahead in the feature library.
+# ======================================================================================
+
+def test_a_retraction_withdraws_the_verdict_without_deleting_the_trial(ledger):
+    """The original is still a trial and still belongs in every later denominator."""
+    e = _exp(1)
+    e.stage = Stage.VALIDATION
+    ledger.record(e)
+    assert ledger.trials("futures.momentum") == 1
+
+    ledger.retract(e.experiment_id, why="the feature it used read the future")
+    back = ledger.all()[0]
+    assert back.stage is Stage.REJECTED
+    assert "RETRACTED" in back.notes and "read the future" in back.notes
+    assert ledger.trials("futures.momentum") == 1, "a retraction must not remove a trial"
+
+
+def test_the_original_row_stays_byte_identical_on_disk(ledger):
+    e = _exp(1)
+    ledger.record(e)
+    first_line = ledger.path.read_text(encoding="utf-8").splitlines()[0]
+    ledger.retract(e.experiment_id, why="wrong")
+    assert ledger.path.read_text(encoding="utf-8").splitlines()[0] == first_line
+
+
+def test_a_retraction_must_say_why(ledger):
+    e = _exp(1)
+    ledger.record(e)
+    for bad in ("", "   "):
+        with pytest.raises(ValueError) as exc:
+            ledger.retract(e.experiment_id, why=bad)
+        assert "deletion with extra steps" in str(exc.value)
+
+
+def test_retractions_are_listed_with_their_reasons(ledger):
+    e = _exp(1)
+    ledger.record(e)
+    ledger.retract(e.experiment_id, why="lookahead in the opening range")
+    assert ledger.retractions() == {e.experiment_id: "lookahead in the opening range"}
+
+
+def test_a_retraction_survives_a_reopen(tmp_path):
+    a = Ledger(tmp_path / "l.jsonl")
+    e = _exp(1)
+    e.stage = Stage.VALIDATION
+    a.record(e)
+    a.retract(e.experiment_id, why="wrong")
+    assert Ledger(tmp_path / "l.jsonl").all()[0].stage is Stage.REJECTED
+
+
+def test_retracting_one_experiment_leaves_the_others_alone(ledger):
+    keep, drop = _exp(1), _exp(2)
+    for x in (keep, drop):
+        x.stage = Stage.VALIDATION
+        ledger.record(x)
+    ledger.retract(drop.experiment_id, why="wrong")
+    by_id = {e.experiment_id: e for e in ledger.all()}
+    assert by_id[keep.experiment_id].stage is Stage.VALIDATION
+    assert by_id[drop.experiment_id].stage is Stage.REJECTED

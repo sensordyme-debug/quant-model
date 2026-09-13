@@ -229,7 +229,9 @@ COMBINE_CONSISTENCY_DENOMINATOR = Rule(
 COMBINE_CONSISTENCY_OWNER = Rule(
     0.50, "the current documentation specifies a 50% threshold for the Trading Combine",
     "owner brief, 2026-09-12", Confidence.OWNER,
-    note="Owner-asserted; the fetched page says 55%. Defaulted to because it is stricter.")
+    note="Owner-asserted. Every Topstep page reachable on 2026-09-13 says 55%, and the "
+         "consistency article settles the denominator with its own worked example "
+         "(1,600/3,000 = 53%). Retained on the record; NOT the default.")
 
 COMBINE_CONSISTENCY_EXCEEDED = Rule(
     "target_rises",
