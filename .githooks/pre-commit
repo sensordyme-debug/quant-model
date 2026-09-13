@@ -7,6 +7,12 @@
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Bypass deliberately:     git commit --no-verify   (say why in the message)
+
+# Scope gate (E-12 / C-10) first: it is instant, and a commit that is taking another track's
+# files should be stopped before anyone waits on the completion gate. See scripts/commit_scope.py
+# for why `git add <paths> && git commit` cannot be trusted in a tree six agents share.
+py -3.14 scripts/commit_scope.py || exit 1
+
 py -3.14 scripts/qb_check.py --quiet --no-types >/dev/null 2>&1
 status=$?
 if [ $status -ne 0 ]; then

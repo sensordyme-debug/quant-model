@@ -1812,7 +1812,8 @@ favours the four confirmed deployed-path defects and the one free data step over
    green tests; this closes the class, one file, no data. **DONE 2026-09-13 (`eng`).**
 2. **E-12** (`eng`, new below) - make the pre-commit hook refuse a commit whose staged set exceeds
    the paths the author named. Six commits in one night crossed tracks and the sixth moved a file
-   the live trader imports.
+   the live trader imports. **DONE 2026-09-13 (`eng`)** - and the rule as filed would have been a
+   false positive 12 times in 14; the shipped gate is aimed at the mechanism, not at journals.
 3. **A-16** (`iterate`) - the replay path still costs the adjusted store as raw. D-5 fixed the
    harness; the replay preflight is the gate that decides whether the sleeve trades on Monday.
 4. **F-19** (`ml`) - rebuild the F panels before F-18. Forward labels mean a bogus bar contaminates
@@ -1848,7 +1849,25 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   should be made against a specific result worth confirming, not as insurance.
   <!-- added by the 2026-09-13 daily review. -->
 
-- **E-12 (`eng`, opened by the 2026-09-13 review): the pre-commit hook should refuse a commit whose
+- **E-12 DONE 2026-09-13 (`eng`; see `research/journal_eng.md`): shipped, and the rule as filed was
+  wrong 12 times in 14.** Run C-10's text literally over all 219 commits and it fires **14** times
+  with **12 false positives** - every one the `daily` track writing `research/journal.md` beside
+  `journal_daily.md`, which `AGENTS.md` sanctions (that file is the `daily`/`iterate` history *and*
+  the review's merge target). Counting the pair as one owner: **2 of 219, both true positives**
+  (`861c70a`, `3a7b764`). It also catches almost none of the damage - `11f0308`, the one that took
+  a live-imported file, touched **no journal at all**. So the fix is aimed at the mechanism C-10
+  named instead: `git commit` with no pathspec commits *the index*. Measured on git 2.55, a partial
+  commit (`-- <paths>` / `--only`) is the **only** form git prepares in a temporary
+  `next-index-*` index, so `basename(GIT_INDEX_FILE).startswith("next-index-")` is exactly "the
+  author named the paths" - no ownership map to rot. `scripts/commit_scope.py` + `.githooks/pre-commit`
+  (before `qb_check`, so it fails fast) + `tests/test_commit_scope.py` (25 tests, non-gating per
+  E-8; tiers: rules, a control that real git still emits `next-index-*`, and the concurrent-`add`
+  race reproduced). Three mutants caught. Fired in the production repo: plain `git commit` refused,
+  HEAD unchanged. **Leaves C-10(b) open** - `AGENTS.md` step 7 still teaches the form the hook now
+  refuses, and that file is the owner's: step 7 should read `git commit -m "..." -- <paths>`.
+  <!-- E-12 closed by eng, 2026-09-13. -->
+
+- **E-12 (original text, kept for the pre-registration): the pre-commit hook should refuse a commit whose
   staged set exceeds the paths the author named.** Six commits on 2026-09-12/13 carried another
   track's staged files - `560b0bb` and `0193f21` (S-39's), `3a7b764` (C-6's four files), `98512df`
   (the futures multi-contract fetcher plus 408 ledger lines), `0515f3b` (`sweep_o7.py`), and
@@ -2131,6 +2150,15 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   amendment, which is the owner's file and so not the critic's to edit. Evidence in
   `research/journal_critic.md` (C-8 provenance). **The critic ships nothing, so this is not fixed.**
   <!-- added by C-8, 2026-09-13 (critic). -->
+  **(a) DONE 2026-09-13 (`eng`, as E-12): fixed, but not as specified.** The journal-span rule
+  C-8 asked for fires 14 times over 219 commits with 12 false positives (the sanctioned
+  `journal.md` + `journal_daily.md` pair) and misses `11f0308` entirely, which carried no journal
+  and one live-imported file. C-8's *diagnosis* is what shipped: `.githooks/pre-commit` now
+  refuses any commit git did not prepare from a pathspec, which is the `git commit -m "..." --
+  <paths>` form C-8 identified, detected via `GIT_INDEX_FILE`. The corrected journal rule ships
+  as a backstop at 2 fires / 0 false positives. **(b) is still open and still the owner's**:
+  `AGENTS.md` step 7 teaches the form the hook now refuses.
+  <!-- (a) closed by eng E-12, 2026-09-13. -->
 
 - **S-43 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): REFUSED, and it takes
   the pre-registered branch that CLOSES weight-ensembling on this sleeve on BOTH kinds of axis.**

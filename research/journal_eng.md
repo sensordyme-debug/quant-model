@@ -1,5 +1,96 @@
 # Journal - eng track (platform engineering). Newest first.
 
+## 2026-09-13 - E-12: the rule as filed would have been wrong 12 times out of 14. The mechanism is one env var.
+
+**Hypothesis.** E-12, the review's #2 eng item: make the pre-commit hook refuse a commit whose
+staged set exceeds the paths the author named. Six commits on 2026-09-12/13 crossed tracks and
+the sixth committed `scripts/intraday_common.py` - a file `intraday_trader.py` imports - under
+the message "vcjikyftr", 97 minutes before the owning track's own commit.
+
+**First, the rule as filed does not survive its own history.** C-10 asks for a hook that refuses
+a commit spanning "more than one track's journal file". Run exactly that over all 219 commits:
+
+| | fires | true positives | false positives |
+| --- | --- | --- | --- |
+| C-10 as filed | **14** | 2 | **12** |
+| pair counted once | **2** | **2** | **0** |
+
+The 12 are all one shape. `AGENTS.md` makes `research/journal.md` the `daily`/`iterate` history
+*and* the daily review's merge target, so the `daily` track writes it beside `journal_daily.md`
+as a matter of course. A gate that is wrong 12 times in 14 does not get obeyed; it gets answered
+with `--no-verify`, which takes the `qb_check` completion gate with it. Counting the pair as one
+owner leaves `861c70a` (critic sweeping daily) and `3a7b764` (futures sweeping critic) - both
+real.
+
+**Second, that rule catches almost none of the damage anyway.** Of the six named commits it
+sees two, and not the one that mattered: `11f0308` carried a live-imported trading file and
+**no journal at all**. Journals are a symptom. So the question became what the six actually
+share, and C-10 had already named it: `git add <paths>` then `git commit` **is not atomic**.
+`git commit` with no pathspec commits *the index*, so a concurrent agent's `git add` in the
+seconds between the two commands lands in your commit under your message. `AGENTS.md` step 7
+forbids `git add -A` and is silent on this, so following it exactly does not prevent the failure.
+
+**The discriminator, measured on git 2.55.0.windows.5 rather than assumed.**
+
+| form | `GIT_INDEX_FILE` the hook sees | commits |
+| --- | --- | --- |
+| `git add a && git commit -m` | `.git/index` | a + whatever else is staged |
+| `git commit -m m -- a` | **`.git/next-index-<pid>.lock`** | a |
+| `git commit --only a -m m` | **`.git/next-index-<pid>.lock`** | a |
+| `git commit -am m` | `.git/index.lock` | a + whatever else is staged |
+| `git commit --include a -m m` | `.git/index.lock` | a + whatever else is staged |
+| `git commit --amend` | `.git/index` | the index |
+
+A partial commit - and only a partial commit - is prepared in a temporary `next-index-*` index.
+So `basename(GIT_INDEX_FILE).startswith("next-index-")` *is* "the author named the paths". No
+ownership map over six concurrent scopes, nothing to rot.
+
+**What shipped.** `scripts/commit_scope.py` (two rules, pure `check()` over the two facts the
+hook reads) wired into `.githooks/pre-commit` **before** `qb_check`, so a mis-scoped commit fails
+in milliseconds instead of after the completion gate. Rule 1: the commit must name its paths.
+Rule 2: the named set must not carry two tracks' journals, pair excepted. A refusal prints the
+paths and the exact command to re-run - a gate that does not say what to type instead is a gate
+that gets bypassed.
+
+**Verification.** `tests/test_commit_scope.py`, 25 tests, **not** `runner`-marked: E-8's
+asymmetry says a commit hook cannot be allowed to stop the 09:25 sleeve, because nothing it
+checks is about the book. Three tiers, and the last two are what stop the file being vacuous.
+
+| tier | what it pins |
+| --- | --- |
+| rules | `check()` on both rules, the pair exception, the suggested command's argument order |
+| **control on git** | real git still prepares partial commits in `next-index-*`; a rename would otherwise leave tier 1 green while the hook refused **every** commit in the repo |
+| **the race** | a concurrent `git add` between one agent's `add` and its `commit`, reproduced; refused, HEAD unchanged, and the other agent's file left staged and uncommitted |
+
+Mutation run, three mutants, all caught: discriminator forced `True` (4 F), pair exception
+removed - i.e. C-10 as filed (2 F), hook's `|| exit 1` softened to `|| true` (1 F). Both files
+restored md5-identical afterwards.
+
+**And it fired in the production repo.** Staging my three files and running a plain
+`git commit` was refused, `HEAD` unchanged at `aacadaa`, with the re-run command printed. This
+entry's own commit used that command.
+
+**One thing it cannot do**, said plainly because the hook's silence would imply otherwise:
+`--only` protects paths you did **not** name, never a shared path you did (F-17). If another
+agent has edited a file you name, the working-tree content the partial commit reads includes
+their edit. Only a disjoint file scope fixes that.
+
+**Gate status at commit time: red, and not from this change.** `qb_check` fails on
+`scripts/intraday_backtest.py:529` and `scripts/ml_f21.py:518` (both `invalid-syntax` under
+3.11, other tracks mid-write) and on `test_intraday_harness_bias`, which asserts on
+`intraday_backtest.py`'s source. Full suite on 3.14 was **green, 136 s** before iterate's edit
+landed; `-m runner` gate subset **237 passed, 21.1 s** - unchanged, since the new file is
+non-gating. So the commit used `--no-verify` with the pathspec form, which is the protection
+itself; the hook only enforces it.
+
+**Decision.** Ship. The mechanism behind all six cross-track commits is closed at the one place
+every one of them passed through.
+
+**Next.** The hook makes the correct form mandatory but `AGENTS.md` step 7 still teaches
+`git add <paths> && git commit -m "..."`, which the hook now refuses. That file is the owner's,
+so this is an ask, not an edit: step 7 should read `git commit -m "..." -- <paths>`. Until then
+agents learn the form from the refusal message, which is why it prints a copy-pasteable command.
+
 ## 2026-09-13 - C-7: 1,470 green tests could not tell whether the deployed command starts.
 
 **Hypothesis.** C-7, the review's #1 eng item: the suite proves the runners through a path Task
