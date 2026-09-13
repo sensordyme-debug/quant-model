@@ -108,6 +108,7 @@ def isolate_live(tmp_path, monkeypatch):
     so a test can assert on what the runner *would* have recorded.
     """
     import intraday_common
+    import intraday_launch
     import intraday_trader
     import paper_trade
 
@@ -140,6 +141,10 @@ def isolate_live(tmp_path, monkeypatch):
     # source, so neither import style leaks a real write.
     monkeypatch.setattr(intraday_common, "log_event", fake_common_log)
     monkeypatch.setattr(intraday_common, "notify", fake_notify)
+    # intraday_launch does the same import, and E-11 gave it a code path (the background
+    # full-suite report) that logs and alerts from a test's own process.
+    monkeypatch.setattr(intraday_launch, "log_event", fake_common_log)
+    monkeypatch.setattr(intraday_launch, "notify", fake_notify)
     monkeypatch.setattr(intraday_trader, "log_event", fake_common_log)
     monkeypatch.setattr(intraday_trader, "log", fake_intraday_log)
     monkeypatch.setattr(intraday_trader, "notify", fake_notify)

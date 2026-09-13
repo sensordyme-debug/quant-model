@@ -5,16 +5,18 @@
     python scripts/intraday_launch.py --dry-run  # preflight, then live bars without orders
 
 Preflight (any failure -> alert, no trading):
-  1. the runner unit suite (`tests/`) passes - the sizing, gate and book-accounting arithmetic
-     the replay cannot reach (loss limit, HALT files, margin ceiling, shared-constant drift)
+  1. the `runner`-marked tests pass - the sizing, gate and book-accounting arithmetic the
+     replay cannot reach (loss limit, HALT files, margin ceiling, shared-constant drift)
   2. replay the most recent stored session through scripts/intraday_trader.py (exercises the
      exact strategy + execution code that is about to run; catches a broken commit overnight)
   3. IB Gateway reachable and the account is a paper account
   4. live/APPROVED_PAPER.md present and no HALT file
 Then it runs the trader in the foreground until 15:42 ET and forwards its exit code.
 
-Between 1 and 2 the deployed minute store is *reported on* and never gated (E-9). That step
-cannot change the exit code; see `store_warnings`.
+Two steps here *report* and can never gate (they are the E-9 shape, asserted by tests that
+walk this file's AST): the deployed minute store, between 1 and 2 - see `store_warnings` - and
+the rest of the test suite, which runs in a background thread alongside the trader rather than
+in front of it - see `start_full_suite_report`.
 
     python scripts/intraday_launch.py --preflight-only   # run the gates, never launch
 """
@@ -24,6 +26,8 @@ import argparse
 import datetime as dt
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -32,9 +36,10 @@ from intraday_common import DATA_DIR, LIVE, REPO, UNIVERSE, load_bars, log_event
 PY = sys.executable
 TRADER = REPO / "scripts" / "intraday_trader.py"
 CONFIG = LIVE / "intraday_config.json"       # {"strategy": "active", "equity_frac": 1.0, "params": {...}}
-PYTEST_TIMEOUT = 300                         # hang guard; suite is 82 s on 3.14 / 52 s on 3.11
-SUBSET_TIMEOUT = 120                         # the `runner` re-run is ~12 s; only when the suite
-                                             # gives no verdict of its own
+GATE_TIMEOUT = 120                           # hang guard for the gate: `-m runner`, 223 tests,
+                                             # 19 s measured 2026-09-13
+PYTEST_TIMEOUT = 300                         # hang guard for the full-suite REPORT, which runs
+                                             # beside the trader and decides nothing
 
 #: How many closed sessions the replayed day may sit behind the last closed one before the
 #: preflight says so. 1 is a fetcher that skipped a night; 2+ is a fetcher that is not running.
@@ -152,8 +157,8 @@ def store_warnings(day: dt.date | None, *, today: dt.date | None = None,
 
 
 def unit_tests_ok(root: Path = REPO, python: str = PY,
-                  timeout: int = PYTEST_TIMEOUT) -> tuple[bool, str, str]:
-    """Run the runner unit suite. Returns (may_trade, outcome, detail).
+                  timeout: int = GATE_TIMEOUT) -> tuple[bool, str, str]:
+    """Run the `runner`-marked tests. Returns (may_trade, outcome, detail).
 
     The asymmetry here is deliberate and is the whole design of this gate. A failing test means
     the sizing or book arithmetic the trader is about to use is provably wrong, so trading must
@@ -170,15 +175,28 @@ def unit_tests_ok(root: Path = REPO, python: str = PY,
     found whose verdict depends on the machine and not on the code: worker allocation reads
     live free memory, the store validators read the deployed parquet store, and two research
     tests need a parquet engine 3.11 does not have. Any of those would have stopped the
-    sleeve for a day. So on exit 1 the runner-marked subset is re-run and *it* decides; a
-    failure only outside that subset trades with a warning. See `tests/conftest.py`.
+    sleeve for a day. E-10 then closed the way round that refusal, because a hang in the tests
+    that may *not* decide was burning the timeout the ones that may were reached through.
 
-    E-10 closed the way *round* that refusal. A hang is "anything else", so it trades - but the
-    whole suite shares one timeout, and the 216 tests that may decide are a twelve-second slice
-    of the 1,171 that may not. One hung test in any of the other 955, which other tracks add to
-    daily, burned the budget and the sleeve traded on sizing arithmetic that was provably
-    wrong. The abandoned suite is no longer the last word: the subset is asked again on a
-    budget of its own, and `-m runner` deselects whatever hung before it can run.
+    E-11 is the consequence both of those stopped one step short of. Once only the `runner`
+    tests can move the verdict, running the other 996 *first* buys nothing: every reachable
+    (suite, subset) pair maps to the verdict the subset alone gives, with one exception -
+    suite failed + subset unreadable, which refused, i.e. the full suite's sole contribution
+    to this gate was an outage of exactly the shape E-5 forbids. It cost 105 s of a 300 s
+    pre-open window (measured 2026-09-13; 82 s the day before, a suite five tracks grow
+    daily), against 19 s for the tests that decide. So the gate is now the subset, full stop,
+    and the rest of the suite runs as a report beside the trader - `full_suite_report`.
+
+    The mapping is unchanged in substance and is simply no longer reached through 105 s of
+    someone else's tests:
+
+        `runner` test fails (exit 1)  -> refuse, no trading
+        anything else                 -> trade, with a warning
+
+    One new warning matters: `-m runner` collecting nothing means the marker is gone and this
+    gate is DISARMED. E-5 still applies - an unreadable answer is not evidence and must not
+    cause an outage - so it trades, loudly. The alert is the defence, because a test cannot be
+    the defence here: a broken marker deselects the test that would have caught it.
     """
     # If this very interpreter is already running pytest, it is importable by definition; the
     # probe is a second process launch (~1.4 s on Windows) worth skipping. At 09:25 the launcher
@@ -196,74 +214,98 @@ def unit_tests_ok(root: Path = REPO, python: str = PY,
 
     try:
         # no -q here: pytest.ini already sets it, and a second one suppresses the
-        # "126 passed in 35s" summary line that is the whole point of the log record.
-        res = subprocess.run([python, "-m", "pytest", "-p", "no:cacheprovider", "--tb=line"],
+        # "223 passed, 1003 deselected in 18.72s" summary that is the point of the log record.
+        res = subprocess.run([python, "-m", "pytest", "-m", "runner",
+                              "-p", "no:cacheprovider", "--tb=line"],
                              cwd=str(root), capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        # E-10. The suite said nothing - but the 216 tests that are *allowed* to say anything
-        # are a twelve-second slice of it, and `-m runner` deselects whatever hung before it
-        # runs. Abandoning the whole suite therefore threw away an answer that was still
-        # cheaply available, and a failing `runner` test went live behind any hang anywhere in
-        # the other 955. Ask the subset on its own budget; unreadable still trades (E-5).
-        verdict, out = _runner_subset_verdict(root, python, SUBSET_TIMEOUT)
-        if verdict == "failed":
-            return False, "failed", (f"suite exceeded {timeout}s; the live trading path failed "
-                                     f"on its own re-run: {out[-1200:]}")
-        return True, "warn", (f"suite exceeded {timeout}s and was abandoned"
-                              f" (live trading path: {verdict})")
-    except OSError as exc:
-        return True, "warn", f"could not run the suite: {exc}"
+        # E-5: a hang is not evidence about the book. It is now also far harder to reach -
+        # `-m runner` deselects every test this gate does not own, so a hang here is a hang in
+        # the trading path's own tests rather than in whatever another track added last night.
+        return True, "warn", f"the runner tests exceeded {timeout}s and were abandoned"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return True, "warn", f"could not run the runner tests: {exc}"
 
     out = (res.stdout + res.stderr).strip()
     tail = out.splitlines()[-1] if out else f"exit {res.returncode}"
     if res.returncode == 0:
         return True, "passed", tail
     if res.returncode == 1:                     # the only refusal: real assertion failures
-        if _runner_subset_verdict(root, python, min(timeout, SUBSET_TIMEOUT))[0] == "passed":
-            return True, "warn", ("suite failed outside the live trading path, trading anyway: "
-                                  + out[-1200:])
         return False, "failed", out[-1500:]
-    # 2 interrupted, 3 internal error, 4 usage error, 5 nothing collected -> not a verdict
+    if res.returncode == 5 or "no tests ran" in out:
+        # The marker is not registered, so nothing was selected and this gate is not checking
+        # anything. Trading is still the right call (E-5), but it must be said out loud: the
+        # test that would catch a broken marker is itself deselected by the broken marker.
+        return True, "warn", (f"GATE DISARMED: no `runner` tests were collected in {root} "
+                              f"(pytest exit {res.returncode}); the sizing and book arithmetic "
+                              f"was NOT checked this morning. {tail}")
+    # 2 interrupted, 3 internal error, 4 usage error -> not a verdict
     return True, "warn", f"pytest exit {res.returncode}: {tail}"
 
 
-def _runner_subset_verdict(root: Path, python: str, budget: int) -> tuple[str, str]:
-    """Re-run only the `runner`-marked tests. Returns (verdict, output).
+def _low_priority() -> dict:
+    """Keyword args that put a child process below the trader on the CPU, where available."""
+    flag = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", None)
+    return {"creationflags": flag} if flag else {}
 
-    verdict is `"passed"`, `"failed"`, or `"unknown"` - the last when the question could not
-    be answered: the marker is not registered in this repo so nothing was collected, the
-    re-run could not be launched, or it hung too.
 
-    Three-valued on purpose, because the two callers have *opposite* defaults and each has to
-    keep its own when the answer is unreadable:
+def full_suite_report(root: Path = REPO, python: str = PY,
+                      timeout: int = PYTEST_TIMEOUT) -> tuple[str, str]:
+    """Run the whole suite for the record. Returns (outcome, detail) and gates nothing.
 
-        full suite failed (exit 1)   default REFUSE  -> trade only on "passed"
-        full suite timed out         default TRADE   -> refuse only on "failed"
+    E-11. This used to be the gate, and the measurement that ended that is simple: of the 1,226
+    tests in the repo on 2026-09-13, 223 are allowed to stop the sleeve and 1,003 are not, yet
+    the verdict of the 223 was reached *through* 105 s of running all 1,226 - 88% of a 119 s
+    preflight, in a window that closes at the 09:30 open. The suite grew 82 s -> 105 s in a
+    single day under five concurrent tracks, none of which owns this deadline.
 
-    That is one rule, not two: the subset may move the verdict only when it can *prove* the
-    state of the trading path, never when it is merely silent. Collapsing it back to a bool
-    would either resurrect E-5's self-inflicted outages at the first call site or let a hang
-    hide a broken book at the second.
-
-    The re-run gets its own budget rather than what is left of the suite's: it is a sixth of
-    the suite (216 tests in 12 s against 1,171 in 82 s), and the point at the timeout call
-    site is precisely that the deciding tests must not be starved by how long the other 955 -
-    owned by other tracks, and growing - chose to take.
+    The other 1,003 tests are still worth running every morning: they are how a track finds out
+    it broke something overnight. They are just not worth *waiting for*, so they run here, in a
+    background thread, below the trader's priority, and report through the log and the alert
+    file like `store_warnings` does. The outcome vocabulary is deliberately different from
+    `unit_tests_ok`'s - there is no may_trade in it to misread.
     """
     try:
-        res = subprocess.run([python, "-m", "pytest", "-m", "runner",
-                              "-p", "no:cacheprovider", "--tb=line"],
-                             cwd=str(root), capture_output=True, text=True, timeout=budget)
-    except (OSError, subprocess.SubprocessError):
-        return "unknown", ""
+        res = subprocess.run([python, "-m", "pytest", "-p", "no:cacheprovider", "--tb=line"],
+                             cwd=str(root), capture_output=True, text=True, timeout=timeout,
+                             **_low_priority())
+    except subprocess.TimeoutExpired:
+        return "timeout", f"the full suite exceeded {timeout}s and was abandoned"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return "skipped", f"could not run the full suite: {exc}"
     out = (res.stdout + res.stderr).strip()
-    if "no tests ran" in out:
-        return "unknown", out
+    tail = out.splitlines()[-1] if out else f"exit {res.returncode}"
     if res.returncode == 0:
-        return "passed", out
+        return "passed", tail
     if res.returncode == 1:
-        return "failed", out
-    return "unknown", out       # 2-5: collection error, internal, usage error, none collected
+        return "failed", out[-1500:]
+    return "warn", f"pytest exit {res.returncode}: {tail}"
+
+
+def start_full_suite_report(root: Path = REPO, python: str = PY) -> threading.Thread:
+    """Kick off `full_suite_report` beside the trader. Never raises, never gates.
+
+    A daemon thread, so it cannot hold the launcher open, and `main` does not join it except
+    under `--preflight-only` where there is no trader to run and the report is the deliverable.
+    """
+    def run() -> None:
+        t0 = time.time()
+        try:
+            outcome, detail = full_suite_report(root, python)
+        except Exception as exc:  # noqa: BLE001 - a reporter may never take the launcher down
+            outcome, detail = "skipped", f"{type(exc).__name__}: {exc}"
+        secs = round(time.time() - t0, 1)
+        log_event("intraday", "suite_report", outcome=outcome, seconds=secs,
+                  detail=detail[-500:])
+        print(f"full suite report: {outcome} in {secs}s")
+        if outcome in ("failed", "timeout"):
+            notify(f"INTRADAY suite report: the full suite {outcome} after {secs}s. The "
+                   f"`runner` tests passed, so the sleeve is trading; this is off the trading "
+                   f"path. {detail[-300:]}")
+
+    th = threading.Thread(target=run, name="full-suite-report", daemon=True)
+    th.start()
+    return th
 
 
 def main() -> int:
@@ -280,7 +322,8 @@ def main() -> int:
     if cfg.get("params"):
         common += ["--params", json.dumps(cfg["params"])]
 
-    # 1) unit suite: offline, ~35 s, and reaches the guards the replay cannot
+    # 1) the gate: the `runner` tests only, ~19 s, and they reach the guards the replay cannot
+    report: threading.Thread | None = None
     if not args.skip_tests:
         ok, outcome, detail = unit_tests_ok()
         log_event("intraday", "preflight_tests", outcome=outcome, detail=detail[-500:])
@@ -292,6 +335,10 @@ def main() -> int:
               else f"preflight tests OK: {detail}")
         if outcome != "passed":
             notify(f"INTRADAY preflight: unit suite {outcome} ({detail[-200:]}); trading anyway")
+        # 1a) E-11: the other ~1,000 tests are a report, not a gate. Started here so it overlaps
+        # the replay and then the trader instead of standing in front of the open. It cannot
+        # change the exit code; `test_the_suite_report_cannot_change_the_exit_code` pins that.
+        report = start_full_suite_report()
 
     # 2) replay preflight
     if not args.skip_replay:
@@ -333,6 +380,10 @@ def main() -> int:
     # 4) launch
     if args.preflight_only:
         print("preflight-only: all gates passed, not launching")
+        # No trader to run beside, so wait for the report rather than killing it with the
+        # process. Bounded, and the result is a print/log either way - never a return code.
+        if report is not None:
+            report.join(timeout=PYTEST_TIMEOUT + 30)
         return 0
     cmd = [PY, str(TRADER)] + common + (["--dry-run"] if args.dry_run else [])
     log_event("intraday", "launch", cmd=cmd)

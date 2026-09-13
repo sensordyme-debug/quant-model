@@ -12,23 +12,56 @@ collection says nothing about whether the book arithmetic is correct, and an out
 the safety check would be worse than the risk it was added to cover. Every "anything else"
 branch below is therefore a test that the sleeve *still trades*.
 
+E-8 scoped the refusal to the `runner`-marked tests and E-11 made them the only thing the gate
+runs: the other ~1,000 tests could never move the verdict, so waiting 105 s for them in front
+of the 09:30 open bought nothing. They now run as `full_suite_report`, beside the trader.
+
 Each case builds a throwaway repo in tmp_path with its own pytest.ini and points the gate at it,
 so nothing here depends on - or re-runs - the real suite except `test_the_real_suite_passes`.
 """
 from __future__ import annotations
 
 import datetime as dt
+import re
 import subprocess
+import time
 
 import intraday_launch
 import pytest
 
+MARKED_INI = "[pytest]\ntestpaths = tests\nmarkers =\n    runner: live trading path\n"
 
-def make_repo(root, body: str, name: str = "test_sample.py"):
-    """A minimal pytest project at `root` containing one test file."""
+COLLECT_RUNNER = ["-m", "pytest", "-m", "runner", "--collect-only", "-q",
+                  "--continue-on-collection-errors", "-p", "no:cacheprovider"]
+
+
+def _selected_files(stdout: str) -> set[str]:
+    """Module stems `-m runner` actually selected.
+
+    Reading the selection instead of the exit code is the point: with
+    `--continue-on-collection-errors` the exit code describes files this gate does not own.
+
+    Two output shapes, because `-q` is in this repo's addopts and a second one switches
+    `--collect-only` from node ids to a "<path>: <count>" summary; a throwaway repo built by
+    a test has neither. Both are read so the helper says the same thing in both places.
+    """
+    pat = re.compile(r"(\S+\.py)(?:::\S+|:\s*\d+\s*)$")
+    return {re.split(r"[\\/]", m.group(1))[-1].removesuffix(".py")
+            for m in (pat.match(ln.strip()) for ln in stdout.splitlines()) if m}
+
+
+def make_repo(root, body: str, name: str = "test_sample.py", *, marked: bool = True):
+    """A minimal pytest project at `root` containing one test file.
+
+    `marked=True` is the shape of this repo: the `runner` marker is registered and the file
+    carries it, so the gate's `-m runner` selects it. `marked=False` is a repo where the marker
+    has gone missing, which is a case of its own (the gate is then checking nothing).
+    """
     (root / "tests").mkdir(parents=True, exist_ok=True)
-    (root / "pytest.ini").write_text("[pytest]\ntestpaths = tests\n", encoding="utf-8")
-    (root / "tests" / name).write_text(body, encoding="utf-8")
+    (root / "pytest.ini").write_text(MARKED_INI if marked else "[pytest]\ntestpaths = tests\n",
+                                     encoding="utf-8")
+    prefix = "import pytest\n\npytestmark = pytest.mark.runner\n\n" if marked else ""
+    (root / "tests" / name).write_text(prefix + body, encoding="utf-8")
     return root
 
 
@@ -167,18 +200,23 @@ def make_marked_repo(root, *, runner_body: str, other_body: str):
     return root
 
 
-def test_a_failure_outside_the_trading_path_trades_with_a_warning(tmp_path):
+def test_a_failure_outside_the_trading_path_trades(tmp_path):
     """The E-8 case: worker allocation reading live free memory, or a store validator reading
     a store whose overnight fetch died. Neither says the book arithmetic is wrong, and both
-    would have cost the sleeve a full day of paper trading under E-5's mapping."""
+    would have cost the sleeve a full day of paper trading under E-5's mapping.
+
+    E-11 moved *where* it is noticed rather than whether: the gate never sees the failure now
+    because `-m runner` deselects it, and `full_suite_report` is what names it (below).
+    """
     make_marked_repo(tmp_path,
                      runner_body="def test_sizing():\n    assert True\n",
                      other_body="def test_free_memory():\n    assert 1 == 2\n")
-    ok, outcome, detail = intraday_launch.unit_tests_ok(root=tmp_path)
-    assert ok is True
-    assert outcome == "warn"
-    assert "outside the live trading path" in detail
-    assert "test_free_memory" in detail        # the warning still names what broke
+    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path)
+    assert (ok, outcome) == (True, "passed")
+
+    outcome, detail = intraday_launch.full_suite_report(root=tmp_path)
+    assert outcome == "failed"
+    assert "test_free_memory" in detail        # the report still names what broke
 
 
 def test_a_failure_on_the_trading_path_still_refuses(tmp_path):
@@ -199,17 +237,24 @@ def test_both_failing_refuses(tmp_path):
     assert (ok, outcome) == (False, "failed")
 
 
-def test_an_unmarked_repo_refuses_exactly_as_before(tmp_path):
-    """No `runner` marker anywhere -> the subset collects nothing -> the answer is unreadable
-    -> keep E-5's refusal. The narrowing may only downgrade a failure it can *prove* is off
-    the trading path; it must never turn a missing marker into permission to trade."""
-    make_repo(tmp_path, "def test_boom():\n    assert 1 == 2\n")
-    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path)
-    assert (ok, outcome) == (False, "failed")
+def test_an_unmarked_repo_trades_and_says_the_gate_is_disarmed(tmp_path):
+    """No `runner` marker anywhere -> nothing is selected -> the gate checked nothing.
+
+    E-8 refused here, because a failing suite plus an unreadable subset was still a failing
+    suite. With the suite gone from the gate (E-11) there is no failure to weigh, only silence,
+    and E-5 is unambiguous about silence: an unreadable answer is not evidence and must not
+    cause an outage. The defence is the alert, and it has to be a loud one, because the test
+    that would catch a broken marker is itself deselected by the broken marker.
+    """
+    make_repo(tmp_path, "def test_boom():\n    assert 1 == 2\n", marked=False)
+    ok, outcome, detail = intraday_launch.unit_tests_ok(root=tmp_path)
+    assert (ok, outcome) == (True, "warn")
+    assert "DISARMED" in detail
+    assert "NOT checked" in detail
 
 
-def test_the_subset_rerun_only_happens_on_a_failure(tmp_path):
-    """A green morning must still cost exactly one pytest launch."""
+def test_a_green_morning_costs_exactly_one_pytest_launch(tmp_path):
+    """And it is the `-m runner` one: the gate must never run the full suite itself."""
     make_marked_repo(tmp_path,
                      runner_body="def test_sizing():\n    assert True\n",
                      other_body="def test_research():\n    assert True\n")
@@ -217,7 +262,7 @@ def test_the_subset_rerun_only_happens_on_a_failure(tmp_path):
     real = intraday_launch.subprocess.run
 
     def counting(cmd, *a, **k):
-        calls.append(cmd)
+        calls.append(list(cmd))
         return real(cmd, *a, **k)
 
     intraday_launch.subprocess.run = counting
@@ -226,7 +271,10 @@ def test_the_subset_rerun_only_happens_on_a_failure(tmp_path):
     finally:
         intraday_launch.subprocess.run = real
     assert (ok, outcome) == (True, "passed")
-    assert not any("-m" in c and "runner" in c for c in calls if isinstance(c, list))
+    pytest_calls = [c for c in calls if "pytest" in c]
+    assert len(pytest_calls) == 1, pytest_calls
+    cmd = pytest_calls[0]
+    assert cmd[cmd.index("runner") - 1] == "-m", cmd     # the marker expression, not `-m pytest`
 
 
 # --- E-10: a hang in the other 955 tests must not buy a broken book a trading day --------
@@ -251,64 +299,136 @@ def test_a_hang_outside_the_trading_path_cannot_hide_a_broken_book(tmp_path):
 
 
 def test_a_hang_with_a_healthy_trading_path_still_trades(tmp_path):
-    """The other half: E-5's asymmetry is intact. A hang alone is still not a refusal."""
+    """The other half: E-5's asymmetry is intact. A hang alone is still not a refusal.
+
+    Under E-11 the hang is not even waited for - it is deselected - so the morning is green
+    rather than warned. Both halves of E-10 are now properties of `-m runner` itself.
+    """
     make_marked_repo(tmp_path,
                      runner_body="def test_sizing():\n    assert True\n",
                      other_body="import time\n\ndef test_slow():\n    time.sleep(30)\n")
+    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path, timeout=10)
+    assert (ok, outcome) == (True, "passed")
+
+
+def test_a_hang_inside_the_trading_path_still_trades(tmp_path):
+    """The hang that is left. A `runner` test that never returns says nothing about the book
+    either, so it keeps E-5's mapping - and now it is the *only* hang this gate can see."""
+    make_marked_repo(tmp_path,
+                     runner_body="import time\n\ndef test_sizing():\n    time.sleep(30)\n",
+                     other_body="def test_research():\n    assert True\n")
     ok, outcome, detail = intraday_launch.unit_tests_ok(root=tmp_path, timeout=2)
     assert (ok, outcome) == (True, "warn")
-    assert "exceeded" in detail and "passed" in detail
+    assert "exceeded" in detail
 
 
-def test_the_subset_verdict_is_three_valued(tmp_path):
-    """`passed`/`failed`/`unknown` against real pytest. The third value is the load-bearing
-    one: bolted onto a bool, an unreadable subset would have to mean either trade or refuse,
-    and the two call sites need it to mean the opposite things."""
-    cases = {
-        "passed": ("def test_sizing():\n    assert True\n", None),
-        "failed": ("def test_sizing():\n    assert 1 == 2\n", None),
-        "unknown": (None, "def test_research():\n    assert True\n"),   # no marker anywhere
-    }
-    for expected, (runner_body, plain_body) in cases.items():
-        root = tmp_path / expected
-        if runner_body is not None:
-            make_marked_repo(root, runner_body=runner_body,
-                             other_body="def test_research():\n    assert True\n")
-        else:
-            make_repo(root, plain_body)
-        verdict, _ = intraday_launch._runner_subset_verdict(root, intraday_launch.PY, 120)
-        assert verdict == expected
+# --- E-11: the gate stops waiting for the tests that may not decide ----------------------
+
+def test_the_gate_does_not_wait_for_tests_that_cannot_change_its_verdict(tmp_path):
+    """The measurement that ended the full suite's place in the gate, in miniature.
+
+    On 2026-09-13 the preflight was 119 s, of which 105 s was a 1,226-test suite whose verdict
+    the 223 `runner` tests then overrode anyway; the suite had grown 82 s -> 105 s in one day
+    under five concurrent tracks, none of which owns the 09:30 open. Here the "other tracks'
+    tests" take 30 s and the deciding one takes none: the gate must return in well under that
+    and still be right, on a timeout generous enough that only *waiting* could exhaust it.
+    """
+    make_marked_repo(tmp_path,
+                     runner_body="def test_sizing():\n    assert True\n",
+                     other_body="import time\n\ndef test_slow():\n    time.sleep(30)\n")
+    t0 = time.time()
+    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path, timeout=60)
+    elapsed = time.time() - t0
+    assert (ok, outcome) == (True, "passed")
+    assert elapsed < 20, f"the gate waited {elapsed:.0f}s on tests it is not allowed to act on"
 
 
-@pytest.mark.parametrize("verdict, expected", [
-    ("failed", (False, "failed")),     # the only way a timeout may now refuse
-    ("passed", (True, "warn")),
-    ("unknown", (True, "warn")),       # unreadable keeps E-5: a hang is not evidence
+@pytest.mark.parametrize("body, expected", [
+    ("def test_ok():\n    assert True\n", "passed"),
+    ("def test_boom():\n    assert 1 == 2\n", "failed"),
+    ("# nothing here\n", "warn"),                     # exit 5 - a report, so nothing to disarm
 ])
-def test_the_timeout_verdict_mapping_is_total(tmp_path, monkeypatch, verdict, expected):
-    make_repo(tmp_path, "def test_ok():\n    assert True\n")
-    monkeypatch.setattr(intraday_launch.subprocess, "run",
-                        lambda cmd, *a, **k: (_ for _ in ()).throw(
-                            subprocess.TimeoutExpired(cmd, 1)))
-    monkeypatch.setattr(intraday_launch, "_runner_subset_verdict",
-                        lambda *a, **k: (verdict, "subset output"))
-    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path, timeout=1)
-    assert (ok, outcome) == expected
+def test_the_report_maps_every_outcome_without_a_may_trade(tmp_path, body, expected):
+    """`full_suite_report` returns (outcome, detail) and no boolean at all, so there is no
+    verdict in it for a caller to misread as permission to trade."""
+    make_repo(tmp_path, body, marked=False)
+    result = intraday_launch.full_suite_report(root=tmp_path)
+    assert result[0] == expected
+    assert len(result) == 2 and isinstance(result[0], str)
 
 
-def test_the_subset_gets_its_own_budget_not_the_suites_remains(tmp_path, monkeypatch):
-    """The whole point. The suite's timeout is spent by the time we get here, and the tests
-    that decide must not be starved by how long the other tracks' tests chose to take."""
+def test_the_report_runs_the_whole_suite_not_the_gate_subset(tmp_path, monkeypatch):
+    """It exists to see the ~1,000 tests the gate deselects; `-m runner` here would make it
+    a duplicate of the gate and the overnight breakage would go unseen."""
     seen = []
     make_repo(tmp_path, "def test_ok():\n    assert True\n")
     monkeypatch.setattr(intraday_launch.subprocess, "run",
-                        lambda cmd, *a, **k: (_ for _ in ()).throw(
-                            subprocess.TimeoutExpired(cmd, 1)))
-    monkeypatch.setattr(intraday_launch, "_runner_subset_verdict",
-                        lambda root, python, budget: (seen.append(budget), ("passed", ""))[1])
-    intraday_launch.unit_tests_ok(root=tmp_path, timeout=1)
-    assert seen == [intraday_launch.SUBSET_TIMEOUT], \
-        "the subset must not inherit the exhausted suite budget"
+                        lambda cmd, *a, **k: (seen.append((list(cmd), k)),
+                                              subprocess.CompletedProcess(cmd, 0, "1 passed", ""))[1])
+    intraday_launch.full_suite_report(root=tmp_path)
+    cmd, kwargs = seen[0]
+    assert "runner" not in cmd
+    # and it yields the CPU to the trader it runs beside, where the platform offers that
+    if intraday_launch._low_priority():
+        assert kwargs.get("creationflags") == subprocess.BELOW_NORMAL_PRIORITY_CLASS
+
+
+def test_a_hung_report_is_abandoned_not_escalated(tmp_path):
+    make_repo(tmp_path, "import time\n\ndef test_slow():\n    time.sleep(30)\n", marked=False)
+    outcome, detail = intraday_launch.full_suite_report(root=tmp_path, timeout=2)
+    assert outcome == "timeout"
+    assert "exceeded" in detail
+
+
+def test_the_report_thread_never_raises_and_leaves_a_record(tmp_path, monkeypatch, sink):
+    """A reporter that can take the launcher down is worse than no reporter (E-9's rule).
+    The thread runs beside a live trader, so an exception in it must become a log line."""
+    def explode(*a, **k):
+        raise RuntimeError("pytest went away")
+
+    monkeypatch.setattr(intraday_launch, "full_suite_report", explode)
+    intraday_launch.start_full_suite_report(root=tmp_path).join(timeout=30)
+    rec = sink.fields("suite_report")
+    assert rec and rec[-1]["outcome"] == "skipped"
+    assert "pytest went away" in rec[-1]["detail"]
+    assert not sink.alerts, "a broken reporter is not the owner's problem at 09:25"
+
+
+def test_a_failing_report_alerts_but_says_the_sleeve_is_trading(tmp_path, monkeypatch, sink):
+    monkeypatch.setattr(intraday_launch, "full_suite_report",
+                        lambda *a, **k: ("failed", "FAILED tests/test_research.py::test_x"))
+    th = intraday_launch.start_full_suite_report(root=tmp_path)
+    assert th.daemon, "the report must never hold the launcher open"
+    th.join(timeout=30)
+    assert sink.fields("suite_report")[-1]["outcome"] == "failed"
+    assert any("trading" in a for a in sink.alerts), sink.alerts
+    assert any("test_x" in a for a in sink.alerts), sink.alerts
+
+
+def test_the_suite_report_cannot_change_the_exit_code():
+    """E-9's guard, applied to the new report. Read off the launcher rather than trusted:
+    nothing in `main` may branch on the report thread to a `return`."""
+    import ast
+    src = (intraday_launch.REPO / "scripts" / "intraday_launch.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    main = next(n for n in ast.walk(tree)
+                if isinstance(n, ast.FunctionDef) and n.name == "main")
+    assert any(isinstance(n, ast.Call) and getattr(n.func, "id", None) == "start_full_suite_report"
+               for n in ast.walk(main)), "the report must be started every morning"
+    guilty = [ast.dump(s) for s in ast.walk(main)
+              if isinstance(s, ast.If) and "report" in ast.dump(s.test)
+              and any(isinstance(x, ast.Return) and x.value is not None
+                      and getattr(x.value, "value", 0) != 0 for x in ast.walk(s))]
+    assert not guilty, "the full-suite report must never gate the launch"
+
+
+def test_the_gate_decides_before_the_report_is_started():
+    """Order matters for the thing this change is about: the trading decision must not be
+    downstream of anything that takes 105 s and growing."""
+    src = (intraday_launch.REPO / "scripts" / "intraday_launch.py").read_text(encoding="utf-8")
+    main = src[src.index("def main()"):]
+    assert main.index("unit_tests_ok()") < main.index("start_full_suite_report()")
+    assert main.index("start_full_suite_report()") < main.index('str(TRADER), "--replay"')
 
 
 def test_every_runner_importer_is_classified():
@@ -343,16 +463,51 @@ def test_the_gating_set_names_only_files_that_exist():
 
 def test_the_real_suite_marks_the_trading_path():
     """The marker actually reaches items in this repo - a typo in the module names would
-    otherwise leave the gate with an empty subset, which refuses on every failure."""
+    otherwise leave the gate with an empty subset, and the launcher would trade every morning
+    having checked nothing.
+
+    Deliberately indifferent to collection errors elsewhere in the repo. As written before
+    E-11 this asserted `returncode == 0` on a repo-wide collect, and on 2026-09-13 at 06:12
+    that fired for real: the futures track was mid-write on its own test files, five files
+    failed to import, and because THIS file is `runner`-marked the launcher returned exit 4 -
+    a refusal to trade caused by a half-finished edit in a different sleeve. Five tracks write
+    this repo concurrently (AGENTS.md), so 09:25 lands in the middle of somebody's edit
+    eventually. That is the E-8 defect - a gating test whose verdict is a property of the
+    machine rather than of the trading path - and the fix is the same one: ask only about the
+    thing this test is for.
+    """
     import conftest
 
     assert "test_intraday_sizing" in conftest.RUNNER_TESTS
-    res = subprocess.run(
-        [intraday_launch.PY, "-m", "pytest", "-m", "runner", "--collect-only", "-q",
-         "-p", "no:cacheprovider"],
-        cwd=str(intraday_launch.REPO), capture_output=True, text=True, timeout=300)
-    assert res.returncode == 0, res.stdout[-800:] + res.stderr[-400:]
-    assert "no tests ran" not in res.stdout
+    res = subprocess.run([intraday_launch.PY] + COLLECT_RUNNER,
+                         cwd=str(intraday_launch.REPO), capture_output=True, text=True,
+                         timeout=300)
+    selected = _selected_files(res.stdout)
+    assert selected & conftest.RUNNER_TESTS, res.stdout[-800:] + res.stderr[-400:]
+    assert "test_intraday_sizing" in selected, sorted(selected)
+    assert not selected - conftest.RUNNER_TESTS, \
+        f"`-m runner` selected files outside the gating set: {sorted(selected - conftest.RUNNER_TESTS)}"
+
+
+def test_another_tracks_half_written_file_cannot_stop_the_sleeve(tmp_path):
+    """The 06:12 failure, reproduced deterministically rather than waited for.
+
+    A file that will not import somewhere else in `tests/` must leave both the launcher's
+    verdict and the marker check unmoved: the gate trades with a warning (E-5 - a broken test
+    is not a broken book), and the selection still names the trading path's own files.
+    """
+    make_marked_repo(tmp_path,
+                     runner_body="def test_sizing():\n    assert True\n",
+                     other_body="def test_research():\n    assert True\n")
+    (tmp_path / "tests" / "test_other_track.py").write_text("import nonexistent_module_xyz\n",
+                                                            encoding="utf-8")
+    res = subprocess.run([intraday_launch.PY] + COLLECT_RUNNER, cwd=str(tmp_path),
+                         capture_output=True, text=True, timeout=300)
+    assert res.returncode != 0, "the exit code is about the broken file, which is why it is ignored"
+    assert "test_runner_path" in _selected_files(res.stdout), res.stdout[-600:]
+
+    ok, outcome, _ = intraday_launch.unit_tests_ok(root=tmp_path)
+    assert (ok, outcome) == (True, "warn"), "a neighbour's import error is not a refusal"
 
 
 # --- the gate is wired into the launcher, and only where it belongs ----------------------
@@ -372,22 +527,23 @@ def test_the_gate_can_be_skipped_but_is_on_by_default():
     assert "if not args.skip_tests:" in src
 
 
-def test_no_test_here_calls_the_gate_on_this_repo():
-    """Guard rail for whoever extends this file. `unit_tests_ok()` with its default root runs
-    `pytest -q` on THIS repo, which would re-enter this suite and recurse until the machine
-    gives up. Point the gate at a tmp_path repo, always. The real-repo path is verified by
-    running `python scripts/intraday_launch.py --preflight-only` by hand instead."""
+def test_no_test_here_runs_pytest_on_this_repo():
+    """Guard rail for whoever extends this file. Any of these with its default root runs
+    pytest on THIS repo, which would re-enter this suite and recurse until the machine gives
+    up. Point them at a tmp_path repo, always. The real-repo path is verified by running
+    `python scripts/intraday_launch.py --preflight-only` by hand instead."""
     import ast
+    launchers = {"unit_tests_ok", "full_suite_report", "start_full_suite_report"}
     path = intraday_launch.REPO / "tests" / "test_launch_preflight.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     bare = [
-        node.lineno
+        (node.lineno, name)
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
-        and getattr(node.func, "attr", getattr(node.func, "id", None)) == "unit_tests_ok"
-        and not node.args and not node.keywords
+        and (name := getattr(node.func, "attr", getattr(node.func, "id", None))) in launchers
+        and not any(k.arg == "root" for k in node.keywords) and not node.args
     ]
-    assert bare == [], f"lines {bare}: pass root=tmp_path, never the no-argument default"
+    assert bare == [], f"{bare}: pass root=tmp_path, never the no-argument default"
 
 
 # --- E-9: the store report. Runs every morning, and may never stop the sleeve -------------

@@ -1,5 +1,100 @@
 # Journal - eng track (platform engineering). Newest first.
 
+## 2026-09-13 - E-11: the gate's 105 seconds bought one outage. Eleven repo shapes say so.
+
+**Hypothesis.** E-10's next step, asked as a budget question: the morning gate's worst case is
+300 s + 120 s against a 09:25 start and a 09:30 open, so does the full suite belong in front of
+the open at all? The measurement turned it into a correctness question instead, and the answer
+is stronger than "it is slow".
+
+**Today's gate, measured end to end.** 118.7 s, of which the suite is 105 s - **88%**.
+
+| stage | before |
+| --- | --- |
+| full suite (1,226 tests) | **105.0 s** |
+| store report | 2 s |
+| replay preflight | 11.7 s |
+| **to the launch decision** | **118.7 s** |
+
+**The 105 s cannot change the answer.** E-8 scoped the refusal to the `runner` tests and E-10
+made the subset reachable through a timeout, which together mean the verdict is already the
+subset's. Run old against new on every reachable repo shape, real pytest, and the verdict
+differs in **exactly one of eleven**:
+
+| repo at the gate | before | after | before | after |
+| --- | --- | --- | --- | --- |
+| all green | TRADE passed | TRADE passed | 2.1 s | 2.4 s |
+| runner test fails | **REFUSE** | **REFUSE** | 4.5 s | 2.5 s |
+| another track's test fails | TRADE warn | TRADE passed | 3.4 s | 2.3 s |
+| both fail | **REFUSE** | **REFUSE** | 2.9 s | 1.5 s |
+| another track's test hangs | TRADE warn | TRADE passed | 21.5 s | 1.4 s |
+| runner fails + other hangs | **REFUSE** | **REFUSE** | 21.9 s | 2.1 s |
+| the runner tests hang | TRADE warn | TRADE warn | 66.8 s | 20.7 s |
+| collection error, other track | TRADE warn | TRADE warn | 2.3 s | 2.2 s |
+| marker gone, all green | TRADE passed | TRADE warn | 2.0 s | 1.8 s |
+| **marker gone, a test fails** | **REFUSE failed** | **TRADE warn** | 2.5 s | 1.1 s |
+| nothing collected | TRADE warn | TRADE warn | 1.2 s | 1.3 s |
+
+One row moves, and it is a refusal caused by a *missing marker* - no evidence about the book at
+all, which is the self-inflicted outage E-5 exists to forbid. **The full suite's entire
+contribution to this gate was that one outage.**
+
+**And the deadline is not owned by anyone who is growing the suite.** Four measurements inside
+thirty hours, on a Sunday:
+
+| | tests | full suite | `-m runner` |
+| --- | --- | --- | --- |
+| 2026-09-12 (E-10) | 1,171 | 81.6 s | ~12 s |
+| today 04:31 | 1,226 | 105.0 s | 18.7 s |
+| today 06:00 | 1,317 | 134.5 s | - |
+| today 08:55 | **1,470** | **144.7 s** | 19.4 s |
+
+**+25% of the suite in four hours.** `PYTEST_TIMEOUT` is 300 s and five tracks commit to one
+`tests/`; the deciding 230 are flat. Tuning the timeout would have been tuning the wrong number.
+
+**What shipped.** The gate is `-m runner` on its own budget (`GATE_TIMEOUT`), and the rest of
+the suite is `full_suite_report`: a daemon thread started after the verdict, below-normal
+process priority so it yields to the trader, logging `suite_report` and alerting on failure.
+It has the E-9 shape - `main` may not branch on it, pinned by an AST test - and its return type
+has no `may_trade` in it to misread. E-10's three-valued subset probe is **deleted**: it existed
+only because two call sites had opposite defaults, and there is one call site now.
+
+| | before | after |
+| --- | --- | --- |
+| to the launch decision | 118.7 s | **36.3 s** (gate 21.2, store 4.5, replay 10.6) |
+| the other ~1,240 tests | blocking, in front of the open | beside the trader, reported |
+
+A missing marker now trades with a **GATE DISARMED** alert. That has to be an alert and not a
+test, because the test that would catch a broken marker is deselected by the broken marker.
+
+**One defect found by accident, and it was live.** At 06:12 a real `--preflight-only` returned
+**exit 4 - refuse to trade** - because `test_the_real_suite_marks_the_trading_path` asserted
+that a repo-wide `--collect-only` returned 0, and the futures track was mid-write on its own
+test files (5 import errors). A `runner`-marked test whose verdict is a property of *another
+sleeve's unsaved edits*: the E-8 defect, inside the gate's own file, and AGENTS.md guarantees
+five tracks are writing this repo at 09:25. It now reads the **selection** rather than the exit
+code (`--continue-on-collection-errors`), asserts `-m runner` selects exactly `RUNNER_TESTS`,
+and `test_another_tracks_half_written_file_cannot_stop_the_sleeve` reproduces the 06:12 failure
+deterministically instead of waiting for it.
+
+**Verification.** Real `--preflight-only` **exit 0**, replay 2026-09-11, P&L -2,080, 36 trades,
+flat at end - identical to E-9 and E-10. `live/state/intraday_book.json`,
+`live/APPROVED_PAPER.md`, `live/intraday_config.json` byte-identical md5 before and after, no
+HALT file. Suite 3.14 **1,470 passed**, 3.11 unchanged; `test_launch_preflight.py` 55 tests,
+18 s, green on both (3.11: 54 passed, 1 skipped, the pre-existing parquet skip). ruff clean. The 08:55 report run is the design demonstrating itself: the
+full suite **failed** on another track's in-progress `test_qb_multipletest.py`, the gate passed,
+the launcher exited 0, and the alert named the failure - 146 s that nobody waited for.
+`tests/conftest.py` gained two lines: `intraday_launch`'s `log_event`/`notify` were never
+patched by `isolate_live`, which was harmless until this change gave the module a logging path.
+
+**Decision.** Ship. The open is no longer downstream of tests that are not allowed to stop it.
+
+**Next.** Where the remaining 19 s actually is, measured not guessed: collecting all 1,473 to
+deselect 1,243 costs **0.89 s**, so it is execution, and `--durations` puts most of it in
+`test_launch_preflight.py` itself - ~25 real pytest subprocess launches at 0.5-2.0 s each. Not
+urgent against a 300 s window. Resume: `py -3.14 -m pytest -m runner -p no:cacheprovider
+--durations=25`.
+
 ## 2026-09-13 - E-10: E-8 scoped which test may stop the sleeve. Any other test could skip the question.
 
 **What I set out to do.** E-7, the item the last entry left as next: "why is the shared suite 6x
