@@ -79,8 +79,12 @@ EXIT_MINUTE = 372            # 15:42 ET: live loop exits
 #: 2016 share of NVDA at ~1/40th of what it traded at, so sizing a position in dollars buys ~40x
 #: the shares that were really bought - and IBKR charges per SHARE, so the commission model reads
 #: 40x too high (and hits its 1% cap, i.e. 100 bps, on names that split a lot). `factor` is
-#: raw_close / adjusted_close on that date, so real_shares = adjusted_shares / factor. The raw IBKR
-#: store has no such file and every factor is 1.0, which is why this is a no-op for the live trader.
+#: raw_close / adjusted_close on that date, so real_shares = adjusted_shares / factor.
+#: D-5 proved the IBKR store (data/minute) is adjusted too and wrote its file; A-16 corrected the
+#: last consumer that ignored it. What makes this inert for the LIVE trader is not the absence of
+#: the file but the shape of it: every store's MOST RECENT segment is 1.0 by construction (the
+#: current basis is today's), and live code only ever asks about today. Only a reader of HISTORY -
+#: the harness, and the trader's own `--replay` - can land on a factor that is not 1.0.
 SPLITS_FILE = "_splits.json"
 _SPLITS: dict[str, list] | None = None
 

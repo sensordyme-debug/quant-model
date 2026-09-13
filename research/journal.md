@@ -4,6 +4,86 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - A-16 (`iterate` track)
+
+**The trader's own `--replay` was undercharging the sleeve by 29.72% of its cost line, and the
+gate that decides whether the sleeve trades on Monday is a replay.** D-5 taught
+`intraday_backtest.py` to divide an order's share count by `share_scale()` before charging
+IBKR's per-share commission and filed A-16 because one consumer was left behind:
+`SimExecutor.settle` in `scripts/intraday_trader.py`, the executor the replay fills through. It
+is a one-line fix in a file the deployed 09:25 task loads, so it was gated rather than patched:
+`scripts/sweep_a16.py` (8 clauses pre-registered in the docstring), two arms over the deployed
+loop itself, 263 sessions x 2, plus five new tests in `tests/test_costs.py` (a `runner`-marked
+file, so they can stop the sleeve) and the `-m runner` gate green at 241 tests, full suite green.
+
+**The arms are the deployed code, not a copy of it.** `replay()` was split into
+`replay_book()` (returns the finished `Trader`) and a CLI wrapper that prints the line it always
+printed; the sweep calls `replay_book`. The `pre` arm forces `share_scale -> 1.0`, which is
+exactly the old behaviour, so bars, features, strategy and order arithmetic are shared by
+construction and every difference is the defect.
+
+| clause | full store, 2025-08-26..2026-09-11, 263 sessions | pre-A-16 | corrected |
+|---|---|---|---|
+| 3 | cost line | **$58,637.12** ($223/day) | **$76,065.74** ($289/day) |
+| 3 | delta | - | **+$17,428.62, +29.72%, +$66.27/day** |
+| 3 | sessions whose cost moved | - | **208 / 263 (79.1%)** |
+| 8 | replayed sleeve P&L | **+$92/day, t +0.37** | **+$26/day, t +0.10** |
+| 8 | worst day | -$9,879 | **-$10,071** |
+| 8 | paired delta | - | **-$66.27/day, t -16.35** |
+
+**The +29.72% reproduces D-5's harness number (29.8%) on a different code path**, which is the
+cross-check worth having: two implementations, one store, the same answer.
+
+**It is one symbol and one axis.** Clause 4, per symbol over 9,977 fills:
+
+| sym | fills | pre $ | corrected $ | delta $ | delta bps of that side |
+|---|---|---|---|---|---|
+| SOXS | 678 | 4,099.50 | **21,561.45** | **+17,461.95** | **+9.44** |
+| NFLX | 549 | 3,330.02 | 3,296.69 | -33.33 | -0.02 |
+| the other 14 | 8,750 | - | - | **0.00** | 0.00 |
+
+SOXS is a 1-for-20 reverse split on 2026-03-05 stacked on a 1-for-10 on 2026-07-15, so before
+March the store shows **1 share where 200 traded** and the per-share commission was charged on
+the 1. NFLX's 10-for-1 runs the other way and the old code *over*charged it, by a rounding error.
+**Clause 4b puts the replay against A-16's own published figure on D-5's own 131-session window:
+the replay says 16.20 bps/side on SOXS where D-5's harness said 14.63** - same sign, same order,
+11% apart, and the gap is the two books' different SOXS turnover, not a different convention,
+because clause 7 shows all 36 fills of a pinned session reproduce
+`commission(q, px, share_scale(sym, day)) + slippage(q, px)` to $0.0000.
+
+**Two negatives are the deployable content.** Clause 2: the session
+`intraday_launch.last_session()` actually picks (2026-09-11) is **byte-identical in both arms** -
+-$2,080 / 36 trades / $227.83 - so the scheduled task never met the defect and this fix corrects
+nothing that ran. Clause 6: across 263 sessions the corrected cost changed the order list on **0**
+and tripped `DAILY_LOSS_LIMIT` on **0**, so this is a pure cost relabel with no feedback into the
+book. Clause 5: **0 of 9,977** corrected fills bind IBKR's 1% notional cap, which kills the
+intuition that a 200x share count must cap out - at a $1,060 adjusted price the cap is $10.60 a
+share against $1.00 of commission, so **the cap is nowhere near binding and the per-share rate
+sets the whole corrected cost**. That is D-5's lesson ("re-read the cap as well as the rate")
+holding a second time.
+
+**What it changes for the loop.** Nothing deployed moves, and no scheduled task, `live/` file or
+`champion.json` was touched. What moves is a number the sleeve is judged on: **a replay of this
+store is now ~$66/day more expensive than every replay recorded before today**, and the replayed
+263-session book falls from +$92/day to **+$26/day at t +0.10** - indistinguishable from zero,
+which is the honest reading of the intraday sleeve on its execution-matched store. Anyone
+re-reading a hand-run replay from before today should add back the cost of whatever SOXS it
+traded before 2026-07-15.
+
+**The class is closed for this sleeve.** Every `commission(` call site in `scripts/`,
+`algorithms/` and `quant_brain/` was re-read: the intraday sleeve now has exactly two, and they
+disagree on purpose - `SimExecutor` scales because `data/minute` is adjusted, `LiveExecutor` does
+not because IBKR's `commissionReport` is raw. That asymmetry is now asserted from the AST, so a
+refactor that "makes them consistent" fails a `runner` test rather than costing money. The
+remaining unscaled site outside this sleeve is **`scripts/sweep_f3.py:338`, which passes
+`scale=1.0` explicitly while pricing off the LEAN daily store that D-7 proved is adjusted** -
+filed as **F-20** for `ml`, not touched here.
+
+Reusable rule from clause 6: **a cost correction and an order-list correction are different
+claims, and the first does not imply the second.** It was worth 263 paired replays to be able to
+say the book is unchanged, because "costs went up 30%" and "the sleeve traded differently" would
+have needed two different retractions.
+
 ## 2026-09-13 - D-7 (`iterate` track)
 
 **AUD-17's premise is true, its P&L reach is 4x bigger than the axis it names, and its

@@ -33,7 +33,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from intraday_common import (DAILY_LOSS_LIMIT, ET, EXIT_MINUTE, FLATTEN_MINUTE, GROSS_HARD_CAP, LIVE,  # noqa: E402
                              MIN_CHANGE, PER_SYMBOL_HARD_CAP, REPO, UNIVERSE, commission, load_universe,
-                             log_event, slippage)
+                             log_event, share_scale, slippage)
 from intraday_common import notify as _notify  # noqa: E402
 
 sys.path.insert(0, str(REPO / "algorithms" / "intraday"))
@@ -273,7 +273,14 @@ def load_book() -> Book:
 
 # ----------------------------------------------------------------------------- executors
 class SimExecutor:
-    """Replay: fills at the next bar's open plus slippage (same model as the backtester)."""
+    """Replay: fills at the next bar's open plus slippage (same model as the backtester).
+
+    A-16: the per-share commission is charged on the REAL share count, so a store whose prices
+    are split-adjusted must have its order quantity divided by `share_scale()` - exactly what
+    `intraday_backtest.py:205` does. The live path below must NOT do this: `LiveExecutor` prices
+    fills off the raw broker tape, where the quantity already is the real one. The two executors
+    therefore differ here on purpose, and the difference is a property of the data they read.
+    """
 
     def __init__(self, bars: dict[str, pd.DataFrame]):
         self.bars = bars
@@ -293,7 +300,7 @@ class SimExecutor:
             if df is None or t not in df.index:
                 continue
             px = float(df.loc[t, "o"])
-            fills.append((s, q, px, commission(q, px) + slippage(q, px)))
+            fills.append((s, q, px, commission(q, px, share_scale(s, t.date())) + slippage(q, px)))
             del self.pending[s]
         return fills
 
@@ -681,7 +688,13 @@ class Trader:
 
 
 # ----------------------------------------------------------------------------- replay
-def replay(strategy, params, day: dt.date, equity_frac: float, nav: float):
+def replay_book(strategy, params, day: dt.date, equity_frac: float, nav: float) -> "Trader":
+    """The replay itself, returning the finished `Trader` so a study can read its book.
+
+    `replay()` below is the CLI wrapper and prints the same line it always did. The split
+    exists so a measurement (A-16) runs the DEPLOYED loop rather than a copy of it; nothing
+    about the sequence changed.
+    """
     global LOG
     LOG = "intraday-replay"          # replay events go to live/log/intraday-replay-<date>.jsonl, never the live log
     bars = load_universe(UNIVERSE, day - dt.timedelta(days=7), day)
@@ -708,6 +721,11 @@ def replay(strategy, params, day: dt.date, equity_frac: float, nav: float):
     # settle anything pending at the last bar
     for sym, q, px, cost in ex.settle(times[-1]):
         book_fill(trader.book, sym, q, px, cost)
+    return trader
+
+
+def replay(strategy, params, day: dt.date, equity_frac: float, nav: float):
+    trader = replay_book(strategy, params, day, equity_frac, nav)
     print(f"replay {day}: P&L {trader.book.pnl({}):+,.0f} on sleeve equity {nav * equity_frac:,.0f}, "
           f"trades {trader.book.trades}, costs {trader.book.costs:,.0f}, decisions {trader.decisions}, "
           f"open positions at end {trader.book.pos or 'none'}")

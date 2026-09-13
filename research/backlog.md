@@ -2408,18 +2408,30 @@ open work in this file is the two standing measurement jobs** - A-5 part 2, whic
   sleeve that actually makes money, so it is worth more than its one-line audit entry suggests;
   `scripts/fetch_data.py` and `sweep_s19.py`'s 1% cap are both in it. **Opened by D-5: A-16**
   (below).
-- **A-16 (`iterate`, latent): `intraday_trader.py`'s replay path costs the adjusted store as raw,
-  the same defect D-5 just fixed in the harness.** `intraday_trader.py:295` calls
-  `commission(q, px)` with no `scale` while reading `data/minute`, so a replay of any session in an
-  affected window undercharges it - on SOXS, by 14.63 bps/side. **Unreachable from the deployed
-  task**: `intraday_launch.last_session()` always picks the most recent COMPLETE session, which is
-  days old at worst, and every factor in the current segment is 1.0 - proven by the replay being
-  byte-identical with and without the table (-9,489 / 215 / $2,498 / flat). Left unfixed on purpose:
-  the one-line fix edits a runner-loaded file for a path the runner cannot take, so it needs a
-  `--replay` / `compare_orders.py` gate spent on a latent defect. Worth doing the next time the
-  trader is opened for another reason, and worth doing BEFORE any study that replays a pinned
-  historical session through the live code rather than the harness.
-  <!-- added by D-5, 2026-09-13 (iterate). -->
+- **A-16 DONE 2026-09-13 (`iterate` track; see `research/journal.md`): the replay path costed the
+  adjusted store as raw and was undercharging the sleeve by 29.72% of its cost line; fixed and
+  gated.** `SimExecutor.settle` now passes `share_scale()`, `LiveExecutor` still must not, and the
+  asymmetry is asserted from the AST in a `runner`-marked test. Headline from
+  `scripts/sweep_a16.py` (8 pre-registered clauses, 263 sessions x 2 arms through the deployed
+  `replay_book()`): cost line **$58,637 -> $76,066 (+$17,429, +$66.27/day)**, **208/263 sessions**
+  move, and the replayed book falls from **+$92/day t +0.37 to +$26/day t +0.10**. All of it is
+  **SOXS (+9.44 bps/side full store, +16.20 bps/side on D-5's own 131-session window against the
+  14.63 D-5 published)**; NFLX is -$33 and the other fourteen names are exactly $0. The two
+  negatives that make it deployable: the preflight's own session is **byte-identical in both arms**,
+  and across 263 sessions the correction changed the order list on **0** and the loss-limit stop on
+  **0** - a pure cost relabel. **0 of 9,977** corrected fills bind the 1% cap. 5 ledger rows, 5 new
+  tests, `-m runner` 241 green, full suite green. Opens F-20.
+  <!-- added by D-5, 2026-09-13 (iterate); closed by A-16 the same day. -->
+
+- **F-20 (`ml`, opened by A-16 2026-09-13): `scripts/sweep_f3.py:338` passes `scale=1.0`
+  explicitly while pricing off the LEAN daily store D-7 proved is split-adjusted.** A-16 re-read
+  every `commission(` call site in the repo to close the class for the intraday sleeve; this is the
+  one that was left, and the explicit `1.0` means it reads as a decision rather than an omission,
+  so it needs the owning track to say which it is. The daily store's factors reach 1.04e-09 on the
+  inverse-leveraged sleeve (D-9), so unlike the intraday case the error is not bounded by 200x.
+  Cheap to check: F-3's panel is ETF-sleeve only, so the reach is whatever of XLK/XLE/XLF it trades
+  in an affected span, and D-7 already measured those three as the whole of the champion's $5,879.
+  <!-- added by A-16, 2026-09-13 (iterate). -->
 
 - **A-13 DONE 2026-09-12 (`iterate` track; see `research/journal.md`): AUD-21 closed - the harness
   is corrected, the sleeve's eleven-year verdict is not, and the owner has been shown a tail
