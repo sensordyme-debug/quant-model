@@ -17,6 +17,7 @@ Three tiers here, and the last two are what stop the file being vacuous:
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -116,8 +117,18 @@ def test_the_journal_rule_does_not_fire_on_a_shared_file():
 # ------------------------------------------------------- tier 2: control on git's own behaviour
 
 def _git(cwd, *args, **kw):
+    """Run git in `cwd`, isolated from any git environment this process inherited.
+
+    The pre-commit hook runs this suite with `GIT_INDEX_FILE` set, and for the
+    `git commit -- <paths>` form this module *requires* that value is the parent
+    repo's `next-index-*` file. Inherited into these scratch repos it makes their
+    commits read the parent's index - `invalid object ... for '.githooks/pre-commit'`,
+    `error: Error building trees` - so four tests here failed whenever the gate ran
+    from a hook, i.e. on exactly the commit form the gate mandates. Nothing in these
+    repos should come from the caller's git environment, so all of GIT_* goes."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     return subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True,
-                          check=False, **kw)
+                          check=False, env=env, **kw)
 
 
 @pytest.fixture
