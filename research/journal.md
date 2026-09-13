@@ -131,7 +131,7 @@ applied to an already-raw store is the same defect reversed.
 it changes none yet: it is the validated calendar a future fee model needs. Suite green on 3.14
 at **1,488 passed, 7 skipped**. The three items this opens - the fee model, the untradeable
 inverse-ETF history, and the `sweep_s19.py` cap mismatch AUD-17 also names - are filed under
-D-8, D-9 and S-43 rather than done here, because two of them belong to other tracks and the
+D-8, D-9 and S-44 rather than done here, because two of them belong to other tracks and the
 third changes every daily metric.
 
 **Next:** D-9 (the untradeable inverse-ETF history) is the one that can invalidate a conclusion

@@ -1756,7 +1756,7 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   improvement. Ship it inert behind a flag first, then let the `daily` track re-run the gate.
   <!-- added by D-7, 2026-09-13 (iterate). -->
 
-- **S-43 (`daily`, opened by D-7 2026-09-13): `sweep_s19.py:76` calibrates costs against a 1% cap
+- **S-44 (`daily`, opened by D-7 2026-09-13): `sweep_s19.py:76` calibrates costs against a 1% cap
   while LEAN's IB model caps at 0.5%.** The second half of AUD-17, untouched by D-7 because
   `sweep_s19.py` is the daily track's file. D-7 confirmed LEAN's constants from source and then
   from data - `feePerShare 0.005, minimumFee 1, maximumFeeRate 0.005`
@@ -1774,7 +1774,7 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   is **overcharged $5,878.84 (21.61% of its fees)**, only 74% of which is the split axis; 55 of 69
   symbols exceed 1.5 bps of error and SOXS is untradeable on 95.2% of its stored history.
   `scripts/sweep_d7.py` (9 clauses), `algorithms/_d7_feeprobe`, `tests/test_daily_fee_basis.py`
-  (16 tests), `data/daily_splits.json`, 2 DIAGNOSTIC rows. Opens D-8, D-9, S-43.
+  (16 tests), `data/daily_splits.json`, 2 DIAGNOSTIC rows. Opens D-8, D-9, S-44.
   <!-- added by D-7, 2026-09-13 (iterate). -->
 
 **Priority set at the 2026-09-13 review (`research/reports/2026-09-13.md`), in order.** Ten of
@@ -5027,7 +5027,7 @@ carry the owning track in brackets; record each fix in that track's journal and 
   (NVDA **-46.34 bps median** on a $10k order, because its pre-2010 adjusted price is under $1 and
   the 0.5% cap binds), and the adjusted price makes whole-share orders round to **zero** on 10,541
   sessions - SOXS on **95.2%** of its stored history (**D-9**). The `sweep_s19.py` cap half is
-  re-filed as **S-43**. Reusable rule: **a data defect's remedy has to be tested against the
+  re-filed as **S-44**. Reusable rule: **a data defect's remedy has to be tested against the
   consumer, not the store - the factor file was already correct in LEAN's own sample data and the
   fee was still wrong.**
   <!-- D-7, 2026-09-13 (iterate). Original text below. -->
