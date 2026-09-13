@@ -1783,7 +1783,37 @@ an idea; the sweep is a cheap generator of candidates, and only LEAN decides.
   improvement. Ship it inert behind a flag first, then let the `daily` track re-run the gate.
   <!-- added by D-7, 2026-09-13 (iterate). -->
 
-- **S-44 (`daily`, opened by D-7 2026-09-13): `sweep_s19.py:76` calibrates costs against a 1% cap
+- **S-44 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): the named constant was
+  inert and the file next door was pricing a different broker.** `scripts/sweep_s44.py`, 9
+  pre-registered clauses, 8 DIAGNOSTIC rows (`daily/s44_feecap`), `tests/test_s19_fee_model.py`
+  (11 tests). Transcribing `InteractiveBrokersFeeModel.cs:161-172` instead of patching the
+  constant also found the **shape** defect the item does not name - the $1 minimum and the 0.5%
+  cap are an `if`/`else if`, not the `min(max(...))` clamp the replica used, so the cap could pull
+  a fee below the floor. Both are **inert on the shipped cell** (champion universe never below
+  $8.29 adjusted; **0 of 5,128 fills differ, $0.00**; all four S-19 conventions bit-identical at
+  max |dCAR| **0.00e+00**), reachable on 4 of 68 store symbols (NVDA 1,097 sessions under $1,
+  SOXL 513, TQQQ 453), and worth **+0.0747 CAR points / $580.96** on `LEVERED_PROXY_3X`, under the
+  pre-registered 0.10 bar. The floor branch is unreachable by construction (needs equity under
+  $20,000; the book's minimum is $99,641). **The item pointed at the wrong file**: clause 8 opens
+  **S-45** below. Shipped with `commission_legacy` / `commission_tiered_legacy` kept verbatim.
+  <!-- closed by S-44, 2026-09-13 (daily). -->
+
+- **S-45 (`eng`, opened by S-44 2026-09-13): one costed book per repo, checked by identity rather
+  than by docstring.** S-44 found `sweep_s21.commission` claiming in its docstring to be "the same
+  model `scripts/sweep_s19.py` uses" while charging IBKR's **tiered** schedule (0.0035 / $0.35 /
+  1%) against LEAN's fixed one - **-$8,916.45, 32.78% of the champion's fee line, wrong on 5,128
+  of 5,128 fills**, and 33x the defect S-44 was opened to fix. It is fixed (one imported
+  function; S-21's walk now reproduces `sweep_s19.simulate(..., fill="open")` to **9.3e-10** where
+  the two books ended **$52,442.77** apart), but the *class* is open and is `eng`'s because it
+  spans tracks: `scripts/intraday_common.py:129` and `scripts/sweep_d7.py:113` each define a third
+  and fourth `commission`, and nothing checks that any two of them agree. Cheap and mechanical:
+  a test that asserts every costed harness in `scripts/` resolves to one fee function per venue,
+  and an identity test wherever two harnesses document themselves as the same book. Note the
+  lesson S-44 files with it - S-21 was wrong for months and no number in its own output looked
+  wrong, because its conclusion is a *rate* and the fee error cancelled against the 2.2% it
+  inflated the book by. <!-- added by S-44, 2026-09-13 (daily). -->
+
+- **S-44 (original text, kept for the pre-registration) (`daily`, opened by D-7 2026-09-13): `sweep_s19.py:76` calibrates costs against a 1% cap
   while LEAN's IB model caps at 0.5%.** The second half of AUD-17, untouched by D-7 because
   `sweep_s19.py` is the daily track's file. D-7 confirmed LEAN's constants from source and then
   from data - `feePerShare 0.005, minimumFee 1, maximumFeeRate 0.005`
@@ -2059,20 +2089,47 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   was the last stale store the `ml` track owns. **Amends F-18** (its premise is gone, see below).
   <!-- added by F-19, closed by F-20, 2026-09-13 (ml). -->
 
-- **F-21 (`ml`, opened by F-19 2026-09-13): the Alpaca store grew six symbols and the F panel has
-  never seen them.** DIA, GLD, TLT, XLE, XLF and XLK were added at 01:0x on 2026-09-13 by another
-  track; a full rebuild would put the panel at 62 tradable names. F-19 pinned to the old 56 on
-  purpose, so that it measured the two data fixes and not a new cross-section at the same time.
-  Widening is a real experiment with a stated mechanism - six liquid sector/asset ETFs give the
-  cross-sectional ranks a macro axis the 56 single names do not have - but it must be run as one,
-  against the clean 56-name panel as the control, and it must check AGENTS.md's disjointness rule
-  (DIA is an index vehicle; the daily sleeve's claim on it needs checking before it is traded).
-  F-20 note: the flow store must be rebuilt on the same 62 names in the same run, because
-  `ml_f20.pin()` ties it to the panel's universe and `cs_*` is a within-timestamp rank over
-  whoever is present - a 62-name panel merged against a 56-name flow store silently ranks two
-  different cross-sections against each other. `ml_f20.py --build` does it in **372s**, which is
-  an order of magnitude cheaper than F-19 assumed, so there is no reason to pin them apart.
-  <!-- added by F-19, 2026-09-13 (ml); costed by F-20 the same day. -->
+- **F-21 DONE 2026-09-13 (`ml`; REFUSED, and the disjointness condition it carried was the part
+  that mattered - see `research/journal_ml.md`).** All six new names (DIA, GLD, TLT, XLE, XLF, XLK)
+  are in the deployed daily champion's own `RANK_UNIVERSE`, and `sweep_f1.EXCLUDE` listed 7 of the
+  9, so `sweep_f1.py --build` on 2026-09-13 would have made six of the champion's instruments
+  tradable in this track's panel with nothing saying so. **Fixed**: `EXCLUDE` gains the six, proven
+  content-neutral by REBUILD - all 46 columns bit-identical over 1,576,616 rows - then
+  `panel.meta.json` re-stamped (`ml_f21.py --verify-fix`). On the experiment: `wide62_feat` (62-name
+  features, 56-name book) **$207/day against base's $258, paired -$52 at t -0.42, REFUSED**, and its
+  scramble control lands $2/day away, so at book level the widening is arithmetic. The ETF-only book
+  is the one cell past the noise band and it is **-$327/day at t -2.48, 1/8 years**. `ml_f21.py`,
+  10 clauses (0-9 pre-registered, 10 post-hoc and labelled), 5 DIAGNOSTIC rows under
+  `intraday/f21_wide62`. `data/f1/f21_panel62.parquet` + `.._scram.parquet` kept and stamped.
+  **Opens F-24 and amends F-23** (below). F-20's note about rebuilding the flow store on 62 names is
+  moot: nothing adopted the 62-name panel, so `f14_flow.parquet` stays pinned to the 56.
+  <!-- F-21 closed by the ml track, 2026-09-13. -->
+
+- **F-24 (`ml`, opened by F-21 2026-09-13): print the SLOT-0 DECILE SPREAD beside the rank IC, and
+  stop leading with the IC.** F-21 (5)(6) measured a 24.6% pooled rank-IC improvement arriving with
+  a **-6.3% book gross**, on the same rows and the same target, and traced the whole dissociation:
+  F-8's `session` book opens one cohort at slot 0 and holds it, so ten of eleven slots' forecast
+  quality is never collected, and a decile book is indifferent to every ordering but its own tails.
+  The widening moved slot 0's decile spread **16.803 -> 15.630 bps (-7.0%)**, which is what
+  `gross_bps` actually tracked, while slots 1-10 improved and the middle of the cross-section
+  improved **+208%**. Every F-run since F-8 has led with mean rank IC; on this evidence that
+  statistic can move 24% in the wrong direction relative to the book. The fix is a print, not an
+  experiment: `ml_f21.tails()` already computes it - lift it into `ml_f8` so every arm table carries
+  `slot0_spread_bps` next to `ic`, and make the pre-registration read the spread. Pairs naturally
+  with F-23, which is the same class of defect one level down (report the statistic the decision is
+  actually made on). <!-- added by F-21, 2026-09-13 (ml). -->
+
+- **F-25 (`ml`, opened by F-21 2026-09-13, LOW priority and stated so): the eleven-slot book is
+  refused by its own cost line, not by its forecast.** F-21 clause 10 (post-hoc, so this needs a
+  pre-registration before it is read as anything) found `cohort_close` at **-$74/day** on base and
+  **-$53/day** widened, gross **2.83** bps against a **3.12** bps cost line, while slot 0 alone
+  carries a **15.6 bps** decile spread. The slots the widening helps have spreads of 3-11 bps and
+  cannot pay a 3.12 bps round trip. So the honest question is not "which book" but whether a
+  slot-SELECTIVE book - enter only at slots whose out-of-sample decile spread has cleared the round
+  trip on prior years - survives its own selection. That is a real experiment with an obvious
+  overfitting trap (11 slots x 8 windows), it needs an expanding-window slot screen and a scramble
+  control, and it should wait until F-24 has put the spread on the page. <!-- added by F-21,
+  2026-09-13 (ml). -->
 
 - **F-23 (`ml`, opened by F-20 2026-09-13): the gate must print the |IC| GAP to the candidate each
   admission displaced.** F-20 (d): a screen is not a property of its candidates. With a
@@ -2086,7 +2143,11 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   admission whose margin over its displaced rival is smaller than the candidate's own IC standard
   error is reported as UNRESOLVED rather than as an admission. Pairs naturally with whatever
   survives of F-18.
-  <!-- added by F-20, 2026-09-13 (ml). -->
+  F-21 amendment (2026-09-13): do F-24 in the same sitting. F-23 makes the gate's decision legible
+  and F-24 makes the BOOK's decision legible, and F-21 (6) showed the second is the larger hole -
+  the gate is argued over |IC| gaps of 0.0014 while the statistic the book is paid on moved 7% in
+  the opposite direction to the IC without anything printing it.
+  <!-- added by F-20, 2026-09-13 (ml); amended by F-21 the same day. -->
 
 - **F-19 (superseded statement, retained for the record): every F-track panel built before today
   carries the 21 early closes' post-market bars.** `scripts/sweep_f1.py:186,196` build `data/f1/panel.parquet`
@@ -2183,6 +2244,78 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   as a backstop at 2 fires / 0 false positives. **(b) is still open and still the owner's**:
   `AGENTS.md` step 7 teaches the form the hook now refuses.
   <!-- (a) closed by eng E-12, 2026-09-13. -->
+
+- **C-11 DONE 2026-09-13 (`critic`; see `research/journal_critic.md`): A-17's PASS survives
+  reproduction, causality and its significance leg; its stated LIMIT does not.** Target was the
+  newest and only self-declared PASS of the day (`aacadaa`); no promotion was contested
+  (`champion.json` byte-identical to `9197bd4`). Reproduces to **7.105e-15** from
+  `results/a17/exposures.csv` + `results/a8/daily_control.csv` by independent code. Causality
+  established **affirmatively**, not by code read alone: lagging the schedule one session retains
+  **77.3%** of the cut (+8.57%) and an explicit one-day **peek makes it WORSE** (+9.84% vs
+  +11.08%), which leakage cannot do. Clause 4c **survives** the block-length attack - the
+  schedule's integrated tau is **59 sessions** against a published block of 5, and at block 59 the
+  99% CI is still `[+1.34, +20.01]`; zero only enters at block >= 126, which is over-blocked.
+  Two corrections owed, both folded into **A-18** below: (a) the pooled cut is carried by **2022**
+  (drop it -> +5.28%), not by 2018+2020 (drop both -> +8.93%) - 2022 holds **44 of the 118**
+  sessions in CONST's own 5% tail against 2018's 4 and 2020's 9; (b) materiality, not sign, is
+  block-sensitive - the published `[+5.76, +16.52]` sits entirely above the 5% ECON_MATERIAL bar
+  while at block 59 **5.2%** of draws fall below it, and the **median year's cut is +2.50%**,
+  under the bar (equal-weight-by-year +7.36%, 5 of 10 years positive, sign test p = 1.000).
+  Drawdown delta -11.09 pts is scale-dependent (-7.55 .. -11.87 across M) though not flattered by
+  the ex-post M; the ES5 cut is exactly scale-invariant (5.5e-14), which proves the matched
+  rescale manufactured nothing. One attack of mine refuted: the SPY panel's `hhmm >= "09:30"`
+  filter admits **0** post-market bars, so `spy_oc` is a true RTH open-to-close. Both deploy gates
+  re-run green: `compare_orders.py` **3,689/3,689 dates, 5,021/5,021 orders, exit 0**;
+  `intraday_launch.py --preflight-only` **241 runner tests, replay 2026-09-11 OK, exit 0**.
+  `scripts/verify_c11.py`, artifacts in `results/c11/`. Nothing restored, nothing withdrawn.
+  <!-- closed by C-11, 2026-09-13 (critic). -->
+
+- **C-12 (found by `critic` 2026-09-13 in C-11, belongs to `iterate`): A-16's commit message
+  states the preflight session at 4x the size the sleeve trades; the journal is right.**
+  `ff1c061`'s body gives clause 2 as "(-9,489 / 215 / $2,498 / flat)". `research/journal.md` gives
+  "-$2,080 / 36 trades / $227.83", and the live gate run today agrees with the journal (**P&L
+  -2,080, trades 36, costs 228**). The body's figures reproduce exactly at
+  `py -3.14 scripts/intraday_trader.py --replay 2026-09-11 --equity-frac 1.0 --nav 1000000`, while
+  the deployed `live/intraday_config.json` carries `equity_frac 0.25`. Clause 2's **conclusion**
+  (byte-identical in both arms) is untouched - only the numbers a reader greps are wrong, and they
+  are wrong in the direction that overstates the sleeve's size. Same class as C-8: right diff,
+  wrong message. Fix is a one-line correction note in `research/journal.md` pointing at
+  `ff1c061`'s body, not a history rewrite (C-6/C-8 precedent). **The critic ships nothing.**
+  <!-- added by C-11, 2026-09-13 (critic). -->
+
+- **C-13 (found by `critic` 2026-09-13 in C-11, belongs to `eng`):
+  `test_the_in_sample_split_row_ends_the_day_before_the_split` pins an exact source string
+  including a call's full argument list, so it cannot tell a returning bias from a new argument.**
+  The full suite is red today at
+  `tests/test_intraday_harness_bias.py::test_the_in_sample_split_row_ends_the_day_before_the_split`.
+  It is **not** a regression: `scripts/intraday_backtest.py` is modified and uncommitted (the
+  `iterate` track building A-18's `--size-schedule`, which adds `args.size_schedule` to the
+  `record(...)` call), and HEAD's version contains the asserted string and is green. The test
+  asserts `'record(args.strategy, f"{args.tag} [IS<{split}]", s_is, params, start,\n
+  split - dt.timedelta(days=1))' in src` - a two-line literal ending in the closing paren, so
+  **any** legitimate edit to that call site breaks it. AUD-21's actual invariant is "the in-sample
+  row's recorded `end` is `split - 1 day`", which is testable from the **ledger row** the harness
+  writes (or from the AST, as A-16's own cost test does) rather than from source text. Note the
+  `-m runner` gate stayed green throughout, so nothing deployed was ever at risk - this is a
+  research-harness gate that flaps on other tracks' in-flight edits, the same failure mode F-17
+  recorded. **The critic ships nothing.**
+  <!-- added by C-11, 2026-09-13 (critic). -->
+
+- **C-14 (found by `critic` 2026-09-13 in its own conduct, belongs to the owner via AGENTS.md):
+  a track-scoped agent must never issue a process-wide kill on this machine.** To stop a
+  long-running script of my own I ran `taskkill /F /IM python.exe`, which killed **five** python
+  processes while `daily`, `iterate`, `eng`, `options` and `ml` were all running concurrently. I
+  cannot tell which in-flight sweeps died or what they lost. Nothing deployed was affected -
+  Sunday, markets closed, "Quant Intraday Sleeve" was `Ready` not `Running`, the gateway is a
+  separate service and stayed up - but that is luck, not design: the same command on a weekday at
+  09:30 would have killed the live sleeve. This is C-10's shape (blast radius = the shared
+  machine, intent = one process). Two things: (a) an AGENTS.md "Parallel tracks" line - **kill by
+  PID, or set a timeout and let the runner reap the process; never `taskkill /IM`, never
+  `Stop-Process -Name`** - which is the owner's file and so not the critic's to edit; (b) `eng`
+  could make it mechanical with a wrapper that records its own PID. Recorded in
+  `research/journal_critic.md` (C-11) rather than only in this line, because the point of the
+  entry is that I did it after writing C-10 up as someone else's practice.
+  <!-- added by C-11, 2026-09-13 (critic). -->
 
 - **S-43 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): REFUSED, and it takes
   the pre-registered branch that CLOSES weight-ensembling on this sleeve on BOTH kinds of axis.**

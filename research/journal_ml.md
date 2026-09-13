@@ -6,6 +6,148 @@ this track has never shipped a deployed file and does not ask to.
 
 ---
 
+## 2026-09-13 - F-21: the six new names are the DAILY CHAMPION'S OWN, and `sweep_f1.EXCLUDE` was one list short of saying so - a naive `--build` today would have made six of the champion's instruments tradable here. On the experiment itself the widening makes the FORECAST 24.6% better and the BOOK $51/day worse, because 100% of the gain lands in the ten slots the book never trades and the one slot it does trade gets 7.0% worse. REFUSED, and the IC-vs-P&L dissociation is the finding.
+
+**Hypothesis.** F-19 filed the widening with a stated mechanism - six liquid sector/asset ETFs
+(DIA, GLD, TLT, XLE, XLF, XLK, added to the Alpaca store at 01:0x) give the within-timestamp
+`cs_*` ranks a MACRO AXIS that 56 megacaps do not have - and attached a condition: "it must check
+AGENTS.md's disjointness rule ... before it is traded". That condition is clause 1 and it ran
+first, because it decides which arms are even admissible.
+
+`scripts/ml_f21.py`, **5 ledger rows** under `intraday/f21_wide62`, ten clauses; clauses 0-9 were
+pre-registered in the module docstring before a number was read, **clause 10 was added after
+clause 8 and says so in its own docstring**. Run with `INTRADAY_DATA_DIR=data/minute_alpaca`. **No
+shipped or runner-loaded file was touched**, so no deploy gate and no `--replay` is owed.
+`data/f1/panel.parquet` was not modified; the wide panel is a new file beside it.
+
+**(1) Clause 1 FAILS, and it is not a technicality.** All six new names are in the deployed daily
+champion's own traded sleeve:
+
+| | list | names |
+|---|---|---|
+| `sweep_f1.EXCLUDE` | 7 | SPY, QQQ, IWM, TQQQ, UPRO, SQQQ, SPXU |
+| champion `RANK_UNIVERSE` (`algorithms/s1_momo/signals.py:68`) | 9 | SPY, QQQ, IWM, **DIA, XLK, XLF, XLE, TLT, GLD** |
+| `ic.DAILY_SLEEVE_UNIVERSE` | 12 | the nine above plus TMF, TQQQ, UPRO |
+
+**The difference between the first two lists is exactly the six symbols that arrived.** So
+`python scripts/sweep_f1.py --build` on 2026-09-13 would have put six instruments the champion
+holds into this track's tradable set, and nothing anywhere would have said so. The panel is a
+research cache, so no order was ever at risk - but the next run to read it would have been
+measuring a book that breaks AGENTS.md's disjointness rule, and would have had no way to know.
+Every such name is **feature-eligible and trade-ineligible**, whatever it scores.
+
+**(2) The fix, and the proof that it costs nothing.** Clause 9: `EXCLUDE` gains the six. That
+changes `panel_fingerprint()`, which hashes `EXCLUDE`, so after the edit every F-script would warn
+that `panel.parquet` was built by different code - and F-19 exists precisely because that warning
+was missing, so it is not silenced by assertion. `--verify-fix` REBUILDS the 56-name panel under
+the new constant (261 s) and compares it with the file on disk: **all 46 columns identical to the
+bit over 1,576,616 rows.** Only then is `panel.meta.json` re-stamped. The guard changes no number
+this track has ever printed.
+
+**(3) The experiment. REFUSED on the pre-registered hurdle, and the headline is nearly a null.**
+1,933 out-of-sample sessions, 2019-2026, decile 0.10, F-8's `session` book. Clause 3's identity
+passes on every digit: `base56` reproduces F-19's clean base at gross **4.023** bps, cost
+**2.720**, t **+1.203**, net **$258/day**.
+
+| arm | panel | book | gross bps | cost bps | edge | net $/day | t | yrs + | paired vs base56 |
+|---|---|---|---|---|---|---|---|---|---|
+| base56 | 56 | 56 | 4.023 | 2.720 | +1.304 | **258** | +1.20 | 5/8 | - |
+| **wide62_feat** | 62 | 56 | 3.771 | 2.729 | +1.042 | **207** | +0.99 | 5/8 | **-52 (t -0.42)** |
+| wide62_scram (control) | 62 scrambled | 56 | 3.761 | 2.730 | +1.031 | 204 | +0.96 | 5/8 | -54 (t -0.46) |
+| wide62_traded *(diag)* | 62 | 62 | 3.359 | 2.720 | +0.640 | 127 | +0.63 | 5/8 | -132 (t -1.06) |
+| wide62_etfonly *(diag)* | 62 | 6 ETFs | 0.812 | 2.463 | -1.651 | **-327** | **-2.48** | **1/8** | **-586 (t -2.37)** |
+
+Hurdle: net t **+0.99** vs 2.0 (FAIL), 5/8 years (PASS), paired **-$52/day at t -0.42** (FAIL).
+**REFUSE.** And clause 6's yardstick makes the honest reading plainer than the verdict does: F-19
+measured **$176/day** of spread in this same book from a ~1% change in the panel's rows, and every
+admissible effect here is **inside** it. The two cells this run can actually resolve are the ones
+that clear it: the ETF-only book at **-$586/day**, and nothing else.
+
+**(4) Clause 7, the control, lands on top of the arm it controls - $2/day apart.** `wide62_feat`
+-$52/day, `wide62_scram` -$54/day. Permuting the six ETFs' features across sessions within their
+own time-of-day slot - same marginals, same place in every rank denominator and in the label's
+mean, no contemporaneous link to the tape - reproduces the widening's book to within $2. **At the
+book level the widening is arithmetic, not information.**
+
+**(5) And then the IC says the opposite, which is the finding.** Clause 7 is a book statistic. The
+forecast statistic disagrees, and both are right. Scored like for like - **the same 1,152,862 rows,
+the same 56 names, the same target** (the clean panel's `y_close`, so the 62-name demeaning cannot
+flatter anything):
+
+| arm | mean rank IC | t | vs base |
+|---|---|---|---|
+| base56 | +0.01022 | +7.06 | - |
+| wide62_scram | +0.00999 | +6.83 | -0.00023 |
+| **wide62_feat** | **+0.01273** | **+8.89** | **+0.00241 (+24%)** |
+
+The scramble lands on base to the fourth decimal, which is what makes the control credible; the
+real widening beats it by **+0.00261**. So the macro axis IS information. It just does not become
+money - and the raw per-panel IC printed at fit time (+0.01186 at 62 names against +0.00971 at 56)
+is **not** the number that shows it, because that one compares two different targets on two
+different samples and happens to point the same way by luck.
+
+**(6) WHERE the forecast improves, and it is the whole explanation.** F-8's `session` book opens
+ONE cohort, at **slot 0 (09:55)**, and holds it to the flatten. Rank IC is pooled over all eleven
+slots. Decile spread - mean `y` of the top 6 by prediction minus the bottom 6, per timestamp, in
+bps - is the only ordering the book is paid for:
+
+| | base56 | wide62_feat | change |
+|---|---|---|---|
+| full-cross-section rank IC | +0.01022 | +0.01273 | **+24.6%** |
+| decile spread, pooled over 11 slots | 10.255 bps | 10.648 bps | +3.8% |
+| decile spread, **slot 0 only** | **16.803 bps** | **15.630 bps** | **-7.0%** |
+| decile spread, slots 1-10 | - | - | **+0.549 bps** |
+| IC inside the middle the book never holds | +0.00245 | +0.00754 | **+208%** |
+| book gross bps | 4.023 | 3.771 | **-6.3%** |
+
+**The book's -6.3% gross tracks the slot-0 spread's -7.0% and nothing else.** The +24.6% IC is
+bought almost entirely in the middle of the cross-section (+208%) and in the ten slots that never
+open a position. A decile book is indifferent to every ordering except the top and bottom six at
+the minute it trades; rank IC is not.
+
+**(7) Clause 8, feature-importance stability, refutes the stated mechanism directly.** Permutation
+importance per retrain, 8 retrains per panel:
+
+| | 56 names | 62 names |
+|---|---|---|
+| mean pairwise Spearman between retrains | **+0.479** (min +0.026) | **+0.449** (min **-0.182**) |
+| positive in all 8 retrains | 0 of 38 | 1 of 38 |
+| sign-flipping | 29 | 30 |
+| mean rank of the 9 `cs_*` columns | 18.4 / 38 | **18.1 / 38** |
+
+F-19's mechanism requires `cs_*` to move UP. It moves **0.3 places of 38**, and the direction
+inside the family is wrong: the four *directional* ranks all move DOWN (`cs_r3` -2.25, `cs_r12`
+-2.25, `cs_r6` -1.50, `cs_r1` -0.38) while the gain is concentrated in `cs_rvol_ratio` (11.6 ->
+**7.1**), a VOLATILITY rank. Six macro ETFs do not make a megacap's return rank more informative;
+they make its volatility rank more informative. **Stability is also slightly worse at 62 names,
+not better** - the minimum pairwise retrain correlation goes negative.
+
+**(8) Clause 10, POST-HOC and labelled as such.** (6) implies the `cohort_close` book - one entry
+at every slot - should collect what `session` leaves. It does, and it does not help, because those
+slots cannot pay for themselves: base56 **-$74/day**, wide62_feat **-$53/day** (+$21, t +0.55),
+wide62_scram **-$86/day**. The widening beats its scramble by **+$33/day** here, the first place in
+this run where it does so at the book level - and the whole family is negative, at gross **2.83**
+bps against a cost line of **3.12**. The slots where the widening helps have a decile spread of
+**3-11 bps against a 3.12 bps round trip**; slot 0's is 15.6. **Reported, not adopted** - a book
+chosen after the statistic that recommends it is a selection, and this track has refused four
+families on exactly that reasoning.
+
+**Decision. REFUSED.** Nothing adopted, nothing promoted, `champion.json` untouched, no deployed
+file changed, `panel.parquet` unchanged in content. `sweep_f1.EXCLUDE` gains six names as a GUARD,
+proven content-neutral by rebuild. The wide panel and its scramble are kept as
+`data/f1/f21_panel62*.parquet` with a fingerprint stamp, because a successor may want the 62-name
+cross-section as features even though this book cannot pay for it. **F-21 closes.**
+
+**What it changes for the loop. One rule, and it retires a headline this track has printed since
+F-8.** **(e) RANK IC IS NOT THE STATISTIC THIS BOOK MONETISES.** (5) and (6): the widening improved
+pooled rank IC by 24.6% and the book's gross by **-6.3%**, and they disagree because the `session`
+book collects one of eleven slots and only its tails. From here the per-run diagnostic is the
+**slot-0 decile spread**, printed beside the IC - it is what `gross_bps` is a noisy function of,
+`ml_f21.tails` already computes it, and had it been on the page this run would have predicted its
+own book before simulating it.
+
+---
+
 ## 2026-09-13 - F-20: the flow store was NOT the stale part - 0 of 1,570,406 shared rows moved, to the last bit, on all 20 columns. And yet the gate built on it changed 6 of its 8 decisions, because the screen is a property of the PANEL, not of the candidates. F-17's three admitted flow columns are now admitted in ZERO windows, which removes F-18's premise rather than confirming it. Flow is REFUSED a third time, at $197/day against base's $258 - and below its own no-information scramble at $209, for the second run running.
 
 **Hypothesis.** F-19 rebuilt the panel and both auction families and deliberately left the 19-column

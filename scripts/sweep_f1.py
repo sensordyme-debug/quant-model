@@ -70,8 +70,21 @@ OUT = REPO / "data" / "f1"
 PANEL = OUT / "panel.parquet"
 
 MARKET = "SPY"
-#: Index vehicles the daily sleeve holds or inverts. Features only, never traded here.
-EXCLUDE = {"SPY", "QQQ", "IWM", "TQQQ", "UPRO", "SQQQ", "SPXU"}
+#: Instruments this panel may build FEATURES from but must never TRADE, because the deployed daily
+#: champion holds them and AGENTS.md requires the two sleeves' traded universes to stay disjoint.
+#:
+#: F-21 (2026-09-13) found this set one short of the champion's own. It listed the 3x index pairs
+#: and three index ETFs; `algorithms/s1_momo/signals.py:68 RANK_UNIVERSE` is nine names, and the
+#: six the store gained at 01:0x that day - DIA, GLD, TLT, XLE, XLF, XLK - are all of them held by
+#: the champion. Until this line changed, `--build` would have made six of the champion's own
+#: instruments tradable in this track's panel without anything saying so. Adding them reproduces
+#: the 56-name universe every F-run since F-8 has used, bit for bit (F-21 clause 9), so this is a
+#: guard against a future rebuild and not a change to any number on the record.
+#:
+#: Keep this in step with `RANK_UNIVERSE`, `SECTOR_SLEEVE` and `ic.DAILY_SLEEVE_UNIVERSE`;
+#: `scripts/ml_f21.py --check` is the audit that compares them and names any new offender.
+EXCLUDE = {"SPY", "QQQ", "IWM", "TQQQ", "UPRO", "SQQQ", "SPXU",
+           "DIA", "GLD", "TLT", "XLE", "XLF", "XLK"}
 
 BAR = 5                      # minutes per bar
 HOLD = 6                     # bars held = 30 minutes
