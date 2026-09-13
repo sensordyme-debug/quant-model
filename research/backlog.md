@@ -1835,22 +1835,84 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   must be on a *subprocess*, since an in-process import inherits pytest's already-fixed `sys.path`
   and would pass while deployed.
 
-- **S-42 (`daily`, opened by S-41 2026-09-13): the same ensemble trick on the axes where a CAR
-  grid is a fair instrument.** S-41 built the weight-blend of the crisis switch and it failed the
-  promotion bar on return while winning on drawdown - but the switch is a RISK dial, so every
-  column in that comparison is confounded by the drawdown-for-return trade S-40 corrected S-38 on.
-  The clean version of the experiment lives on the axes S-38 labelled FITTED that are *not* risk
-  dials (`mom_lookbacks`, `mom_skip`, `rank_persist`, `entry_mode`/`min_momentum`, `top_n`), where
-  higher CAR at equal drawdown is unambiguously better and an ensemble has nothing to hide behind.
-  Reuse `sweep_s41.py` whole: `sweep_s25.legs_simulate(weights_fn=...)` is in place and clause 1b
-  proves weight extraction is bit-identical to the in-loop call, so the work is a new grid and a
-  new blend, not new machinery. Pre-register the grid before running it, keep the 36-ish cell count
-  so the fractional-boundary arithmetic stays comparable, and carry S-41's clause 3b discipline:
-  **every row on the same session count**. Judge fully charged in S-22 cell C against the shipped
-  cell AND against the walk-forward selector (S-41 clause 7b's framing - the shipped cell is the
-  promotion bar, the selector is the decision bar). Needs no trading day and no owner. **Do not
-  touch `margin_budget`, `target_vol`, `target_exposure` or the drawdown cap.**
-  <!-- added by S-41, 2026-09-13 (daily). -->
+- **C-9 (found by `critic` 2026-09-13 in C-8, belongs to `daily`, fold into S-42): S-41 clause
+  7b's margin measures S-40's selector, not the ensemble - requote it against the fixed cells.**
+  C-8 re-derived every row of clause 7b exactly (licence PASS, no look-ahead, no span or harness
+  mismatch) and then added the control the table omits: a single fixed cell, chosen once and
+  never changed. **23 of 36 fixed cells dominate the walk-forward CAR selector on CAR *and*
+  Sharpe *and* drawdown** (24 of 36 charged), so `+1.587 / +0.163 / -14.858` is a fact about an
+  argmax that picks `1.75`/`2.00` in all 11 years and draws down 38.185%, and not about the
+  blend. Two edits, no new simulation - both numbers are in `results/c8_full.txt`: (a) quote the
+  blend's **rank among the 36** (Sharpe 9 of 36, MaxDD 4 of 36, CAR 23 of 36; charged 9 / 4 / 21)
+  in place of the selector margin; (b) add C-8 clause E, which is a **stronger** argument than
+  the one clause 7b made and which S-41 did not claim - **0 of 36 fixed cells dominate the blend
+  on the FULL window**, and the sets that dominate it on IS (`2.00/20`, `1.60/30`, `1.75/30`,
+  `2.00/15`, `1.75/40`) and on OOS (`1.25/10`, `1.25/20`, `1.40/15`) are **disjoint and at
+  opposite ends of the threshold axis**. Nothing here changes S-41's verdict (not a promotion
+  candidate) and nothing was withdrawn from the ledger. Evidence in `research/journal_critic.md`
+  (C-8). **The critic ships nothing, so this is not fixed.**
+  <!-- added by C-8, 2026-09-13 (critic). -->
+
+- **S-43 (`daily`, opened by S-42 2026-09-13): a rank VOTE instead of a weight AVERAGE - the
+  one construction that could separate the ensemble's gain from its loss.** S-42 priced the
+  36-cell weight-blend on the signal axes and refused it: fully charged it earns 17.482 / 0.986
+  / **23.397** against the shipped 19.640 / 1.047 / 24.037, paired **-0.784 bps/day at t -2.08**
+  (the sleeve's fourth statistic past |t| = 2, and against the candidate). But the two halves of
+  that verdict have different causes and may be separable. The GAIN is real and measured: 0.64
+  drawdown points in **both** windows and **0.69x the turnover** for 0.87x the fees - the first
+  netting saving ever shown on this book, because these cells disagree about membership (name
+  sets identical to the shipped cell on 1.90% of sessions against S-41's 86.83%). The LOSS is
+  **dilution, not cost**: the blend holds 4.88 names against the shipped 2.47 at the same 1.25x
+  gross, so it funds names the momentum score ranked 4th to 9th of nine. Averaging a concentrated
+  ranking IS widening it. The object that keeps the smoothness without the width: blend the 36
+  cells' target weights as now, then **truncate to the shipped `top_n=3` by blended weight and
+  renormalize to the same gross** before executing - an ensemble vote on WHICH THREE, with the
+  concentration the book was built on restored. Pre-register the truncation rule before running
+  it (ties, and what happens when fewer than 3 names carry weight), and run the obvious ladder
+  `keep in {2, 3, 4, 5, all}` so the dilution claim is a dose-response rather than one cell.
+  Reuse `scripts/sweep_s42.py` whole - the 36 weight paths are cached in `results/s42_cache.pkl`,
+  clause 1b's licence holds, and the only new code is the truncation function - and judge on
+  S-41/S-42's identical pre-registered bars (fully charged cell C, Sharpe >= shipped, MaxDD <=
+  shipped, CAR >= shipped - 1.0, on BOTH FULL and OOS), plus clause 8's selector bar. If
+  truncation recovers the CAR while keeping the drawdown and turnover gains, the ensemble was
+  only ever mis-specified and the item becomes a signal-level change plus a LEAN run; if it does
+  not, weight-ensembling is closed on this sleeve on both kinds of axis and should be recorded as
+  such. Needs no trading day and no owner. **Do not touch `margin_budget`, `target_vol`,
+  `target_exposure` or the drawdown cap.**
+  <!-- added by S-42, 2026-09-13 (daily). -->
+
+- **S-42 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): the ensemble loses on
+  the signal axes, and on the way to finding that out it clears the incumbent of the charge S-40
+  convicted the crisis switch of.** New `scripts/sweep_s42.py` (8 clauses pre-registered,
+  `results/s42_full.txt`, 128 DIAGNOSTIC rows `daily/s42_blend`); no LEAN run, **no shared-code
+  change at all** (S-41's `weights_fn` was already in place), `champion.json`, `live/*`, the
+  owner's dials and every scheduled task untouched. Grid as specified: `mom_skip` {2,**5**,10} x
+  `mom_lookbacks[3]` {220,**252**,300} x `top_n` {2,**3**,4,5} = 36 cells, every value from
+  S-38's own list. `rank_persist` and `entry_mode`/`min_momentum` were **excluded with a stated
+  reason** - both are OFF in the shipped book, so a grid over them is an on/off ablation with the
+  incumbent on the boundary, which is a different item. **(a) The by-product, and it is worth
+  more than the hypothesis.** S-40's rank diagnostic re-run on these axes comes out the opposite
+  way round: the shipped cell is **4 of 36 IS and 5 of 36 OOS** (+2.344 and +3.161 against the
+  grid mean) where the crisis-switch cell was 24 of 36 and **1 of 36**. Post hoc and labelled:
+  IS-to-OOS rank correlation is **negative** (Spearman -0.206 / Pearson -0.323 against S-40's
+  +0.208 / +0.330), the IS top-3 land at OOS ranks 18/30/16, and **0 of 36 cells beat the shipped
+  cell on CAR in both halves** - stated with its limit, since the expected count of any
+  both-halves-top-5 cell is 0.69 and one was observed, so what is not at chance is that it is the
+  *pre-specified* incumbent (~1.9% under independence). **AUD-11's inflation lives in the crisis
+  switch, not on the axes that pick names**, and S-38's distance-above-grid-mean for these axes
+  is realized in both halves rather than being hindsight. **(b) The hypothesis.** The ensemble is
+  a **membership** vote exactly as predicted (identical name sets 1.90% of sessions against
+  S-41's 86.83%; 4.88 names against 2.47) and the netting is real for the first time on this book
+  - **0.69x turnover, 0.87x fees, 2.27x orders** against S-41's 1.26x / 0.99x / 1.01x - and it
+  still loses: 17.482 / 0.986 / 23.397 against 19.640 / 1.047 / 24.037 fully charged, Sharpe and
+  CAR FAIL on both windows, MaxDD and the band test PASS. The loss is **dilution, not cost**.
+  **(c) The decision bar diverges from S-41.** Both walk-forward selectors - built here, and as
+  weights paths so the boundary rebalance is a real trade rather than S-40's stitch bound - pick
+  the shipped cell in **0 of 11 years** and lose to it by ~4 CAR points, and the blend beats the
+  selectors (+1.645 / +2.365) but loses to the incumbent. S-41's "better book than choosing a
+  cell" argument does not transfer. Nothing promoted, nothing moved, nothing filed for the owner.
+  Opens **S-43**.
+  <!-- added by S-42, 2026-09-13 (daily). -->
 
 - **S-41 DONE 2026-09-13 (`daily` track; see `research/journal_daily.md`): the ensemble is worth
   having, the sentence it was opened on is not, and the two facts are independent.** New

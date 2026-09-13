@@ -4,6 +4,144 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-13 - S-42: the ensemble loses on the signal axes, and on the way to finding that out it clears the incumbent of the charge S-40 convicted the crisis switch of
+
+**Hypothesis (S-42, opened by S-41).** S-41's weight-blend of the 36-cell crisis-switch grid
+failed the promotion bar on return and won on drawdown - a verdict S-41 itself said was
+confounded, because the crisis switch is a RISK dial and "less CAR, less MaxDD" is a statement
+about exposure rather than about ensembling. S-41 also found the 36 cells held the *identical
+name set* on 86.83% of sessions: that ensemble was "a vote on GROSS", the one shape where
+weight-averaging and return-averaging are the same object. Run the clean version on the axes
+S-38 labelled FITTED that are **not** risk dials, where higher CAR at equal drawdown is
+unambiguously better and the cells disagree about **membership** instead of size.
+
+New `scripts/sweep_s42.py` (8 clauses pre-registered in the docstring before the first
+simulation, `results/s42_full.txt`, 128 DIAGNOSTIC rows `daily/s42_blend`). Grid, every value
+taken from S-38's own list for that axis and the shipped point inside each, 3 x 3 x 4 = **36
+cells** so the count matches S-41 exactly: `mom_skip` {2, **5**, 10} x `mom_lookbacks[3]`
+{220, **252**, 300} x `top_n` {2, **3**, 4, 5}. `rank_persist` and `entry_mode`/`min_momentum`
+are excluded **and the exclusion is a decision, not an omission**: both are OFF in the shipped
+book, so a grid over them is an on/off ablation with the incumbent on the boundary, and an
+ensemble would mix "should the feature exist" with "at what level". No LEAN run, no parameter
+moved, no shared-code change at all - S-41's `weights_fn` was already in place. `champion.json`,
+`live/*`, `margin_budget`, `target_vol`, `target_exposure`, the drawdown cap and every scheduled
+task untouched.
+
+**(1) The licence, and one clause S-41 did not need.** 1a reproduces the deployed cell at
+`delta 0.00e+00 / +0 orders` (22.192150170492%, 5,052). 1b re-earns S-41's weight-extraction
+licence on this grid - extracted weights fed back match to the digit on CAR *and* order count.
+1c is new and is specific to these axes: unlike the regime pair, they **move `history_bars`**
+(5 distinct values, 307 to 360, against a constant 307 in S-41's grid), which would silently
+give cells different session counts and break S-41's own "every row on the same session count"
+rule. Asserted rather than assumed: 2012-01-03 sits at index 3,524 of a 7,213-bar store, so the
+window start dominates `history_bars` and all 36 cells share **one** date set (3,689 FULL /
+1,677 OOS, 1 distinct set each). Every path-fed book is then executed with the *shipped*
+`Params()`, which is exact because `legs_simulate` reads `params` only for `i0` and the traded
+universe once `weights_fn` is supplied - so all 36 cells, both blends and both selectors run
+through one identical rebalance and differ in nothing but their weights.
+
+**(2) The finding that was not the hypothesis, and it is the more valuable half.** Clause 3 is
+S-40's own diagnostic - where does the shipped cell rank in its grid - re-run on the axes that
+pick names. It comes out the **opposite way round**:
+
+| window | shipped CAR | grid mean | vs mean | rank | S-40's crisis switch, same window |
+| --- | --- | --- | --- | --- | --- |
+| IS 2012-2019 | 16.488 | 14.144 | **+2.344** | **4 of 36** | -0.932, **24 of 36** |
+| FULL 2012-2026 | 22.192 | 19.468 | +2.724 | 2 of 36 | +1.341, 14 of 36 |
+| OOS 2020-2026 | 29.124 | 25.963 | **+3.161** | **5 of 36** | +4.260, **1 of 36** |
+
+S-40 found the crisis-switch cell is the **argmax of its own grid on the half labelled OOS and
+below the median on the half labelled IS** - the signature that located AUD-11. The signal cell
+is top-decile on **both** halves and above the grid mean by a similar margin in each. Post hoc
+(clause 3b, labelled as such): IS-to-OOS rank correlation across the 36 cells is **Spearman
+-0.206 / Pearson -0.323** - *negative*, against S-40's +0.208 / +0.330 - the IS top-3 cells land
+at OOS ranks 18, 30 and 16, and **0 of 36 cells beat the shipped cell on CAR in both halves**.
+Said with its own limits, because this is the sentence a critic should attack: on a surface with
+negative cross-half correlation the expected number of cells anywhere in the grid that are
+top-5 in both halves is 36 x (5/36)^2 = **0.69**, and exactly one was observed, so "some cell is
+top-5 twice" is at chance. What is not at chance is that it is the **pre-specified incumbent**:
+for one cell named in advance that is a ~1.9% event under independence and rarer under the
+measured negative correlation. **The selection inflation S-38 priced on this sleeve lives in the
+crisis switch, not on the axes that choose names** - and on these axes S-38's distance-above-
+grid-mean is realized in *both* halves rather than being hindsight.
+
+**(3) The hypothesis itself. The ensemble is a membership vote here, exactly as predicted, and
+it loses anyway.** Clause 4b's pre-registered contrast fires hard: the blend's name set is
+identical to the shipped cell's on **1.90% of FULL sessions (4.15% OOS)** against S-41's 86.83%,
+it holds **4.88 names** against the shipped 2.47, and it owns 2.87 names per session the
+incumbent does not. So this really is the shape weight-blending was supposed to be good at - and
+clause 6 confirms the netting is real, the first time that has been shown on this book:
+
+| FULL, fully charged | orders | ord/yr | turn/yr | fees |
+| --- | --- | --- | --- | --- |
+| shipped | 5,054 | 345 | **49.4** | 19,121 |
+| weight-blend36 | 11,472 | 784 | **33.9** | 16,662 |
+| ratio | 2.27x | - | **0.69x** | 0.87x |
+
+S-41's blend traded 1.26x the orders at 0.99x the turnover; this one trades 2.27x the orders at
+**0.69x** the turnover for 0.87x the fees. Netting 36 membership opinions into one order list
+saves 31% of turnover - the pre-registered "if turnover falls, the netting story is real" branch.
+
+**(4) And it is still refused, fully charged in S-22 cell C.**
+
+| book | FULL CAR / Sharpe / MaxDD | OOS CAR / Sharpe / MaxDD |
+| --- | --- | --- |
+| shipped | 19.640 / 1.047 / 24.037 | 25.967 / 1.151 / 24.040 |
+| weight-blend36 | 17.482 / 0.986 / **23.397** | 23.177 / 1.098 / **23.397** |
+
+Paired against the shipped cell: FULL **-0.784 bps/day at t -2.08**, OOS -0.994 at t -1.54.
+Clause 7: Sharpe FAILS both windows, CAR FAILS both (-2.158 FULL, -2.790 against a -1.0
+allowance), MaxDD PASSES both, band test PASSES (0.086% of target weight below the 0.01x band
+against a 10% bar). **NOT a promotion candidate.** Clause 4c: deleting the shipped cell from the
+grid moves Sharpe by -0.0000 / +0.0012 / -0.0036 - the blend is a property of the ensemble, not
+a costume for the incumbent. Note the FULL t of **-2.08**: this sleeve's fourth statistic past
+|t| = 2 after S-31's arithmetic, S-33's re-selection and S-38's, and it is *against* the
+candidate.
+
+**The mechanism, and it is the reusable rule.** The blend loses 2.158 CAR points while trading
+31% less turnover and paying 13% less commission, so the loss is **not cost - it is dilution**.
+A book that holds 3 names at 1.25x gross and is handed 4.88 instead is funding names the
+momentum score ranked 4th to 9th out of nine, at the same total exposure. On the crisis switch
+the 36 cells agreed on membership and voted on gross, so averaging cost nothing; here they vote
+on membership, and **averaging a concentrated ranking is the same operation as widening it**.
+That is why the drawdown improves (0.64 points, in both windows) and the return does not: the
+blend is a de-concentration dressed as an ensemble.
+
+**(5) The decision bar, clause 8 - and this is where S-42 diverges from S-41 completely.** The
+selector is built here rather than quoted, because these axes had none, and it is built better
+than S-40's: the selection is expressed as a **weights path** (`wf[t] = w of the cell chosen for
+year(t)`) and executed through `weights_fn`, so each boundary switch is a real trade at a real
+spread and S-40's year-stitch bound is gone rather than estimated. 2,684 sessions, fully charged:
+
+| book (2016-01-04..2026-09-04, cell C) | CAR | Sharpe | MaxDD |
+| --- | --- | --- | --- |
+| **shipped** | **21.951** | **1.114** | 24.037 |
+| weight-blend36 | 19.615 | 1.063 | **23.397** |
+| walk-forward, CAR selector | 17.970 | 0.943 | 25.769 |
+| walk-forward, Sharpe selector | 17.251 | 0.989 | 25.172 |
+
+Both selectors pick the shipped cell in **0 of 11 years** (7 and 4 boundary switches) and both
+lose to it by **~4 CAR points** - real-time selection is harmful on these axes too, which is
+what a negative cross-half rank correlation predicts. The blend beats both selectors (+1.645 /
++2.365 CAR, +0.120 / +0.074 Sharpe, -2.4 / -1.8 drawdown points), reproducing S-41's clause 7b
+result. **But unlike S-41, the incumbent beats everything on the decision bar as well as on the
+promotion bar.** S-41's two-sentence verdict was "the blend is not a better cell than the one
+that shipped; it is a better book than choosing a cell". S-42's is one sentence: on the axes
+that choose names, **the cell that shipped is better than the blend and better than choosing** -
+so the ensemble's only remaining argument, that the incumbent is unfindable, does not apply here.
+
+**Decision: nothing promoted, nothing moved, nothing filed for the owner.** The blend is refused
+on its own pre-registered bars. The incumbent's parameters are not touched - they are, if
+anything, better supported than before this ran.
+
+**Next.** The dilution diagnosis is testable and it is the item worth taking: the ensemble's
+gain (0.64 drawdown points, 31% less turnover) and its loss (2.16 CAR points) may be separable,
+because the loss is the blend's **width** and the gain is its **smoothness**. The object that
+keeps one without the other is a rank VOTE rather than a weight AVERAGE - blend the 36 cells'
+rankings, truncate the result to `top_n=3` by blended weight, renormalize to the deployed gross,
+and execute that. If truncation recovers the CAR while keeping the drawdown and turnover gains,
+the ensemble is worth having and it was only ever mis-specified. Filed as **S-43**.
+
 ## 2026-09-13 - S-41: the ensemble is worth having, the reason it was opened is not, and the two facts are independent
 
 **Hypothesis (S-41, opened by S-40).** S-40 proved no real-time selector can find the shipped

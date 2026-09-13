@@ -4,6 +4,31 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - S-42 (`daily` track; full entry in `research/journal_daily.md`)
+
+**The ensemble trick loses on the signal axes, and clears the incumbent of the charge S-40
+convicted the crisis switch of.** S-41 blended the 36-cell crisis-switch grid and found it "a
+vote on GROSS" (identical name sets on 86.83% of sessions); S-42 re-ran it on the axes that
+choose names - `mom_skip` {2,**5**,10} x `mom_lookbacks[3]` {220,**252**,300} x `top_n`
+{2,**3**,4,5}, 36 cells, every value from S-38's own list - through `scripts/sweep_s42.py`, 8
+clauses pre-registered, 128 DIAGNOSTIC rows `daily/s42_blend`, no LEAN run, no shared-code
+change, nothing shipped or owner-owned touched. **The by-product is worth more than the
+hypothesis.** S-40 found the shipped crisis-switch cell ranks 24 of 36 in-sample and 1 of 36
+out-of-sample - the shape that located AUD-11. The shipped *signal* cell ranks **4 of 36 IS and
+5 of 36 OOS**, above its grid mean by +2.344 and +3.161, on a surface whose IS-to-OOS rank
+correlation is **negative** (Spearman -0.206 against S-40's +0.208), where the IS top-3 land at
+OOS ranks 18/30/16 and **0 of 36 cells beat it on CAR in both halves**: the sleeve's selection
+inflation lives in the crisis switch, not on the axes that pick names. The blend itself behaved
+exactly as predicted and still lost - a membership vote (identical name sets on 1.90% of
+sessions, 4.88 names against 2.47) that nets **0.69x the turnover** for 0.87x the fees, the
+first real netting saving measured on this book, and still **17.482 / 0.986 / 23.397 against
+19.640 / 1.047 / 24.037** fully charged, paired **-0.784 bps/day at t -2.08**. The loss is not
+cost, it is dilution: averaging a concentrated ranking is the same operation as widening it.
+Unlike S-41, the incumbent also wins the *decision* bar - both walk-forward selectors pick it in
+0 of 11 years and lose to it by ~4 CAR points, and it beats the blend too. Nothing promoted,
+nothing moved, nothing filed for the owner. Opens **S-43** (rank vote instead of weight average:
+blend, truncate to `top_n=3`, renormalize).
+
 ## 2026-09-13 - D-6 (`iterate` track)
 
 **AUD-07's store half CONFIRMED, FIXED, and LATENT - and the audit's own sentence about it is no

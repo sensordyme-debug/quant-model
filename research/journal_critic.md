@@ -7,6 +7,163 @@ nothing and it ships nothing.
 
 ---
 
+## 2026-09-13 - C-8: S-41's conclusion survives and its evidence does not. Clause 7b's +1.587 / +0.163 / -14.858 margin over the walk-forward selector is not evidence about the ensemble, because **23 of 36 FIXED cells already dominate that same selector on all three metrics** - the margin measures S-40's argmax, not the blend. The blend's real case is the rank table S-41 never printed (Sharpe 9 of 36, MaxDD 4 of 36, CAR 23 of 36), and the strongest thing in its favour is one this entry had to find for it: on the FULL window **no fixed cell dominates it**, and the cells that dominate it on IS and on OOS are **disjoint sets**
+
+**Target, and why this one.** No promotion is contested. `research/champion.json` is
+byte-identical to its last commit (`9197bd4`, S-31); nothing in the last 24 hours asks to move
+it, and every track's entry today either refuses (F-17's pooled arm below its own scramble
+control, O-8 on both legs, S-41 on its own clause 7 bar) or ships platform code (D-6, E-11). So
+the brief falls to the strongest *claim*. S-41 clause 7b is the only positive research
+conclusion of the day that reaches a decision, and it is stated as one:
+
+> "The blend is not a better cell than the one that shipped. It is a better book than CHOOSING
+> a cell - which is the only thing on offer to anyone deciding this dial today without S-40's
+> hindsight."
+
+**What is NOT the attack.** S-41 withdraws its own opening sentence (the 1.173-vs-1.159 span
+mismatch), prints that it fails its own promotion bar on CAR and Sharpe in both windows, says
+the drawdown prize halves once charged, runs the leave-the-shipped-cell-out control (clause 4b,
+±0.005 Sharpe), and names the mechanism as the fractional risk-off boundary rather than
+diversification. An entry that reports its own weak points does not get attacked on them.
+
+**The attack, declared in `scripts/verify_c8.py`'s docstring with its verdict rule before a
+number was read.** Clause 7b's table holds exactly ONE no-selection alternative - the 36-cell
+blend - against two selectors and two hindsight books. It omits the cheapest no-selection
+alternative in existence, the one that needs no ensemble, no change to
+`algorithms/s1_momo/signals.py` and no second LEAN run: **pick one cell on 2015-12-31 and never
+touch it.** That is exactly as available to "anyone deciding this dial today" as the blend is,
+and S-40's own grid supplies 36 of them.
+
+**(1) LICENCE - and it passes cleanly, which is itself worth recording.** Clause 7b splices rows
+from two harnesses: the blend from S-41, the selectors from S-40. That is the same shape as the
+defect S-41 caught in its own premise, so it was checked first. All five rows re-derive from
+`results/s40_cache.pkl` and `results/s41_cache.pkl` to the printed digit on all three statistics
+at 2,684 sessions, and the two walk-forward books were **re-selected from scratch** here rather
+than quoted - same 11 picks under both objectives, shipped cell chosen 0 of 11 times.
+
+| row | sess | CAR% | Sharpe | MaxDD% | printed |
+| --- | --- | --- | --- | --- | --- |
+| shipped | 2684 | 24.705 | 1.228 | 23.860 | ok |
+| off | 2684 | 28.021 | 1.169 | 36.619 | ok |
+| blend36 | 2684 | 22.932 | 1.174 | 23.327 | ok |
+| walk-forward (CAR) | 2684 | 21.345 | 1.011 | 38.185 | ok |
+| walk-forward (Sharpe) | 2684 | 21.046 | 1.000 | 38.185 | ok |
+
+The identical 38.185% for two selectors that pick different cells in 2023-2026 is **not** a
+copied number: both hold `2.00/20` through 2020, and the drawdown is the 2020 crash.
+
+**(2) CAUSALITY - clause 2's purity licence is sound in the source, not just in the one cell
+clause 1b proves it for.** The 36 weight paths are extracted against a FLAT equity curve. That
+is only legitimate if the drawdown overlay can never reach the weights, and clause 1b proves it
+end-to-end for the shipped cell alone. Read out of `signals.py:drawdown_multiplier`: `last > 0`
+and `peak = max(state_peak, last) >= last`, so `dd = 1 - last/peak` lies in `[0, 1)`; at
+`dd_halve = dd_flat = 9.0` with `dd_mode="step"` neither branch is reachable and the function
+returns `1.0` on every session. `equity_curve`'s only consumer in `target_weights` is that call.
+No cell in the grid moves those three parameters, so the licence extends to all 36 by arithmetic.
+Weights at session `i` are computed from `closes.iloc[lo:i]` - bars strictly before the decision
+bar. **No look-ahead found.**
+
+**(3) THE ATTACK LANDS. 23 of 36 fixed cells dominate the walk-forward CAR selector on CAR AND
+Sharpe AND drawdown** (24 of 36 against the Sharpe selector), on the identical span, zero cost.
+Charged in S-22 cell C it is 24 of 36 and 25 of 36. Beating that selector is not the hard part -
+it is what two thirds of the grid does by standing still. The selector's problem is legible in
+clause 1's picks: it chooses `1.75` or `2.00` in all 11 years, i.e. a switch that barely fires,
+and lands a **38.185%** drawdown that is worse than turning the switch off entirely (36.619%).
+So clause 7b's `+1.587 / +0.163 / -14.858` is a measurement of S-40's argmax, which S-40 already
+published, and not a measurement of the ensemble.
+
+**(4) THE BLEND'S REAL CASE, which is the table S-41 should have printed.** Its rank among the
+36 fixed cells on the identical 2,684 sessions, 1 = best:
+
+| metric | zero cost | charged (cell C) | blend | median cell | best cell |
+| --- | --- | --- | --- | --- | --- |
+| CAR | **23 of 36** | **21 of 36** | 22.932 / 20.293 | 23.204 / 20.402 | 25.645 / 22.756 |
+| Sharpe | **9 of 36** | **9 of 36** | 1.174 / 1.061 | 1.137 / 1.022 | 1.252 / 1.147 |
+| MaxDD | **4 of 36** | **4 of 36** | 23.327 / 23.751 | 24.141 / 24.677 | 15.739 / 15.910 |
+
+The pre-registered verdict is **PARTIAL** in both cost cells and does not move when the 2 bp
+spread and the financing are charged: *the sentence is true, the table supporting it is the
+wrong table.* The blend is top-quartile on Sharpe (exactly at the bar) and 4th of 36 on
+drawdown, and it is **below the median cell on CAR** - which is S-41's own clause 7 refusal
+arriving by a second road.
+
+**(5) IS IT JUST EXPOSURE? Mostly not, but neither leg reaches one sigma.** Regressing each
+metric on mean gross across the 36 fixed cells and reading the blend against that line: MaxDD
+sits **-2.963 points below** it (-0.69 sd of the cells' own residuals, slope +37.4, r 0.615),
+Sharpe **+0.048 above** (+0.69 sd), CAR **+0.196 above** (+0.13 sd). The fractional risk-off
+boundary buys something the gross alone does not, and it is under a sigma of the scatter it is
+measured against.
+
+**(6) THE THING THAT CUTS THE OTHER WAY, and S-41 did not claim it.** Post hoc, labelled as
+such: does any single `Params()` dominate the blend outright?
+
+| window | cells of 36 dominating blend36 | the dominating set |
+| --- | --- | --- |
+| 2,684 WF span, zero cost | 1 | `thr=1.25 win=20` |
+| **FULL 3,689, zero cost** | **0** | - |
+| FULL 3,689, charged | 1 | `thr=1.40 win=15` |
+| IS 2012-2019 | 5 | `2.00/20`, `1.60/30`, `1.75/30`, `2.00/15`, `1.75/40` |
+| OOS 2020-2026 | 3 | `1.25/10`, `1.25/20`, `1.40/15` |
+| OOS charged | **0** | - |
+
+**The IS and OOS dominating sets are disjoint, and they sit at opposite ends of the threshold
+axis** - high thresholds win the first half, low thresholds the second. No fixed cell dominates
+the blend in both halves, and on the full window none dominates it at all. That is the
+ensemble's actual argument and it is stronger than the one clause 7b made, because it is a
+statement about the fixed cells' instability rather than about one selector's badness. It also
+re-frames the single cell that beats the blend on the WF span: `thr=1.25 win=20` was chosen
+here with the same hindsight S-40 disqualified the shipped cell for, and clause 1's picks show
+a real-time selector never goes near `1.25` in any of the 11 years.
+
+**(7) The controls the brief asks for, all at HEAD `a529b4f`, after a day in which six tracks
+edited shared and runner-loaded code.**
+
+| control | result |
+| --- | --- |
+| LEAN champion run | **OrderListHash `a6d6224ce9c70091e5bfa8e96f046bf3`**, 5,128 orders, 24.403% / 0.994 / DD 23.700% / $27,199.76 - identical to `champion.json` (run `20260913T104055Z`) |
+| I-1 deploy gate `compare_orders.py` | **PASS** 3,689 / 3,689 dates, 5,021 orders both sides |
+| `pytest -m runner` | **222 passed, 1 skipped** |
+| `champion.json` vs git | byte-identical to `9197bd4` |
+
+Two housekeeping notes on that table. The control's ledger row is tagged **`C-7 critic control`**
+because it was run before I checked the backlog and found `C-7` already taken by the `eng` item
+C-6 opened; the run is this entry's, the timestamp `20260913T104055Z` identifies it, and the
+number is the one that matters. And **`research/experiments.jsonl` is deliberately NOT in this
+commit**: at the time of writing it carries 130 uncommitted rows belonging to the `daily` track
+(S-42) and the `iterate` track (D-7, AUD-17), and sweeping those into a critic commit is exactly
+the practice recorded four times today. My row rides along with whoever commits the ledger next.
+
+The gate and the hash matter this morning specifically, because `30abec5` - message
+*"options: O-8 - the 0DTE put wing does not forecast the day's downside tail"* - changed
+`scripts/paper_trade.py`, `scripts/intraday_trader.py` and three `quant_brain/core` modules, and
+`a529b4f` changed `scripts/intraday_common.py`, which the live trader imports. Both gates pass
+on the merged tree. **That is the fourth commit in one day carrying another track's files under
+a message that does not mention them**; the three earlier ones are recorded in `journal_critic.md`
+(C-6), `journal_futures.md` and `journal_options.md`.
+
+**Decision: S-41 SURVIVES. Nothing is restored, nothing is tagged `not promotable`, and no
+ledger row is withdrawn.** S-41 promoted nothing, so there is nothing to roll back; its verdict
+(not a promotion candidate) is confirmed from the adversarial side and by a second route. What
+is wrong is the *evidence* for its closing sentence, not the sentence, and the correction is
+additive: clause 7b's margin should be read as a fact about S-40's selector, and the blend's
+case should be quoted as its rank among the fixed cells plus the disjointness in (6). Filed as
+**C-9** for the `daily` track to fold into S-42.
+
+**What I tried that did NOT land, stated so the next critic does not repeat it.** (a) The
+harness-mismatch attack on clause 7b's two-source table - all five rows reproduce exactly.
+(b) The identical-38.185% coincidence - explained, both selectors hold `2.00/20` through 2020.
+(c) Look-ahead in the flat-curve weight extraction - the purity licence is sound by arithmetic
+for all 36 cells. (d) The cost attack - the blend costs *less* than the shipped cell
+(-2.436 CAR points against -2.552) because its turnover is 0.99x despite 1.26x the orders, so
+charging moves the comparison in the blend's favour, not against it. (e) Grid-support
+dependence - the grid is S-40's, pre-registered, and clause 4b already removes the shipped cell;
+a shifted grid would be a new hypothesis, which this track does not run.
+
+Reproduce with `py -3.11 scripts/verify_c8.py --stage all` (`results/c8_full.txt`).
+`--stage ab` is cache-only and takes about 20 s.
+
+---
+
 ## 2026-09-13 - C-6: O-7 survives every attack I brought, including the one its own pre-registration invites. The thing that did not survive is the deploy gate I was sent to check: `paper_trade.py` had been unable to START for 83 minutes before two commits reported the gate passing, and the guard that would have prevented it was already in the file, sitting under the import it was written to protect
 
 **Provenance note (written after the fact).** C-6's four files - `scripts/verify_c6.py`,
