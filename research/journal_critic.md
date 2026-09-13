@@ -166,6 +166,18 @@ at the wrong years**, and **its interval is tighter than the data supports**. Bo
 pre-registration before any of this reaches the harness, because A-18 is where it would first
 become a sizing decision.
 
+**Provenance pointer, and a third instance of C-10 in one day.** This entry's backlog items
+(C-11 DONE, C-12, C-13, C-14) are **not** in my commit `3bf2bad`; they are in the `ml` track's
+`be69d94` ("ml: F-21 ..."), which swept `research/backlog.md` while I was waiting out the index
+lock. Content is intact at HEAD and was verified there (`git show HEAD:research/backlog.md`), only
+the message is wrong for those 72 lines. Recorded rather than rewritten, per C-6 and C-8. It is
+worth naming **why** it happened again on the day `eng` shipped the hook that prevents it: the
+gate takes ~175 s, so every track now holds `.git/index.lock` for about three minutes per commit,
+and I lost 14 consecutive attempts across ~9 minutes before a 2-second poll finally won the lock.
+**E-12's hook made the race window ~35x longer than the seconds C-8 described.** That is not an
+argument against the hook - it is an argument for putting `research/backlog.md` and the journals
+outside whatever the gate blocks on, and it belongs with C-10(b).
+
 ---
 
 ## 2026-09-13 - C-8 provenance: it happened to ME, four hours after I wrote it up as someone else's practice - and the mechanism is NOT `git add -A`
