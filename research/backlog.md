@@ -1853,15 +1853,35 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   (C-8). **The critic ships nothing, so this is not fixed.**
   <!-- added by C-8, 2026-09-13 (critic). -->
 
+- **C-10 (found by `critic` 2026-09-13 in C-8, belongs to `eng`): `git add <paths>` then
+  `git commit` is NOT atomic in a tree six tracks share, and that - not `git add -A` - is the
+  mechanism behind all five cross-track commits today.** C-8's own commit `861c70a` swept the
+  `daily` track's `journal.md`, `journal_daily.md`, `sweep_s42.py` and backlog edits under a
+  `critic:` message **after** `git status` had been checked and showed only my three files: a
+  concurrent `git add` landed in the seconds between the two commands, and `git commit` with no
+  pathspec commits **the index**, not what you staged. AGENTS.md step 7 forbids `git add -A` and
+  is silent on this, so following it exactly does not prevent the failure. **The fix is
+  `git commit -m "..." -- <paths>`**, which reads the named paths from the working tree and
+  ignores the rest of the index; `7c54074` is the demonstration - it took 1 file with 2 of
+  another track's files dirty. Argument order is load-bearing (`-- <paths> -m "..."` fails,
+  everything after `--` is a path). Two things for `eng`: (a) a `pre-commit` hook that refuses a
+  commit whose staged set spans more than one track's journal file, and (b) an AGENTS.md step-7
+  amendment, which is the owner's file and so not the critic's to edit. Evidence in
+  `research/journal_critic.md` (C-8 provenance). **The critic ships nothing, so this is not fixed.**
+  <!-- added by C-8, 2026-09-13 (critic). -->
+
 - **S-43 (`daily`, opened by S-42 2026-09-13): a rank VOTE instead of a weight AVERAGE - the
   one construction that could separate the ensemble's gain from its loss.** S-42 priced the
   36-cell weight-blend on the signal axes and refused it: fully charged it earns 17.482 / 0.986
   / **23.397** against the shipped 19.640 / 1.047 / 24.037, paired **-0.784 bps/day at t -2.08**
   (the sleeve's fourth statistic past |t| = 2, and against the candidate). But the two halves of
-  that verdict have different causes and may be separable. The GAIN is real and measured: 0.64
-  drawdown points in **both** windows and **0.69x the turnover** for 0.87x the fees - the first
-  netting saving ever shown on this book, because these cells disagree about membership (name
-  sets identical to the shipped cell on 1.90% of sessions against S-41's 86.83%). The LOSS is
+  that verdict have different causes and may be separable. The GAIN is measured but **smaller
+  than it first looked**: 0.64 drawdown points in both windows, which S-42's clause 8b then
+  showed is only **rank 17 of 36** among the cells the blend averages, plus **0.69x the
+  turnover** for 0.87x the fees - the latter is the first netting saving ever shown on this book
+  and the only part of the gain that is distinctive, because these cells disagree about
+  membership (name sets identical to the shipped cell on 1.90% of sessions against S-41's
+  86.83%). Take this item as a test of the MECHANISM, not as a search for a book. The LOSS is
   **dilution, not cost**: the blend holds 4.88 names against the shipped 2.47 at the same 1.25x
   gross, so it funds names the momentum score ranked 4th to 9th of nine. Averaging a concentrated
   ranking IS widening it. The object that keeps the smoothness without the width: blend the 36
