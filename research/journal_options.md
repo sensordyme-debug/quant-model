@@ -153,9 +153,27 @@ is that **commit `30abec5` carries this item's commit message but seven files be
 `tests/test_qb_adapter.py`, `tests/test_qb_mode.py`) and **none of O-8's**. Nothing was lost and
 nothing of another track's was altered - only the message is attached to the wrong files. History
 was deliberately NOT rewritten (other agents are committing against this branch right now, and an
-amend would move a commit out from under them); O-8's own four paths are committed separately in
-the commit that follows this line, which is the one to read for this item. Same failure mode and
-same remedy as `C-6` on 2026-09-12.
+amend would move a commit out from under them). Same failure mode and same remedy as `C-6` on
+2026-09-12.
+
+**Where O-8's four paths actually landed**, since the race continued and scattered them - this is
+the accurate map, and it supersedes the sentence above that promised a single following commit:
+
+| path | landed in | under whose message |
+|---|---|---|
+| `scripts/sweep_o8.py` | `b749cbb` | `futures`/topstep |
+| `research/journal_options.md` (this entry) | `b749cbb` | `futures`/topstep |
+| `research/backlog.md` (the O-8 item) | `2aa33f5` | this track's own |
+| `research/experiments.jsonl` (21 `odte_o8_tail` rows) | `43816d1` | `ml`/F-17 |
+
+`2aa33f5` also recorded a 16-line **deletion of the `daily` track's S-41 item**, which was added
+during the lock storm and was absent from the working tree this track committed from. That was
+collateral and is repaired: S-41 is present in `HEAD` and in the working tree at its original
+position, and `research/backlog.md` now differs from `HEAD` by nothing. Flagged here rather than
+fixed by rewriting, for the same reason as above. **The operational lesson, which is the only
+durable thing in this note: with several tracks committing concurrently, `git add` followed by a
+separate `git commit` is not atomic** - a concurrent commit empties the index in between. Use
+`git commit -o <paths> -F <file>` in a single invocation, which is what finally worked here.
 
 ---
 
