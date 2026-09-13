@@ -85,6 +85,22 @@ Items the agent cannot resolve alone. Remove an item when it is resolved and not
   buys the SPXW question and an unfrozen store, and nothing else this loop has found is waiting on
   it. **What it does not change**: the scheduling advice. This track now has no open item of any
   kind, disk-answerable or otherwise, until VALUE is restored.
+- **FINAL COSTING 2026-09-13 ~11:5x UTC (O-9), and it is the last thing this track can add.** O-7's
+  retraction removed the *size* justification; O-9 has now measured the one that was left - the
+  **de-risk switch**, the functional A-15's refusal does not reach, because a drawdown switch is
+  paid by the lower quantile and not by the mean. Result, out of sample on 1,541 sessions at
+  matched average exposure: **the switch is worth having and the chain is not what makes it work.**
+  The tape alone (four realized-vol features, no options data) cuts the book's 5% tail **8.0-15.5%
+  at 5 of 5 clocks** with the mean unchanged inside one SE, and a timing placebo rules out the
+  mechanical explanation. Adding `rn_half` on top buys **+2.68%** more, 99% CI **[-0.49, +7.11]** -
+  under the +5% bar and not distinguishable from zero. **What decides it for your wallet**: the
+  chain's increment is **+7.7% in 2020-2023 and +1.6% in 2024-2026**. It has decayed to nothing in
+  the only regime where this store is a daily chain - and a daily chain is exactly what VALUE would
+  restore. So the priced value of the subscription is now **the SPXW question only**, with no
+  surviving second justification of any kind. **The scheduling advice is now unconditional**: O-1
+  through O-9 are all closed, the scope has no open item, and `research-options` should be
+  **unscheduled** rather than left to spend tokens on a track with nothing to do. That is an owner
+  action - the loop does not edit schedulers. If you restore VALUE later, re-enable it then.
 - **What is lost.** Nothing on disk: the 0DTE store is intact at **1,891 SPY sessions,
   2016-01-08..2026-09-10, 176 MB**, and O-3 ran entirely from it today. What is lost is
   everything *new*: no chain after 2026-09-10, no second symbol, no implied-vol or greeks history,

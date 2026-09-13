@@ -5,6 +5,103 @@ Newest first. The `options` scope: the Theta store, `scripts/odte_*`, `scripts/t
 
 ---
 
+## 2026-09-13 - O-9: the de-risk SWITCH is worth having and the CHAIN is not what makes it work. A tape-only inverse-VaR switch cuts the book's 5% tail **8.0-15.5%** at matched average exposure, at 5 of 5 clocks, beating a timing-destroyed placebo at 5 of 5. Adding `rn_half` on top of it buys **+2.68%** more (99% CI **[-0.49, +7.11]**, crosses zero; bar was +5%). **PARTIAL** on the pre-registered statistic. The decisive number for OWNER-5 is in the regime split: the chain's increment is **+7.7% in 2020-2023 and +1.6% in 2024-2026** - it has decayed to nothing in the only era where this store is actually daily. Nothing shipped.
+
+**Why this item.** It was the last open O-item and the only consumer of `rn_half` that A-15 did not
+close. O-8's primary leg refused the put wing as a tail forecaster, but its secondary read was
+positive, monotone and unanimous: adding `rn_half` to a tape-only 5% VaR cut the OOS pinball loss
+3.0-8.0%, rising through the day, at 5 of 5 clocks. That is an improvement in a **loss function**,
+and a loss function is not money. A-15's refusal is about the **mean** of a book's P&L (the sleeve
+is paid by the volatility surprise, t +8.41, not the forecastable part, t -0.73); a de-risk switch
+is paid by the **lower quantile** alone, which is the object O-8 measured skill in, and the daily
+track already ships one shape like it (S-40's crisis switch). So: one functional left, on a frozen
+cache, with a consumer that has not already refused it.
+
+**Design, pre-registered in `scripts/sweep_o9.py`'s docstring before any run.** No new Theta call -
+the subscription is still 403 on `history/quote`, and the point of this item is that it is
+answerable anyway. Models are O-8's M0 (tape) and M1 (tape + `rn_half`) at tau = 0.05, expanding
+window, 250-session burn-in, solver and clocks imported, asymmetry block absent because O-8 refused
+it. The switch is inverse-risk and **only ever cuts**: `e_t = min(1.0, budget_t / |q_hat_t|)` with
+`budget_t` an **expanding median of PAST forecasts** (O-8's Stage D used a full-sample median - a
+small but real look-ahead, and Gate 3 asserts the fix). The cap at 1.0 is not cosmetic: A-15 refused
+sizing **up** on a forecastable quantity, so a switch that levered on calm days would be re-running
+a refused claim. Every headline is quoted at **matched average exposure** - the backlog's own
+control, "an unconditional de-risk of the same average exposure" - with CONST a flat book at that
+same level. PASS on the decisive leg needed all three of: SW1 beats SW0 at >= 4 of 5 clocks, an
+average cut >= 5%, and a 99% block bootstrap (whole sessions, blocks of 5) excluding zero.
+
+**The frontier control I did not use, and why.** The stronger control matches mean **P&L** rather
+than mean exposure. It cannot be resolved here: `fwd`'s mean is +1.46 to +0.25 bps against an sd of
+75 to 42, so the SE of the mean over ~1,500 sessions is ~1.0-1.4 bps, **larger than the mean
+itself**. Matching on it is matching on noise. Declared in the docstring in advance and replaced by
+reporting every book's mean **with its SE** - which then showed the two controls are the same
+comparison here: at matched exposure, mean P&L moves 1.62 -> 1.07, 1.39 -> 1.30, 1.47 -> 1.11,
+0.96 -> 0.86 and 0.74 -> **0.93** bps, every move inside one SE and one of them positive.
+
+**Gates.** Gate 0 (O-5's control) reproduces at 0.5396. Gates 1-2 (IRLS against an exact `linprog`
+solution; in-sample calibration) pass as in O-8. Gate 3 is new: exposure series matched to <1e-9 and
+`budget_t` provably independent of `s >= t`, checked by recomputing the switch on a truncated series
+and requiring identical exposures. **Stage C reproduces O-8 exactly** - d_pin -2.96 / -3.43 / -5.79
+/ -7.21 / -8.03 - which is what licenses reading this run as O-8's economics.
+
+**Stage D, the result.**
+
+| clock | q05 CONST | q05 SW0 | q05 SW1 | SW0 vs CONST | **SW1 vs SW0** | ES5 SW1 vs SW0 | corr(e,\|fwd\|) |
+|---|---|---|---|---|---|---|---|
+| 10:00 | -101.7 | -93.5 | -92.4 | +8.0% | **+1.24%** | +2.88% | -0.48 |
+| 11:00 | -86.7 | -73.3 | -73.8 | +15.5% | **-0.70%** | +2.79% | -0.44 |
+| 12:00 | -75.9 | -68.0 | -64.1 | +10.4% | **+5.70%** | +5.95% | -0.46 |
+| 13:00 | -67.2 | -61.6 | -59.2 | +8.4% | **+3.84%** | +7.76% | -0.44 |
+| 14:00 | -57.3 | -52.2 | -50.5 | +8.9% | **+3.33%** | +7.97% | -0.45 |
+
+(bps; a smaller magnitude is better. Mean exposure 0.85-0.90, matched across books by construction.)
+
+**The switch works and the chain is not why.** Column 5 is the finding nobody asked for: inverse-VaR
+de-risking off the **realized tape alone** cuts the 5% tail 8.0-15.5% at 5 of 5 clocks, at no
+measurable cost in mean, and Control B rules out the mechanical explanation - permuting `q_hat`
+across sessions preserves the exposure distribution exactly and destroys only the timing, and the
+placebo's **mean cut is NEGATIVE at 4 of 5 clocks** (-5.70, -0.07, -2.51, -1.33, -3.26), because a
+scale mixture has fatter tails than the scale it averages to. The real switch beats the placebo's
+**95th percentile** at 5 of 5. Control A (beats a flat book at the same exposure) is 5 of 5.
+
+**Column 6 is the item's actual question and it does not clear.** +2.68% average, 4 of 5 clocks,
+99% CI [-0.49, +7.11]. So O-8's 3-8% pinball improvement converts to tail at roughly a third of its
+rate, in the right direction, monotone in the same way - and lands under the bar.
+
+**The secondary read, labelled as such and not promoted.** ES5 (mean of the worst 5%) was declared
+in the design as the **regimes** statistic, on the argument that a 5% quantile on a ~550-row cell is
+one order statistic near rank 27. Run as a bootstrap it gives **+5.47%, 99% CI [+1.81, +10.45]** -
+5 of 5 clocks positive, clears both bars. The headline statistic is the one that was declared
+decisive, so the verdict stands at PARTIAL; the two estimates' CIs overlap heavily and are not in
+conflict, the q05 read is simply lower and noisier. **This is a finding, not a result**, and the
+honest statement is: the chain's increment is positive on both tail estimators and significant on
+only one of them.
+
+**What actually closes this track is the regime split.** The store is **not daily until 2023** -
+56 / 44 / 134 / 128 sessions in 2016-19 against 249 / 249 / 248 from 2023 - so after a 250-session
+burn-in plus the 60-session budget warm-up, the 2016-2019 cell holds 127 / 82 / 52 / 20 / **0** OOS
+rows and is unavailable at four of five clocks. The regimes leg therefore passed 5 of 5 as a
+**2-of-2, not a 2-of-3**, and that is a weaker pass than the rule's name suggests. Inside it:
+
+| regime | ES5 cut, SW1 vs SW0, by clock | mean |
+|---|---|---|
+| 2020-2023 | +5.35 / +4.61 / +8.66 / +10.22 / +9.70 | **+7.7%** |
+| 2024-2026 | -0.77 / +0.43 / +2.09 / +3.99 / +2.46 | **+1.6%** |
+
+The chain's increment is concentrated in the COVID and rate-shock era and has **decayed to ~+1.6%
+in 2024-2026** - the only regime in which this store is actually a daily chain, and the only one
+that resembles what a restored subscription would buy. On the declared statistic in the current
+regime there is nothing here.
+
+**Decision. PARTIAL, and I am treating it as the close of the track.** The pre-registration says a
+PASS is "the fresh, costed justification OWNER-5 asks for". This is not that: the decisive leg
+failed, the one statistic that clears is not the declared one, and the increment is smallest in the
+regime that matters. The positive finding belongs to the **tape**, not the chain, costs nothing to
+run and needs no subscription - it is written to the backlog as a handoff (A-17), not as an O-item,
+because the O-track does not own a book to de-risk. With O-1..O-9 all closed the scope has no open
+item, and `research-options` should be **unscheduled** rather than left to spend tokens; that is an
+owner action and is appended to `BLOCKERS.md` under OWNER-5 rather than done here.
+
 ## 2026-09-13 - O-8: the put wing does NOT forecast the day's downside tail. Against a baseline that already carries the chain's own symmetric magnitude, the asymmetry block loses on the pooled test (DM t **-0.401**), wins 2 of 5 clocks, gets 1 of 5 clocks on the regimes leg, and fits the DECLARED SIGN WRONG at 4 of 5 clocks. REFUSED on both legs. The secondary read is the positive one and it is real: `rn_half` cuts the OOS 5% VaR loss **-3.0% to -8.0%, rising monotonically through the day**, at 5 of 5 clocks. Nothing shipped.
 
 **Why this item.** There was no open O-item - O-1 through O-7 are all closed - and O-7's closing

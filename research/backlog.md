@@ -1794,7 +1794,10 @@ favours the four confirmed deployed-path defects and the one free data step over
    further discovery runs. 544 hypotheses and 0 survivors on 395 sessions is the data speaking.
 6. **C-4** (`critic`) - S-24, the pre-open MOO claim, twice deferred. It is the claim behind the
    ~1.9 CAR-point owner ask, so attack it before the owner is asked to move a scheduled task.
-7. **O-9** (`options`, new below) - cost O-8's VaR result as a de-risk switch. The only consumer
+7. ~~**O-9** (`options`)~~ **DONE 2026-09-13, PARTIAL - and it closes the O-track.** The switch is
+   real off the tape alone (5% tail cut 8.0-15.5% at 5 of 5 clocks); the chain's increment is
+   +2.68%, CI [-0.49, +7.11], and decays to +1.6% in 2024-2026. Handed off as A-17. Original text:
+   cost O-8's VaR result as a de-risk switch. The only consumer
    A-15 did not close, and OWNER-5 currently has no live justification.
 8. **S-42** (`daily`) - the ensemble trick on the FITTED non-risk axes. Do not build the shipped
    36-cell blend; it is a `signals.py` change plus a LEAN run for a quarter of a drawdown point.
@@ -1833,7 +1836,45 @@ VALUE tier is restored - see OWNER-5), and further `futures` discovery funnels u
   protects unnamed files, **not shared named ones**.
   <!-- added by the 2026-09-13 daily review. -->
 
-- **O-9 (`options`, opened by the 2026-09-13 review from O-8): cost `rn_half`'s VaR skill as a
+- **O-9 DONE 2026-09-13 (PARTIAL, and it CLOSES the O-track; see `research/journal_options.md`):
+  the de-risk switch is worth having and the chain is not what makes it work.** A tape-only
+  inverse-VaR switch cuts the book's 5% tail **8.0-15.5%** at matched average exposure at 5 of 5
+  clocks, at no measurable cost in mean (every book's mean moves less than one SE, one of them
+  upward), and Control B rules out the mechanical read: permuting `q_hat` preserves the exposure
+  distribution and destroys only timing, and the placebo's mean cut is **negative at 4 of 5
+  clocks**, while the real switch beats the placebo's 95th percentile at 5 of 5. Adding `rn_half`
+  on top buys **+2.68%** more (4 of 5 clocks, 99% block-bootstrap CI **[-0.49, +7.11]**, bar was
+  +5%) - so O-8's 3-8% pinball improvement converts to tail at about a third of its rate and lands
+  under the bar. The secondary ES5 bootstrap gives +5.47%, CI [+1.81, +10.45], and is **not
+  promoted**: ES5 was declared as the regimes statistic, not the decisive one. What closes the
+  track is the regime split - the chain's increment is **+7.7% in 2020-2023 and +1.6% in
+  2024-2026**, having decayed to nothing in the only era where this store is a daily chain. The
+  store is not daily until 2023 (56/44/134/128 sessions in 2016-19 against 249/249/248 from 2023),
+  so the 2016-2019 OOS cell is 127/82/52/20/**0** rows and the regimes leg passed as a **2-of-2,
+  not a 2-of-3**. Gate 3 (new) also fixed a real look-ahead in O-8's Stage D, which sized the risk
+  budget off a full-sample median; O-9's budget is an expanding median of past forecasts only.
+  Stage C reproduces O-8 exactly (-2.96/-3.43/-5.79/-7.21/-8.03), 18 ledger rows under
+  `options/odte_o9_derisk`. **O-1..O-9 are now all closed and the scope has no open item**; the
+  positive finding belongs to the tape, needs no subscription, and is handed off as A-17 below.
+  `research-options` should be unscheduled - an owner action, appended to `BLOCKERS.md`.
+  <!-- O-9 closed by the options track, 2026-09-13. -->
+
+- **A-17 (handoff from O-9 2026-09-13, for whoever owns book-level risk - `iterate`/`daily`, NOT
+  `options`): does an inverse-VaR de-risk switch off the REALIZED TAPE cut the intraday sleeve's
+  drawdown?** O-9 measured, on SPY and out of sample, that `e_t = min(1, budget_t/|q_hat_t|)` with
+  `q_hat` a 5% quantile regression on four tape features (`rv_sofar`, `rng_sofar`, `rv20`,
+  `absret_1`) and `budget_t` an expanding median of past forecasts cuts the 5% tail of the
+  resulting book **8.0-15.5% at matched average exposure, at 5 of 5 clocks**, with the mean
+  unchanged inside one SE and a timing placebo ruling out the scale-mixture explanation. **No
+  options data is involved** - this is the part of O-9 that survived, and it costs nothing to run.
+  Carried as a handoff and not as an O-item because the options track owns no book to de-risk.
+  State the limits with the finding: measured on SPY only, on a sample carrying O-3's both-rights
+  mask (tilted volatile), at five fixed clocks, and A-15's refusal of `rn_half` as a **size** input
+  does not transfer - this is a different functional (lower quantile, not mean) and a cut-only
+  switch, but A-15's mechanism is still the thing to check first on a book paid by surprise.
+  <!-- A-17 added by O-9, 2026-09-13 (options). Handoff item: the options track ships nothing. -->
+
+- **O-9 (original text, kept for the pre-registration) (`options`, opened by the 2026-09-13 review from O-8): cost `rn_half`'s VaR skill as a
   DE-RISK switch, which is the one consumer A-15 did not close.** O-8's primary leg refused the put
   wing as a tail forecaster (pooled DM t **-0.401**, declared sign wrong at 4 of 5 clocks), but its
   secondary read is positive and monotone: `rn_half` cuts the OOS 5% VaR loss **-3.0% to -8.0%,
