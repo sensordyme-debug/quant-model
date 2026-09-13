@@ -69,14 +69,45 @@ START_EQUITY = 100_000.0
 #: it: a per-share rate with a per-order minimum and a cap at a fraction of trade value.
 #: Calibrated rather than assumed - `--lean` prints the control's total fees beside this
 #: book's, and the two have to agree before any row below is read.
+#:
+#: S-44 took the constants off the engine's source rather than off the calibration:
+#: `InteractiveBrokersFeeModel.cs:150` is `feePerShare: 0.005m, minimumFee: 1,
+#: maximumFeeRate: 0.005m`, so the cap rate was **0.01 here and 0.005 there**.
 FEE_PER_SHARE = 0.005
 FEE_MIN = 1.00
-FEE_MAX_FRAC = 0.01
+FEE_MAX_FRAC = 0.005
 
 
 def commission(shares: float, price: float) -> float:
+    """LEAN's US-equity IB fee, transcribed from `InteractiveBrokersFeeModel.cs:161-172`.
+
+    Two things about the shape, and S-44 got the second one only by transcribing instead of
+    patching the constant. The minimum and the cap are an `if`/**`else if`**, not a clamp:
+    an order whose per-share fee is under $1 pays $1 even when that exceeds 0.5% of its
+    value, and the engine never lets the cap pull a fee below the floor. `commission_legacy`
+    below is the `min(max(...))` form this file used before S-44, kept callable so any row
+    written under it can be reproduced; the two agree except where the fill price is under
+    $1.00 or the order is worth under $200, and the champion's book reaches neither.
+    """
+    q = abs(float(shares))
+    value = q * abs(float(price))
+    fee = FEE_PER_SHARE * q
+    if fee < FEE_MIN:
+        fee = FEE_MIN
+    elif fee > FEE_MAX_FRAC * value:
+        fee = FEE_MAX_FRAC * value
+    return abs(fee)
+
+
+def commission_legacy(shares: float, price: float) -> float:
+    """The pre-S-44 form: a clamp, and a 1% cap where the engine caps at 0.5%.
+
+    Verbatim, so that every `daily/*` ledger row written before 2026-09-13 stays
+    reproducible. S-44 clause 4 shows it is bit-identical to `commission` on every S-19
+    convention, so nothing already recorded on the champion's universe moves.
+    """
     value = abs(shares) * price
-    return min(max(FEE_MIN, FEE_PER_SHARE * abs(shares)), FEE_MAX_FRAC * value)
+    return min(max(FEE_MIN, FEE_PER_SHARE * abs(shares)), 0.01 * value)
 
 
 def tstat(x) -> float:

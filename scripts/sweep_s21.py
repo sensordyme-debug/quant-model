@@ -72,8 +72,24 @@ def _num(stats: dict, key: str) -> float:
 
 
 # --------------------------------------------------------------------------- the book
-def commission(shares: float, price: float) -> float:
-    """IBKR tiered US equities, the same model `scripts/sweep_s19.py` uses."""
+#: S-44: this file used to define its own `commission` - IBKR's **tiered** schedule, 0.0035
+#: per share with a $0.35 minimum and a 1% cap - under a docstring that called it "the same
+#: model `scripts/sweep_s19.py` uses". It was not: LEAN charges the **fixed** schedule
+#: (`InteractiveBrokersFeeModel.cs:150`, 0.005 / $1 / 0.5%), and on the champion's 5,128 fills
+#: the tiered form undercharged by $8,916.45, 32.78% of the fee line, on every single fill.
+#: The claim is now true by construction rather than by assertion: importing the one function
+#: makes `walk` reproduce `sweep_s19.simulate(..., fill="open")` to 9.3e-10 on all 3,689
+#: sessions, where the two books used to end $52,442.77 apart. See `scripts/sweep_s44.py`.
+from sweep_s19 import commission               # noqa: E402,F401
+
+
+def commission_tiered_legacy(shares: float, price: float) -> float:
+    """The pre-S-44 form, verbatim, so every row written under it stays reproducible.
+
+    IBKR's *tiered* US-equity schedule. It is a real schedule - it is simply not the one the
+    engine charges, so a book using it cannot be compared with a LEAN row or with any other
+    file on this track.
+    """
     per_share = 0.0035 * abs(shares)
     return float(min(max(per_share, 0.35), 0.01 * abs(shares) * price))
 

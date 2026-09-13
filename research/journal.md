@@ -4,6 +4,25 @@ From 2026-09-12 the `daily` track writes to `research/journal_daily.md` (AGENTS.
 tracks"); this file keeps the pre-split history and the daily review's merge target, and each
 entry there leaves a pointer here.
 
+## 2026-09-13 - S-44 (`daily` track; full entry in `research/journal_daily.md`)
+
+D-7's fee-cap item, closed, and it moved the wrong file. `sweep_s19.commission` did cap at 1%
+where `InteractiveBrokersFeeModel.cs:150` caps at 0.5%, and transcribing rather than patching
+found a second defect the item did not name - the engine applies the $1 minimum and the cap as an
+`if`/`else if`, the replica applied a clamp, so the cap could pull a fee below the floor. Both are
+**inert on the shipped cell**: the champion's 9 ETFs never trade below $8.29 adjusted, 0 of 5,128
+fills differ, and all four S-19 conventions are bit-identical at max |dCAR| 0.00e+00, which is the
+licence for changing shared code. Where it is reachable - NVDA 1,097 sessions under $1, TQQQ 453 -
+it is worth +0.0747 CAR points on S-6/S-18's 3x book, under the pre-registered 0.10 bar. The real
+finding is next door: `sweep_s21.commission` carried the docstring "the same model
+`scripts/sweep_s19.py` uses" over IBKR's **tiered** schedule (0.0035 / $0.35 / 1%) and understated
+the champion's fees by **$8,916.45, 32.78%**, on every fill; with the one function imported,
+S-21's walk now reproduces `sweep_s19.simulate(..., fill="open")` to **9.3e-10** where the two
+books used to end **$52,442.77** apart. S-21's financing conclusion survives - the drag moves
++0.0010 CAR points, because the understated fees and the 2.2%-inflated book cancel in a rate.
+Shipped with the legacy forms kept verbatim and 11 new tests; nothing promoted, `champion.json`,
+`live/*` and all scheduled tasks untouched.
+
 ## 2026-09-13 - A-17 (`iterate` track)
 
 **The de-risk switch transfers, but NOT the one O-9 handed over.** O-9's object - a 5% quantile

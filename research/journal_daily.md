@@ -4,6 +4,94 @@ The S-track (daily champion `s1_momo`, LEAN, `scripts/sweep_s*`, `scripts/evalua
 first. The pre-2026-09-12 history of this track is in `research/journal.md`, which stays the
 daily review's merge target; each entry here leaves a one-paragraph pointer there.
 
+## 2026-09-13 - S-44: the fee constant was inert where it was named and wrong by a third next door - the S-track's two commission replicas were two different brokers
+
+**Hypothesis (S-44, opened by D-7).** `sweep_s19.py:76` calibrates costs against a 1% cap while
+LEAN's `InteractiveBrokersFeeModel` caps at 0.5%. D-7 settled the engine side from source and
+then from data (`feePerShare 0.005, minimumFee 1, maximumFeeRate 0.005`,
+`InteractiveBrokersFeeModel.cs:150`; `sweep_d7.lean_ib_fee` reproduces all 5,128 champion fills
+to $0.0000), so only the sweep's own constant was in question. New `scripts/sweep_s44.py`, **nine
+clauses pre-registered in the docstring before the first simulation**, `results/s44_full.txt`,
+**8 DIAGNOSTIC rows** under `daily/s44_feecap`. Shared code changed - `sweep_s19.commission` is
+`simulate`'s fee function, reached by S-22/S-23/S-24/S-31/`verify_s31` through `simulate` and
+imported by name by S-25/S-39 - so the legacy forms are kept callable and clause 4 is the licence.
+No LEAN run, no signal, no parameter, no file any runner loads. `champion.json`, `live/*`,
+`margin_budget`, `target_vol`, `target_exposure`, the drawdown cap and all scheduled tasks
+untouched; no deploy gate and no `--replay` owed.
+
+**(1, 2) Transcribing instead of patching found a second defect the item does not name.** The
+replica was wrong in its *shape* as well as its constant: LEAN applies the minimum and the cap as
+an `if`/**`else if`**, this file applied `min(max(...))`, a clamp. So the old form let the
+0.5%-of-value cap pull a fee **below** the $1 floor, which the engine never does. The new
+`commission` equals D-7's independently-written replica at **all 560 grid points** and reproduces
+the champion's `$27,199.76` **to the cent**. The two forms part in exactly two bands and clause 2
+finds **0 points outside them**:
+
+| band | condition | direction | worst |
+|---|---|---|---|
+| cap | fill price < $1.00 | legacy **over**charges (66 pts) | **2.0000x** |
+| floor | q < 200 and order value < $200 | legacy **under**charges (107 pts) | 10,000x |
+
+**(3, 4) On the shipped cell it is worth exactly nothing, and that is the finding, not an excuse.**
+The champion ranks 9 ETFs whose minimum adjusted close over the window is **$8.29**; its smallest
+fill is **$1,075.57 / 7 shares / $9.50**. Both bands need a price under $1 or a value under $200,
+so **0 of 5,128 fills differ** and the fee delta is **$0.00**. All four S-19 conventions come back
+**bit-identical - max |dCAR| 0.00e+00, max |dfees| 0.00e+00, max |dorders| 0** (24.076697 /
+22.192150 / 20.965279 / 19.792822, the deployed cell landing on S-22's figure to the digit for the
+fourth time). **No committed `daily/*` row moves.**
+
+**(5, 6, 7) Where it is reachable, and what it costs there.** The store is not the champion's
+universe: **4 of 68 symbols** spend sessions inside the cap band - NVDA **1,097 (29.7%)**, SOXL
+513, TQQQ 453, NFLX 93 - and one shipped-*adjacent* configuration holds one of them. Priced on
+`LEVERED_PROXY_3X`, S-6/S-18's 3x book:
+
+| fee form | CAR% | Sharpe | MaxDD% | orders | fees |
+|---|---|---|---|---|---|
+| engine (0.5% cap) | **25.7135** | 1.195 | 25.763 | 4,677 | 42,448.81 |
+| legacy (1% cap) | 25.6388 | 1.192 | 25.761 | 4,679 | 43,029.78 |
+
+**+0.0747 CAR points for $580.96, 1.35% of the fee line**, paired +0.0236 bps/day at t +3.03 -
+and that *t* is a precision statistic, not evidence, exactly as S-21 said about a deterministic
+charge. Under the pre-registered 0.10-point bar it is **reported, not a changed conclusion**. The
+floor branch is **unreachable by construction**: `MIN_ORDER_VALUE = 0.01 x equity` means an order
+under $200 needs equity under **$20,000**, and the book's minimum equity across the four cells is
+**$99,641**. It is a guard, like D-9's.
+
+**(8) The item pointed at the wrong file. `sweep_s21.py` was pricing a different broker.** Its
+`commission` carried the docstring *"IBKR tiered US equities, the same model `scripts/sweep_s19.py`
+uses"* over the constants **0.0035 / $0.35 / 1%** - IBKR's **tiered** schedule, where LEAN charges
+the **fixed** one. On the champion's fills that is **-$8,916.45, 32.78% of the fee line, wrong on
+5,128 of 5,128 fills** - 33 times the defect S-44 was opened to fix. The decisive test is not the
+dollars but an identity: S-21's `walk` is documented as the S-19 convention, so under one
+arithmetic the two books must be the same book.
+
+| form | interest $ | drag bps/day | simple CAR pts | end equity | gap vs S-19's backtest cell |
+|---|---|---|---|---|---|
+| engine | -126,994.03 | 0.4394 | 1.1073 | 2,352,452 | **9.3e-10** (max over 3,689 sessions) |
+| tiered (pre-S-44) | -129,405.62 | 0.4390 | 1.1063 | 2,404,895 | **$52,442.77** |
+
+So the docstring's claim is now true by construction rather than by assertion. **S-21's conclusion
+does not move**: the drag changes by **+0.0010 CAR points**, far inside the pre-registered 0.05
+bar, because the tiered form understated the fees *and* inflated the book by 2.2% at the same
+time and the two cancel in a rate. The dollars were wrong; the ratio was not.
+
+**Decision: SHIPPED (clause 9 satisfied - transcription exact, harness bit-identical).**
+`sweep_s19.commission` is now a transcription of `InteractiveBrokersFeeModel.cs:161-172` with
+`commission_legacy` kept verbatim; `sweep_s21` imports the one function and keeps
+`commission_tiered_legacy` verbatim; `tests/test_s19_fee_model.py` pins the constants, the
+if/else-if shape, the equality with D-7's replica, the champion's recorded fee total and the
+single-source identity (11 tests). Suite **1,396 pass / 36 fail / 15 skip** with 2 collection
+errors - **none in daily scope**, and all of them another track's uncommitted tree
+(`scripts/intraday_backtest.py:529` and `scripts/sweep_l1.py:59` carry a Python 3.12 nested
+f-string that 3.11 cannot parse, plus the standing `futures`/`qb`/`ml` failures). `daily`-scope
+tests are green including the two fee files (25 tests).
+
+**Reusable rule: a shared helper's docstring is a claim, and an identity is the only way to
+check it.** The named defect was inert and the unnamed one next door was worth a third of the fee
+line - and neither would have been found by fixing the constant the item pointed at. When two
+files in a track say they compute the same thing, do not diff their constants; run them both and
+require the books to agree to floating point. `sweep_s21` said it for months at $52,442.77 apart.
+
 ## 2026-09-13 - S-43: the ensemble's loss is not dilution, so truncating it does not fix it - weight-ensembling is closed on this sleeve
 
 **Hypothesis (S-43, opened by S-42).** S-42 refused the 36-cell weight-blend on the signal axes
