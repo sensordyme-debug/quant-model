@@ -7,9 +7,8 @@ and the equity base itself (NAV x --equity-frac, never NAV).
 """
 from __future__ import annotations
 
-import pytest
-
 import intraday_trader as it
+import pytest
 from intraday_common import GROSS_HARD_CAP, MIN_CHANGE, PER_SYMBOL_HARD_CAP
 
 EQUITY = 100_000.0

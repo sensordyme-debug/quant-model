@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import datetime as dt
 
+import intraday_common as ic
 import pandas as pd
 import pytest
-
-import intraday_common as ic
 
 
 # --------------------------------------------------------------------------- commission

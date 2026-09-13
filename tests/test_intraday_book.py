@@ -12,9 +12,8 @@ from __future__ import annotations
 import datetime as dt
 import json
 
-import pytest
-
 import intraday_trader as it
+import pytest
 
 
 def _book(**pos):
