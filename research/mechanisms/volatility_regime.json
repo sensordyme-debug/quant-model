@@ -1,0 +1,711 @@
+[
+  {
+    "id": "VR-01",
+    "name": "Last-half-hour market intraday momentum (short-gamma hedging flow)",
+    "source_claim": "Baltussen, Da, Lammers & Martens (JFE 2021): 'The return during the last 30 minutes before the market close is positively predicted by the return during the rest of the day (from previous market close to the last 30 minutes).' Tested on 60+ futures across equities, bonds, commodities and currencies, 1974-2020. For the equity-index-futures 1/N portfolio the rROD timing strategy earns 6.86% annualised on 3.96% annualised volatility, Sharpe 1.73, success rate 0.55. The authors state explicitly that 'exploiting the effect in the S&P 500 futures yields a positive net Sharpe ratio when we assume transaction cost equal to a tick (a cost level faced commonly by advanced investors in the S&P 500 futures market)'. Gao, Han, Li & Zhou (JFE 2018) is the SPY antecedent. Baltussen, Da & Soebhag (2025) independently decompose the same effect and put the market-level time-series component at 2.79 bps per day.",
+    "sources": [
+      {
+        "title": "Hedging demand and market intraday momentum",
+        "author_or_org": "Guido Baltussen, Zhi Da, Sten Lammers, Martin Martens (Journal of Financial Economics 142, 377-403)",
+        "year": 2021,
+        "url": "https://www.sciencedirect.com/science/article/abs/pii/S0304405X21001598",
+        "kind": "academic",
+        "what_it_measured": "Predictive regression of the last-30-minute futures return on the return from the previous close to 30 minutes before the close, across 60+ futures, 1974-2020; plus a timing strategy with annualised return, volatility, Sharpe and success rate per asset class (Table 6)."
+      },
+      {
+        "title": "Market intraday momentum",
+        "author_or_org": "Lei Gao, Yufeng Han, Sophia Zhengzi Li, Guofu Zhou (Journal of Financial Economics 129, 394-414)",
+        "year": 2018,
+        "url": "https://www.sciencedirect.com/science/article/abs/pii/S0304405X18301351",
+        "kind": "academic",
+        "what_it_measured": "First-half-hour SPY return predicting last-half-hour SPY return, 1993-2013, with subsample splits on volatility, volume and recession."
+      },
+      {
+        "title": "End-of-Day Reversal",
+        "author_or_org": "Guido Baltussen, Zhi Da, Amar Soebhag (Erasmus / Notre Dame working paper)",
+        "year": 2025,
+        "url": "https://academicweb.nd.edu/~zda/EOD.pdf",
+        "kind": "academic",
+        "what_it_measured": "Decomposition of last-half-hour profits into auto-covariance, cross-covariance and mean effects; puts the market-level time-series (TS) component at 2.79 bps per day and the auto-covariance component at 2.98 bps per day."
+      },
+      {
+        "title": "Understanding intraday momentum strategies",
+        "author_or_org": "Carlo Rosa (Journal of Futures Markets 42(12), 2218-2234)",
+        "year": 2022,
+        "url": "https://onlinelibrary.wiley.com/doi/abs/10.1002/fut.22375",
+        "kind": "academic",
+        "what_it_measured": "Out-of-sample performance of the intraday momentum strategy in which the overnight/first return predicts the last half-hour return. Finds 'the predictability disappears in the out-of-sample period' and argues that the DISAPPEARANCE rather than decay 'suggests that the predictability of returns is likely due to data mining'. Also fits a Markov-switching model recovering low- and high-predictability regimes, and finds a threshold version that trades only on strong signals beats an always-on version."
+      },
+      {
+        "title": "Intraday time series momentum: Global evidence and links to market characteristics",
+        "author_or_org": "Li, Sakkas & Urquhart (Journal of Financial Markets 57, 100619)",
+        "year": 2022,
+        "url": "https://research.birmingham.ac.uk/en/publications/intraday-time-series-momentum-global-evidence-and-links-to-market/",
+        "kind": "academic",
+        "what_it_measured": "Intraday time-series momentum across 16 developed markets on 1-minute data; reports it 'economically sizable and statistically significant both in- and out-of-sample in most countries', and stronger when liquidity is low, volatility is high and information is discrete."
+      }
+    ],
+    "contradictory_evidence": "This is the most contested entry in the file and the conflict is unresolved in the literature itself. THE CENTRAL OBJECTION: Rosa (Journal of Futures Markets 42(12), 2022) tested exactly this strategy out of sample and found that 'the predictability disappears in the out-of-sample period', adding that the disappearance rather than gradual decay 'suggests that the predictability of returns is likely due to data mining'. That is a peer-reviewed out-of-sample failure, in a futures journal, on the specific claim. It is directly opposed by Li, Sakkas & Urquhart (Journal of Financial Markets 57, 2022) - same year, comparable venue - who find intraday time-series momentum significant both in- AND out-of-sample across 16 developed markets. Two peer-reviewed papers, published simultaneously, reaching opposite conclusions; a lab that cites only one of them is not reading the literature. Further objections: (a) Gao et al. is a 13x13 grid of half-hour pairs and CXO Advisory flagged the resulting snooping explicitly, so the lab must pre-register the r1-to-r13 pair only rather than search; (b) McLean & Pontiff's base rate is US factor returns 26% lower out-of-sample and 58% lower post-publication, and Gao et al. published in 2018 on a sample ending 2013; (c) Mesfin (2026) tested 14 OHLCV signal families on 947 days of MNQ 5-minute bars 2021-2025 and permanently rejected every one, finding a gross edge ceiling of roughly 1-2 MNQ points, though he did not test the last-half-hour window specifically; (d) the Sharpe of 1.73 is flattered by only 30 minutes of daily exposure - annualised volatility is 3.96%, so the dollar edge per contract is small; (e) Barardehi & Bernhardt (Journal of Financial Markets 74, 2025) show that the U-shaped volatility pattern which makes the close look special is substantially a CALENDAR-TIME over-aggregation artifact - under trade-time aggregation, volatility and Kyle's lambda fall monotonically from open to close, so the close is high-volume rather than high-volatility-per-trade, and our own volume and per-minute-return measurements are calendar-time measurements subject to exactly that bias; (f) the most attractive published numbers on ES and NQ specifically come from vendor backtests - Zarattini/Aziz/Barbon via Concretum Group (a trading-education firm) and the Quantitativo blog, the latter reporting ES Sharpe 1.25 and NQ 1.67 with no out-of-sample period shown and an 8x leverage cap.",
+    "our_inference": "Separate from the source claim: this is the only mechanism we found whose published magnitude clears our measured costs by a wide margin on arithmetic we can do ourselves, AND it is structurally invisible to our prior 240-trial study, because scripts/futures_discover.py sets CLOSE_ET = '15:45' and the effect's payoff window is 15:45-16:15 ET. We verified against data/futures/ES.parquet that the bars for that window are already on disk (1380 bars per day, not 376) - this is a session-definition choice, not a data gap. We further measured that the 15:45-16:00 ET bucket carries 10.6% of all 09:30-16:15 ES volume, the single largest 15-minute bucket of the day, larger than the 09:30 open bucket at 7.8%; including 16:00-16:15 the excluded window is 13.9% of session volume. Mean absolute per-minute return in that bucket is 2.40 bps against 1.63-1.80 bps through the mid-afternoon. The prior null was measured on a window that excludes the highest-volume, highest-volatility, most mechanism-rich half hour of the day.",
+    "proposed_mechanism": "Market makers in options and issuers of leveraged and inverse ETFs are structurally short gamma. To stay delta-neutral they must buy as prices rise and sell as prices fall. Because hedging has a partially fixed transaction cost, it is optimal to hedge discretely and late rather than continuously, which concentrates the hedging trade into the final minutes before the close, where it is also cheapest to execute against closing-auction liquidity. The flow is mechanical and price-insensitive, so it moves price in the direction the day has already moved. It persists because the hedgers are not trying to make money on the trade - they are managing risk - and because the size of the short-gamma complex has grown rather than shrunk.",
+    "observable_variables": [
+      "rROD = log(close at 15:45 ET) - log(close at 15:45 ET on the previous day), i.e. the return from the prior close to 30 minutes before this close, computed from 1m closes",
+      "rLH = log(close at 16:15 ET) - log(close at 15:45 ET), the payoff window",
+      "alternative cash-close alignment: rROD to 15:30 and rLH from 15:30 to 16:00 ET",
+      "sign(rROD) as the position; |rROD| as an optional size or filter variable",
+      "realised volatility of the 09:30-10:00 window, for the VR-02 conditioning"
+    ],
+    "instruments": [
+      "ES",
+      "NQ",
+      "MES",
+      "MNQ"
+    ],
+    "expected_horizon_minutes": 30,
+    "expected_direction": "continuation",
+    "expected_magnitude_points": 0.79,
+    "expected_trades_per_session": 1.0,
+    "failure_conditions": "Stated in advance: the hypothesis is dead if (a) the OLS slope of rLH on rROD is insignificant at |t| < 2 on the full 2025-06 to 2026-09 ES and NQ samples, or (b) the sign-timing strategy's success rate is below 0.52 (the published figure is 0.55 and 0.52 is roughly the break-even hit rate once our costs are charged against the measured mean absolute move), or (c) the mean gross capture per session is below 0.33 ES points / 0.69 NQ points, at which point costs exceed 100% of gross, or (d) the effect is present in 2025 and absent in 2026, which would indicate decay rather than a structural flow.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "Nothing new is required, but the session definition must be extended: the 09:30-15:45 ET / 376-bar window used by scripts/futures_discover.py must become 09:30-16:15 ET (or 09:30-16:00 for the cash-close alignment). The underlying bars are already in data/futures/{ES,NQ,MES,MNQ}.parquet, which hold roughly 1380 one-minute bars per day. Separately, if the intended live account carries a prop-firm flat-by rule, the tradeability of the window depends on that rule's actual cut-off; scripts/futures_topstep_baseline.py assumes 15:45 ET, which we believe is materially earlier than required, but we did not verify the current rule.",
+    "falsification_test": "Extend the session to 16:15 ET on ES and NQ. Regress rLH (15:45-16:15) on rROD (prior close to 15:45) over all ~311 complete sessions, Newey-West standard errors. Then run the sign-timing strategy: long if rROD > 0, short otherwise, entered at 15:45 and exited at 16:15, one round turn per session, charged at the measured cost. Report mean gross points, mean net points, success rate, t-statistic, and the 2025-vs-2026 split. A |t| below 2 on the pooled regression kills it.",
+    "cost_feasibility_note": "Measured from data/futures: the 15:45-16:15 ES return has standard deviation 16.8 bps and mean absolute move 7.86 index points; NQ 24.0 bps and 39.77 points. Using the published success rate of 0.55, expected gross capture = (2*0.55 - 1) * mean absolute move = 0.10 * 7.86 = 0.79 ES points = $39.30 per ES contract, against a measured round-turn cost of $16.28, i.e. costs are 41% of gross - inside the lab's 60% cost gate. NQ: 0.10 * 39.77 = 3.98 points = $79.50 against $13.78, costs 17% of gross. MES: 0.79 pts * $5 = $3.95 against $2.47, costs 63% of gross - FAILS the gate. MNQ: 3.98 pts * $2 = $7.96 against $1.72, costs 22%. A second, more generous calibration scales the paper's Sharpe 1.73 onto our measured window volatility and gives 1.40 ES points and 7.69 NQ points per session; we report the conservative figure. Conclusion: trade this on NQ or MNQ, not on MES. We also measured from data/futures/ES_quotes.parquet that the ES quoted spread is 0.25 points (one tick) at the median in every 30-minute bucket of the session including 15:45-16:15, so the close carries no spread penalty.",
+    "confidence": "medium",
+    "why_this_might_be_wrong": "My strongest objection to my own entry is Rosa (2022): a competent researcher took this exact strategy out of sample and concluded it was data mining. I have not resolved that against Li, Sakkas & Urquhart and I cannot; the honest state is that the literature is split and I am recommending the test, not the conclusion. Second, the 0.55 success rate is a 1974-2020 pooled figure across many contracts and many volatility regimes, and our sample is 15 months of unusually quiet market (VR-07). At a 0.52 success rate rather than 0.55 the ES arithmetic collapses to 0.31 gross points against a 0.33-point cost - a loss. The whole cost case hinges on a hit rate I am extrapolating, and a hit rate is exactly the parameter that decays after publication. Third, I am inferring the excluded-window opportunity from a volume and volatility profile, not from any measurement of the effect itself in our data; a large, volatile, mechanically-driven window is necessary but not sufficient for a directional edge, and the closing auction is precisely where the best-capitalised participants concentrate. Fourth, per Barardehi & Bernhardt, my volume and per-minute-return profile is calendar-time aggregated and therefore biased toward making the close look more special than it is per unit of trading."
+  },
+  {
+    "id": "VR-02",
+    "name": "Volatility-state conditioning of intraday momentum: the edge lives in the high-volatility tercile",
+    "source_claim": "Moser (2021, Klagenfurt MSc thesis, EURO STOXX 50 ETF, 03.01.2019-31.12.2020) sorts trading days into terciles by first-half-hour realised volatility and runs the intraday-momentum predictive regression separately in each. Only the high-volatility tercile is significant at 5%: slope 0.0433 (t = 2.45), R-squared 3.48%, n = 168. The medium tercile is exactly nil (slope -0.0006, t = -0.02, R-squared 0.00%) and the low tercile is significant only at 10% (slope 0.0923, t = 1.70, R-squared 1.72%). The author states this is 'in line with the results from other academics ... Gao et al. (2018), Zhang et al. (2019), Wen et al. (2020), Jin et al. (2020), Li et al. (2020), which all show that the effect is stronger when volatility is high.' A survey of the commodity-ETF literature states the same in general terms: 'the forecasting ability of intraday return predictors generally rises with the volatility level, with intraday momentum in the high-volatility group tending to be stronger.'",
+    "sources": [
+      {
+        "title": "Intraday Momentum (MSc thesis, Alpen-Adria-Universitat Klagenfurt)",
+        "author_or_org": "Stefanie Moser, evaluator Alexander Brauneis",
+        "year": 2021,
+        "url": "https://netlibrary.aau.at/obvuklhs/download/pdf/7301728",
+        "kind": "academic",
+        "what_it_measured": "Predictive regression of last-half-hour on rest-of-day return for the EURO STOXX 50 ETF, split into terciles of first-half-hour realised volatility (Table 2) and separately by volume tercile; 504 days total, 168 per cell."
+      },
+      {
+        "title": "Market intraday momentum",
+        "author_or_org": "Gao, Han, Li & Zhou (JFE 129)",
+        "year": 2018,
+        "url": "https://www.sciencedirect.com/science/article/abs/pii/S0304405X18301351",
+        "kind": "academic",
+        "what_it_measured": "Reports that market intraday momentum is stronger on high-volatility days, high-volume days, recession days and days with important economic news."
+      },
+      {
+        "title": "Intraday return predictability: Evidence from commodity ETFs and their related volatility indices",
+        "author_or_org": "published in PLoS/PMC",
+        "year": 2020,
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7480318/",
+        "kind": "academic",
+        "what_it_measured": "Intraday return predictability of commodity ETFs split by the level of the associated volatility index; finds predictive ability rises with volatility."
+      },
+      {
+        "title": "On the performance of volatility-managed portfolios",
+        "author_or_org": "Cederburg, O'Doherty, Wang & Yan (Journal of Financial Economics 138(1), 95-117)",
+        "year": 2020,
+        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3357038",
+        "kind": "academic",
+        "what_it_measured": "103 equity strategies: volatility-conditioned versions beat their unconditioned counterparts in spanning regressions but LOSE to them in real-time out-of-sample implementations, because of structural instability in the conditioning relationship. The governing counter-evidence for this entry."
+      }
+    ],
+    "contradictory_evidence": "Serious, and the governing objection is general rather than specific to Moser. Cederburg, O'Doherty, Wang & Yan (Journal of Financial Economics 138(1), 2020, 95-117), across 103 equity strategies, show that volatility-managed portfolios display positive alphas in spanning regressions - replicating Moreira & Muir (2017) - but that 'the trading strategies implied by these regressions are not implementable in real time, and reasonable out-of-sample versions generally earn lower certainty equivalent returns and Sharpe ratios than do simple investments in the original, unmanaged portfolios', because the spanning regressions are structurally unstable. That is the strongest published warning against the entire class of 'detect the volatility state, then trade or size on it', and it applies to this entry directly: a real-time trailing-window tercile filter is exactly the kind of estimated conditioning that failed there. Independently, Preethi (2026) clusters intraday volatility regimes on NIFTY 5-minute bars and reports that 'volatility-related features differ significantly across regimes, while return differences remain statistically insignificant'. Specific to Moser: the high-volatility result is driven almost entirely by one year: she reports that the pooled finding 'is based on the high slope and R-squared for the high volatility tercile in 2020: slope 4.76 (scaled by 100) and R-squared 4.58%' and that 'all the results for the remaining terciles (all 3 for the year 2019 and the remaining 2 for 2020) do not yield significant results'. 2020 is the COVID crash. With 6 cells tested and one surviving at t = 2.45, the multiple-comparison correction leaves very little. It is also a master's thesis on a European ETF, not a peer-reviewed study on US index futures. Note also the shape of the result cuts against the naive reading: the SLOPE is more than twice as large in the LOW-volatility tercile (0.0923 vs 0.0433) - it is the t-statistic and R-squared that favour high volatility, because in high-volatility sessions the predictor has more dispersion. Anyone who reads 'momentum is stronger in high vol' as 'the beta is bigger in high vol' has it backwards.",
+    "our_inference": "This is our answer to the lab's question 1, and the answer is narrower than hoped. We found no credible source showing that volatility state flips the SIGN of short-horizon equity-index-futures returns. What the literature supports is that volatility state governs the MAGNITUDE and the statistical detectability of a directionally stable effect. For a lab whose binding constraint is a fixed dollar cost, magnitude conditioning is nearly as valuable as sign conditioning, because it converts an always-on strategy that loses to costs into a session-selection strategy that trades a third of the time at higher amplitude. We measured the amplitude gain in our own data: sorting sessions into terciles by the absolute 09:30-10:00 return, the mean absolute 15:45-16:15 move rises from 5.90 to 9.42 ES points (+60%) and from 36.2 to 46.5 NQ points (+28%) between the bottom and top tercile, while the cost stays fixed. Critically, this conditioning is computable from 1m OHLCV alone and needs no VIX.",
+    "proposed_mechanism": "Two reinforcing reasons. First, the hedging flow of VR-01 scales with gamma times the size of the move: a short-gamma book must trade more shares for a larger underlying move, so the price impact of the hedge is larger on volatile days. Second, on quiet days the hedging requirement can be under one contract's worth and is simply not executed, so the mechanism has a floor below which it does not fire at all. Both make the effect an amplitude phenomenon rather than a sign phenomenon, and both persist because the hedgers' behaviour is a risk-management constraint rather than a bet.",
+    "observable_variables": [
+      "realised volatility of the 09:30-10:00 ET window from 1m log returns: sqrt(sum of squared 1m log returns)",
+      "alternatively the absolute 09:30-10:00 return, which we measured and which behaves almost identically",
+      "alternatively Parkinson range over 09:30-10:00: (high-low)/close",
+      "tercile or quintile rank of that measure within a TRAILING window only (a full-sample qcut is lookahead - the prior study's opening_range_pos lookahead retraction in research/experiments_futures.jsonl is the exact failure mode to avoid here)",
+      "the VR-01 signal rROD, applied only inside the selected tercile"
+    ],
+    "instruments": [
+      "NQ",
+      "ES",
+      "MNQ",
+      "MES"
+    ],
+    "expected_horizon_minutes": 30,
+    "expected_direction": "continuation",
+    "expected_magnitude_points": 0.94,
+    "expected_trades_per_session": 0.33,
+    "failure_conditions": "Dead if (a) the interaction term in rLH = a + b*rROD + c*rROD*HighVolDummy has |t| on c below 2, or (b) the high-tercile subsample slope is not larger in t-statistic than the pooled slope, or (c) the high-tercile mean net capture after cost is not at least 1.5x the pooled mean net capture - if conditioning does not buy at least that much, the third of the sample it costs us in statistical power is not worth it, or (d) the effect is significant in the low tercile too, which would mean we are picking up something other than an amplitude mechanism.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "Nothing. This is the entry that most directly answers the lab's question 1 and it requires no VIX, no options data and no calendar. The tercile threshold must be computed on a trailing basis (e.g. rank against the prior 60 sessions) to stay causal.",
+    "falsification_test": "On ES and NQ, extend the session to 16:15 ET, compute first-30-minute realised volatility, assign each session to a trailing-60-session tercile, and estimate rLH = a + b*rROD + c*(rROD * 1[top tercile]) + Newey-West errors. The single number that kills it is |t(c)| < 2. Report the high-tercile-only net capture per trade against the measured cost alongside it.",
+    "cost_feasibility_note": "Measured from our own bars: top tercile by |09:30-10:00 return| gives mean absolute 15:45-16:15 move of 9.42 ES points and 46.48 NQ points, against 7.86 and 39.77 pooled. At the published 0.55 hit rate, expected gross = 0.94 ES points ($47.10, cost $16.28, cost share 35%) and 4.65 NQ points ($93.00, cost $13.78, cost share 15%). MES: $4.70 gross against $2.47, cost share 53% - just inside the 60% gate where the unconditional version at 63% failed it, so conditioning is exactly what rescues MES. MNQ: $9.30 against $1.72, cost share 18%. Turnover falls to 0.33 round turns per session, which sits in the 1-3-per-session band the lab's prior study found profitable 33% of the time rather than the over-10 band at 4%.",
+    "confidence": "medium",
+    "why_this_might_be_wrong": "My strongest objection is that the amplitude gain I measured (+60% ES, +28% NQ) is just volatility clustering and would appear for ANY window pair, signal or no signal - a high-volatility morning predicts a high-volatility afternoon, which raises the mean absolute payoff of a coin flip exactly as much as it raises the payoff of a real signal. Cost is fixed, so a coin flip still loses; the conditioning only helps if the hit rate holds up in the high tercile, and Moser's evidence that it does is one COVID-contaminated cell in a master's thesis. The honest statement is that I have measured the denominator of the cost ratio improving and merely hoped about the numerator."
+  },
+  {
+    "id": "VR-03",
+    "name": "The overnight return, not the morning session, is the carrier of the close-of-day signal",
+    "source_claim": "Moser (2021) decomposes the rest-of-day predictor into its overnight component (previous close to today's open) and its first-30-minutes-of-trading component, and runs each separately within each volatility tercile (her Table 8). Only one of the six cells is significant: the OVERNIGHT return in the HIGH-volatility tercile, slope 0.0541, t = 3.00, R-squared 5.14%, significant at 1%. The first-30-minutes component in the high-volatility tercile is insignificant and has the WRONG sign (-0.0741, t = -1.41). She concludes the predictability 'corresponds rather to news released between the previous day's market closing and the market opening than the news released during the first half hour of trading'.",
+    "sources": [
+      {
+        "title": "Intraday Momentum (MSc thesis, Alpen-Adria-Universitat Klagenfurt), Table 8",
+        "author_or_org": "Stefanie Moser",
+        "year": 2021,
+        "url": "https://netlibrary.aau.at/obvuklhs/download/pdf/7301728",
+        "kind": "academic",
+        "what_it_measured": "Predictive regression of the last-half-hour return separately on the overnight component and the first-30-minute component, each within low/medium/high first-half-hour-volatility terciles; 167-168 observations per cell."
+      },
+      {
+        "title": "Hedging demand and market intraday momentum",
+        "author_or_org": "Baltussen, Da, Lammers & Martens (JFE 142)",
+        "year": 2021,
+        "url": "https://www.sciencedirect.com/science/article/abs/pii/S0304405X21001598",
+        "kind": "academic",
+        "what_it_measured": "Table 6 compares timing on rONFH (overnight plus first half hour) with timing on rROD (whole rest of day): for equity index futures rROD gives Sharpe 1.73 versus rONFH 1.07, so the broader window dominates - a partial tension with Moser."
+      }
+    ],
+    "contradictory_evidence": "Directly contradicted by the better paper. Baltussen et al. find that for equity index futures the FULL rest-of-day return (rROD, Sharpe 1.73) outperforms the overnight-plus-first-half-hour signal (rONFH, Sharpe 1.07), which implies the intraday portion carries real information rather than none. Moser's six-cell decomposition on 168 observations per cell in a two-year COVID-spanning European ETF sample is weak evidence against a 46-year, 60-contract study. I am including this as a distinct hypothesis rather than folding it into VR-01 precisely because if it IS true it changes the trade materially - you would know your signal at 09:30 rather than 15:45 - and because it is nearly free to test alongside VR-01.",
+    "our_inference": "Independently of who is right, this entry buys the lab something concrete: it forces the falsification test to horse-race the components rather than accept a composite signal. If the overnight component dominates, the signal is knowable at the open and the position can be entered at any point in the session, which opens the door to entering at the cheapest moment rather than the most crowded one. If the intraday component dominates, the signal is only knowable at 15:45 and execution is constrained to the closing window. That is a difference in execution design, not just in statistics. Our data supports the test: data/futures/*.parquet holds full 23-hour sessions (~1380 bars/day), so the overnight leg from the prior 16:15 to the 09:30 open is directly computable - we measured it at 50.4 bps standard deviation for ES (34.97 points) and 76.0 bps for NQ (197.96 points), which is comparable in size to the whole RTH session.",
+    "proposed_mechanism": "If true, the mechanism is that the gamma-hedging requirement is set by the total move since the hedgers last rebalanced, and the largest single unhedged jump is the overnight gap, which no one can hedge continuously because the cash market is shut and futures liquidity is thin. The accumulated hedging need therefore correlates most strongly with the overnight move and is discharged into the close, when liquidity returns. On the other reading, intraday drift adds information the overnight gap does not, and the composite wins.",
+    "observable_variables": [
+      "rON = log(open at 09:30 ET) - log(close at 16:15 ET previous session), from the full 23-hour bar file",
+      "rFH = log(close at 10:00) - log(open at 09:30)",
+      "rMID = log(close at 15:45) - log(close at 10:00)",
+      "rLH = log(close at 16:15) - log(close at 15:45), the payoff",
+      "first-30-minute realised volatility for the tercile split"
+    ],
+    "instruments": [
+      "ES",
+      "NQ",
+      "MNQ"
+    ],
+    "expected_horizon_minutes": 30,
+    "expected_direction": "continuation",
+    "expected_magnitude_points": 0.94,
+    "expected_trades_per_session": 0.33,
+    "failure_conditions": "Dead if, in the joint regression rLH = a + b1*rON + b2*rFH + b3*rMID, the overnight coefficient b1 is not the largest by t-statistic AND the restricted model using only rON does not have a higher out-of-sample R-squared than the model using only rROD. A tie means the composite wins and this entry collapses into VR-01, which is a perfectly good outcome.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "Nothing new. The overnight bars are present. One caution: the roll. The bar files carry a 'contract' column and roll gaps are already a known WARN in research/futures_discovery_*.json; an overnight return computed across a roll boundary is a fabricated number and must be dropped or back-adjusted.",
+    "falsification_test": "Joint predictive regression of rLH on the three orthogonal components rON, rFH, rMID over all ES and NQ sessions with the roll boundaries excluded, Newey-West errors, plus an expanding-window out-of-sample R-squared comparison of the rON-only and rROD-only models. If b1's t-statistic does not exceed b2's and b3's, the overnight-carrier claim is dead.",
+    "cost_feasibility_note": "Identical to VR-02 because the payoff window and turnover are the same: 0.94 ES points gross ($47.10 vs $16.28, 35%), 4.65 NQ points ($93.00 vs $13.78, 15%). The additional value is not in the cost ratio but in execution optionality: knowing the signal at 09:30 lets you enter away from the closing crush. We found no evidence this improves the fill, and the measured ES quoted spread is one tick at the median in every bucket including the close, so the optionality may be worth nothing.",
+    "confidence": "low",
+    "why_this_might_be_wrong": "One cell out of six, t = 3.00, n = 168, a COVID-spanning sample, a master's thesis, and a much stronger peer-reviewed paper pointing the other way. If I had to bet I would bet against the overnight-only version. I am keeping it because the test is a two-line addition to the VR-01 test and because a negative result here materially strengthens confidence in VR-01's composite signal."
+  },
+  {
+    "id": "VR-04",
+    "name": "Leveraged-ETF close rebalancing: a mechanically forecastable order imbalance in the last 15 minutes",
+    "source_claim": "The leveraged and inverse ETF complex must rebalance daily to restore its stated leverage, and the required trade is a deterministic function of the day's underlying return: for a fund of assets A and leverage L, the notional to trade is A*(L^2 - L)*r, always in the direction of the day's move. Practitioner and academic sources agree the trade lands in the final 30 minutes because the reset is priced off the official close. Reported magnitudes: 'a one standard-deviation increase in leveraged ETF rebalancing flows increases end-of-day returns by 430% of the average return in the last half hour', and the impact is 'completely reversed overnight'. Contemporary scale (2026): Nomura estimated that at the June peak, for every 1% move in the underlying the leveraged ETF complex had to trade about $10bn; the daily rebalance flow 'more than quadrupled in the first half of 2026' and now accounts for a record 1.60% of total S&P 500 futures volume. Baltussen et al. (JFE 2021) name leveraged-ETF issuers alongside option market makers as the short-gamma agents behind market intraday momentum and show the t-statistics on the effect rise as leveraged ETFs are introduced.",
+    "sources": [
+      {
+        "title": "Liquidity Provision to Leveraged ETFs and Equity Options Rebalancing Flows",
+        "author_or_org": "Mathis & Moerke (Frontiers of Finance conference paper, Lancaster)",
+        "year": 2022,
+        "url": "https://wp.lancs.ac.uk/fofi2022/files/2022/08/FoFI-2022-027-Mathis-Moerke.pdf",
+        "kind": "academic",
+        "what_it_measured": "The price impact of predictable leveraged-ETF and option-hedging rebalancing flows on end-of-day returns, and its overnight reversal."
+      },
+      {
+        "title": "Hedging demand and market intraday momentum",
+        "author_or_org": "Baltussen, Da, Lammers & Martens (JFE 142)",
+        "year": 2021,
+        "url": "https://www.sciencedirect.com/science/article/abs/pii/S0304405X21001598",
+        "kind": "academic",
+        "what_it_measured": "Links market intraday momentum to net gamma exposure of option market makers and leveraged ETFs; documents that the t-statistics on the effect increase as leveraged ETFs are introduced."
+      },
+      {
+        "title": "Leveraged ETF Rebalancing Hits $50 Billion As Traders Warn of a 'Powerful Force' Now Driving US Market Volatility",
+        "author_or_org": "Benzinga, citing Nomura",
+        "year": 2026,
+        "url": "https://www.benzinga.com/etfs/broad-u-s-equity-etfs/26/07/60264868/leveraged-etf-rebalancing-hits-50-billion-as-traders-warn-of-a-powerful-force-now-driving-us-market-volatility",
+        "kind": "practitioner",
+        "what_it_measured": "Current size of the daily leveraged-ETF rebalance in dollars and as a share of S&P 500 futures volume; sell-side estimate, not peer-reviewed."
+      },
+      {
+        "title": "The market impact of predictable flows: Evidence from leveraged VIX products",
+        "author_or_org": "Journal of Banking & Finance",
+        "year": 2021,
+        "url": "https://www.sciencedirect.com/science/article/abs/pii/S0378426621002363",
+        "kind": "academic",
+        "what_it_measured": "Price impact of mechanically predictable rebalancing flows in leveraged VIX products - the cleanest identification of the flow-impact channel, in a different underlying."
+      }
+    ],
+    "contradictory_evidence": "The '430% of the average return in the last half hour' figure is a standardised-coefficient statement, not a tradeable magnitude - the average last-half-hour return is close to zero, so a multiple of it can be economically small. The Benzinga/Nomura numbers are sell-side commentary and the framing ('powerful force', 'rattling markets') is the kind of narrative that appears at the top of a flow cycle, not evidence. Most importantly, the flow is public and mechanical: anyone can compute it from published fund AUM and the intraday return, which is the textbook condition for an effect to be front-run into nonexistence. The academic literature on predictable flows generally finds that the impact migrates EARLIER as the flow becomes better known, so by 2026 the trade may be at 15:00 rather than 15:50, or already priced by 15:45.",
+    "our_inference": "This is VR-01's mechanism made explicit, and it is separately testable because it makes a sharper prediction: the last-half-hour continuation should be a convex, not linear, function of the day's return, since the rebalance notional is proportional to r and the price impact is concave in size but the flow is zero for small r. Our inference is that the correct specification is not sign(rROD) but a threshold on |rROD| - trade only when the day's move is large enough to force a real rebalance. That prediction is distinguishable from plain momentum and it also, conveniently, cuts turnover further. We cannot observe fund AUM in our data, so we proxy the flow by |rROD| alone. Two further inferences: the effect should be STRONGER in 2026 than 2025 in our own sample if the Nomura scale claim is right, which is a rare instance of a published anomaly predicted to grow rather than decay; and the overnight reversal gives a second, independent leg we can test because our bar files carry the overnight session.",
+    "proposed_mechanism": "Leveraged and inverse ETFs promise a constant daily multiple of an index return. Maintaining that promise requires buying after up days and selling after down days, in size proportional to the square of leverage times the day's return. The trade must be executed at or near the official close to match the fund's NAV strike, so it is time-inelastic and price-inelastic. Liquidity providers who absorb it demand compensation, which is the source of the transient price move; the position is unwound once the forced buyer is gone, which is why the impact reverses overnight. It persists because the funds cannot choose not to rebalance and cannot choose to rebalance at a better time without tracking error.",
+    "observable_variables": [
+      "rROD magnitude and sign, from 1m closes: log(close 15:45) - log(close prior 16:15)",
+      "|rROD| threshold, e.g. top quartile of the trailing 60-session distribution",
+      "the payoff window return 15:45-16:00 and 15:45-16:15",
+      "the overnight reversal leg: log(open 09:30 next day) - log(close 16:15)",
+      "volume in the 15:45-16:00 bucket relative to its trailing 20-session mean, as a flow proxy",
+      "calendar year, to test the 2025-vs-2026 growth prediction"
+    ],
+    "instruments": [
+      "ES",
+      "NQ",
+      "MNQ"
+    ],
+    "expected_horizon_minutes": 15,
+    "expected_direction": "continuation",
+    "expected_magnitude_points": 1.2,
+    "expected_trades_per_session": 0.25,
+    "failure_conditions": "Dead if (a) conditioning on |rROD| being in the top quartile does not raise the mean net capture above the unconditional VR-01 figure, i.e. the effect is linear in the day's return rather than threshold-shaped, or (b) the overnight leg does not reverse - if the last-half-hour move persists overnight rather than reversing, the mechanism is information, not flow, and the flow story is wrong, or (c) the 2026 half of the sample is not stronger than the 2025 half, which contradicts the documented quadrupling of the flow.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "Leveraged-ETF AUM by fund (SSO, SDS, TQQQ, SQQQ, UPRO, SPXU and the single-stock complex). This would sharpen the flow estimate from a return proxy to a dollar estimate. It is free and low-effort to acquire - daily fund AUM is published by the issuers and available through free ETF data endpoints - but it is a genuine new data source and adds a survivorship and fund-launch bookkeeping problem. We judge it not worth acquiring until the return-proxy version shows signal. We also lack the closing-auction imbalance feed (Nasdaq begins disseminating net order imbalance at 15:55 ET, NYSE MOC books close 15:45-15:55), which is the direct observation of the flow; that is a real-time exchange feed, not something to backfill.",
+    "falsification_test": "On ES and NQ with the session extended to 16:15, estimate rLH = a + b*rROD + c*rROD*1[|rROD| in top trailing quartile], Newey-West. Separately test the overnight reversal: regress the next overnight return on rLH and require a significantly negative coefficient. The single test that kills the flow story is the overnight leg: no reversal, no transient price pressure, no mechanism.",
+    "cost_feasibility_note": "Conditioning on the top quartile of |rROD| raises the expected payoff-window move further than the VR-02 tercile split does, because it selects on the same-day move rather than the morning move. We did not measure the quartile split directly and are extrapolating from the VR-02 tercile measurement (+60% ES between bottom and top tercile), so we set expected_magnitude_points at 1.2 ES points with low confidence rather than compute a number we have not measured. At 1.2 ES points gross = $60 against $16.28, costs are 27% of gross; NQ at roughly 5.5 points = $110 against $13.78, 13%. Turnover of 0.25 round turns per session is the lowest of any entry here and sits comfortably in the band the lab's prior study found most survivable.",
+    "confidence": "medium",
+    "why_this_might_be_wrong": "The strongest objection is timing migration. If the flow is as well known as the 2026 press coverage suggests, the anticipatory trade has already moved earlier in the day, and by 15:45 we would be buying from the front-runners rather than selling to the forced buyer - which turns a continuation trade into a reversal trade at exactly the wrong moment. The overnight-reversal test is the only thing in this entry that distinguishes those two worlds, and I would run it first."
+  },
+  {
+    "id": "VR-05",
+    "name": "Volatility-scaled short-horizon reversal: the return to liquidity provision is a function of volatility, not a constant",
+    "source_claim": "Nagel (Review of Financial Studies, 2012, 'Evaporating Liquidity') shows that the returns to short-term reversal strategies - a proxy for the returns to liquidity provision - are 'strongly time-varying and highly predictable with the VIX index', with expected returns and conditional Sharpe ratios rising enormously with VIX. Dai, Medhat, Novy-Marx & Rizova (NBER WP 30917, 2023) replicate and extend Nagel's Figure 1 through December 2021 and report that 'the correlation between reversal strategy profitability and market volatility documented by Nagel has persisted'. Their predictive regressions of a reversal strategy's daily excess return on the previous day's VIX give R-squared of 13.3% and 14.1% for equal-weighted strategies and 8.0% and 6.8% for the return-weighted strategies Nagel used. They add: 'Given that VIX averages 20.4% over the sample, the regressions suggest that providing liquidity is profitable on average provided market volatility exceeds 7-8%.' Their cross-sectional companion result: 'Higher volatility is associated with faster, initially stronger reversals, while lower turnover is associated with more persistent, ultimately stronger reversals.'",
+    "sources": [
+      {
+        "title": "Evaporating Liquidity",
+        "author_or_org": "Stefan Nagel (Review of Financial Studies 25(7), 2005-2039)",
+        "year": 2012,
+        "url": "https://academic.oup.com/rfs/article-abstract/25/7/2005/1602153",
+        "kind": "academic",
+        "what_it_measured": "Time-series predictability of short-term reversal strategy returns by the VIX, 1998-2010; interprets reversal returns as the return to liquidity provision."
+      },
+      {
+        "title": "Reversals and the Returns to Liquidity Provision",
+        "author_or_org": "Wei Dai, Mamdouh Medhat, Robert Novy-Marx, Savina Rizova (NBER Working Paper 30917)",
+        "year": 2023,
+        "url": "https://www.nber.org/system/files/working_papers/w30917/w30917.pdf",
+        "kind": "academic",
+        "what_it_measured": "Cross-sectional reversal strength and persistence by volatility and turnover quintiles, 1973-2021, plus an out-of-sample extension of Nagel's VIX regressions to 2021 with R-squared of 6.8-14.1% and a stated break-even volatility of 7-8%."
+      }
+    ],
+    "contradictory_evidence": "Two that matter and one that a naive reader would miss. (1) NBER WP 30917 is not peer-reviewed and three of its four authors are employed by Dimensional Fund Advisors, whose products are in this space; the disclosure is on the cover page. (2) Both results are CROSS-SECTIONAL stock strategies - long losers, short winners across a universe - not single-instrument time-series signals. Nothing in either paper establishes that an outright ES or NQ position exhibits the same volatility-scaled reversal. (3) The one a naive reader would miss: the SAME paper cites 'the concentration of momentum among high-volatility stocks (Arena, Haggard, and Yan, 2008)' alongside its own finding that reversals are stronger among high-volatility stocks. Both cannot be read as 'high volatility means reversal'. They are reconciled by horizon - high volatility means FASTER reversal, so at a one-month formation horizon the high-volatility reversal is already spent and what remains looks like momentum. Anyone importing 'high vol implies reversion' as a rule will get the sign wrong at the wrong horizon.",
+    "our_inference": "Our inference, distinct from the sources: the useful content for a single-instrument futures lab is not the reversal signal itself but the SHAPE of the conditioning. The edge per unit of dislocation scales with volatility while our cost is a fixed number of dollars, so the ratio of edge to cost is roughly linear in volatility. That is the general form of the lab's problem and it applies to every mechanism here, not just reversal. The specific, testable single-instrument version is: fade a short-horizon dislocation in ES or NQ only when trailing realised volatility is high, and stand aside otherwise. Note that the prior 240-trial grid tested reversal signals (z_60, vwap_dist, ma_dist_30 with direction -1) as UNCONDITIONAL single-feature thresholds - the family names in research/experiments_futures.jsonl confirm every trial was one feature, one threshold, one direction, with no interaction term anywhere. The conditional version has not been tested.",
+    "proposed_mechanism": "Liquidity demanders who need to trade now pay a concession to whoever will take the other side. The size of that concession is set by the inventory risk the liquidity provider bears while unwinding, which is proportional to the volatility of the asset over the expected holding period. When volatility rises, providers with limited or constrained capital withdraw, the concession widens, and the reversal that follows a liquidity-driven price move is larger. It persists because intermediary capital is genuinely constrained and cannot expand in the moment when it is most needed - which is Nagel's central point and the reason the pattern survived his own publication.",
+    "observable_variables": [
+      "trailing realised volatility of ES/NQ from 1m log returns over a 30- or 60-minute window, annualised",
+      "a dislocation measure: the 1m to 15m return z-scored against its trailing 60-minute standard deviation (deseasonalised - see VR-09)",
+      "the ratio of the current bar's move to the trailing realised volatility, which is the scale-free version",
+      "volume relative to the same minute-of-day's trailing average, as a liquidity-demand proxy",
+      "the ES quote file's spread column, available for ES only, as a direct liquidity-withdrawal measure"
+    ],
+    "instruments": [
+      "NQ",
+      "ES",
+      "MNQ"
+    ],
+    "expected_horizon_minutes": 30,
+    "expected_direction": "reversal",
+    "expected_magnitude_points": null,
+    "expected_trades_per_session": 1.5,
+    "failure_conditions": "Dead if the reversal coefficient's interaction with trailing realised volatility is insignificant (|t| < 2), or if the top-volatility-decile subsample's mean gross capture per trade is below the measured round-turn cost. Also dead, and this is the important one, if the conditional version is no better than the unconditional version already rejected in the 240-trial study - that would confirm the lab's null is about direction after all rather than about amplitude.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "A VIX series would let us reproduce the published conditioning variable exactly rather than substituting realised volatility. Daily VIX is free and trivial (CBOE and FRED VIXCLS both publish 1990-present as a direct download; under an hour of work). Intraday 1-minute VIX is not free - FirstRateData sells 15 years at about $100/year - and we judge it NOT worth buying, because at intraday horizons VIX is a 30-day forward-looking implied measure that is largely redundant with the realised volatility we can compute directly from our own 1m bars, and because substituting realised for implied is the more honest test of whether the mechanism is about volatility or about the options market. Note separately that research/futures_capability.json records IBKR returning OPTION_IMPLIED_VOLATILITY daily bars for these contracts (MES 184, NQ 246), so a free futures-native implied-volatility series is already reachable through the existing connection.",
+    "falsification_test": "Estimate r[t, t+30min] = a + b*z[t] + c*z[t]*RV_trailing[t] on ES and NQ 1m bars, where z is the deseasonalised 15-minute return z-score and RV_trailing is the trailing 60-minute annualised realised volatility. The mechanism predicts b <= 0 and c < 0 (reversal, stronger when volatility is high). |t(c)| < 2 kills it. Then, and only then, cost the top-decile subsample.",
+    "cost_feasibility_note": "We set expected_magnitude_points to null deliberately: neither source gives a magnitude that converts to index points for an outright futures position, because both measure cross-sectional stock portfolios. Publishing a made-up number here would poison the feasibility filter. What we can say is the break-even arithmetic in the other direction: to clear the measured cost, an ES round turn must capture 0.326 index points and an NQ round turn 0.689 points. At 1.5 round turns per session that is 0.49 ES points and 1.03 NQ points of gross capture per session just to break even, against a whole-session standard deviation of 42.5 ES points and 224 NQ points - so the required edge is 1.2% and 0.5% of a session's sigma respectively. That is not a large hurdle in relative terms, which is precisely why this entry is worth testing despite having no published magnitude.",
+    "confidence": "low",
+    "why_this_might_be_wrong": "The transfer from a cross-sectional stock portfolio to an outright index futures position is the weak joint, and I cannot close it with anything I found. Cross-sectional reversal profits come from idiosyncratic liquidity shocks that diversify away at the index level; the index itself is the one instrument where a liquidity demander is least likely to move price, because ES is the deepest equity book in the world. It is entirely coherent for the mechanism to be real, volatility-scaled, and completely absent in ES. I would rank this the least likely of my medium-and-above entries to survive, and I have marked it low."
+  },
+  {
+    "id": "VR-06",
+    "name": "The sign of short-horizon autocorrelation is set by TIME SCALE, not by volatility state",
+    "source_claim": "Schmidhuber, 'Trends and Reversion in Financial Markets on Time Scales from Minutes to Decades' (arXiv 2501.16772), fits a Landau-style expansion of expected future return on normalised past return across 24 markets including S&P 500, DAX, FTSE, Nikkei and commodity futures, using 14 years of tick data (2010-2023), 30 years of daily futures (1990-2020) and 330+ years of monthly prices. Finding: 'markets are in a trending regime on time scales that range from a few hours to a few years, while they are in a reversion regime on shorter and longer time scales.' At intraday scales of 2-16 minutes the linear coefficient is b = -0.912% with t = -13.6 (mean reversion, very strongly significant). At scales of one hour and above, b = +0.132% with t = +2.9 (trend). The authors state plainly that these 'weak patterns would be difficult to profitably exploit beyond earning a fair risk premium' and, of the minute-scale reversion specifically, 'this effect can be used to reduce trading costs, but it can hardly be used for a profitable trading strategy.' Independent corroboration of the S&P side: Chan's volatility-term-structure analysis estimates SPY's intraday Hurst exponent at 0.494 +/- 0.003 (marginally mean-reverting) and daily at 0.469 +/- 0.007.",
+    "sources": [
+      {
+        "title": "Trends and Reversion in Financial Markets on Time Scales from Minutes to Decades",
+        "author_or_org": "Christof Schmidhuber (arXiv 2501.16772)",
+        "year": 2025,
+        "url": "https://arxiv.org/html/2501.16772v1",
+        "kind": "academic",
+        "what_it_measured": "Linear and cubic coefficients of expected future normalised return on past normalised return, by time scale, across 24 markets; tick data 2010-2023, daily futures 1990-2020, monthly prices from 1692. Out-of-sample R-squared of 4.91 bps on the daily data."
+      },
+      {
+        "title": "Mean reversion, momentum, and volatility term structure",
+        "author_or_org": "Ernest Chan (Quantitative Trading blog)",
+        "year": 2016,
+        "url": "http://epchan.blogspot.com/2016/04/mean-reversion-momentum-and-volatility.html",
+        "kind": "practitioner",
+        "what_it_measured": "Hurst exponent from the slope of log-variance against log-time-interval, 1 minute to 17 hours intraday and 1 to 256 days: SPY intraday H = 0.494 +/- 0.003, SPY daily H = 0.469 +/- 0.007, USO intraday 0.515, GLD intraday 0.505."
+      },
+      {
+        "title": "Structural Limits of OHLCV-Based Intraday Signals in MNQ Futures: A Systematic Falsification Study",
+        "author_or_org": "Mathias Mesfin (independent researcher, self-published)",
+        "year": 2026,
+        "url": "https://papers.ssrn.com/",
+        "kind": "practitioner",
+        "what_it_measured": "14 signal families on 947 days of MNQ 5-minute bars, 2021-2025, walk-forward, 2.0-point friction. Records a decision-ledger entry 'D105: MNQ is momentum-dominant at 5-minute resolution' based on a Hurst estimate of 0.59."
+      }
+    ],
+    "contradictory_evidence": "The Hurst estimates flatly disagree and a naive reader would not notice. Chan puts SPY intraday at H = 0.494 (marginal reversion); Mesfin puts MNQ 5-minute at H = 0.59 (strong trend). Nasdaq is more trending than the S&P, but 0.494 against 0.59 is far too large a gap for that to be the whole explanation. The likely resolution is that Hurst estimates on intraday bars are biased upward by intraday volatility seasonality - the U-shape makes variance grow faster than linearly in the aggregation interval purely for deterministic reasons, which masquerades as long-range dependence. That gives the lab a free discriminator: compute the variance-ratio curve on raw and on deseasonalised 1m bars and see how much of any apparent trend survives. Separately, Schmidhuber's own conclusion is negative: he thinks the patterns are consistent with market efficiency and not exploitable, and his coefficients 'appear to have vanished over the decades'.",
+    "our_inference": "Our inference, which the sources do not make: this is the most likely single explanation of the lab's 240-trial null, and it is a horizon explanation rather than a signal explanation. The prior study's verdict rows in research/experiments_futures.jsonl carry 'horizon: 1'. If the tested horizon sat in or near the crossover zone between the reversion regime (under ~30 minutes) and the trend regime (over ~1 hour), then trend and reversion signals would both be tested at the one horizon where each has the least edge, and both would fail - which is exactly what happened when thirty mechanisms and their exact inverses were run. Converting Schmidhuber's numbers to our costs makes the point sharply: his out-of-sample R-squared of 4.91 bps implies a predictable component with standard deviation sqrt(0.000491) = 2.22% of the horizon's return standard deviation, so the average absolute edge is roughly 0.8 * 0.0222 * sigma_horizon. For a 60-minute ES horizon with sigma of about 24 points, that is 0.43 points against a 0.326-point cost - a ratio of 1.3, before any conditioning. That is the correct order of magnitude for the whole problem and it says the unconditional edge is real but sits almost exactly on the cost line.",
+    "proposed_mechanism": "Two opposing forces with different characteristic times. Below roughly half an hour, price moves are dominated by the transitory price impact of liquidity demand, which by construction reverses once the demander is done - this is the same inventory mechanism as VR-05. Above roughly an hour, information diffuses and herding and hedging flows accumulate, both of which push in one direction. The crossover is where the two cancel. It persists because both forces are structural: liquidity provision must be compensated, and information cannot be impounded instantaneously by all participants.",
+    "observable_variables": [
+      "variance ratio VR(k) = Var(k-bar return) / (k * Var(1-bar return)) computed on 1m log returns for k = 2, 5, 15, 30, 60, 120, 240 bars",
+      "the same curve on returns deseasonalised by dividing each 1m return by the trailing average absolute return for that minute-of-day",
+      "the Hurst exponent as half the slope of log Var(k) against log k",
+      "the crossover k where VR(k) crosses 1",
+      "the same curve computed separately within volatility terciles, which is the direct test of whether the crossover MOVES with volatility state"
+    ],
+    "instruments": [
+      "ES",
+      "NQ"
+    ],
+    "expected_horizon_minutes": 60,
+    "expected_direction": "conditional",
+    "expected_magnitude_points": 0.43,
+    "expected_trades_per_session": 1.0,
+    "failure_conditions": "Dead as a useful map if the deseasonalised variance-ratio curve for ES and NQ is flat at 1.0 within confidence bands at every k from 2 to 240 - that would say the lab's instruments are a random walk at every horizon it can trade and no horizon choice rescues anything. It is also dead in its strong form if the crossover point does not move between volatility terciles, since the strong form is what would make VR-06 a conditioning rule rather than merely a horizon-selection rule.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "Nothing. This is the cheapest test in the whole file - a variance-ratio curve on data already in hand, no trading logic, no signal, no P&L. It should be run before any of the directional entries because it tells you which horizons are worth spending trials on.",
+    "falsification_test": "Compute the variance-ratio curve VR(k) for k in {2,5,15,30,60,120,240} minutes on ES and NQ 1m log returns, with the Lo-MacKinlay heteroskedasticity-robust M2 statistic (the homoskedastic M1 over-rejects under volatility clustering, which is guaranteed here). Do it on raw and on minute-of-day-deseasonalised returns, and separately within trailing-volatility terciles. The result is a map, not a pass/fail: it says which horizon and which direction the lab should be spending its trial budget on. If the deseasonalised curve is indistinguishable from 1.0 everywhere, stop.",
+    "cost_feasibility_note": "The 0.43-point ES figure above is derived, not quoted: sqrt(4.91 bps R-squared) * 0.8 * a 60-minute ES sigma of 24 points. Against the measured 0.326-point ES cost that is a gross-to-cost ratio of 1.3, i.e. costs are 76% of gross - FAILS the lab's 60% gate unconditionally, at one round turn per session. On NQ the same calculation gives sqrt(0.000491)*0.8*sigma_60min. With NQ's 09:30-15:45 sigma of 224 points, a 60-minute sigma is roughly 224/sqrt(6.25) = 90 points, so the edge is 1.60 points against a 0.689-point cost - costs 43% of gross, which PASSES. That asymmetry is not a coincidence; it is VR-08. The honest reading is that Schmidhuber's unconditional trend edge is below the line on ES and marginally above it on NQ, and that anything which does not improve on it by conditioning is not worth trading.",
+    "confidence": "medium",
+    "why_this_might_be_wrong": "My strongest objection is that I am importing a coefficient fitted across 24 markets and several decades onto two contracts and fifteen months, and then multiplying it by a volatility I measured in an unusually quiet sample. The R-squared of 4.91 bps is also from the DAILY panel, not the intraday one, and I have used it as if it transferred to a 60-minute horizon - Schmidhuber does not report an intraday out-of-sample R-squared, so that step is mine and it is unsupported. The magnitude figure should be treated as an order-of-magnitude anchor for the cost problem, not as a forecast."
+  },
+  {
+    "id": "VR-07",
+    "name": "The 240-trial null is amplitude-bound, not direction-bound: the sample contains no high-volatility regime",
+    "source_claim": "Brown (SSRN 2026), characterising ES intraday microstructure over 529 sessions from April 2024 to May 2026 using one-minute OHLCV - the same instrument, the same bar resolution and an overlapping sample - identifies four distinct volatility regimes and reports the normal-period mean at 9.3% annualised realised volatility against 33.9% during the April 2025 tariff shock, a factor of 3.6. He also reports that realised volatility is strongly persistent, with lag-1 autocorrelation of daily realised volatility of 0.71 and significant positive autocorrelation still present at lag 21. For a long-run benchmark, the S&P 500's annualised standard deviation over the 50 years 1975-2024 is about 16%, and the VIX has averaged roughly 19-20 since its 1990 inception.",
+    "sources": [
+      {
+        "title": "Intraday Microstructure Dynamics of E-mini S&P 500 Futures: Volatility Regimes, Liquidity Decay, and Long Memory in Realized Volatility",
+        "author_or_org": "Max Brown (SSRN 6847024)",
+        "year": 2026,
+        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6847024",
+        "kind": "academic",
+        "what_it_measured": "529 ES sessions April 2024 - May 2026 on 1-minute OHLCV: four volatility regimes (normal-period mean 9.3% annualised, April 2025 tariff shock 33.9%), L-shaped intraday liquidity decay with mean bar range falling 44% from 4.78 to 2.69 points between the first and last 30-minute windows, and lag-1 daily realised-volatility autocorrelation of 0.71."
+      },
+      {
+        "title": "Evaporating Liquidity / Reversals and the Returns to Liquidity Provision (break-even volatility statement)",
+        "author_or_org": "Nagel (RFS 2012); Dai, Medhat, Novy-Marx & Rizova (NBER 30917)",
+        "year": 2023,
+        "url": "https://www.nber.org/system/files/working_papers/w30917/w30917.pdf",
+        "kind": "academic",
+        "what_it_measured": "That the return to liquidity provision scales with volatility, and that 'providing liquidity is profitable on average provided market volatility exceeds 7-8%' against a sample VIX mean of 20.4%."
+      },
+      {
+        "title": "Historical Volatility (long-run S&P 500 standard deviation benchmark)",
+        "author_or_org": "SimTrade / Hartford Funds volatility whitepaper",
+        "year": 2024,
+        "url": "https://www.simtrade.fr/blog_simtrade/historical-volatility/",
+        "kind": "practitioner",
+        "what_it_measured": "S&P 500 annualised standard deviation of about 16% over 1975-2024; VIX long-run average near 19-20."
+      }
+    ],
+    "contradictory_evidence": "Brown's 'L-shaped liquidity decay' claim is partly wrong on our own data and a naive reader would take it at face value. He reports mean bar range falling monotonically 44% from the first to the last 30-minute window. We measured mean absolute per-minute return in ES by 15-minute bucket over 09:30-16:15 and found a J, not an L: it falls from 3.44 bps at the open to a 1.63 bps trough at 15:15-15:30, then RISES to 2.40 bps in 15:45-16:00. His figure is an artefact of a session that stops at or before 16:00 and of averaging the quiet 15:30-15:45 stretch together with the busy close. The uptick is the whole point of VR-01 and VR-04. Second caveat on the entry itself: this is a claim about our sample's representativeness, not a tradeable mechanism, and it cannot be falsified by a backtest on the same sample - which is precisely the problem it identifies.",
+    "our_inference": "We measured this directly rather than inferring it. Computing annualised realised volatility from 1m log returns over 09:30-15:45 for all 326 complete ES sessions in data/futures/ES.parquet: mean 8.84%, MEDIAN 7.63%, p10 4.74%, p25 6.01%, p75 11.13%, p90 14.26%, MAXIMUM 22.75%. The single most volatile session in the lab's entire fifteen-month sample sits at roughly the long-run average for a moderately stressed day, and the p90 session at 14.26% is still below the long-run unconditional mean of about 16%. Monthly medians never exceed 14.3% and sit at 6-8% for most of the sample. The data begins 2025-06-08 and therefore misses the April 2025 tariff shock that Brown measures at 33.9% - the one genuine high-volatility regime in the overlapping period. Our inference: the 240-trial study reported median gross captured of $1.04 against a median cost of $2.10, and it measured that gross at roughly half the market amplitude at which these mechanisms normally operate, against a cost that does not scale at all. At a long-run 15.5% volatility the same mechanism captures about $2.12, which is at parity with cost; on a 22% day it captures about $3.01, which is 1.4x cost. 'Thirty mechanisms and their exact inverses were tested and nothing survived' is, on this reading, not evidence that direction is absent. It is evidence that direction was tested at an amplitude where nothing could have survived.",
+    "proposed_mechanism": "Every mechanism in this file has a gross capture proportional to the size of the price move it is trying to catch, and every one of them is charged a cost fixed in dollars by the tick grid and the commission schedule. The ratio of the two is therefore roughly linear in volatility. In a low-volatility regime the whole opportunity set slides below the cost line simultaneously, which produces exactly the signature the lab observed: a monotone decline in profitability with turnover, and a uniform null across unrelated mechanisms and their inverses. A uniform null across unrelated hypotheses is more parsimoniously explained by a common denominator than by thirty independent absences.",
+    "observable_variables": [
+      "daily realised volatility from 1m log returns, annualised: sqrt(252 * sum of squared 1m log returns over the session)",
+      "its percentile rank within the sample and against an external long-run benchmark",
+      "the gross-capture-to-cost ratio of any tested mechanism, regressed on same-session realised volatility - this is the decisive diagnostic",
+      "monthly median realised volatility, to identify whether the sample contains any regime at all"
+    ],
+    "instruments": [
+      "ES",
+      "NQ",
+      "MES",
+      "MNQ"
+    ],
+    "expected_horizon_minutes": null,
+    "expected_direction": "conditional",
+    "expected_magnitude_points": null,
+    "expected_trades_per_session": null,
+    "failure_conditions": "This entry is refuted if, re-running the 240-trial grid with each trial's gross capture per trade regressed on that session's realised volatility, the slope is flat or insignificant. A flat slope would mean gross capture does NOT scale with volatility, which would destroy the amplitude explanation and would leave 'there is no direction' as the correct reading of the null. That is the single test that decides whether the lab's prior work should be re-run in a future high-volatility period or abandoned.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "Nothing to run the diagnostic. To ACT on it we would want a sample containing a high-volatility regime, which our 2025-06 onward window does not have. IBKR retention already cost MES and MNQ a quarter of their history (MESU5 and MNQU5 have aged out per research/journal_futures.md), so extending backwards through IBKR will not reach April 2025 for the micros and is uncertain for ES/NQ. Databento sells CME MBP-1 and OHLCV history cheaply (the Mesfin study quotes about $42 per quarter for MNQ tick), which would reach 2018-2020 and 2022 and would supply several genuine high-volatility regimes. We judge this the highest-value data acquisition available to the lab, well above VIX or an economic calendar.",
+    "falsification_test": "Take the existing 818 rows in research/experiments_futures.jsonl, recompute each trial's per-trade gross capture bucketed by the realised volatility of the session in which each trade occurred, and regress gross capture per trade on session realised volatility across all trials. A significantly positive slope with the implied break-even volatility above 14% would confirm that the null is amplitude-bound and would tell the lab exactly what volatility level it needs before any of this is tradeable. A flat slope kills the entry.",
+    "cost_feasibility_note": "The arithmetic is the entry. Measured ES round-turn cost is 0.326 index points, which at the sample MEDIAN session volatility (7.63% annualised, i.e. a 09:30-15:45 sigma of 61.2 bps or 42.5 points) is 0.77% of a session's sigma; at the long-run 16% it would be 0.37%. Every mechanism's cost hurdle is therefore roughly twice as high in this sample as it would be in a normal one. Note that this cuts against the lab's own gate as well: the 60%-of-gross cost rule is a fixed threshold applied to a quantity that halves and doubles with the regime, so trials rejected on cost in this sample are not permanently rejected.",
+    "confidence": "high",
+    "why_this_might_be_wrong": "The strongest objection is that this is an unfalsifiable-sounding excuse of exactly the kind a researcher reaches for after a null, and it should be treated with the suspicion that deserves. I have tried to make it falsifiable with the regression above, but I should be explicit about what I have and have not shown: I have MEASURED that the sample is a low-volatility regime, which is solid. I have NOT shown that gross capture in this lab's trials actually scales with volatility - that is an inference from the liquidity-provision literature, and it is possible that in a high-volatility regime the costs rise too (wider spreads, worse fills, more slippage) by enough to cancel the amplitude gain. Our ES quote data shows the median spread pinned at one tick throughout, which argues against that, but one tick is a floor and the p90 spread in a genuine crisis is not in this sample either."
+  },
+  {
+    "id": "VR-08",
+    "name": "Instrument selection as the cheapest available alpha: NQ and MNQ dominate ES and MES per unit of risk",
+    "source_claim": "This entry has no external source claim to report; it is arithmetic on the lab's own measured costs and the CME contract specifications. Contract specs: ES $50 per index point, minimum tick 0.25 points = $12.50; NQ $20 per point, tick 0.25 = $5.00; MES $5 per point, tick 0.25 = $1.25; MNQ $2 per point, tick 0.25 = $0.50. The lab's measured round-turn costs are ES $16.28, NQ $13.78, MES $2.47, MNQ $1.72. The closest thing to a source claim is the general finding in the transaction-cost literature that the relevant cost metric for a strategy is cost per unit of risk taken, not cost per contract or cost per dollar of notional.",
+    "sources": [
+      {
+        "title": "CME Group E-mini and Micro E-mini equity index futures contract specifications",
+        "author_or_org": "CME Group",
+        "year": 2026,
+        "url": "https://www.cmegroup.com/markets/equities.html",
+        "kind": "exchange",
+        "what_it_measured": "Contract multipliers and minimum price increments for ES, NQ, MES and MNQ."
+      },
+      {
+        "title": "Lab-measured round-turn costs and 1-minute bar files",
+        "author_or_org": "this repository (data/futures/*.parquet, data/futures/ES_quotes.parquet)",
+        "year": 2026,
+        "url": "https://github.com/",
+        "kind": "practitioner",
+        "what_it_measured": "Measured round-turn costs per contract, and the ES quoted spread by time of day, which we found pinned at the 0.25-point minimum at the median in every 30-minute bucket from 09:30 to 16:15."
+      },
+      {
+        "title": "A Taxonomy of Anomalies and their Trading Costs",
+        "author_or_org": "Robert Novy-Marx & Mihail Velikov (Review of Financial Studies 29(1), 104-147; NBER WP 20721)",
+        "year": 2016,
+        "url": "https://www.nber.org/papers/w20721",
+        "kind": "academic",
+        "what_it_measured": "After-cost performance of a large set of anomalies. Gives the cleanest published break-even heuristic: costs reduce realised spreads by at least 1 bp per 1% of one-sided MONTHLY turnover, and only two strategies with more than 50% one-sided monthly turnover retain a significant net spread even when designed with cost mitigation."
+      },
+      {
+        "title": "The Trading Profits of High Frequency Traders / Risk and Return in High-Frequency Trading",
+        "author_or_org": "Baron, Brogaard & Kirilenko (CFTC audit-trail study); Baron, Brogaard, Hagstromer & Kirilenko (JFQA 54(3), 993-1024)",
+        "year": 2019,
+        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2433118",
+        "kind": "academic",
+        "what_it_measured": "Regulator audit-trail data on ES: average HFT revenue of $1.11 per contract traded (aggressive $0.98, passive $0.34), 31 firms earning $29.3m gross in one month in ES alone at an average annualised Sharpe of 9.2. At today's $383,050 ES notional, $1.11 is 0.029 bps - the fastest, best-capitalised participants in this contract extract roughly one tenth of a tick per contract."
+      },
+      {
+        "title": "The High-Frequency Trading Arms Race: Frequent Batch Auctions as a Market Design Response",
+        "author_or_org": "Budish, Cramton & Shim (Quarterly Journal of Economics 130(4), 1547-1621)",
+        "year": 2015,
+        "url": "https://academic.oup.com/qje/article/130/4/1547/1916146",
+        "kind": "academic",
+        "what_it_measured": "ES-SPY latency arbitrage on direct-feed millisecond data: median opportunity 0.08 index points, mean 0.09, 99th percentile 0.23 - the median mechanical arbitrage in the world's most-arbitraged pair is under one third of an ES tick, at roughly 891 opportunities per day."
+      },
+      {
+        "title": "Trading Costs of Asset Pricing Anomalies",
+        "author_or_org": "Frazzini, Israel & Moskowitz (AQR; SSRN 2294498), $1.7tn of live institutional executions",
+        "year": 2018,
+        "url": "https://pages.stern.nyu.edu/~afrazzin/pdf/Trading%20Cost%20of%20Asset%20Pricing%20Anomalies%20-%20Frazzini,%20Israel%20and%20Moskowitz.pdf",
+        "kind": "practitioner",
+        "what_it_measured": "The most cost-OPTIMISTIC study in the literature (real costs 'an order of magnitude smaller than previous studies suggest'), and yet: short-term reversal, at 305% monthly turnover, carries 6.75-10.82% annual cost drag and 'does not appear to survive transactions costs even when optimized to try to minimize those costs'. Break-even fund size for STR $9.5bn against $52-103bn for the low-turnover factors."
+      },
+      {
+        "title": "Demystifying Time-Series Momentum Strategies",
+        "author_or_org": "Baltas & Kosowski (distributed by CME Group)",
+        "year": 2015,
+        "url": "https://www.cmegroup.com/education/files/demystifiing-time-series-momentum-strategies.pdf",
+        "kind": "exchange",
+        "what_it_measured": "Futures-only cost accounting: a default time-series momentum specification at 170% monthly turnover incurs 163 bps of annual trading cost, about 10% of a 16.12% gross return, and post-2008 the default specification has a NEGATIVE after-cost Sharpe of -0.09. Turnover reduction cuts costs to 105 bps."
+      }
+    ],
+    "contradictory_evidence": "None found in the literature, and I searched for the opposite claim. The one genuine caveat is capacity and granularity rather than cost: NQ's $20 multiplier at an index level near 29400 gives a notional of about $588,000 per contract against about $383,000 for ES, so an account that can only carry one or two contracts has coarser position sizing in NQ and much coarser risk per contract. That is why MNQ, not NQ, is likely the right answer for a small account - and MNQ costs only 25% more per unit of risk than NQ while giving a tenth the increment. The second caveat is that NQ's realised volatility is higher than ES's, so the risk-normalised advantage comes partly from taking more risk; a strategy sized to constant dollar risk captures the advantage, one sized to constant contract count does not. Separately, an independent parallel cost review reached the same ranking from published contract specs and the IBKR schedule rather than from the lab's measured constants - ES 0.443 bps, MES 0.650, NQ 0.161, MNQ 0.296 - but its NQ figure assumes a one-tick book. The lab's MEASURED NQ round turn of $13.78 is $4.68 above what one-tick-plus-commission predicts, implying an effective NQ spread nearer two ticks. Both routes agree NQ is cheapest and MES dearest; they disagree on the size of NQ's lead (0.161 vs 0.234 bps), and the measured number should be preferred until an NQ quote file settles it.",
+    "our_inference": "Normalising the lab's measured costs by the standard deviation of a session's move, which is the only normalisation that matters when the question is whether an edge can clear a cost, produces a ranking the lab may not have applied. Cost as a fraction of one session's 09:30-15:45 standard deviation: NQ 0.27%, MNQ 0.34%, ES 0.69%, MES 1.05%. MES is 3.87 times as expensive as NQ per unit of risk, and 2.55 times for ES. The reason is the tick grid: ES's minimum tick of $12.50 on a $383,000 notional is 0.33 bps, while NQ's $5.00 tick on a $588,000 notional is 0.085 bps - NQ's price grid is nearly four times finer in relative terms. Within the Nasdaq complex the micro is nearly free (MNQ 1.25x NQ) because most of MNQ's cost is commission rather than spread; within the S&P complex the micro costs 52% more than the full contract (MES 1.05% vs ES 0.69%) because MES's $1.25 tick is half its total cost. Our inference: if the prior 240-trial study weighted MES and MNQ, as a small account naturally would, it was fighting the worst cost ratio on the board. Every marginal hypothesis should be tested on NQ or MNQ first, and MES should be treated as the instrument of last resort.",
+    "proposed_mechanism": "Cost per unit of risk is set by the ratio of the exchange's minimum price increment to the contract's volatility, plus a commission that does not scale with notional. The Nasdaq-100 index trades at roughly four times the S&P 500's index level with the same 0.25-point tick and a smaller multiplier, so its price grid is far finer relative to both its notional and its volatility. This is a permanent feature of the contract design, not a market condition, so it does not decay and cannot be arbitraged away.",
+    "observable_variables": [
+      "measured round-turn cost per contract in dollars",
+      "contract multiplier in dollars per index point",
+      "the session standard deviation of log returns for each instrument, measured from 1m bars",
+      "cost_in_points = cost_dollars / multiplier",
+      "cost_in_bps = cost_in_points / index_level * 10000",
+      "the decision metric: cost_in_bps / session_sigma_bps"
+    ],
+    "instruments": [
+      "NQ",
+      "MNQ",
+      "ES",
+      "MES"
+    ],
+    "expected_horizon_minutes": null,
+    "expected_direction": "conditional",
+    "expected_magnitude_points": null,
+    "expected_trades_per_session": null,
+    "failure_conditions": "This is arithmetic and cannot fail as arithmetic, but the conclusion drawn from it fails if realised slippage on NQ and MNQ turns out to be materially worse than the measured figures - the lab's $13.78 NQ round turn is $4.68 above what a one-tick-crossing-plus-commission model predicts, which suggests NQ's effective spread averages closer to two ticks than one. If NQ's true effective cost is three ticks in the windows the lab wants to trade, the advantage over ES shrinks from 2.55x to roughly 1.3x. The lab has an ES quote file but no NQ quote file, so this is currently unverified.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "An NQ bid/ask file. The lab has data/futures/ES_quotes.parquet with bid, ask, bid_low, ask_high and spread, but no equivalent for NQ, MES or MNQ. Pulling NQ BID_ASK minute bars through the existing IBKR connection is the same code path already used for ES and is a few hours of work at most; it would let the lab replace an assumed NQ cost with a measured one, which matters because NQ is the instrument this entry recommends.",
+    "falsification_test": "Pull NQ BID_ASK minute bars for the sample period through the existing fetcher, compute the median and p90 quoted spread by 30-minute bucket exactly as we did for ES, and recompute cost-per-unit-of-risk from the measured spread rather than from the assumed cost constant. If NQ's median spread exceeds two ticks in the windows the lab wants to trade, the ranking narrows materially and the recommendation weakens.",
+    "cost_feasibility_note": "The entry is the cost arithmetic. Round-turn cost expressed three ways - dollars, index points, and basis points of notional: NQ $13.78 / 0.689 pts / 0.234 bps; MNQ $1.72 / 0.860 pts / 0.293 bps; ES $16.28 / 0.326 pts / 0.425 bps; MES $2.47 / 0.494 pts / 0.645 bps. Note that ES is CHEAPER than MES in index points (0.326 vs 0.494) despite costing six times more per contract, because the multiplier is ten times larger - a comparison in points alone is misleading and a comparison in dollars alone is worse. Divided by each instrument's 09:30-15:45 session sigma (ES 61.2 bps, NQ 86.0 bps) the ranking is NQ 0.27% < MNQ 0.34% < ES 0.69% < MES 1.05%. Moving a marginal hypothesis from MES to MNQ improves its gross-to-cost ratio by a factor of 3.1 at no change to the signal. TURNOVER, NOT COST LEVEL, IS THE BINDING VARIABLE, and this is where the published economics is unambiguous. Novy-Marx & Velikov's heuristic is at least 1 bp of cost per 1% of one-sided monthly turnover, with survival essentially ending above 50% one-sided monthly turnover; at 1-12 round turns per session the lab is running 2,100-25,000% MONTHLY turnover, i.e. 40 to 500 times past the point at which the equity anomaly literature says effects stop surviving. Futures costs per turn are far smaller than equity long-short costs per turn, which is why the lab is not simply dead, but the direction of the argument is not in doubt. Annualised cost drag over 252 sessions at the lab's measured costs: at 1 round turn per session ES 1.12%, MES 1.64%, NQ 0.41%, MNQ 0.75%; at 4 per session ES 4.46%, MES 6.55%, NQ 1.62%, MNQ 2.98%; at 12 per session ES 13.40%, MES 19.66%, NQ 4.87%, MNQ 8.95%. No published edge in this literature is 13% a year. Corroborating this from the futures side, Baltas & Kosowski find a time-series momentum specification at only 170% MONTHLY turnover already paying 163 bps a year and posting a negative after-cost Sharpe of -0.09 post-2008. Two sanity benchmarks worth pinning to the wall: HFT firms with co-located infrastructure extract an average of $1.11 per ES contract traded (0.029 bps of today's notional, about a tenth of a tick), and the median ES-SPY latency arbitrage is 0.08 index points - under a third of a tick. Any backtest on this desk showing an edge of several ticks per ES trade is claiming to beat, per contract, the entire high-frequency industry's realised revenue, and should be assumed mismeasured until proven otherwise. Equivalent break-even hit rates for a symmetric target and stop of R points: ES at R=10 needs 51.7%, MNQ at R=20 needs 52.2%. Equivalent break-even information coefficients, cost divided by per-trade return volatility: about 0.011 for an hourly ES trade and about 0.016 for a five-minute MNQ trade.",
+    "confidence": "high",
+    "why_this_might_be_wrong": "My strongest objection is that this is not a mechanism and including it in a mechanisms file risks it being read as one. It generates no return; it only changes the denominator. If there is genuinely no edge at any horizon in any volatility state, moving from MES to MNQ makes the losses 3.1x smaller per unit of risk and nothing else, and a lab that mistakes a smaller loss for progress will keep testing dead hypotheses on a cheaper instrument. The second objection is the unmeasured NQ spread noted above: the entire ranking rests on one cost constant per instrument whose provenance I did not verify, and the NQ number does not reconcile with the tick-plus-commission model."
+  },
+  {
+    "id": "VR-09",
+    "name": "The 02:00-03:00 ET overnight drift, and its documented death - a decisive cheap test and a pipeline calibration",
+    "source_claim": "Boyarchenko, Larsen & Whelan, 'The Overnight Drift' (Review of Financial Studies 36(9), 2023, from NY Fed Staff Report 917), studying E-mini S&P 500 futures 1998-2019, find that the largest positive returns of the entire 24-hour cycle accrue between 02:00 and 03:00 ET - the Frankfurt/London open - averaging 3.6-3.7% annualised, roughly 1.48 bps per day, and that this single hour accounted for more than 60% of the contract's 5.9% annualised close-to-close return. Their mechanism: intermediaries absorb order imbalances at the NYSE close and are compensated for carrying that inventory overnight, with a strong empirical relation to the closing order imbalance. Then, decisively, the SAME authors published 'The Disappearing Overnight Drift' (Liberty Street Economics, Federal Reserve Bank of New York, July 2026): the 02:00-03:00 ET window returned roughly 3.7% per annum over 1998-2020 and 'averaged close to zero' over 2021-2025. They attribute the death to compression of end-of-day order imbalances - the standard deviation of relative signed volume fell from 6.5% to 2.9%, more than a halving - as algorithmic liquidity providers slice closing orders more finely. Volatility and overnight liquidity were stable, so it is the imbalance, not the liquidity, that vanished.",
+    "sources": [
+      {
+        "title": "The Overnight Drift",
+        "author_or_org": "Nina Boyarchenko, Lars C. Larsen, Paul Whelan (Review of Financial Studies 36(9), 3502-3547; NY Fed Staff Report 917)",
+        "year": 2023,
+        "url": "https://ideas.repec.org/a/oup/rfinst/v36y2023i9p3502-3547..html",
+        "kind": "academic",
+        "what_it_measured": "Hour-by-hour E-mini S&P 500 futures returns over the full 24-hour cycle, 1998-2019, isolating a 3.6-3.7% annualised drift in the 02:00-03:00 ET hour and relating it to NYSE closing order imbalances."
+      },
+      {
+        "title": "The Disappearing Overnight Drift",
+        "author_or_org": "Boyarchenko, Larsen & Whelan (Liberty Street Economics, Federal Reserve Bank of New York)",
+        "year": 2026,
+        "url": "https://libertystreeteconomics.newyorkfed.org/2026/07/the-disappearing-overnight-drift/",
+        "kind": "fed",
+        "what_it_measured": "Out-of-sample extension of the authors' own RFS result: the 02:00-03:00 ET return averaged close to zero over 2021-2025, with the standard deviation of relative signed closing volume falling from 6.5% to 2.9%."
+      },
+      {
+        "title": "Return Differences between Trading and Non-Trading Hours: Like Night and Day",
+        "author_or_org": "Cooper, Cliff & Gulen (SSRN 1004081); Kelly & Clark, Journal of Asset Management",
+        "year": 2011,
+        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1004081",
+        "kind": "academic",
+        "what_it_measured": "S&P 500 constituents, indices and index futures 1993-2006: night returns 2.82-4.76 bps/day against day returns of -2.85 to +0.22 bps/day."
+      },
+      {
+        "title": "Night Moves: Is the Overnight Drift the Grandmother of All Market Anomalies?",
+        "author_or_org": "Elm Wealth",
+        "year": 2023,
+        "url": "https://elmwealth.com/night-moves-overnight-drift/",
+        "kind": "practitioner",
+        "what_it_measured": "Independent sceptical quantification, 1995-2022; dates the waning of the effect to around 2012 following a half dozen papers published 2008-2015, and argues the cross-sectional version is not tradeable after costs and borrow."
+      }
+    ],
+    "contradictory_evidence": "The contradictory evidence IS the entry - this is the rare case where the original authors published the refutation themselves, in a Fed venue, with a named mechanism for the death. Elm Wealth independently dates the waning earlier, to around 2012, which if right means even the RFS sample's later years were already decaying. Glasserman, Krstovski, Laliberte & Mamaysky (arXiv 2507.04481, 2025) add that overnight returns do not significantly predict intraday returns once news-topic exposure is controlled, and conclude that 'because of the extreme turnover required to trade the over-intra effect, our findings fall short of being a viable trading strategy'. There is no serious dissent in the other direction.",
+    "our_inference": "Our inference is that this entry's value to the lab is no longer as an alpha source but as the cheapest available NEGATIVE CONTROL, and the lab should run it as such before spending trials on anything else in this file. The reasoning: the effect is precisely specified (one hour, one instrument, a known sign, a known magnitude of 1.48 bps per day), it is known to have been large through 2020 and known to be zero from 2021, and the lab's sample is entirely inside the dead period. The lab's bar files carry the full 23-hour session (about 1380 one-minute bars per day, confirmed in data/futures/ES.parquet), so the 02:00-03:00 ET window is directly available. If the lab's pipeline reports a significant positive drift in that hour over 2025-06 to 2026-09, the pipeline has a bug or a lookahead - because the people who discovered the effect say it is not there. That is a rare and valuable thing: a pre-specified null with an authoritative expected answer, on the lab's own instrument, costing one afternoon. Given that research/experiments_futures.jsonl already contains one retraction for a lookahead in opening_range_pos that silently produced survivors, a calibration test of this kind is worth more than another hypothesis.",
+    "proposed_mechanism": "Whatever remains of the mechanism is inventory compensation: dealers who absorb a one-sided closing imbalance carry the position overnight and are paid for the risk as European liquidity arrives and lets them unwind. The reason it died is not that dealers stopped wanting compensation but that the imbalance they had to absorb halved, because execution algorithms now slice closing orders finely enough that no single dealer ends the day materially long or short. That is a durable structural change, not a cycle, which is why we expect the effect to stay dead.",
+    "observable_variables": [
+      "the 02:00-03:00 ET hourly return from 1m closes, on the full 23-hour bar file",
+      "the same for every other hour of the 24-hour cycle, as the control",
+      "the volume in the 15:45-16:00 ET bucket relative to trailing average, as an available proxy for closing imbalance intensity",
+      "calendar year, to split 2025 from 2026"
+    ],
+    "instruments": [
+      "ES",
+      "NQ"
+    ],
+    "expected_horizon_minutes": 60,
+    "expected_direction": "continuation",
+    "expected_magnitude_points": 0.0,
+    "expected_trades_per_session": 1.0,
+    "failure_conditions": "Inverted relative to the other entries, because the expected result is zero. The entry 'fails' in the informative sense if the 02:00-03:00 ET mean return over the lab's sample is significantly POSITIVE at |t| > 2 - that outcome should be treated as evidence of a pipeline defect (lookahead, roll contamination, timezone error, survivorship in the contract stitching) before it is treated as evidence of alpha. It fails in the boring sense, confirming the Fed's finding, if the mean is indistinguishable from zero, which is what we expect.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "Nothing. Note one trap specific to this window: 02:00-03:00 ET spans the US/Europe daylight-saving mismatch twice a year, and the Frankfurt/London open moves relative to ET on those dates. The window must be defined in ET as the papers do, but the lab should check whether the effect concentrates differently in the weeks when London and New York are offset. Roll boundaries must also be excluded, as with VR-03.",
+    "falsification_test": "On ES and NQ over the full sample, compute the mean return of every one-hour bucket of the 24-hour cycle with Newey-West errors, and report the 02:00-03:00 ET bucket against the other 23. Pre-register the expectation that it is zero. Run this before any other test in this file.",
+    "cost_feasibility_note": "For completeness, the historical magnitude in lab units: 1.48 bps per day is 1.13 ES points ($56.50) against a 0.326-point cost, i.e. costs 29% of gross; and 4.35 NQ points ($87.00) against 0.689 points, costs 16% of gross. Both would have passed the lab's 60% gate comfortably in the 1998-2020 sample. The expected magnitude in the lab's actual sample is zero, which is why expected_magnitude_points is set to 0.0 rather than to the historical figure. This is also the clearest single illustration for the lab of the difference between a published magnitude and a forward-looking one.",
+    "confidence": "high",
+    "why_this_might_be_wrong": "High confidence here means high confidence that the effect is DEAD, which is the claim being made. The objection to my framing is that a negative control is only as good as the alternative hypothesis it rules out: if the lab's pipeline finds nothing at 02:00-03:00, that is consistent with a correct pipeline AND with a pipeline so broken it finds nothing anywhere. A negative control should therefore be paired with a positive one - a synthetic series with a known injected edge - and I am recommending only half of the pair. The second objection is that the Liberty Street piece is a blog post rather than a peer-reviewed paper, though it is by the original authors on their own result, which is about as good as refutations get."
+  },
+  {
+    "id": "VR-10",
+    "name": "Volatility compression predicts the SIZE of the next move and not its sign - the cleanest negative result in the territory",
+    "source_claim": "Singha, 'Hidden Order in Trades Predicts the Size of Price Moves' (arXiv 2512.15720, Nov 2025), using SPY second-resolution data over 36 sessions and 38.5 million trades, computes an order-flow entropy from a 15-state Markov transition matrix. Conditioning on entropy below the 5th percentile raises the subsequent 5-minute absolute return by a factor of 2.89 (t = 12.41, p < 1e-4); the lowest-versus-highest entropy quintile magnitude ratio is 2.17. Directional accuracy over the same conditioning is 45.0% with p = 0.12 - statistically indistinguishable from chance. The author's own framing is that entropy is invariant under sign permutation, so it cannot by construction carry directional information. Independently, Preethi (SSRN 6316139, 2026), clustering NIFTY 5-minute bars with UMAP and HDBSCAN over calendar 2025, finds regime-conditioned forecasts cut 30-minute realised-volatility MSE by about 5.65% and states that 'volatility-related features differ significantly across regimes, while return differences remain statistically insignificant - regime organization is primarily volatility-driven rather than drift-driven.'",
+    "sources": [
+      {
+        "title": "Hidden Order in Trades Predicts the Size of Price Moves",
+        "author_or_org": "Singha (arXiv 2512.15720)",
+        "year": 2025,
+        "url": "https://arxiv.org/html/2512.15720v1",
+        "kind": "academic",
+        "what_it_measured": "SPY, 36 sessions Oct-Nov 2025, 38.5M trades: order-flow entropy conditioning raises subsequent 5-minute |return| 2.89x (t = 12.41) while directional accuracy is 45.0% (p = 0.12)."
+      },
+      {
+        "title": "Intraday Volatility Regimes via Unsupervised Machine Learning: Evidence from the NIFTY Index",
+        "author_or_org": "Preethi S R (SSRN 6316139)",
+        "year": 2026,
+        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6316139",
+        "kind": "academic",
+        "what_it_measured": "UMAP + HDBSCAN regime clustering on NIFTY 5-minute bars, calendar 2025: 5.65% out-of-sample MSE reduction on 30-minute realised volatility, with no statistically significant return differences across regimes."
+      },
+      {
+        "title": "On the performance of volatility-managed portfolios",
+        "author_or_org": "Cederburg, O'Doherty, Wang & Yan (Journal of Financial Economics 138(1), 95-117)",
+        "year": 2020,
+        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3357038",
+        "kind": "academic",
+        "what_it_measured": "103 equity strategies: volatility-managed versions show positive spanning-regression alphas replicating Moreira & Muir (2017) but 'reasonable out-of-sample versions generally earn lower certainty equivalent returns and Sharpe ratios than do simple investments in the original, unmanaged portfolios', due to structural instability in the spanning regressions."
+      },
+      {
+        "title": "Data-Snooping, Technical Trading Rule Performance, and the Bootstrap",
+        "author_or_org": "Sullivan, Timmermann & White (Journal of Finance 54(5), 1647-1691)",
+        "year": 1999,
+        "url": "https://onlinelibrary.wiley.com/doi/abs/10.1111/0022-1082.00163",
+        "kind": "academic",
+        "what_it_measured": "7,846 technical rules including channel breakouts and filter rules over 100 years of DJIA under White's Reality Check; on the S&P 500 FUTURES contract specifically, no evidence that the best technical rule outperforms once data snooping is accounted for."
+      }
+    ],
+    "contradictory_evidence": "The contradictory evidence runs the other way here: the vendor literature is uniformly positive and uniformly worthless. Every claim we found about NR7, narrow-range, inside days, Bollinger squeezes and 'volatility contraction patterns' predicting directional breakouts traces to Toby Crabel's 1990 trade book and is currently carried by screener and indicator vendors. The one quantified claim located - a 90.77% success rate for VCP breakouts when major indices trade above their monthly 10-period EMA - has no stated sample, no definition of success, no cost model and a survivorship-prone universe. We found no peer-reviewed evidence that range compression predicts direction, and we looked for it deliberately. Park & Irwin's survey of 95 modern technical-analysis studies (Journal of Economic Surveys 21(4), 2007) found 56 positive but concluded that most are compromised by data snooping, ex post rule selection and inadequate cost estimation, and their own Reality-Check test of US futures 1985-2004 found no general profitability.",
+    "our_inference": "Our inference is that the lab should stop treating compression as a directional setup and start treating it as the one reliable input it actually is: a forecast of the SIZE of the next move. That matters here more than it would elsewhere, because the lab's binding constraint is a fixed dollar cost divided by a variable dollar capture. A magnitude forecast with a 2-to-3x conditioning ratio does not create an edge, but it does let a marginal edge be deployed only where the denominator of the cost ratio is largest, and switched off everywhere else - which is exactly the VR-02 mechanism generalised, and exactly the thing the prior 240-trial grid could not express, because every one of its 818 rows was a single feature with a single threshold and a single direction. We also infer, from the Singha result specifically, that the lab should add a magnitude-prediction diagnostic to its funnel alongside the direction test: a feature that predicts |return| with a t of 12 and direction with a t of 1.5 is not a failed signal, it is a correctly-working volatility filter that has been mislabelled.",
+    "proposed_mechanism": "Low entropy in the order flow, and narrow realised range, both indicate that one side is quietly accumulating or that liquidity has thinned to the point where little volume moves price far. Both states resolve into a larger move when the accumulation completes or when the thin book is hit. Neither state contains information about WHICH way, because the state is defined on a quantity that is symmetric in the sign of returns - the same narrow range arises before an up-move and a down-move. It persists because it is not an inefficiency at all: it is a property of how order flow arrives, and there is nothing to arbitrage.",
+    "observable_variables": [
+      "realised range over a trailing window relative to its own trailing distribution: (high-low over last N bars) / (median of that quantity over the last 20 sessions at the same minute-of-day)",
+      "realised volatility over a trailing 30-minute window, deseasonalised by minute-of-day",
+      "the ratio of the trailing 30-minute realised volatility to the trailing 120-minute realised volatility, which is a compression measure scale-free in the level of volatility",
+      "volume over the trailing window relative to the same minute-of-day's trailing average",
+      "the target for the magnitude test: absolute return over the next 30 or 60 minutes"
+    ],
+    "instruments": [
+      "ES",
+      "NQ",
+      "MNQ"
+    ],
+    "expected_horizon_minutes": 30,
+    "expected_direction": "conditional",
+    "expected_magnitude_points": null,
+    "expected_trades_per_session": 0.0,
+    "failure_conditions": "As a magnitude forecaster it fails if the bottom quintile of the compression measure does not raise the subsequent 30-minute absolute return by at least 1.5x relative to the top quintile on ES and NQ - the published SPY ratio is 2.17 to 2.89 and anything below 1.5x is not worth conditioning on. As a direction signal it is ALREADY falsified by the sources and by the lab's own prior grid, and we are asserting in advance that a directional test on it will return a hit rate indistinguishable from 50%; if the lab runs that test and finds otherwise, we would suspect the test before we believed the result.",
+    "data_requirements_we_have": true,
+    "data_we_lack": "The Singha entropy measure needs trade-level data with a state classification, which requires tick data the lab does not have; the 1m OHLCV range-compression proxy is a weaker substitute and the 2.89x conditioning ratio should not be expected to survive the downgrade. Databento sells CME tick history cheaply (about $42 per quarter for MNQ per the Mesfin study) if the lab ever wants the stronger version, but we would test the OHLCV proxy first.",
+    "falsification_test": "On ES and NQ 1m bars, compute the deseasonalised compression ratio (trailing 30-minute RV over trailing 120-minute RV), sort all intraday observations into quintiles, and report the mean absolute forward 30-minute return by quintile together with the directional hit rate by quintile. Two numbers decide it: the bottom-to-top magnitude ratio must exceed 1.5, and the hit rate must NOT differ from 50% - the second is a confirmation that we understand the mechanism, and a hit rate materially different from 50% would mean something other than compression is being measured.",
+    "cost_feasibility_note": "expected_trades_per_session is deliberately 0.0 and expected_magnitude_points is null: this entry generates no trades of its own. Its economic value is entirely as a multiplier on other entries' cost ratios. Quantified against VR-01: the lab's measured cost is fixed at 0.326 ES points and 0.689 NQ points per round turn, so a conditioning variable that raises the mean absolute payoff-window move by 1.6x (which is what we measured for the first-30-minute volatility tercile: 5.90 to 9.42 ES points) improves any dependent strategy's gross-to-cost ratio by the same 1.6x at zero marginal cost. That is a larger improvement than moving from MES to MNQ (3.1x) can be stacked with, and the two are multiplicative.",
+    "confidence": "medium",
+    "why_this_might_be_wrong": "My strongest objection is Cederburg, O'Doherty, Wang & Yan. Their result is that conditioning on volatility state looks excellent in a spanning regression and then loses to the unconditional strategy in real time, because the conditioning weights are estimated with error and the relationship is structurally unstable. Everything I have written about conditioning in VR-02 and here is vulnerable to exactly that critique, and the honest position is that a real-time, trailing-window, no-lookahead implementation of a volatility filter may well underperform simply not filtering at all. The second objection is that the magnitude conditioning I measured in the lab's own data is partly mechanical - volatility clusters, so of course a volatile morning predicts a volatile afternoon - and a mechanical amplitude gain does nothing for a strategy with no edge."
+  },
+  {
+    "id": "VR-11",
+    "name": "Pre-announcement volatility compression, and the announcement-day risk premium",
+    "source_claim": "Two separate claims, both requiring a release calendar. First, the lull: Bomfim, 'Pre-Announcement Effects, News Effects, and Volatility' (Journal of Banking & Finance 27(1), 2003, from Fed FEDS working paper 2000-50), fitting a GARCH model to daily S&P 500 returns over June 1989 - December 1998 (N = 2,414), finds that the day before a scheduled FOMC announcement carries a conditional-volatility coefficient of -0.486 with t = -7.80, roughly HALF normal conditional volatility, while the announcement day itself carries +0.79 with t = 2.73, about 40% above normal. Critically the pre-announcement calm appears only after 1993, when the Fed began announcing decisions on meeting days, so it is caused by the scheduling rather than being a calendar artifact. Zhu (BIS Working Paper 1079, 2023) adds that turnover falls before FOMC announcements and rises afterward, and that 'on average, one third of the pre-FOMC price drift can be attributed to the volume dynamics and liquidity shocks'. Second, the premium: Savor & Wilson (JFQA 48(2), 2013), over 1958-2009, find 11.4 bps average excess return on scheduled announcement days (CPI, employment, FOMC) against 1.1 bps on all other days, more than 60% of the annual equity risk premium, with a Sharpe roughly ten times higher on announcement days.",
+    "sources": [
+      {
+        "title": "Pre-Announcement Effects, News Effects, and Volatility: Monetary Policy and the Stock Market",
+        "author_or_org": "Antulio Bomfim (Journal of Banking & Finance 27(1), 133-151; Fed FEDS 2000-50)",
+        "year": 2003,
+        "url": "https://www.federalreserve.gov/pubs/feds/2000/200050/200050pap.pdf",
+        "kind": "fed",
+        "what_it_measured": "GARCH conditional volatility of daily S&P 500 returns 1989-1998 with dummies for the day before and the day of scheduled FOMC announcements: -0.486 (t = -7.80) and +0.79 (t = 2.73) respectively."
+      },
+      {
+        "title": "How Much Do Investors Care About Macroeconomic Risk? Evidence from Scheduled Economic Announcements",
+        "author_or_org": "Pavel Savor & Mungo Wilson (Journal of Financial and Quantitative Analysis 48(2), 343-375)",
+        "year": 2013,
+        "url": "https://www.cambridge.org/core/journals/journal-of-financial-and-quantitative-analysis/article/abs/how-much-do-investors-care-about-macroeconomic-risk-evidence-from-scheduled-economic-announcements/C6A48B33065D93550C87FEB53C029A0B",
+        "kind": "academic",
+        "what_it_measured": "Average excess return on scheduled CPI, employment and FOMC announcement days versus all other days, 1958-2009: 11.4 bps against 1.1 bps, over 60% of the annual equity premium concentrated on roughly 30 days a year."
+      },
+      {
+        "title": "Volume dynamics around FOMC announcements",
+        "author_or_org": "Sonya Zhu (Bank for International Settlements Working Paper 1079)",
+        "year": 2023,
+        "url": "https://www.bis.org/publ/work1079.htm",
+        "kind": "academic",
+        "what_it_measured": "Stock market turnover falls before and rises after FOMC announcements, 1994-2011; attributes one third of the pre-FOMC drift to volume dynamics and liquidity shocks."
+      },
+      {
+        "title": "Price Drift before U.S. Macroeconomic News: Private Information about Public Announcements?",
+        "author_or_org": "Kurov, Sancetta, Strasser & Wolfe (JFQA 54(1); ECB WP 1901)",
+        "year": 2019,
+        "url": "https://www.ecb.europa.eu/pub/pdf/scpwps/ecbwp1901.en.pdf",
+        "kind": "academic",
+        "what_it_measured": "Second-by-second E-mini S&P 500 price impact per one-standard-deviation surprise over [release, release+5min], Jan 2008 - Mar 2014: nonfarm employment 0.420% (R2 0.50), ISM 0.240%, CPI -0.111% (R2 0.15), PPI 0.013% and insignificant (R2 0.00)."
+      },
+      {
+        "title": "Rent Seeking by Low-Latency Traders",
+        "author_or_org": "Chordia, Green & Kottimukkalur (Review of Financial Studies 31(12), 4650-4687)",
+        "year": 2018,
+        "url": "https://academic.oup.com/rfs/article-abstract/31/12/4650/4956248",
+        "kind": "academic",
+        "what_it_measured": "SPY and ES respond to announcement surprises within five milliseconds with a hundredfold rise in trading intensity; total profits from trading quickly are roughly $50,000 per event for SPY/ES, market-wide, and have not grown even as speed has."
+      }
+    ],
+    "contradictory_evidence": "Substantial, and it kills the directional half of this territory. The pre-FOMC announcement drift - the most famous claim in this area, Lucca & Moench's 49 bps in the 24 hours before the release with t > 4.5 - collapsed out of sample: Kurov, Wolfe & Gilbert (Finance Research Letters 40, 2021), on E-mini S&P 500 futures, report 49.2 bps (t = 4.60) for Sept 1994 - March 2011 and 4.7 bps (t = 0.78) for April 2011 - December 2019. It survived 2011-2015 only on press-conference meetings (44.5 bps, t = 3.35) and fell to 9.2 bps (t = 1.33) on press-conference meetings in 2016-2019 - and since January 2019 EVERY FOMC meeting has a press conference, so the one conditioning variable that kept it alive is now degenerate. The FOMC-cycle even-week effect (Cieslak, Morse & Vissing-Jorgensen, Journal of Finance 2019) is worse: Uppal (2025), with data through 2023, reports week-0 daily returns of +13.6 bps (t = 2.76) in the 1994-2016 replication and -13.9 bps (t = -1.58) in the true out-of-sample 2017-2023 window - a sign flip - with the in-sample result halving when two days are dropped, and the proposed mechanism (leaks after biweekly Board meetings) institutionally discontinued in 2004. On the lull itself, Bollerslev, Li & Xue (Review of Economic Studies 85(4), 2018) find that in the final 30 minutes before an announcement volume and volatility tick UP slightly, not down; that is not a contradiction of Bomfim so much as a horizon distinction - the lull is a days-to-hours phenomenon and the final half hour is a ramp - but conflating the two would produce the wrong trade.",
+    "our_inference": "Our inference is that this territory yields one usable thing and one usable thing only, and it is not directional. The usable thing is the lull: a scheduled, calendar-known, ex-ante identifiable state in which conditional volatility is roughly halved. For a lab whose problem is that gross capture is too small relative to a fixed cost, a predictable HALVING of volatility is a predictable halving of every mechanism's gross-to-cost ratio, and the correct response is to not trade those sessions at all. That is a turnover reduction obtained for free from a calendar, and it is the mirror image of VR-02. Separately, the Savor-Wilson announcement-day premium is the one effect in this entire file whose cost arithmetic is not close: 11.4 bps is 8.7 ES points or 33.5 NQ points against costs of 0.326 and 0.689 points, so costs are 3.7% and 2.1% of gross, on roughly 30 events a year. We flag honestly that this is beta timing rather than alpha - you capture it by being long on those days - and that it requires holding the cash session or overnight rather than an intraday round turn. Finally: everything about trading the release itself is closed to this lab. Prices respond within five milliseconds, the entire market-wide latency prize is about $50,000 per event, and the sign of the equity response to good news inverts with the business cycle (Andersen, Bollerslev, Diebold & Vega find good news lowering stocks in expansion and raising them in recession), so any surprise-to-direction mapping fitted on our sample would be fitted to one regime and would invert in the next.",
+    "proposed_mechanism": "Before a scheduled release, informed traders have nothing to trade on that the release will not reveal in minutes, and uninformed traders rationally defer discretionary trades until the uncertainty resolves. Volume falls, and with it volatility. After the release the information is public and the repositioning happens at once. The announcement-day premium is the compensation investors require for bearing the risk of the resolution itself: risk is concentrated on those thirty days, and so is the reward. Both persist because both are consequences of the release schedule being public, which is the opposite of the condition under which an effect gets arbitraged away.",
+    "observable_variables": [
+      "a release calendar table keyed on (release_name, date, time_et) - the acquisition is the work here, see below",
+      "a binary is_day_before_FOMC flag and a binary is_announcement_day flag",
+      "minutes-until-next-release and minutes-since-last-release as continuous features",
+      "realised volatility of the session, to verify the lull empirically before relying on it",
+      "for the premium: the session or overnight return on flagged days"
+    ],
+    "instruments": [
+      "ES",
+      "NQ",
+      "MNQ"
+    ],
+    "expected_horizon_minutes": 390,
+    "expected_direction": "conditional",
+    "expected_magnitude_points": 8.7,
+    "expected_trades_per_session": 0.12,
+    "failure_conditions": "The lull fails if, once the calendar is built, the median realised volatility of pre-FOMC sessions in the lab's own 2025-2026 sample is not materially below that of matched control sessions - Bomfim's coefficient implies roughly half, and anything above 0.85x is not worth acting on. The premium fails if the mean excess return on the roughly 30-45 announcement sessions in our sample is not positive; note in advance that with n around 40 and a session standard deviation of 61 bps, the standard error on an 11.4 bps mean is about 9.7 bps, so our sample CANNOT resolve this effect - a null here is uninformative and must not be recorded as a refutation.",
+    "data_requirements_we_have": false,
+    "data_we_lack": "A release calendar with dates AND times in ET. This is the only genuine data acquisition in the whole file, and it is smaller than it sounds - roughly three to four hours of work against free official sources, which are the ground truth that vendors themselves scrape. Concretely: BLS publishes yearly release-schedule list views with times to the minute in ET (CPI, PPI, Employment Situation, ECI, JOLTS), scrapeable at bls.gov/schedule/{YYYY}/{MM}_sched_list.htm; BEA publishes a machine-readable JSON schedule plus ICS and RSS (GDP, Personal Income and Outlays/PCE) and is the best-engineered of the sources; Census covers Advance Retail Sales, Durable Goods and Housing Starts on a standard 08:30 ET; and the FOMC time is a deterministic rule rather than a scrape - 14:15 ET from Sept 1994 to March 2011, 12:30 or 14:15 from April 2011 to January 2013, and 14:00 ET since March 2013, with the press conference at 14:30 and, since January 2019, at every meeting. FRED's fred/releases/dates endpoint gives dates but explicitly NOT times, so it is useful only as a completeness cross-check; ALFRED gives vintages, needed if the lab ever wants first-print values to construct surprises, but no clock times. The lab's existing FMP key may cover FMP's economic-calendar endpoint, which does return datetimes in UTC, but vendor calendars are notorious for minute-level timestamp errors and the whole exercise is worthless if the minute is wrong - cross-check twenty CPI and NFP rows against BLS before trusting it. Verdict: worth building, but for the lull and for hygiene, not for alpha.",
+    "falsification_test": "Build the calendar table, then run one test: compare the distribution of session realised volatility on pre-FOMC days against matched control days (same day-of-week, nearest in calendar time, no other release) across ES and NQ. A ratio at or above 0.85 kills the lull as an actionable filter. Do NOT run a directional test on the pre-FOMC window; the out-of-sample record above makes that a known-dead hypothesis and spending trials on it would inflate the family's multiple-testing threshold for no reason.",
+    "cost_feasibility_note": "The announcement-day premium is the only figure in this file that clears costs by more than an order of magnitude: 11.4 bps is 8.7 ES points ($437) against $16.28, costs 3.7% of gross; 33.5 NQ points ($670) against $13.78, costs 2.1%; MES $43.70 against $2.47, 5.7%; MNQ $67.00 against $1.72, 2.6%. At roughly 30 events a year that is 0.12 round turns per session, the lowest turnover of any entry here. But the honest accounting is that this is a long-only beta exposure on selected days, not a market-neutral edge, and its Sharpe comes from concentrating the same equity premium into fewer days rather than from creating return. The lull, by contrast, has no gross capture at all - its entire value is in the trades it prevents, and a filter that removes the lowest-amplitude 8% of sessions from a strategy whose costs are fixed is worth roughly the cost of those trades.",
+    "confidence": "low",
+    "why_this_might_be_wrong": "The strongest objection is sample size, and it applies to both halves. The lab's fifteen-month sample contains about eleven FOMC meetings and perhaps forty scheduled major releases in total. Bomfim's lull was estimated on 2,414 days and Savor & Wilson's premium on 51 years. Neither can be confirmed or refuted on our data, which means building the calendar buys the lab a feature it must take on faith from the literature rather than one it can validate locally - and taking effects on faith from the literature is precisely how the pre-FOMC drift and the FOMC-cycle effect got traded after they had already died. The second objection is that Bomfim's sample is 1989-1998 and the Fed's communication regime has changed twice since; the lull's magnitude today is unmeasured."
+  }
+]
