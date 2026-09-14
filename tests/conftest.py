@@ -199,10 +199,43 @@ def isolate_live(tmp_path, monkeypatch):
     monkeypatch.setattr(paper_trade, "LOG_DIR", tmp_path / "log")
     monkeypatch.setattr(paper_trade, "STATE_DIR", tmp_path / "state")
 
+    # `quant_brain.core.state.root_for()` resolves the StateStore root from this module
+    # constant, so a test that builds a Trader in "live" mode publishes the governor to the
+    # REAL live/state/governor.json. Measured: running the suite (and `pytest -m runner`,
+    # which is the 09:25 pre-trade gate, and the pre-commit hook) rewrote that file.
+    # Redirecting REPO sends every StateStore under tmp_path instead.
+    import quant_brain.core.state as _qb_state
+    monkeypatch.setattr(_qb_state, "REPO", tmp_path)
+
+    # Belt and braces, and this time it braces something: fingerprint the REAL live state
+    # before the test runs and refuse to let the test end if it changed. The previous guard
+    # asserted the absence of `intraday_book.json.test`, a filename nothing in the tree ever
+    # creates, so it passed while the suite was rewriting live/state/governor.json.
+    _live_real = REPO / "live"
+    _before = {
+        p: p.stat().st_mtime_ns
+        for d in ("state", "log")
+        for p in sorted((_live_real / d).glob("*"))
+        if p.is_file()
+    }
+
     yield sink
 
-    # Belt and braces: the real live/ book must be untouched by anything the test did.
-    assert not (REPO / "live" / "state" / "intraday_book.json.test").exists()
+    _after = {
+        p: p.stat().st_mtime_ns
+        for d in ("state", "log")
+        for p in sorted((_live_real / d).glob("*"))
+        if p.is_file()
+    }
+    _changed = sorted(
+        str(p.relative_to(REPO)) for p in set(_before) | set(_after)
+        if _before.get(p) != _after.get(p)
+    )
+    assert not _changed, (
+        "a test mutated real production state under live/: "
+        + ", ".join(_changed)
+        + ". Every live path must be redirected into tmp_path by this fixture."
+    )
 
 
 @pytest.fixture

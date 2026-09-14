@@ -28,3 +28,29 @@ Thumbs.db
 .openclaw-smoke-test.txt
 # intraday bar store (regenerated from IBKR)
 data/
+
+# ---------------------------------------------------------------------------
+# Obsidian vault and editor state — NEVER auto-commit these.
+#
+# `Quant Brain/` is a 255,897-file / 4.2 GB imported research vault containing a
+# THIRD PARTY's project (github.com/DonovanWillis/QuantModel, authored on macOS
+# under /Users/donov/) plus agent-orchestration payloads. It has been swept into
+# this repository twice by unattended `git add -A`:
+#   592e11a "dcfhtg"  2026-09-13 19:50  3,199 files / 1,674,621 insertions
+#   bb4bbf8 "igkhghk" 2026-09-13 21:31  3,200 files / 1,675,180 insertions
+# Both were unpushed and were reverted; recovery refs
+# `accidental-vault-commit-592e11a` and `accidental-vault-commit-bb4bbf8` retain
+# them. Neither contained a credential (verified: 0 secret-shaped additions).
+#
+# It also carries `Quant Brain/.codex/config.toml` with approval_policy="never"
+# and sandbox_mode="danger-full-access", whose own header says it must not be
+# committed, and `Quant Brain/.claude/helpers/auto-commit.sh`, which runs
+# `git add -A` and pushes with AUTO_PUSH defaulting to true against THIS repo's
+# public origin.
+#
+# Versioning the vault is a deliberate architectural decision, not an accident.
+# If that decision is ever taken, commit explicitly with `git add -f` after
+# removing the executable agent payloads. Until then it stays on disk, untracked.
+# ---------------------------------------------------------------------------
+Quant Brain/
+.obsidian/
