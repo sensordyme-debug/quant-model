@@ -822,6 +822,14 @@ class TopstepAccount:
     reading: str = DEFAULT_READING
     #: Set by the first payout and never cleared. See MLL_RESETS_ON_PAYOUT.
     mll_reset_by_payout: bool = False
+    #: Contracts currently open, by root; only the absolute size is read, so either sign
+    #: works. Empty is a flat book, which is what an account between trades is.
+    #:
+    #: Here rather than only on `propfirm.AccountState` because `max_contracts_for` has to
+    #: answer with the HEADROOM under the account-wide allowance, and headroom is not a
+    #: property of the profile. Three ES consume thirty of the fifty micro-equivalents; a
+    #: ceiling that ignored them would hand the same fifty out again to the next symbol.
+    open_contracts: dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if math.isnan(self.balance):
@@ -941,8 +949,38 @@ class TopstepAccount:
         The unit matters: the published table's total column is the micro count, and since
         `contract_equivalence` a mini consumes ten of these units. 50 here means fifty micros
         or five minis, not fifty of whatever a caller happens to be trading.
+
+        THIS IS NOT A POSITION SIZE. It is kept, in this unit, because the CLI and the twin
+        report the allowance the way Topstep publishes it, and because it is the denominator
+        `open_equivalents` is measured against. Anything sizing an order wants
+        `max_contracts_for`, which returns the ceiling in contracts of the symbol being
+        traded; reading this number as one permitted 50 ES on a five-ES account.
         """
         return self.profile.contracts_allowed_at(self.total_profit)
+
+    @property
+    def open_equivalents(self) -> float:
+        """The open book measured in the allowance's own unit (micro-equivalents).
+
+        Mirrors `propfirm.AccountState.total_equivalents`, which counts the same thing for
+        the simulated book; this counts the live one so the ceiling can be net of it.
+        """
+        return sum(self.profile.contract_units(sym.upper()) * abs(qty)
+                   for sym, qty in self.open_contracts.items())
+
+    def max_contracts_for(self, symbol: str) -> int | None:
+        """The ceiling on `symbol` right now, IN CONTRACTS OF `symbol`. None means none set.
+
+        The member of the `core.sizing.MllAccount` protocol that carries the unit. `core`
+        may not import `markets`, so the mini/micro equivalence cannot travel to the sizer
+        as a table; it travels as an answer, computed here where the table lives, to a
+        question the sizer is able to ask - "how many of THIS may I hold?".
+
+        On a fresh $50K Combine: 5 for ES or NQ, 50 for MES or MNQ, 0 for a root Topstep
+        does not permit. Net of `open_contracts`, so three ES leave room for twenty MES.
+        """
+        return self.profile.max_contracts_for(
+            symbol, profit=self.total_profit, held_equivalents=self.open_equivalents)
 
     @property
     def net_profit_since_payout(self) -> float:

@@ -43,6 +43,7 @@ single scenario, because it is a number the owner can compare against their own 
 """
 from __future__ import annotations
 
+import datetime as dt
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -56,26 +57,121 @@ def _pnl(days: Sequence[TwinDay]) -> np.ndarray:
     return np.array([d.pnl for d in days], dtype=float)
 
 
-def _rebuild(template: Sequence[TwinDay], pnl: Sequence[float] | np.ndarray,
-             scale_path: bool = True) -> list[TwinDay]:
-    """Re-lay a P&L series onto the template's calendar, carrying the intraday shape.
+# ======================================================================================
+# PATH RECONSTRUCTION
+# ======================================================================================
+#
+# THE RATIO BUG, AND WHY THE PRIMITIVES ARE SPLIT
+# -----------------------------------------------
+# Every session carries an intraday path, and Topstep's MLL is tested on that path rather
+# than on the close, so how a path is reconstructed when a session is moved or transformed
+# decides whether a breach is seen. This used to be one function that rescaled the template
+# day's path by `new_pnl / template_pnl`. That ratio is UNBOUNDED, and the resamplers fed it
+# a P&L from one session and the intraday shape of an unrelated one, so a template day that
+# happened to close near flat became a divide-by-almost-zero:
+#
+#     template  pnl   +1.00  path (-900, +1)      # a real session: -$900 at its worst
+#     resampled pnl  -100.00 -> k = -100
+#     reconstructed          path (+90,000, -100) # a $90k intraday swing that never happened
+#
+# Measured on a 60-session fixture whose worst mark anywhere was -$900, the median resampled
+# path reached -$476,410. It also flips sign whenever k < 0, so the -$900 trough above became
+# a +$90,000 PEAK and the day was reported with no drawdown at all - the intraday breach test
+# silently disappearing is the more dangerous half of the two.
+#
+# The replacement is three primitives, each bounded, each linear in the inputs (multiply
+# every P&L and every path by 10 and every output multiplies by 10 - see the scale test):
+#
+#   _lay_out   move whole sessions - P&L and its own path together - onto a calendar.
+#              Used by every resampler and every reordering. Nothing is rescaled, so each
+#              reconstructed session's worst mark IS some real session's worst mark.
+#   _shifted   change a session's close by a fixed amount; the change accrues linearly
+#              across the session. For costs, decay, and any additive transform.
+#   _scaled_day  multiply a session, path and all. For position size and loss scaling.
+#
+# A caller must say which of the three it means. The old single function could not know, and
+# defaulting to the ratio is what produced the blow-up.
+#
+# WHAT IT COST, AND WHY NO TEST CAUGHT IT
+# ----------------------------------------
+# Measured on the 325 real ES sessions behind `futures_topstep_baseline`, whose worst single
+# session mark is -$1,106 and thirteen of which close within $5 of flat:
+#
+#                pass    paid     liq   median worst mark
+#     old        1.7%    0.0%  100.0%        -$599,614
+#     fixed     32.0%   22.0%   97.3%          -$1,917
+#
+# So the defect was PESSIMISTIC, not optimistic - it manufactured liquidations, and the
+# `MIN_PASS_RATE` gate in the discovery funnel would have thrown away strategies on paths
+# that could not happen. Every twin number computed on real intraday paths before this fix
+# is void in that direction.
+#
+# It survived a full test suite because every fixture here used `u_shaped_path`, whose marks
+# are PROPORTIONAL to the close. Rescaling a proportional path by a ratio maps it onto
+# another proportional path, so the bug is close to invisible on synthetic shapes (68.8%
+# against 66.2% on the standard fixture) and only bites on real, non-proportional paths -
+# which is to say, only in production. That is the argument for the hand-computed fixtures
+# in `tests/test_path_reconstruction.py` carrying non-proportional paths on purpose.
 
-    The intraday path is rescaled with the day rather than reused verbatim, because a path
-    that belonged to a +$400 day is not the path of a -$400 day. Where the original day was
-    flat the shape cannot be scaled, so the path is dropped and the twin's own strict-path
-    rule decides what to do about it.
+
+def _lay_out(source: Sequence[TwinDay], idx: Sequence[int],
+             calendar: Sequence[dt.date]) -> list[TwinDay]:
+    """Whole sessions, in the order `idx` names, re-dated onto `calendar`.
+
+    P&L and intraday path travel together and neither is touched. This is the only
+    reconstruction a resampler or a reordering is allowed to perform.
     """
-    out: list[TwinDay] = []
-    for template_day, x in zip(template, pnl, strict=False):
-        path: tuple[float, ...] = ()
-        if scale_path and template_day.path:
-            if template_day.pnl != 0:
-                k = x / template_day.pnl
-                path = tuple(m * k for m in template_day.path)
-            else:
-                path = tuple(m + x for m in template_day.path)
-        out.append(TwinDay(day=template_day.day, pnl=float(x), path=path,
-                           traded=template_day.traded))
+    return [TwinDay(day=d, pnl=source[i].pnl, path=source[i].path,
+                    traded=source[i].traded)
+            for i, d in zip(idx, calendar, strict=True)]
+
+
+def _shifted(day: TwinDay, pnl: float) -> TwinDay:
+    """The same session closing at `pnl`, its excursion carried across unchanged.
+
+    The difference is accrued LINEARLY through the session rather than applied as a ratio:
+    mark `t` of `n` moves by `(pnl - day.pnl) * (t + 1) / n`, so the last mark moves the whole
+    way and the path still ends at the close. Bounded by construction - the worst mark can
+    move by at most the size of the change - and it needs no special case for a flat day.
+    """
+    delta = float(pnl) - day.pnl
+    if not day.path or delta == 0.0:
+        return TwinDay(day=day.day, pnl=float(pnl), path=day.path, traded=day.traded)
+    n = len(day.path)
+    path = tuple(m + delta * (t + 1) / n for t, m in enumerate(day.path))
+    return TwinDay(day=day.day, pnl=float(pnl), path=path, traded=day.traded)
+
+
+def _scaled_day(day: TwinDay, k: float) -> TwinDay:
+    """The whole session multiplied: twice the size is twice the P&L AND twice the swing."""
+    return TwinDay(day=day.day, pnl=day.pnl * k,
+                   path=tuple(m * k for m in day.path), traded=day.traded)
+
+
+def _rebuild(template: Sequence[TwinDay], pnl: Sequence[float] | np.ndarray) -> list[TwinDay]:
+    """Re-close each template session at the matching P&L. An ADDITIVE re-lay - see above.
+
+    `strict=True` on the zip is deliberate: a length mismatch used to truncate in silence,
+    which is the same family of defect as the ratio blow-up this replaced.
+    """
+    return [_shifted(d, float(x)) for d, x in zip(template, pnl, strict=True)]
+
+
+def _calendar(template: Sequence[TwinDay], length: int) -> list[dt.date]:
+    """`length` session DATES, continuing the template's weekday spacing where it runs out.
+
+    Only dates are extended. Sessions are never invented: a resampler emits `length` real
+    sessions drawn from the input, so there is nothing to pad. The previous version padded
+    the SESSION list with a copy of a real day and then rescaled a foreign P&L onto its
+    intraday shape - the padding was harmless, the rescale was not.
+    """
+    out = [d.day for d in template[:length]]
+    day = out[-1]
+    while len(out) < length:
+        day += dt.timedelta(days=1)
+        while day.weekday() >= 5:
+            day += dt.timedelta(days=1)
+        out.append(day)
     return out
 
 
@@ -91,8 +187,7 @@ def moving_block(days: Sequence[TwinDay], *, block: int, reps: int = 1000,
     question that is the typical length of a losing run, not the label horizon - a block
     shorter than the runs will chop them up and flatter the pass rate.
     """
-    a = _pnl(days)
-    n = len(a)
+    n = len(days)
     if n < 2:
         raise ValueError(f"need at least 2 sessions to resample, got {n}")
     if block < 1:
@@ -104,10 +199,12 @@ def moving_block(days: Sequence[TwinDay], *, block: int, reps: int = 1000,
     starts_max = n - block + 1
     paths: list[list[TwinDay]] = []
     template = list(days)
+    cal = _calendar(template, out_len)
     for _ in range(reps):
         starts = rng.integers(0, starts_max, size=n_blocks)
-        sample = np.concatenate([a[s:s + block] for s in starts])[:out_len]
-        paths.append(_rebuild(_extend(template, out_len), sample))
+        # INDICES, not P&L. The sampled session brings its own intraday path with it.
+        idx = np.concatenate([np.arange(s, s + block) for s in starts])[:out_len]
+        paths.append(_lay_out(template, idx.tolist(), cal))
     return paths
 
 
@@ -118,8 +215,7 @@ def stationary_bootstrap(days: Sequence[TwinDay], *, mean_block: float, reps: in
     Worth having beside `moving_block` because a fixed block length is itself an assumption,
     and results that flip between the two are telling you the answer depends on it.
     """
-    a = _pnl(days)
-    n = len(a)
+    n = len(days)
     if n < 2:
         raise ValueError(f"need at least 2 sessions to resample, got {n}")
     if mean_block < 1:
@@ -127,15 +223,16 @@ def stationary_bootstrap(days: Sequence[TwinDay], *, mean_block: float, reps: in
     out_len = n if length is None else int(length)
     p = 1.0 / mean_block
     rng = np.random.default_rng(seed)
-    template = _extend(list(days), out_len)
+    template = list(days)
+    cal = _calendar(template, out_len)
     paths: list[list[TwinDay]] = []
     for _ in range(reps):
-        sample = np.empty(out_len, dtype=float)
+        idx = [0] * out_len
         i = int(rng.integers(0, n))
         for t in range(out_len):
-            sample[t] = a[i]
+            idx[t] = i
             i = int(rng.integers(0, n)) if rng.random() < p else (i + 1) % n
-        paths.append(_rebuild(template, sample))
+        paths.append(_lay_out(template, idx, cal))
     return paths
 
 
@@ -148,41 +245,15 @@ def iid(days: Sequence[TwinDay], *, reps: int = 1000, seed: int = 0,
     then a modelling choice that needs defending. It is not a conservative bound: clustering
     can raise the pass rate as easily as lower it.
     """
-    a = _pnl(days)
-    if len(a) < 2:
-        raise ValueError(f"need at least 2 sessions to resample, got {len(a)}")
-    out_len = len(a) if length is None else int(length)
+    n = len(days)
+    if n < 2:
+        raise ValueError(f"need at least 2 sessions to resample, got {n}")
+    out_len = n if length is None else int(length)
     rng = np.random.default_rng(seed)
-    template = _extend(list(days), out_len)
-    return [_rebuild(template, rng.choice(a, size=out_len, replace=True))
+    template = list(days)
+    cal = _calendar(template, out_len)
+    return [_lay_out(template, rng.integers(0, n, size=out_len).tolist(), cal)
             for _ in range(reps)]
-
-
-def _extend(template: list[TwinDay], length: int) -> list[TwinDay]:
-    """Lengthen a calendar template by continuing its weekday spacing.
-
-    Padding days copy the pnl and intraday shape of a real day rather than being zero-filled
-    with no path. Zero-filling looked harmless and was not: `_rebuild` scales a template's
-    path by the ratio of the new P&L to the template's, so a padding day with no path
-    produced a session the twin then refused as unrunnable - correctly, since a session
-    without a path skips Topstep's intraday breach test. The twin's strict-path guard caught
-    this, which is the guard doing exactly what it was written for.
-    """
-    if length <= len(template):
-        return template[:length]
-    import datetime as _dt
-    shape = next((d for d in reversed(template) if d.path and d.pnl != 0), None)
-    out = list(template)
-    day = out[-1].day
-    while len(out) < length:
-        day += _dt.timedelta(days=1)
-        while day.weekday() >= 5:
-            day += _dt.timedelta(days=1)
-        out.append(TwinDay(day=day,
-                           pnl=shape.pnl if shape else 0.0,
-                           path=shape.path if shape else (),
-                           traded=True))
-    return out
 
 
 # ======================================================================================
@@ -222,7 +293,9 @@ class ScaleLosses(Scenario):
     factor: float = 1.5
 
     def apply(self, days):
-        return _rebuild(days, [d.pnl * self.factor if d.pnl < 0 else d.pnl for d in days])
+        # A MULTIPLICATIVE re-lay: a session that loses 1.5x as much swung 1.5x as far
+        # getting there. Bounded, because the factor is a constant rather than a ratio.
+        return [_scaled_day(d, self.factor) if d.pnl < 0 else d for d in days]
 
 
 @dataclass(frozen=True)
@@ -248,11 +321,15 @@ class WorstRunFirst(Scenario):
 
     def apply(self, days):
         a = _pnl(days)
-        w = min(self.window, len(a))
+        n = len(a)
+        w = min(self.window, n)
         sums = np.convolve(a, np.ones(w), mode="valid")
         i = int(np.argmin(sums))
-        reordered = np.concatenate([a[i:i + w], a[:i], a[i + w:]])
-        return _rebuild(days, reordered)
+        # Whole sessions move, keeping their own intraday paths. Reordering the P&L series
+        # alone and re-laying it on the original calendar is what turned "worst run first"
+        # into a reconstruction with swings no session ever had.
+        order = [*range(i, i + w), *range(0, i), *range(i + w, n)]
+        return _lay_out(days, order, [d.day for d in days])
 
 
 @dataclass(frozen=True)
@@ -267,10 +344,24 @@ class Shock(Scenario):
     at: int = 0
 
     def apply(self, days):
-        a = list(_pnl(days))
-        at = max(0, min(self.at, len(a)))
-        a.insert(at, self.size)
-        return _rebuild(_extend(list(days), len(a)), a)
+        """Insert one session; every real session keeps its own path and its own order.
+
+        The inserted day needs an intraday shape, and inventing one silently is exactly what
+        this module refuses to do elsewhere. So it borrows the shape of a real session and
+        says which: the largest session that already moves the same way as the shock, or
+        failing that the largest session outright. Taking the LARGEST keeps the rescaling
+        factor as small as the data allows, which is the whole lesson of the ratio bug.
+        """
+        seq = list(days)
+        at = max(0, min(self.at, len(seq)))
+        usable = [d for d in seq if d.path and d.pnl != 0]
+        same_sign = [d for d in usable if (d.pnl < 0) == (self.size < 0)]
+        donor = max(same_sign or usable, key=lambda d: abs(d.pnl), default=None)
+        path = ((self.size,) if donor is None
+                else tuple(m * (self.size / donor.pnl) for m in donor.path))
+        cal = _calendar(seq, len(seq) + 1)
+        seq.insert(at, TwinDay(day=cal[at], pnl=float(self.size), path=path, traded=True))
+        return _lay_out(seq, range(len(seq)), cal)
 
 
 @dataclass(frozen=True)
@@ -302,8 +393,14 @@ class WidenIntraday(Scenario):
     def apply(self, days):
         out = []
         for d in days:
-            path = tuple(m * self.factor if m < 0 else m for m in d.path)
-            out.append(TwinDay(day=d.day, pnl=d.pnl, path=path, traded=d.traded))
+            if not d.path:
+                out.append(d)
+                continue
+            deeper = tuple(m * self.factor if m < 0 else m for m in d.path[:-1])
+            # The CLOSE is the one mark this scenario must not move - widening it too would
+            # hand the twin a terminal mark that disagrees with the day's settled P&L.
+            out.append(TwinDay(day=d.day, pnl=d.pnl, path=(*deeper, d.path[-1]),
+                               traded=d.traded))
         return out
 
 
@@ -313,13 +410,15 @@ DEFAULT_SCENARIOS: tuple[Scenario, ...] = (
     WorstRunFirst(name="worst 10d first",
                   describe="the worst ten-day stretch moved to day one", window=10,
                   pin_prefix=10),
-    # Sized against the INTRADAY trough, not the close. A shock day is rebuilt with the
-    # template's path shape, so with u_shaped_path(1.4) a close of -X dips to -1.4X, and the
+    # Sized against the INTRADAY trough, not the close. The shock day borrows a real
+    # session's shape, so with u_shaped_path(1.4) a close of -X dips to about -1.4X, and the
     # binding constraint on a fresh $2,000 MLL is 1.4X < 2000 - i.e. any close worse than
     # about -$1,430 is certain death regardless of what follows. -$3,000 and -$1,500 both
     # measured 100.0% liquidated for that reason, which tests the rulebook rather than the
-    # strategy. -$1,000 troughs at -$1,400 and survives the day with $600 of room, making the
-    # interesting question askable: can the account climb back out from there?
+    # strategy. -$1,000 troughs around -$1,400 and survives the day with $600 of room, making
+    # the interesting question askable: can the account climb back out from there? The exact
+    # trough now depends on the donor session, so the test asserts the built path rather
+    # than a hard-coded 1.4.
     Shock(name="-$1,000 shock on day 1",
           describe="a bad gap before any buffer exists, surviving the day", size=-1_000.0,
           at=0, pin_prefix=1),
@@ -469,7 +568,10 @@ def scaled(days: Sequence[TwinDay], factor: float) -> list[TwinDay]:
     """Every session scaled - the crudest position-size lever, and a useful sweep axis."""
     if factor <= 0:
         raise ValueError(f"factor must be positive, got {factor}")
-    return _rebuild(days, [d.pnl * factor for d in days])
+    # Multiplicative, path and all: trading twice the contracts doubles the intraday swing
+    # as well as the close, and a size sweep that widened only the close would understate
+    # liquidation risk at exactly the sizes it exists to warn about.
+    return [_scaled_day(d, factor) for d in days]
 
 
 def size_sweep(twin: TopstepTwin, days: Sequence[TwinDay],

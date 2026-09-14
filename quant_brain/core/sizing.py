@@ -33,6 +33,14 @@ prop-firm budget is therefore consumed through `MllAccount`, a structural protoc
 `markets.futures_cme.topstep.TopstepAccount` already satisfies, and `PropFirmSizer` mirrors
 `twin.risk_budget` / `twin.max_contracts` rather than importing them. `tests/test_qb_sizing.py`
 pins the two against each other on a real Topstep account so they cannot drift apart.
+
+The contract ceiling crosses that boundary the same way, and it is worth saying why it has
+to. A prop firm's allowance is published in the firm's own unit - Topstep's fifty is fifty
+micros OR five minis - so turning it into a position size needs the firm's mini/micro
+equivalence table, which lives in `markets`. Rather than import the table, the protocol asks
+the account a question it can answer in the caller's unit: `max_contracts_for(symbol)`. The
+symbol comes off `ctx.spec`, the answer comes back in contracts of that symbol, and no part
+of the equivalence ever appears here. `tests/test_contract_ceiling.py` pins the numbers.
 """
 from __future__ import annotations
 
@@ -94,15 +102,33 @@ class MllAccount(Protocol):
     """What a prop-firm account must expose to be sized against.
 
     Structural on purpose: `core` may not import `markets`, and `TopstepAccount` already has
-    exactly these two properties. Anything with a distance to liquidation and a contract
-    ceiling can be sized the same way.
+    exactly these members. Anything with a distance to liquidation and a contract ceiling
+    can be sized the same way.
+
+    `max_contracts_for` is the one this module actually sizes against, and it takes a symbol
+    because a contract ceiling is not a number until you say a contract of WHAT. A prop
+    firm's allowance is published in its own unit - Topstep's fifty is fifty micros or five
+    minis, one allowance in two units - so `contracts_allowed` is a display figure and using
+    it as a position size permitted ten times the size on a mini. The conversion needs the
+    firm's equivalence table, which lives in `markets` and may not be imported here, so it
+    does not travel as a table; it travels as an answer to a question `core` can ask.
+
+    An implementation must fail CLOSED - zero, never None - for a symbol it does not
+    recognise or is not permitted to hold. None means "this firm sets no ceiling", and a
+    None returned for an unknown symbol would be read here as unlimited.
     """
 
     @property
     def distance_to_mll(self) -> float: ...
 
     @property
-    def contracts_allowed(self) -> int | None: ...
+    def contracts_allowed(self) -> int | None:
+        """The firm's allowance in the FIRM's unit. For display; never a position size."""
+        ...
+
+    def max_contracts_for(self, symbol: str) -> int | None:
+        """The ceiling on `symbol`, in contracts of `symbol`. 0 refuses; None is no cap."""
+        ...
 
 
 def _check_limit(name: str, value: float | None) -> None:
@@ -184,7 +210,8 @@ class SizeContext:
         confidence     a model's confidence in [0, 1]; can only ever shrink a size
         trades         realised per-trade outcomes as R-multiples (P&L / dollars risked)
         requested      the strategy's own ask in units, for `SignalSizer`
-        prop_account   a live prop-firm account, sized through `MllAccount`
+        prop_account   a live prop-firm account, sized through `MllAccount`; its contract
+                       ceiling is read in contracts of `spec.symbol`, not in the firm's unit
     """
 
     spec: InstrumentSpec
@@ -356,10 +383,28 @@ def enforce(name: str, ctx: SizeContext, proposal: Proposal) -> SizeDecision:
 
     account = ctx.prop_account
     if account is not None:
-        allowed = account.contracts_allowed
+        # Asked in the unit the caller is trading, not in the firm's own. `spec.symbol` is
+        # the root being sized and is always present, so the symbol needs no new field on
+        # the context; the account is what has to know the equivalence, and it does.
+        ceiling = getattr(account, "max_contracts_for", None)
+        if ceiling is None:
+            # Fail closed rather than falling back to `contracts_allowed`. That fallback is
+            # exactly the defect: the fallback number is in the firm's unit, it is larger
+            # than the true ceiling for every non-micro, and a cap that is silently too
+            # large is worse than no answer at all.
+            return _unavailable(
+                name, tuple(reasons), "SIZING_ACCOUNT_PROTOCOL",
+                f"{type(account).__name__} does not implement max_contracts_for(symbol), so "
+                f"the prop-firm ceiling cannot be read in contracts of {ctx.spec.symbol}; "
+                f"its contracts_allowed is in the firm's own allowance unit")
+        allowed = ceiling(ctx.spec.symbol)
         if allowed is not None:
-            caps.append((Binding.PROP_FIRM, int(allowed),
-                         f"prop firm allows {allowed} contracts at this balance"))
+            if not math.isfinite(allowed):
+                return _unavailable(name, tuple(reasons), "SIZING_NON_FINITE",
+                                    f"prop-firm ceiling for {ctx.spec.symbol} is {allowed}")
+            allowed = max(0, int(allowed))
+            caps.append((Binding.PROP_FIRM, allowed,
+                         f"prop firm allows {allowed} {ctx.spec.symbol} at this balance"))
         room = account.distance_to_mll
         if rpc is None:
             return _unavailable(

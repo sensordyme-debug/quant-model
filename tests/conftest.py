@@ -88,6 +88,13 @@ RUNNER_TESTS = frozenset({
     # IBKRAdapter and called RoutedExecutor.flatten ~130 lines before the file's own hard
     # disable, so `--flatten`, or the mere existence of live/HALT, transmitted orders.
     "test_no_order_can_be_transmitted",
+    # The order path end to end against a fake broker: one intent produces exactly one
+    # order, a fill updates the book, reconciliation halts on disagreement, and an open
+    # position with no known stop reports UNPROTECTED. Gating, because each of those is a
+    # property whose failure means the sleeve must not start - the duplicate-order and
+    # position-stayed-zero defects this file was written for are exactly the kind that lose
+    # money quietly.
+    "test_execution_integration",
     # the governor in the live path and the FLATTEN close-out; a failure here must stop the sleeve
     "test_intraday_governor",
     "test_costs",             # the cost model positions are sized and marked with

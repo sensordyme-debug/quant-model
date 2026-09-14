@@ -32,14 +32,14 @@ $50K Trading Combine
     payout minimum           $125
     round-turn commission    ES/NQ $3.78, MES/MNQ $1.22
 
-TEN DEFECTS, ALL NOW FIXED
---------------------------
+ELEVEN DEFECTS, ALL NOW FIXED
+-----------------------------
 These were pinned with `xfail(strict=True)`: a tripwire in both directions, since the test had
 to fail while the defect stood and the marker itself became an error the day it was fixed, so
-no fix could be smuggled in by deleting the test. The mechanism worked. All ten were fixed on
-2026-09-14, every marker is gone, and each test now carries a dated RATCHET CLEARED line saying
-what landed. The list is kept because knowing what was once wrong is how a reader judges what
-to re-check:
+no fix could be smuggled in by deleting the test. The mechanism worked. All eleven were fixed
+on 2026-09-14, every marker is gone, and each test now carries a dated RATCHET CLEARED line
+saying what landed. The list is kept because knowing what was once wrong is how a reader judges
+what to re-check:
 
     consistency boundary  the < / <= reading is a hard-coded operator, not a reading
     payout minimum        a $75 payout is recorded; the published minimum is $125
@@ -51,6 +51,7 @@ to re-check:
     XFA sizing            a $0-balance XFA is permitted full Combine size
     mandatory flat        enforced at 15:45 CT; the rule is 15:10 CT
     commissions           $4.00/$1.00 modelled against $3.78/$1.22 published
+    contract ceiling      the allowance is in micro-equivalents and the sizer counted minis
 
 Nothing here was weakened to make it green.
 
@@ -1101,22 +1102,19 @@ def test_a_profile_cannot_be_mutated_after_it_is_built():
 
 
 # ======================================================================================
-# THE ONE STILL OPEN
+# THE ELEVENTH, CLEARED 2026-09-14
 # ======================================================================================
 
-@pytest.mark.xfail(strict=True, reason=(
-    "UNIT MISMATCH. TopstepAccount.contracts_allowed returns MICRO-EQUIVALENTS - 50 on a "
-    "$50K Combine, which is fifty micros or five minis - and both consumers treat the number "
-    "as raw contracts of whatever is being traded: core/sizing.py:359 caps at int(allowed), "
-    "and futures_cme/twin.py:453 clamps at min(n, cap). Neither knows the unit. Measured on "
-    "a fresh $50K Combine, ES, PropFirmSizer at its default quarter of the $2,000 MLL room: "
-    "5 contracts at a 2-point stop (a coincidence, the room happens to bind there), 10 at "
-    "1 point, 20 at half a point, 40 at one tick - against a published ceiling of five, with "
-    "the binding reported as strategy_signal every time, because the prop-firm cap never "
-    "binds at all. The fix needs the equivalence to reach core, which may not import markets: "
-    "a max_contracts_for(symbol) on the MllAccount protocol, implemented where the table "
-    "lives. It does not bite the futures funnel today, which sizes in micros where the two "
-    "units coincide, and it does bite any mini and every twin estimate that uses one."))
+# RATCHET CLEARED 2026-09-14: the unit mismatch is fixed and the strict xfail that pinned it
+# is gone. `MllAccount` gained a third member, `max_contracts_for(symbol) -> int | None`,
+# implemented on `PropFirmProfile` (where the mini/micro equivalence table lives) and on
+# `TopstepAccount` (which nets it against the open book). `core.sizing.enforce` and
+# `twin.max_contracts` now ask for the ceiling in contracts of the symbol being sized
+# instead of reading `contracts_allowed`, which stays and stays in micro-equivalents for
+# display. ES on a fresh $50K Combine went from 5 / 10 / 20 / 40 contracts at a 2 / 1 / 0.5
+# / 0.25-point stop to 5 at every one of them, binding "prop_firm" rather than
+# "strategy_signal". `tests/test_contract_ceiling.py` is the full pin; this stays as the
+# acceptance-level one.
 def test_the_contract_ceiling_is_enforced_in_the_unit_the_caller_is_trading():
     """The account allowance and the sizer must agree on what a contract is."""
     from quant_brain.core import sizing as sz
@@ -1139,12 +1137,12 @@ def test_the_contract_ceiling_is_enforced_in_the_unit_the_caller_is_trading():
 
 
 def test_the_micro_case_is_unaffected_which_is_why_this_has_not_bitten_yet():
-    """Not an xfail: on a micro the two units coincide, so the cap is enforced correctly.
+    """Never an xfail: on a micro the two units coincide, so the cap was always enforced.
 
-    This is the control that stops the pin above from being read as "sizing is broken". It is
-    broken for minis and correct for micros, and the futures funnel trades micros - which is
-    exactly why a live unit mismatch has sat here without producing a wrong number anyone
-    noticed.
+    This is the control that stopped the pin above from being read as "sizing is broken". It
+    was broken for minis and correct for micros, and the futures funnel trades micros - which
+    is exactly why a live unit mismatch sat here without producing a wrong number anyone
+    noticed. It stays green across the fix, which is the point of a control.
     """
     from quant_brain.core import sizing as sz
     from quant_brain.markets.futures_cme import instruments as finst

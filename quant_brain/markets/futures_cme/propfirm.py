@@ -230,6 +230,53 @@ class PropFirmProfile:
         """Is this root tradeable here? True when the firm published no product list."""
         return not self.permitted_products or symbol.upper() in self.permitted_products
 
+    def max_contracts_for(self, symbol: str, *, profit: float = 0.0,
+                          held_equivalents: float = 0.0) -> int | None:
+        """The ceiling on `symbol`, IN CONTRACTS OF `symbol`. None means the firm sets none.
+
+        `max_total_contracts` is written in the profile's OWN allowance unit, and under
+        `contract_equivalence` that unit is not contracts of whatever is being traded:
+        Topstep's 50 is fifty micros or five minis. `contracts_allowed_at` therefore cannot
+        be used as a position size, and every caller that did so was permitting 50 ES on a
+        five-ES account. This method is that conversion, done in the one module that holds
+        the ratio, so a `core` sizer can ask for a number it is allowed to act on without
+        `core` ever learning what a micro is.
+
+        `held_equivalents` is the book already open, in the same allowance unit
+        (`AccountState.total_equivalents`), so the answer is the HEADROOM for new contracts
+        rather than a standalone ceiling. Three ES against a 50-micro-equivalent allowance
+        consume thirty units and leave room for twenty MES, not fifty; a ceiling that
+        ignored the open book would let a mixed account carry 1.6x the permitted size,
+        which is the same defect `contract_equivalence` was added to close.
+
+        Fails CLOSED at zero rather than at a permissive default in two cases: a symbol the
+        firm does not permit, and a symbol with no entry in an equivalence table that is in
+        force. In the second case one contract consumes an unknown share of the allowance,
+        and `contract_units` already refuses to invent a weight for it - inventing one is
+        always the flattering direction.
+        """
+        sym = symbol.upper()
+        if not self.permits(sym):
+            return 0
+        per_symbol = self.max_contracts_per_symbol.get(sym)
+        if self.contract_equivalence and not (per_symbol and per_symbol > 0):
+            return 0
+        caps: list[int] = []
+        if per_symbol is not None:
+            caps.append(max(0, int(per_symbol)))
+        total = self.contracts_allowed_at(profit)
+        if total is not None:
+            units = self.contract_units(sym)
+            if units <= 0:
+                return 0
+            room = max(0.0, float(total) - max(0.0, held_equivalents))
+            # Round DOWN. Half a permitted contract is no contract - the same rule the risk
+            # engine applies to `room_units` below and `twin.max_contracts` to its budget.
+            caps.append(int(room // units))
+        if not caps:
+            return None
+        return max(0, min(caps))
+
     def flat_deadline_minutes(self, session_close: dt.time | None = None) -> int:
         """Minutes before the close at which the book must be flat, both deadlines applied.
 

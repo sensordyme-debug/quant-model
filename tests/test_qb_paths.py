@@ -121,13 +121,24 @@ def test_a_longer_requested_path_extends_the_calendar_with_usable_days(series):
     _twin().run(out[0])          # must not raise
 
 
-def test_the_rebuilt_intraday_path_scales_with_the_day(series):
-    """A path that belonged to a +$400 day is not the path of a -$400 day."""
+def test_the_rebuilt_intraday_path_moves_with_the_day_by_hand():
+    """A path that belonged to a +$400 day is not the path of a -$400 day.
+
+    `_rebuild` re-closes a session ADDITIVELY: the change accrues linearly across the marks,
+    so the last one moves the whole way and the path still ends at the close. It used to
+    rescale by `new / old`, an unbounded ratio that blew a -$900 trough up to -$476,410 on a
+    near-flat template day. Every number below is hand arithmetic.
+    """
     d = _days([400.0])[0]
-    assert min(d.path) == pytest.approx(-560.0)          # 400 * 1.4
+    assert d.path == pytest.approx((-280.0, -560.0, 400.0))    # u_shaped_path(1.4) on +400
+
     rebuilt = pa._rebuild([d], [-400.0])[0]
     assert rebuilt.pnl == -400.0
-    assert min(rebuilt.path) == pytest.approx(560.0) or min(rebuilt.path) < 0
+    # delta = -400 - 400 = -800, accrued at 1/3, 2/3, 3/3 of the session.
+    assert rebuilt.path == pytest.approx((-280.0 - 800 / 3, -560.0 - 1600 / 3, -400.0))
+    assert rebuilt.path[-1] == pytest.approx(rebuilt.pnl), "the path must end at the close"
+    # Bounded: the trough can move by at most the size of the change, and no more.
+    assert min(rebuilt.path) >= min(d.path) - 800.0
 
 
 # ======================================================================================
@@ -273,12 +284,19 @@ def test_the_default_shock_is_survivable_rather_than_arithmetic():
     trusting the comment that states it.
     """
     shock = next(s for s in pa.DEFAULT_SCENARIOS if isinstance(s, pa.Shock))
-    mll = ts_mll = 2_000.0
-    assert abs(shock.size) * 1.4 < ts_mll, (
-        f"a {shock.size:,.0f} close troughs at {shock.size * 1.4:,.0f}, past the {mll:,.0f} "
-        "MLL, so the scenario is fatal by arithmetic")
-    days = _days([100.0] * 20)
+    mll = 2_000.0
+    # A series with real losing days, so the shock borrows a LOSING session's shape - which
+    # is the case the default was sized against.
+    days = _days([100.0] * 15 + [-500.0] * 5)
     stressed = shock.apply(days)
+    assert stressed[0].pnl == shock.size
+    # Donor is the -$500 day, path (-350, -700, -500); k = -1000 / -500 = 2.
+    assert stressed[0].path == pytest.approx((-700.0, -1400.0, -1000.0))
+    trough = min(stressed[0].path)
+    assert trough == pytest.approx(shock.size * 1.4)
+    assert trough > -mll, (
+        f"the shock day troughs at {trough:,.0f}, past the {mll:,.0f} MLL, so the scenario "
+        "is fatal by arithmetic and measures the rulebook rather than the strategy")
     r = _twin().run(stressed)
     assert r.days > 1, "the account must survive the shock day itself"
 
@@ -378,11 +396,22 @@ def test_the_size_sweep_optimum_is_interior_not_at_an_end():
 
 
 def test_the_paid_optimum_and_the_gross_optimum_can_differ():
-    """Which is why the objective has to be named rather than assumed."""
+    """Which is why the objective has to be named rather than assumed.
+
+    200 reps could not resolve this and the two optima collided on Monte Carlo noise alone
+    (paid 0.650 at 0.75x against 0.640 at 0.5x - a 1-point gap on a 200-path estimate). The
+    separation is real and stable from about 600 reps: maximising CASH WITHDRAWN wants more
+    size than maximising the chance of withdrawing anything at all, because the extra size
+    that raises the eventual payout also raises the chance of never reaching one.
+    """
     rng = np.random.default_rng(11)
     days = _days(rng.normal(55, 350, size=150))
-    sweep = pa.size_sweep(_twin(), days, reps=200)
-    assert pa.best_size(sweep, "p_first_payout") != pa.best_size(sweep, "mean_gross")
+    sweep = pa.size_sweep(_twin(), days, reps=800)
+    paid, gross = pa.best_size(sweep, "p_first_payout"), pa.best_size(sweep, "mean_gross")
+    assert paid != gross
+    assert paid < gross, (
+        f"the payout-probability optimum ({paid}) should be the more cautious of the two, "
+        f"not larger than the cash optimum ({gross})")
 
 
 def test_best_size_breaks_ties_toward_the_smaller_size():

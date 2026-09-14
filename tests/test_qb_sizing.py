@@ -22,6 +22,7 @@ from quant_brain.markets.futures_cme import twin as tw
 ES = InstrumentSpec("ES", AssetClass.FUTURE, multiplier=50.0, tick=0.25, exchange="CME")
 NQ = InstrumentSpec("NQ", AssetClass.FUTURE, multiplier=20.0, tick=0.25, exchange="CME")
 RTY = InstrumentSpec("RTY", AssetClass.FUTURE, multiplier=50.0, tick=0.10, exchange="CME")
+MES = InstrumentSpec("MES", AssetClass.FUTURE, multiplier=5.0, tick=0.25, exchange="CME")
 NVDA = equity("NVDA")
 BTC = InstrumentSpec("BTC", AssetClass.CRYPTO, multiplier=1.0, tick=0.01)
 
@@ -32,7 +33,12 @@ def ctx(**kw) -> sz.SizeContext:
 
 
 class FakeAccount:
-    """Anything with the two properties is a prop-firm account to the sizer."""
+    """Anything with the three members is a prop-firm account to the sizer.
+
+    `max_contracts_for` ignores the symbol: this stands in for a firm whose allowance is
+    already stated per contract, so the number needs no conversion. The real Topstep case,
+    where it does, is `combine_account()` and `tests/test_contract_ceiling.py`.
+    """
 
     def __init__(self, room: float, allowed: int | None):
         self._room = room
@@ -44,6 +50,9 @@ class FakeAccount:
 
     @property
     def contracts_allowed(self) -> int | None:
+        return self._allowed
+
+    def max_contracts_for(self, symbol: str) -> int | None:
         return self._allowed
 
 
@@ -213,12 +222,19 @@ def test_every_sizer_is_clamped_by_the_venue(label, sizer, fields):
 
 
 def test_a_prop_account_in_context_binds_every_sizer_by_the_full_room():
-    # Fixed risk on $1m at 0.5% wants $5,000 = 25 contracts. A fresh $50K Combine has
-    # $2,000 of room, and $200 a contract means 10 is the most it can lose without dying.
+    # Fixed risk on $1m at 0.5% wants $5,000. A 10-point ES stop is $500 a contract, so the
+    # strategy asks for 10 - but a fresh $50K Combine has $2,000 of room, and four contracts
+    # is the most it can lose without dying.
+    #
+    # The stop is 10 points rather than 4 so that the ROOM is the cap being tested. At a
+    # 4-point stop the account's five-ES contract ceiling binds first and this test would
+    # pass whatever the room arithmetic did - which is the failure mode the ceiling fix
+    # exposed here on 2026-09-14.
     acct = combine_account()
     assert acct.distance_to_mll == pytest.approx(2_000.0)
-    d = sz.FixedRiskSizer().size(ctx(equity=1_000_000.0, stop_distance=4.0, prop_account=acct))
-    assert d.contracts == 10 and d.binding is sz.Binding.PROP_FIRM
+    assert acct.max_contracts_for("ES") == 5, "the ceiling must NOT be what binds below"
+    d = sz.FixedRiskSizer().size(ctx(equity=1_000_000.0, stop_distance=10.0, prop_account=acct))
+    assert d.contracts == 4 and d.binding is sz.Binding.PROP_FIRM
     assert "LIMIT_PROP_FIRM" in d.codes
 
 
@@ -432,7 +448,9 @@ def test_prop_firm_sizer_agrees_with_the_twin(fraction, rpc):
     d = sz.PropFirmSizer(fraction=fraction).size(
         ctx(stop_distance=rpc / ES.multiplier, prop_account=acct))
     assert d.available
-    assert d.contracts == tw.max_contracts(acct, rpc, fraction=fraction)
+    # `symbol` on both sides: the context is sized on the ES spec, so the twin has to be
+    # asked for its ceiling in ES too or the two are comparing different units.
+    assert d.contracts == tw.max_contracts(acct, rpc, fraction=fraction, symbol="ES")
     assert d.risk_dollars == pytest.approx(d.contracts * rpc)
     assert "PROP_FIRM_BUDGET" in d.codes
 
@@ -446,14 +464,38 @@ def test_prop_firm_sizes_off_the_room_not_the_balance():
     # Fixed-fraction-of-equity sizing sees $500 of equity and puts on nothing.
     off_equity = sz.FixedRiskSizer().size(ctx(equity=xfa.balance, stop_distance=2.0))
     assert off_equity.contracts == 0
-    # The prop-firm sizer sees the room: 0.25 x $2,000 / $100 = 5.
-    off_room = sz.PropFirmSizer().size(ctx(stop_distance=2.0, prop_account=xfa))
+    # The prop-firm sizer sees the room: 0.25 x $2,000 / $10 a MES contract = 50 wanted,
+    # and the XFA's five-micro-equivalent scaling rung is what stops it at 5. Either way it
+    # is trading, which sizing off a $500 balance never would be.
+    off_room = sz.PropFirmSizer().size(ctx(spec=MES, stop_distance=2.0, prop_account=xfa))
     assert off_room.contracts == 5
+    # ES on the same account is zero, and that is not a regression: XFA_SCALING_FALLBACK
+    # permits a tenth of the allowance - five micro-equivalents, "so no mini at all" in its
+    # own words - and one ES consumes ten of them. Before 2026-09-14 this sized 5 ES, which
+    # is $250 a point against $2,000 of room.
+    off_room_mini = sz.PropFirmSizer().size(ctx(stop_distance=2.0, prop_account=xfa))
+    assert off_room_mini.contracts == 0 and off_room_mini.binding is sz.Binding.PROP_FIRM
 
 
 def test_prop_firm_at_the_floor_sizes_zero():
     d = sz.PropFirmSizer().size(ctx(stop_distance=2.0, prop_account=FakeAccount(0.0, 50)))
     assert d.available and d.contracts == 0 and d.binding is sz.Binding.PROP_FIRM
+
+
+def test_an_account_that_cannot_name_its_ceiling_in_contracts_is_refused():
+    """An `MllAccount` missing `max_contracts_for` is unavailable, not silently uncapped.
+
+    The tempting fallback is `contracts_allowed`, and that is precisely the defect: it is in
+    the firm's own allowance unit, it is larger than the true ceiling for every non-micro,
+    and a cap that is silently too large is worse than no answer.
+    """
+    class Legacy:
+        distance_to_mll = 2_000.0
+        contracts_allowed = 50
+
+    d = sz.PropFirmSizer().size(ctx(stop_distance=2.0, prop_account=Legacy()))
+    assert not d.available and "SIZING_ACCOUNT_PROTOCOL" in d.codes
+    assert d.contracts == 0
 
 
 def test_prop_firm_refusals():

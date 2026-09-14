@@ -440,17 +440,28 @@ def risk_budget(account: ts.TopstepAccount, *, fraction: float = 0.25,
 
 
 def max_contracts(account: ts.TopstepAccount, risk_per_contract: float, *,
-                  fraction: float = 0.25) -> int:
+                  fraction: float = 0.25, symbol: str | None = None) -> int:
     """Position size from the risk budget and the per-contract stop distance.
 
     Clamped by the firm's own contract ceiling, which is a hard rule rather than a
     preference. Returns 0 when the budget will not cover a single contract - which is the
     correct answer, not a rounding error to floor at one.
+
+    `symbol` names the contract being sized, and the ceiling is then applied IN CONTRACTS OF
+    IT: five ES or fifty MES on a $50K account, which is one allowance stated in two units.
+    A root the account may not hold returns 0.
+
+    Passing None keeps the historical clamp against `contracts_allowed`, which is the
+    allowance in MICRO-EQUIVALENTS and is only a position size when the caller is sizing
+    micros. It is not a safe default for a mini and it is not meant as one - it is the unit
+    the account reports itself in, kept so that `max_contracts(a, 1.0)` still means "fifty
+    micro-equivalents of room". Name the symbol whenever the answer will become an order.
     """
     if risk_per_contract <= 0:
         raise ValueError(f"risk_per_contract must be positive, got {risk_per_contract}")
     n = int(risk_budget(account, fraction=fraction) // risk_per_contract)
-    cap = account.contracts_allowed
+    cap = (account.contracts_allowed if symbol is None
+           else account.max_contracts_for(symbol))
     return max(0, n if cap is None else min(n, cap))
 
 
