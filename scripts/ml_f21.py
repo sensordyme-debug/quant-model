@@ -631,8 +631,12 @@ def books(record_rows: bool = False) -> None:
         print(f"\n=== clause 7: the information control ===")
         print(f"  wide62_feat  {a:>+8,.0f}/day      wide62_scram {s:>+8,.0f}/day      "
               f"difference {a - s:>+8,.0f}/day")
-        print(f"  -> {'the widening beats its own scramble' if a > s else 'THE SCRAMBLE WINS - the '
-              'widening is arithmetic, not information'}")
+        # The verdict is built before the f-string rather than inside it: a line break inside
+        # a replacement field is 3.12+ syntax, and LEAN's interpreter is 3.11, so this file
+        # would not even parse there. `ruff check` flags it repo-wide for the same reason.
+        verdict = ("the widening beats its own scramble" if a > s
+                   else "THE SCRAMBLE WINS - the widening is arithmetic, not information")
+        print(f"  -> {verdict}")
 
     print("\n=== regimes: terciles of SPY trailing 20-session realised vol ===")
     reg = f14.market_regime()
