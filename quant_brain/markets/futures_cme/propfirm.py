@@ -116,12 +116,43 @@ class PropFirmProfile:
     #: Consistency: no single day may contribute more than this fraction of total profit.
     #: Checked at the moment the target is reached, which is when firms check it.
     max_single_day_profit_share: float | None = None
+    #: WHICH SIDE of that share is compliant: "inclusive" admits a day at exactly the share
+    #: ("must stay at or below 55%"), "exclusive" refuses it (a strict bound). A parameter
+    #: rather than an operator because the published wording genuinely differs between a
+    #: firm's own pages, and the two readings disagree at exactly the threshold - which is
+    #: exactly where a pass is decided. See `topstep.CONSISTENCY_READINGS`, which carries the
+    #: boundary alongside the denominator so the difference can be measured rather than
+    #: argued about.
+    max_single_day_share_boundary: str = "inclusive"
 
     # --- position constraints ------------------------------------------------------------
-    #: Total contracts across all symbols.
+    #: The account-wide position ceiling, in the units `contract_equivalence` selects: raw
+    #: contracts by default, or units of the equivalence scale when that flag is set.
     max_total_contracts: int | None = None
     #: Per-symbol contract cap, e.g. {"MES": 10, "ES": 1}.
     max_contracts_per_symbol: dict[str, int] = field(default_factory=dict)
+    #: True when `max_total_contracts` and `max_contracts_per_symbol` are two views of ONE
+    #: account-wide allowance rather than two independent counts. Topstep's is one allowance:
+    #: 5 minis OR 50 micros at a 10:1 ratio, PER ACCOUNT
+    #: (help.topstep.com/en/articles/8284197, retrieved 2026-09-13). The published table
+    #: already encodes the ratio - 5 in the mini column, 50 in the micro column - so one
+    #: contract of a listed symbol consumes `max_total_contracts / max_contracts_per_symbol`
+    #: of the allowance: 10 units for ES, 1 for MES. Nothing consumed that ratio before, so
+    #: 5 ES + 45 MES counted as 50 raw contracts and passed a 50-MICRO account holding 95
+    #: micro-equivalents - 1.9x the permitted size.
+    #:
+    #: Default False, which keeps the historical raw count for every profile that does not
+    #: opt in: a firm whose per-symbol caps are independent limits rather than the same
+    #: allowance in another unit would be LOOSENED by the ratio, and loosening a limit is
+    #: never the safe default.
+    contract_equivalence: bool = False
+    #: The roots the account may trade at all. Empty means the firm published no list and the
+    #: universe is open. A non-empty list is enforced by the risk engine BEFORE any cap, so a
+    #: product the account may not hold is refused at zero whatever the caps say - and a root
+    #: this repository cannot resolve to a contract spec, and therefore could not size or cost
+    #: if it wanted to, can never appear on it. Topstep publishes a product list per account
+    #: (8284197).
+    permitted_products: tuple[str, ...] = ()
     #: Notional exposure ceiling in dollars, if the firm states one.
     max_notional: float | None = None
 
@@ -136,6 +167,18 @@ class PropFirmProfile:
     #: the close so it is correct on an early close - the AUD-07 lesson, applied here rather
     #: than repeated as a literal bar index.
     flat_before_close_minutes: int = 15
+    #: A WALL-CLOCK flat deadline in the market's local time, when the firm states one that
+    #: way. Topstep's mandatory flat is 3:10 PM CT - a clock, not an offset - and modelling it
+    #: as `flat_before_close_minutes=15` against a 16:00 CT close enforced 15:45 CT, so a
+    #: position held from 15:10 to 15:45 was a rule violation the model called compliant every
+    #: session. Both deadlines apply and the EARLIER one binds: the offset keeps the rule
+    #: correct on an early close (AUD-07), the clock keeps it correct on a normal one.
+    #: Requires `regular_close_local_time`, which is what makes the clock comparable with the
+    #: offset - a deadline nobody can anchor is a deadline nobody enforces.
+    flat_at_local_time: dt.time | None = None
+    #: The session close `flat_at_local_time` is measured against when the caller does not say
+    #: what today's close is: the SCHEDULED close, in the same local time as the deadline.
+    regular_close_local_time: dt.time | None = None
     #: Windows in which new risk may not be opened, as (start, end) local times. News
     #: restrictions are the usual reason.
     blackout_windows: tuple[tuple[dt.time, dt.time], ...] = ()
@@ -153,6 +196,60 @@ class PropFirmProfile:
     #: ceiling is untradeable on day one. Empty means the flat `max_total_contracts` applies
     #: at every balance. The firm supplies the numbers; this only supplies the shape.
     scaling: tuple[tuple[float, int], ...] = ()
+
+    def __post_init__(self) -> None:
+        # Fail closed on a rule set that cannot be evaluated, at construction rather than at
+        # the order it would have mis-sized.
+        if self.max_single_day_share_boundary not in ("inclusive", "exclusive"):
+            raise ValueError(
+                f"{self.name}: max_single_day_share_boundary must be 'inclusive' or "
+                f"'exclusive', got {self.max_single_day_share_boundary!r}")
+        if self.flat_at_local_time is not None and self.regular_close_local_time is None:
+            raise ValueError(
+                f"{self.name}: flat_at_local_time {self.flat_at_local_time} has no "
+                f"regular_close_local_time to measure it against, so it could not be compared "
+                f"with flat_before_close_minutes and would silently never bind")
+
+    def contract_units(self, symbol: str) -> float:
+        """How much of `max_total_contracts` one contract of `symbol` consumes.
+
+        1.0 unless the profile opted into `contract_equivalence`, in which case the published
+        per-symbol cap says how many of that symbol fill the account and the ratio follows:
+        with a total of 50 and an ES cap of 5, one ES is 10 units and one MES (cap 50) is 1.
+        A symbol the table does not list gets 1.0 and is refused by `permitted_products`
+        instead - inventing a weight for an unknown product is the flattering direction.
+        """
+        if not self.contract_equivalence or self.max_total_contracts is None:
+            return 1.0
+        cap = self.max_contracts_per_symbol.get(symbol)
+        if not cap or cap <= 0:
+            return 1.0
+        return self.max_total_contracts / cap
+
+    def permits(self, symbol: str) -> bool:
+        """Is this root tradeable here? True when the firm published no product list."""
+        return not self.permitted_products or symbol.upper() in self.permitted_products
+
+    def flat_deadline_minutes(self, session_close: dt.time | None = None) -> int:
+        """Minutes before the close at which the book must be flat, both deadlines applied.
+
+        The wall clock and the offset are two statements of the same rule and the EARLIER one
+        binds, which in minutes-before-close is the LARGER number. The clock is converted
+        against today's close when the caller supplies it and against the scheduled close
+        otherwise; a clock that falls at or after the close (an early close: 15:10 CT against
+        a 13:00 CT bell) cannot bind, and the offset alone applies - which is the AUD-07
+        property this must not lose.
+        """
+        offset = self.flat_before_close_minutes
+        if self.flat_at_local_time is None:
+            return offset
+        close = session_close or self.regular_close_local_time
+        if close is None:
+            return offset
+        deadline = self.flat_at_local_time
+        before_close = ((close.hour * 60 + close.minute)
+                        - (deadline.hour * 60 + deadline.minute))
+        return max(offset, before_close)
 
     def contracts_allowed_at(self, profit: float) -> int | None:
         """The contract cap at a given profit above the starting balance.
@@ -194,6 +291,11 @@ class PropFirmProfile:
         d = dataclasses.asdict(self)
         d["trailing_mode"] = self.trailing_mode.value
         d["blackout_windows"] = [[a.isoformat(), b.isoformat()] for a, b in self.blackout_windows]
+        # A time is not JSON. A rule that cannot be written down is a rule that stops being
+        # enforced the first time a profile is reloaded, so both clocks go out as ISO strings.
+        for key in ("flat_at_local_time", "regular_close_local_time"):
+            value = getattr(self, key)
+            d[key] = None if value is None else value.isoformat()
         return json.dumps(d, indent=2, sort_keys=True)
 
     @classmethod
@@ -210,6 +312,12 @@ class PropFirmProfile:
         # round-trip test caught, and which would otherwise only show up as a confusing
         # inequality the first time a profile was reloaded from disk.
         d["scaling"] = tuple((float(a), int(b)) for a, b in d.get("scaling", ()))
+        # Same reason as `scaling`: JSON has no tuple, and a reloaded product list that
+        # compares unequal to the one written is a limit nobody notices has changed shape.
+        d["permitted_products"] = tuple(d.get("permitted_products", ()))
+        for key in ("flat_at_local_time", "regular_close_local_time"):
+            if d.get(key) is not None and not isinstance(d[key], dt.time):
+                d[key] = dt.time.fromisoformat(d[key])
         known = {f.name for f in dataclasses.fields(cls)}
         unknown = set(d) - known
         if unknown:
@@ -267,7 +375,18 @@ class AccountState:
 
     @property
     def total_contracts(self) -> int:
+        """Raw contracts held, whatever they are. Reported; not what the total cap counts."""
         return sum(abs(v) for v in self.contracts.values())
+
+    @property
+    def total_equivalents(self) -> float:
+        """The position in the units `max_total_contracts` is expressed in.
+
+        Equals `total_contracts` for every profile that has not opted into
+        `contract_equivalence`, so the two are the same number until a firm says otherwise.
+        """
+        return sum(self.profile.contract_units(sym) * abs(v)
+                   for sym, v in self.contracts.items())
 
     def mark_peak(self, *, intraday: bool) -> None:
         """Advance the trailing peak under the profile's convention."""
@@ -315,6 +434,16 @@ class PropFirmRiskEngine(RiskEngine):
             return RiskDecision.deny(
                 f"equity {s.equity:,.0f} at or below floor {s.floor:,.0f}", "trailing_drawdown")
 
+        # The product list is checked BEFORE any sizing: the correct size for a product the
+        # account may not hold is zero, whatever the caps say, and a root with no contract
+        # spec in this repository cannot be sized or costed by anything downstream either.
+        # Flatten intents never reach here (RiskEngine.__call__ passes them through), so an
+        # open position in a product that has since left the list can always be closed.
+        if not p.permits(sym):
+            return RiskDecision.deny(
+                f"{sym} is not on {p.name}'s permitted-products list "
+                f"({', '.join(p.permitted_products)})", "permitted_products")
+
         per_unit = self.contract_size.get(sym, 1)
         want = int(abs(intent.quantity)) * per_unit
         if want <= 0:
@@ -323,7 +452,11 @@ class PropFirmRiskEngine(RiskEngine):
         held = s.contracts.get(sym, 0)
         signed = intent.side.sign * want
         resulting_sym = abs(held + signed)
-        resulting_total = s.total_contracts - abs(held) + resulting_sym
+        # The total cap is counted in the profile's own units, which are raw contracts unless
+        # the firm's per-symbol table is a ratio (see `contract_equivalence`). One ES against
+        # a 50-micro Topstep allowance is 10 of those units, not 1.
+        units = p.contract_units(sym)
+        resulting_total = s.total_equivalents + units * (resulting_sym - abs(held))
 
         decision = RiskDecision.allow(intent.quantity)
 
@@ -340,10 +473,14 @@ class PropFirmRiskEngine(RiskEngine):
         # account's own profit, so it is read from live state rather than from the profile.
         cap_total = p.contracts_allowed_at(s.balance - p.starting_balance)
         if cap_total is not None and resulting_total > cap_total:
-            room = max(0, cap_total - (s.total_contracts - abs(held)) - abs(held))
+            # Room is in the cap's units; convert it back into contracts of THIS symbol
+            # before it can become an order size, and round DOWN - half a permitted contract
+            # is no contract.
+            room_units = max(0.0, cap_total - s.total_equivalents)
+            room = int(room_units / units) if units else 0
             decision = decision.merge(RiskDecision.reduce(
                 room / per_unit if per_unit else 0,
-                f"total cap {cap_total}: holding {s.total_contracts}, room for {room}",
+                f"total cap {cap_total}: holding {s.total_equivalents:g}, room for {room}",
                 "max_total_contracts"))
 
         return decision
@@ -360,21 +497,29 @@ class PropFirmRiskEngine(RiskEngine):
                 return True
         return False
 
-    def must_be_flat(self, minutes_to_close: int, *,
+    def must_be_flat(self, minutes_to_close: int, *, session_close: dt.time | None = None,
                      is_last_session_of_week: bool = False) -> bool:
-        """True once the flat-before-close deadline has arrived.
+        """True once the flat-by-the-close deadline has arrived.
 
         Takes minutes-to-close rather than a wall clock so it is automatically correct on an
         early close, per AUD-07. The caller gets that number from the market's
         `SessionCalendar`, not from a constant.
+
+        A firm may state the deadline as a CLOCK instead - Topstep's mandatory flat is 3:10 PM
+        CT - and then BOTH deadlines apply and the earlier one binds. `session_close` is
+        today's actual close, and supplying it is what lets the clock be read correctly on a
+        day the bell moves: against a 13:00 CT early close, 15:10 CT is after the close and
+        cannot bind, so the offset alone applies. Left out, the profile's scheduled close is
+        used, which is right on a normal day and conservative (never late) on a short one.
         """
         p = self.state.profile
+        deadline = p.flat_deadline_minutes(session_close)
         # Friday is decided by the weekend rule, not the overnight one.
         if is_last_session_of_week and not p.allow_weekend:
-            return minutes_to_close <= p.flat_before_close_minutes
+            return minutes_to_close <= deadline
         if p.allow_overnight:
             return False
-        return minutes_to_close <= p.flat_before_close_minutes
+        return minutes_to_close <= deadline
 
 
 @dataclass
@@ -539,6 +684,10 @@ class PropFirmSimulator:
         if profit <= 0:
             return True
         best = max(state.daily_pnl, default=0.0)
+        # Which side of the share is compliant is a published reading, not a house style; a
+        # day at EXACTLY the share is the case the two readings decide differently.
+        if self.profile.max_single_day_share_boundary == "exclusive":
+            return best < share * profit
         return best <= share * profit
 
 

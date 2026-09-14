@@ -80,8 +80,16 @@ class Report:
 
 def check_frame(symbol: str, df, calendar: SessionCalendar | None = None, *,
                 report: Report | None = None,
-                expect_tz: bool = True) -> Report:
+                expect_tz: bool = True,
+                time_col: str | None = None) -> Report:
     """Validate one symbol's bar frame. `df` is a pandas DataFrame indexed by timestamp.
+
+    `time_col` names the timestamp COLUMN when the frame is not time-indexed, exactly as
+    `futures_cme.dataquality.check_futures_frame` already takes it. Without it, handing this
+    function a futures frame as stored - RangeIndex, timestamp in `t` - produced a `timezone`
+    FAIL that was about the caller and not about the data, which is a validator crying wolf
+    at its own calling convention. It defaults to None so the equity callers, which really
+    are time-indexed, are unchanged.
 
     Typed loosely on purpose: this module must import on both interpreters, and the 3.11 side
     has pandas 2.2.3 while 3.14 has 3.0.5. Nothing here depends on behaviour that moved.
@@ -92,7 +100,15 @@ def check_frame(symbol: str, df, calendar: SessionCalendar | None = None, *,
         rep.add("empty", Severity.FAIL, symbol, "no rows at all")
         return rep
     rep.rows += len(df)
-    idx = df.index
+    if time_col is None:
+        idx = df.index
+    elif time_col not in df.columns:
+        rep.add("time_column", Severity.FAIL, symbol,
+                f"asked to read timestamps from {time_col!r}, which the frame does not have")
+        return rep
+    else:
+        import pandas as pd
+        idx = pd.DatetimeIndex(pd.to_datetime(df[time_col]))
 
     # --- timestamps -------------------------------------------------------------------
     if expect_tz and getattr(idx, "tz", None) is None:
@@ -121,14 +137,7 @@ def check_frame(symbol: str, df, calendar: SessionCalendar | None = None, *,
         if neg:
             rep.add("negative_price", Severity.FAIL, symbol, f"{col} is negative", neg)
 
-    if {"h", "l"} <= set(df.columns):
-        bad = int((df["h"] < df["l"]).sum())
-        if bad:
-            rep.add("impossible_bar", Severity.FAIL, symbol, "high < low", bad)
-    if {"h", "l", "c"} <= set(df.columns):
-        out = int(((df["c"] > df["h"]) | (df["c"] < df["l"])).sum())
-        if out:
-            rep.add("impossible_bar", Severity.FAIL, symbol, "close outside [low, high]", out)
+    check_bar_structure(symbol, df, rep)
 
     if "v" in df.columns:
         negv = int((df["v"] < 0).sum())
@@ -153,17 +162,41 @@ def check_frame(symbol: str, df, calendar: SessionCalendar | None = None, *,
 
     # --- session coverage ---------------------------------------------------------------
     if calendar is not None:
-        rep = _check_sessions(symbol, df, calendar, rep)
+        rep = _check_sessions(symbol, idx, calendar, rep)
     return rep
 
 
-def _check_sessions(symbol: str, df, calendar: SessionCalendar, rep: Report) -> Report:
+def check_bar_structure(symbol: str, df, rep: Report) -> Report:
+    """An OHLC bar that cannot exist: high below low, or a close outside its own range.
+
+    Split out of `check_frame` so the futures validator can run the SAME code rather than a
+    second copy of it. It had no copy at all until this was extracted: `futures_discover.load`
+    calls only `futures_cme.dataquality.require_usable`, which read `c`, `v` and the quote
+    columns and never `h`/`l`, so on the futures research path nothing checked bar structure.
+    Two validators with two implementations of one rule is how they drift; one implementation
+    with two callers cannot.
+
+    Pure structure, no magnitude: the corruption this must catch is a quarter-point high/low
+    swap on a single bar, which no jump or range threshold can see.
+    """
+    if {"h", "l"} <= set(df.columns):
+        bad = int((df["h"] < df["l"]).sum())
+        if bad:
+            rep.add("impossible_bar", Severity.FAIL, symbol, "high < low", bad)
+    if {"h", "l", "c"} <= set(df.columns):
+        out = int(((df["c"] > df["h"]) | (df["c"] < df["l"])).sum())
+        if out:
+            rep.add("impossible_bar", Severity.FAIL, symbol, "close outside [low, high]", out)
+    return rep
+
+
+def _check_sessions(symbol: str, idx, calendar: SessionCalendar, rep: Report) -> Report:
     """Every day present must be a trading day, and its bar count must fit the session."""
-    # One pass to count bars per day. The obvious `(df.index.date == day).sum()` inside the
+    # One pass to count bars per day. The obvious `(idx.date == day).sum()` inside the
     # loop is O(days x rows) and took minutes on a 263-session, 100k-row store; this is O(rows).
     try:
         import pandas as pd
-        counts = pd.Series(1, index=df.index).groupby(df.index.date).size()
+        counts = pd.Series(1, index=idx).groupby(idx.date).size()
         # Zip index against the numpy values rather than using `.items()`: pandas types the
         # latter as (Hashable, Series | Any), which is both untrue here and unusable. The
         # isinstance filter narrows the keys to real dates and drops anything that is not one

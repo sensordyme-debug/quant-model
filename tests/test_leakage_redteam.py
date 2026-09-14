@@ -363,32 +363,35 @@ def volume_oracle_result(sessions):
 def test_close_oracle_captures_the_entire_theoretical_ceiling(close_oracle_result, ceiling):
     """CHARACTERISATION. Leak: pos[i] = sign(c[i+1] - c[i]) - one bar of perfect foresight.
 
-    Correct behaviour: a backtest engine should be unable to express this, or should refuse
-    it. Today: `futures_discover.evaluator.run` books it as an ordinary hypothesis and it
-    realises 100.00% of `sum|dc|*multiplier` - the arithmetic maximum - while clearing the
-    cost gate, the Topstep survival gate and all five walk-forward folds. This is the audit's
-    BT-01 reproduced on a fixture, and it is what makes the paired RATCHET test meaningful:
-    the cheat is not approximate, it is exact.
+    The cheat is not approximate, it is exact: it realises 100.0000% of `sum|dc|*multiplier`,
+    the arithmetic maximum. That number is what makes the paired RATCHET meaningful and what
+    the funnel's refusal level is calibrated against, so it is pinned here on its own.
+
+    UPDATED when the guard landed. This test used to assert that the funnel scored the oracle
+    as an ordinary hypothesis and that it cleared the cost, Topstep and walk-forward gates -
+    the audit's BT-01, reproduced. It now asserts the arithmetic AND the refusal, because
+    `futures_discover.evaluator` returns at gate 0 before any later gate runs. The old
+    assertions about `wf_positive_folds` and `p_pass_combine` cannot be made any more: the
+    engine no longer computes them for a rule it has already refused, which is the point.
     """
     refused, out = close_oracle_result
-    assert not refused, "a guard exists now - delete the xfail marker on the paired test"
+    assert not refused, (
+        "the funnel raised rather than returning a verdict; the canary is meant to record "
+        "the hypothesis and reject it, so the ledger keeps the trial for multiplicity")
     frac = out["gross"] / ceiling
     assert abs(frac - 1.0) < 1e-9, (
         f"the one-bar-ahead oracle realised {frac:.6%} of the ceiling, not 100% - the "
         f"fixture or the evaluator's P&L convention changed and every assertion built on "
         f"this number needs re-deriving (gross {out['gross']:,.2f}, ceiling {ceiling:,.2f})")
+    assert out["ceiling_share"] == pytest.approx(1.0, abs=1e-9), (
+        "the engine must report the share it measured, not only act on it")
+    assert out["leakage_ok"] is False
     assert rejected_gates(out) == [], (
-        f"characterisation drift: the funnel's own gates now reject the oracle "
-        f"{rejected_gates(out)}; the audit measured it clearing all of them")
-    assert out["wf_positive_folds"] == 5
-    assert out["p_pass_combine"] == pytest.approx(1.0)
+        f"gate 0 must reject before the cost, Topstep and walk-forward gates run, so none of "
+        f"them should have an opinion; saw {rejected_gates(out)}")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BT-01: no engine in the stack has a lookahead guard. futures_discover.evaluator has no "
-    "notion of a causality window - it consumes whatever array h.signal returns - so a "
-    "one-bar-ahead close oracle is scored, gated and (if it survives) written to the ledger "
-    "like any other hypothesis. Remove this marker the day a guard lands."))
+# RATCHET CLEARED 2026-09-13: the funnel's gate 0 refuses it: gross is 100.0000% of the one-bar-ahead ceiling.
 def test_close_oracle_must_be_rejected_by_the_funnel(close_oracle_result, ceiling):
     """RATCHET. Same leak as above. Correct behaviour: the funnel must return a leakage
     verdict (or refuse outright) for a signal that realises the arithmetic ceiling. Today it
@@ -419,9 +422,7 @@ def test_future_high_low_oracle_captures_almost_the_entire_ceiling(high_low_orac
         f"characterisation drift: gates now reject the high/low oracle {rejected_gates(out)}")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BT-01: the evaluator cannot tell a signal built from bar i+1's high and low from one "
-    "built from bar i's, because it never inspects the provenance of h.signal's output."))
+# RATCHET CLEARED 2026-09-13: gate 0 refuses it at 99.57% of the ceiling.
 def test_future_high_low_oracle_must_be_rejected_by_the_funnel(high_low_oracle_result,
                                                                ceiling):
     """RATCHET. Correct behaviour: a verdict. Today: silence, so this xfails."""
@@ -448,9 +449,7 @@ def test_future_volume_oracle_captures_almost_the_entire_ceiling(volume_oracle_r
         f"characterisation drift: gates now reject the volume oracle {rejected_gates(out)}")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BT-01: a one-bar shift of a NON-PRICE column is still a one-bar shift, and no engine "
-    "checks the alignment of the columns a hypothesis was built from."))
+# RATCHET CLEARED 2026-09-13: gate 0 refuses it at 94.68% of the ceiling.
 def test_future_volume_oracle_must_be_rejected_by_the_funnel(volume_oracle_result, ceiling):
     """RATCHET. Correct behaviour: a verdict. Today: silence, so this xfails."""
     refused, out = volume_oracle_result
@@ -498,10 +497,7 @@ def test_feature_frame_shifted_one_bar_reverses_the_funnel_verdict(shifted_frame
         f"characterisation drift: the shifted frame is now rejected by {rejected_gates(s_out)}")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BT-01: futures_discover.build_features hands the funnel whatever frame it is given and "
-    "the evaluator never checks that row k of the feature frame is aligned with row k of the "
-    "bar frame. A shift(-1) on the whole matrix is undetectable to it."))
+# RATCHET CLEARED 2026-09-13: gate 0 refuses it at 44.90% of the ceiling, the weakest leak measured and still twice the 20% refusal level.
 def test_feature_frame_shifted_one_bar_must_be_rejected_by_the_funnel(shifted_frame_results,
                                                                       ceiling):
     """RATCHET. Correct behaviour: the funnel must detect that its feature frame is one row
@@ -570,10 +566,7 @@ def test_target_leaked_into_a_feature_is_caught_by_assert_causal(quoted):
     assert "not causal" in str(exc.value)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "features.assert_causal works, and futures_discover never calls it. build_features() "
-    "goes straight to FeatureSet.build(), so a leaked column is computed, handed to the "
-    "evaluator and scored. The guard exists; the funnel is not wired to it."))
+# RATCHET CLEARED 2026-09-13: build_features now runs fe.audit_causality over three sessions and raises LeakageError.
 def test_target_leaked_into_a_feature_must_not_reach_the_funnel(sessions):
     """RATCHET. Same leak. Correct behaviour: `futures_discover.build_features` must run the
     library through `audit_causality` and refuse (or drop) any column that fails. Today the
@@ -600,9 +593,7 @@ def test_centered_rolling_mean_is_caught_by_assert_causal(quoted):
     assert feat.name in str(exc.value)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Same wiring gap as the leaked target: the funnel's build_features never calls the "
-    "causality guard, so a centred window reaches the evaluator intact."))
+# RATCHET CLEARED 2026-09-13: same wiring: build_features now audits the library before building it.
 def test_centered_rolling_mean_must_not_reach_the_funnel(sessions):
     """RATCHET. Correct behaviour: refused by the funnel's feature builder. Today: admitted,
     so this xfails.
@@ -726,29 +717,63 @@ def test_out_of_fold_perturbation_would_detect_the_fitted_scaler():
         f"on this fixture")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "cross_validate() takes fit_score(train_idx, test_idx) and can only check index "
-    "geometry through assert_no_leakage; it has no way to know - and never asks - whether "
-    "the transform inside fit_score was fitted on rows outside the training fold. The "
-    "out-of-fold perturbation probe in the test above is the missing check."))
+# RATCHET CLEARED 2026-09-13: cross_validate grew a `probe=` parameter. The probe could not
+# be synthesised inside the function - only the caller owns the data, so only the caller can
+# perturb it - so the API had to change and this test's call changed with it. That is a real
+# fix, not a weakening: the clean control below passes the SAME probe and is not refused.
+def _cv_probe(contaminated: bool):
+    """`probe(outside_mask) -> fit_score` with the out-of-fold rows multiplied by 25.
+
+    This is the shape `cross_validate(probe=...)` asks for. A train-only pipeline cannot see
+    those rows, so its score is unchanged; a pipeline whose scaler was fitted on all 900 rows
+    moves, and moving is the refusal.
+    """
+    def probe(outside):
+        poisoned = CV_X.copy()
+        poisoned[outside] *= 25.0
+        return _cv_fit_score(contaminated, poisoned)
+    return probe
+
+
 def test_cross_validate_must_reject_a_scaler_fitted_on_the_full_sample():
-    """RATCHET. Same leak as two tests above. Correct behaviour: `cross_validate` (or a probe
-    it runs by default, the way `check=True` already runs `assert_no_leakage`) must refuse a
-    pipeline whose preprocessing saw rows outside the training fold. Today it returns a
-    `CVResult` that is indistinguishable from the clean one apart from the numbers, so this
-    xfails.
+    """RATCHET CLEARED. `cross_validate` now refuses a pipeline whose preprocessing saw rows
+    outside the training fold, and says so in `CVResult.transform_verified` when it did not
+    check at all.
+
+    The discrimination is what matters. The clean pipeline is handed the identical probe and
+    is NOT refused, so this cannot be satisfied by a guard that rejects everything - which is
+    the failure mode section G exists to catch.
     """
     clean_refused, clean = leakage_refusal(val.cross_validate, _cv_fit_score(False), _CV_N,
-                                           horizon=1, folds=5)
+                                           horizon=1, folds=5, probe=_cv_probe(False))
     assert not clean_refused, (
         "cross_validate refused the TRAIN-ONLY pipeline; a leakage guard that rejects a "
         "correctly fitted transform is worse than none")
+    assert clean.transform_verified is True, (
+        "the probe did not actually run on the clean pipeline, so its clean bill is empty")
+
     dirty_refused, dirty = leakage_refusal(val.cross_validate, _cv_fit_score(True), _CV_N,
-                                           horizon=1, folds=5)
-    assert dirty_refused or leak_verdict(dirty.summary()) is True, (
-        f"cross_validate certified a pipeline whose scaler was fitted on all {_CV_N} rows "
-        f"and reported it exactly as it reported the clean one: "
-        f"{dirty.summary()!r} against {clean.summary()!r}")
+                                           horizon=1, folds=5, probe=_cv_probe(True))
+    assert dirty_refused, (
+        f"cross_validate certified a pipeline whose scaler was fitted on all {_CV_N} rows: "
+        f"{dirty.summary()!r}")
+
+
+def test_cross_validate_says_UNVERIFIED_when_no_probe_was_supplied():
+    """The default is honest rather than reassuring.
+
+    Without a probe there is nothing to perturb and the transform is simply unchecked. The
+    old behaviour was to report the contaminated and the clean run identically, down to the
+    coverage line. `summary()` now ends in UNVERIFIED, so a reader can tell "we did not check"
+    from "we checked and it was clean".
+    """
+    res = val.cross_validate(_cv_fit_score(True), _CV_N, horizon=1, folds=5)
+    assert res.transform_verified is False
+    assert "UNVERIFIED" in res.summary()
+    probed = val.cross_validate(_cv_fit_score(False), _CV_N, horizon=1, folds=5,
+                                probe=_cv_probe(False))
+    assert probed.transform_verified is True
+    assert "probed" in probed.summary() and "UNVERIFIED" not in probed.summary()
 
 
 # =====================================================================================
@@ -869,10 +894,7 @@ def test_decision_bar_close_fill_is_the_entire_edge(fill_subsidy):
         f"no longer demonstrates a subsidy that survives the funnel")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BT-04: futures_discover.evaluator books pos[i] * (c[i+1] - c[i]) unconditionally. There "
-    "is no fill-convention parameter, no next-open alternative and nothing in the result "
-    "dict that names the fill at all, so the subsidy is neither refused nor reported."))
+# RATCHET CLEARED 2026-09-13: the result dict now carries fill_convention, gross_next_open_fill and fill_subsidy, so the subsidy is a number the reader can subtract.
 def test_decision_bar_close_fill_must_be_refused_or_reported(fill_subsidy):
     """RATCHET. Correct behaviour: the engine must either refuse to fill at the decision
     bar's close, or report the subsidy beside the P&L so a reader can subtract it. Today it
@@ -963,10 +985,7 @@ def test_quote_column_leak_is_invisible_to_the_guards_perturbation(quoted):
         "no longer demonstrates the blind spot")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "features._assert_causal_at perturbs only ('c','h','l','o') and 'v'. Quote columns - "
-    "bid, ask, bid_size, ask_size, the exact inputs of the library's own microstructure "
-    "family - are never perturbed, so a feature that reads them from the future passes."))
+# RATCHET CLEARED 2026-09-13: _assert_causal_at now perturbs EVERY numeric column present, not the hard-coded c/h/l/o/v, so a bid.shift(-1) leak is caught at bar 1 (4997.875 -> 15711.614). spread_bps and quote_imbalance were never actually tested before this.
 def test_quote_column_leak_must_be_caught_by_assert_causal(quoted):
     """RATCHET. Correct behaviour: `assert_causal` must catch `bid.shift(-1)`. Today it
     returns cleanly, so this xfails. Fix: perturb every column the feature DECLARES in
@@ -1009,11 +1028,7 @@ def test_future_argmax_survives_the_guards_uniform_bump(quoted):
         "the future and this counter-example is vacuous")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "features._assert_causal_at perturbs by MULTIPLYING the tail by a constant, and a "
-    "uniform positive scaling preserves order. Any leak that reads only the ORDER of future "
-    "bars - argmax, rank, 'which came first' - is invisible to it. A random or "
-    "order-breaking perturbation would catch it."))
+# RATCHET CLEARED 2026-09-13: the bump is now a per-row random scale-and-jitter instead of a uniform x1.05, so it no longer preserves order and a future argmax is caught at bar 0 (0.0 -> 3.0).
 def test_future_argmax_leak_must_be_caught_by_assert_causal(quoted):
     """RATCHET. Correct behaviour: `assert_causal` must catch an order statistic taken over
     future bars. Today the perturbation is order-preserving, so it does not, and this xfails.
@@ -1048,11 +1063,7 @@ def test_sub_tolerance_leak_is_exploitable_to_the_entire_ceiling(sessions, ceili
         f"{rejected_gates(out)}")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "features._assert_causal_at compares head values with np.isclose (rtol 1e-5, atol 1e-8). "
-    "A leak carried at 1e-9 on a base of 1.0 is inside that tolerance and reported clean, "
-    "even though its SIGN recovers the next bar exactly. The comparison should be exact, or "
-    "the guard should scale its tolerance to the feature's own dispersion."))
+# RATCHET CLEARED 2026-09-13: the comparison is exact `!=` instead of isclose(atol=1e-8); measured worst head deviation across all 19 shipped features at all 9 probe points is exactly 0.0, so no tolerance was needed. The 2e-9 leak is caught at bar 1.
 def test_sub_tolerance_leak_must_be_caught_by_assert_causal(quoted):
     """RATCHET. Correct behaviour: caught. Today `np.isclose` swallows it, so this xfails."""
     with pytest.raises(AssertionError):
@@ -1114,44 +1125,42 @@ def s19_books(equity_frames):
 
 
 @needs_shipped_signals
-def test_sweep_s19_negative_lag_is_a_silent_one_day_ahead_oracle(s19_books):
-    """CHARACTERISATION. Leak: `sweep_s19.simulate(..., lag=-2, fill="close")`. The decision
-    window becomes `closes.iloc[lo:i+2]`, so the momentum score is computed with tomorrow's
-    close as its last bar, and the orders still fill at today's.
+def test_sweep_s19_negative_lag_is_refused_and_the_deployed_lag_is_not(s19_books):
+    """RETIRED CHARACTERISATION, kept as the record of what the leak was worth.
 
-    Correct behaviour: `simulate` must refuse a decision window that reaches at or past the
-    fill session - the whole point of the `lag` parameter is to describe staleness, and a
-    negative value is not staleness, it is foresight. Today: it runs, returns an ordinary
-    book, and `summarize` prints an ordinary row. Measured here on identical prices:
+    Leak: `sweep_s19.simulate(..., lag=-2, fill="close")`. The decision window became
+    `closes.iloc[lo:i+2]`, so the momentum score was computed with tomorrow's close as its
+    last bar while the orders still filled at today's. The only bound on `lag` was
+    `i0 = max(searchsorted(start) + 1, lag + history_bars)`, and a negative value makes that
+    bound SMALLER rather than illegal - it loosened the one line that looked like a check.
+
+    Measured on identical prices before the guard landed:
 
         deployed  lag  0 / close   CAR    18.65%   Sharpe  1.043   MaxDD 11.08%
         oracle    lag -2 / close   CAR 1,369.21%   Sharpe 15.403   MaxDD  1.79%
 
     The audit measured CAR 2,057% / Sharpe 18.21 for the same cheat on the real panel.
+
+    What this now asserts is the discrimination, which is the part that can go wrong in the
+    future: the negative lag is refused AND the deployed convention still runs and still
+    produces the book it always did. A guard that refused both would satisfy the ratchet and
+    destroy the harness.
     """
     dep, oracle = s19_books["deployed"], s19_books["one_day_ahead"]
-    assert not oracle.get("refused"), (
-        "simulate() now refuses lag=-2 - a guard landed; delete the xfail marker on the "
-        "paired test and retire this characterisation")
-    assert oracle["Sharpe"] > 5.0, (
-        f"the one-day-ahead book only reached Sharpe {oracle['Sharpe']:.3f}; the leak no "
-        f"longer pays on this fixture")
-    assert oracle["CAR"] > 500.0, (
-        f"CAR {oracle['CAR']:,.2f} against the deployed {dep['CAR']:,.2f}; expected a "
-        f"three-figure-or-worse annualised return from one day of foresight")
-    assert oracle["Sharpe"] > dep["Sharpe"] + 5.0, (
-        f"Sharpe {oracle['Sharpe']:.3f} against the deployed {dep['Sharpe']:.3f}")
-    assert oracle["MaxDD"] < dep["MaxDD"], (
-        "the oracle should also have the smaller drawdown; it does not, so the fixture no "
-        "longer reproduces the audit's shape")
+    assert oracle.get("refused") is True, (
+        "simulate() no longer refuses lag=-2; the guard has been removed or weakened")
+    assert not dep.get("refused"), (
+        "simulate() refused the DEPLOYED lag=0 convention - the guard is a false-positive "
+        "machine and the whole S-19 harness is broken")
+    assert 10.0 < dep["CAR"] < 30.0, (
+        f"the deployed book's CAR moved to {dep['CAR']:,.2f}; it was 18.65% and this fixture "
+        f"is supposed to be deterministic")
+    assert 0.5 < dep["Sharpe"] < 2.0, f"deployed Sharpe {dep['Sharpe']:.3f}"
 
 
 @needs_shipped_signals
-@pytest.mark.xfail(strict=True, reason=(
-    "sweep_s19.simulate accepts any integer lag. `i0 = max(searchsorted(start) + 1, lag + "
-    "history_bars)` is the only place lag is bounds-checked, and a negative lag makes that "
-    "bound smaller rather than illegal. No engine in this repository asserts that its "
-    "decision window ends before its fill."))
+# RATCHET CLEARED 2026-09-13: sweep_s19.simulate raises LeakageError on lag < 0. The
+# guard discriminates: lag=0, the deployed convention, is untouched.
 def test_sweep_s19_must_refuse_a_window_that_reaches_past_the_fill(equity_frames):
     """RATCHET. Correct behaviour: `simulate` must raise when `lag < 0`, i.e. when the closes
     it hands the signal include the fill session or later. Today it silently produces the
@@ -1235,8 +1244,16 @@ def test_sweep_s25_weights_fn_bypasses_the_causality_window(s25_books):
 @pytest.mark.xfail(strict=True, reason=(
     "sweep_s25.legs_simulate hands weights_fn a bare timestamp and accepts whatever dict "
     "comes back. It has the causality window in hand on the same line and does not use it. "
-    "A guard could pass the window instead of the timestamp, or re-run the hook against a "
-    "truncated panel and require the same answer."))
+    "ATTEMPTED AND REVERTED 2026-09-13: requiring the hook to accept `window=` and passing it "
+    "the causal panel was implemented and measured, and it refuses the CAUSAL control too - "
+    "{'causal': {'refused': True}, 'one_day_ahead': {'refused': True}} - because a legacy "
+    "one-argument hook is refused whether or not it cheats. That is the false-positive "
+    "machine this file exists to catch, so it was reverted rather than shipped. The contract "
+    "change is necessary and not sufficient: a hook can accept the window and still read a "
+    "closure. A guard that actually discriminates has to test the WEIGHTS - e.g. their "
+    "association with the next session's realised return against a causal baseline, the "
+    "equity-path analogue of the futures funnel's ceiling canary - and that is a real piece "
+    "of work, not an API tweak."))
 def test_sweep_s25_must_refuse_a_weights_fn_that_reads_the_future(equity_frames):
     """RATCHET. Correct behaviour: refuse (or detect) a weight path that cannot be reproduced
     from the closes through `i - lag`. Today the hook is trusted absolutely, so this xfails.

@@ -386,14 +386,7 @@ def test_core_validator_on_a_stored_futures_frame_reports_a_spurious_timezone_fa
     assert not core_report(stored).failed
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: quant_brain/markets/futures_cme/dataquality.py has no intraday-gap check. "
-    "check_futures_frame validates ordering, overlap, contract order, roll gaps, "
-    "within-contract jumps, staleness and quotes - none of which sees seven consecutive "
-    "bars removed from the middle of a session. A futures store with holes therefore passes "
-    "futures_cme.dataquality.require_usable, which is the gate futures_discover.load calls "
-    "and the only data gate on the futures research path. Fix: call core.dataquality.gaps "
-    "from check_futures_frame, or have futures_discover.load run both validators."))
+# RATCHET CLEARED 2026-09-13: the futures validator now makes this check.
 def test_futures_validator_flags_missing_bars_inside_a_session():
     """Protects: the futures gate seeing the hazard the core gate already sees.
 
@@ -406,13 +399,7 @@ def test_futures_validator_flags_missing_bars_inside_a_session():
         "no WARN or FAIL for a session missing seven bars")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: quant_brain/markets/futures_cme/dataquality.py does not check for duplicate "
-    "timestamps. _check_ordering only asserts `ts.is_monotonic_increasing`, which pandas "
-    "evaluates NON-strictly, so a repeated minute passes. _check_overlap catches a duplicate "
-    "only when the two rows carry different contracts - a same-contract refetch overlap, the "
-    "common case, is invisible. Fix: add `ts.duplicated().any()` as a FAIL in "
-    "_check_ordering."))
+# RATCHET CLEARED 2026-09-13: the futures validator now makes this check.
 def test_futures_validator_flags_duplicate_timestamps():
     """Protects: the futures gate refusing a store with a repeated minute.
 
@@ -423,14 +410,7 @@ def test_futures_validator_flags_duplicate_timestamps():
         "no finding for a duplicated timestamp")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: quant_brain/markets/futures_cme/dataquality.py performs no OHLC structural "
-    "check. It reads only `c` (and `v`, and bid/ask when present), so a bar with high below "
-    "low, or a close outside its own range, passes require_usable untouched. The core "
-    "validator catches both - but futures_discover.load calls ONLY the futures validator, "
-    "so on the futures research path nothing does. Fix: either check h/l/c in "
-    "check_futures_frame or run core.dataquality.check_frame alongside it in "
-    "futures_discover.load."))
+# RATCHET CLEARED 2026-09-13: the futures validator now makes this check.
 def test_futures_validator_flags_an_impossible_bar():
     """Protects: the futures gate rejecting a structurally impossible bar.
 
@@ -570,7 +550,7 @@ def test_the_flatten_is_charged_once_per_session_not_once_per_run():
     assert two["costs"] == pytest.approx(2 * one["costs"])
 
 
-def test_an_always_in_session_is_never_booked_as_zero_trades():
+def test_an_always_in_session_is_never_booked_as_zero_trades(monkeypatch):
     """Protects: the specific ledger symptom, named so it is searchable.
 
     76% of the funnel's scored hypotheses (624 of 816) were once written to
@@ -579,13 +559,28 @@ def test_an_always_in_session_is_never_booked_as_zero_trades():
     rule that holds a position for a whole session has traded; booking it at zero is not a
     conservative approximation, it is a false record in the ledger.
     """
+    # The leakage canary is switched off for the length of this test, deliberately and
+    # narrowly. Golden dataset D is a MONOTONE series chosen so the round-turn arithmetic can
+    # be worked out by hand, and on a monotone series holding long IS the one-bar-ahead
+    # oracle: `ceiling_share` is exactly 1.0 and `futures_discover` gate 0 refuses it before
+    # the cost gate is reached. That refusal is correct behaviour and is asserted in
+    # tests/test_leakage_redteam.py; here it would only hide the arithmetic this test exists
+    # to check.
+    monkeypatch.setattr(fd, "MAX_CEILING_SHARE", float("inf"))
     df, pos, _ = gb.dataset_d_round_turns("always_in_long")
     out = run_evaluator([df], [pos], symbol="MES")
     assert out["trades"] > 0
     assert out["costs"] > 0.0
     # And the gate that discarded them still reads the same field.
     assert out["trades"] < fd.MIN_TRADES        # one session is genuinely not a strategy
-    assert out["cost_ok"] is False
+    # It is now stopped one step EARLIER than the trade floor, and for a better reason: a
+    # position that never changes is buy-and-hold with a sign, which the funnel names before
+    # it scores anything. Measured on the real ES store, 104 of the 136 cells in the shipped
+    # threshold grid are constants like this one - the same 76.5% as the 624 zero-turn rows
+    # out of 816 in the ledger, because they are the same rows.
+    assert out["degenerate"] is True
+    assert out["distinct_positions"] == 1
+    assert "cost_ok" not in out, "the cost gate should not have been reached"
 
 
 def test_round_turn_cost_is_commission_plus_one_tick_of_spread():
@@ -596,8 +591,8 @@ def test_round_turn_cost_is_commission_plus_one_tick_of_spread():
     quarter the store covers while its cost in bps decays 20% purely because the index rose,
     so a bps constant silently cheapens execution every year.
     """
-    assert round(round_turn_cost("MES", 1), 2) == 2.25
-    assert round(round_turn_cost("ES", 1), 2) == round(2 * 2.00 + 0.25 * 50.0, 2) == 16.50
+    assert round(round_turn_cost("MES", 1), 2) == 2.47
+    assert round(round_turn_cost("ES", 1), 2) == round(2 * 1.89 + 0.25 * 50.0, 2) == 16.28
     # Linear in size: three contracts cost exactly three times one.
     assert round(round_turn_cost("MES", 3), 2) == round(3 * round_turn_cost("MES", 1), 2)
 
@@ -811,17 +806,9 @@ def test_the_two_session_lengths_are_what_the_clock_says():
     assert gb.EARLY_CLOSE_BARS > 200          # the reason the filter lets it through
 
 
+# RATCHET CLEARED 2026-09-13: session_frames now requires the day to open on the
+# window's first minute, close on its last, and hold one bar for every minute between.
 @needs_parquet
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: scripts/futures_discover.py::session_frames filters sessions with "
-    "`if len(g) > 200` and calls the survivors sessions. A 13:00 ET early close is 210 "
-    "start-stamped RTH bars - 55.9% of a 376-bar session - and clears that threshold by ten "
-    "bars. So every per-session statistic the funnel reports (mean_per_session, the "
-    "walk-forward fold means, the TwinDay P&L the Topstep twin resamples) averages half days "
-    "in with whole ones, and the resampled path distribution is built from days of two "
-    "different lengths. The store has early closes in it. Fix: filter on the day's expected "
-    "session length from a calendar - core.calendar.SessionCalendar.session_minutes already "
-    "returns exactly this - rather than on a bare bar count."))
 def test_an_early_close_is_not_treated_as_a_full_session(tmp_path):
     """Protects: the funnel's 'full session' filter meaning what it says.
 
@@ -838,22 +825,54 @@ def test_an_early_close_is_not_treated_as_a_full_session(tmp_path):
 
 
 @needs_parquet
-def test_the_full_session_filter_is_a_bare_bar_count_characterisation(tmp_path):
-    """Protects: the SHAPE of the early-close defect, so a partial fix cannot pass unnoticed.
+def test_the_early_close_is_dropped_rather_than_scaled(tmp_path):
+    """Protects: the SHAPE of the fix, so a partial one cannot pass unnoticed.
 
-    Asserts the wrong behaviour on purpose, as a characterisation: the 210-bar early close
-    is returned as a session today. Expected to fail alongside the xfail above the day the
-    filter learns about the calendar.
+    UPDATED when the filter learned to test completeness. This test used to assert the
+    defect - that `session_frames` returned both the 210-bar early close and the 376-bar
+    full day - and its docstring said it was expected to fail the day the filter changed.
+    It did, so here is the new characterisation.
+
+    The early close is DROPPED, not rescaled. That is a deliberate and slightly lossy choice:
+    a genuine 13:00 close is good data, and a real CME calendar would let it be kept and
+    normalised. The repo has no such calendar - the equity one is measurably wrong for this
+    market, reporting 210 minutes for three days on which the futures store correctly holds
+    225 - so the safe direction is to exclude a short day rather than average it in as though
+    it were whole. Measured cost on the real store: 3 of 326 ES sessions.
     """
     df = gb.dataset_l_sessions()
     loaded = fd.load(write_store(df, tmp_path, "L_char"), "ES")
     lengths = sorted(len(g) for g in fd.session_frames(loaded))
-    assert lengths == [gb.EARLY_CLOSE_BARS, gb.FULL_SESSION_BARS]
-    # The filter's threshold, and how far the early close clears it by.
-    assert gb.EARLY_CLOSE_BARS - 200 == 10
+    assert lengths == [gb.FULL_SESSION_BARS]
+    assert gb.EARLY_CLOSE_BARS == 210
+    assert gb.EARLY_CLOSE_BARS > 200, "the bar count that used to clear the old `> 200` filter"
+
+
+def test_the_session_length_is_derived_from_the_window_not_written_down():
+    """Protects: the one place the session length lives. 09:30-15:45 inclusive is 376."""
+    assert fd.SESSION_BARS == gb.FULL_SESSION_BARS == 376
+    assert fd.OPEN_ET == "09:30" and fd.CLOSE_ET == "15:45"
 
 
 @needs_parquet
+def test_a_session_that_stops_before_the_bell_is_dropped_even_at_full_length(tmp_path):
+    """Protects: that the filter tests the CLOCK, not only the count.
+
+    A day holding 376 bars that all sit in the wrong part of the session is not a session.
+    Without the first-and-last-minute check a bare count would admit it.
+    """
+    import datetime as dt
+    full = gb.dataset_b_linear_trend(day=dt.date(2025, 12, 16))
+    shifted = gb.dataset_b_linear_trend(day=dt.date(2025, 12, 15))
+    shifted = shifted.copy()
+    shifted["t"] = pd.to_datetime(shifted["t"], utc=True) - pd.Timedelta(minutes=30)
+    df = pd.concat([shifted, full], ignore_index=True)
+    loaded = fd.load(write_store(df, tmp_path, "shifted"), "ES")
+    kept = fd.session_frames(loaded)
+    assert [len(g) for g in kept] == [gb.FULL_SESSION_BARS]
+    assert kept[0]["hm"].iloc[0] == "09:30" and kept[0]["hm"].iloc[-1] == "15:45"
+
+
 def test_a_session_below_the_threshold_is_dropped(tmp_path):
     """Protects: that the filter does something. A 150-bar stub is excluded, so the bug is
     the threshold's LEVEL, not its absence - which is what makes the one-line calendar fix
@@ -968,7 +987,7 @@ def test_a_market_order_crosses_exactly_the_quoted_spread(bar, spread_ticks):
     assert res.fill.price == pytest.approx(quote.ask)
     expected_slip = (quote.spread / 2) * inst.get("MES").spec.multiplier * 1
     assert res.fill.slippage == pytest.approx(expected_slip)
-    assert res.fill.commission == pytest.approx(0.50)
+    assert res.fill.commission == pytest.approx(0.61)
 
 
 def test_size_beyond_the_touch_walks_the_book_by_a_known_amount():

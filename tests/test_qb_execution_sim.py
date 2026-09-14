@@ -51,21 +51,21 @@ def test_the_modelled_es_round_turn_matches_the_measured_cost_and_is_conservativ
     """
     sim = _sim("ES")
     bps = sim.cost_per_dollar_exposure(5_800.0) * 10_000
-    assert bps == pytest.approx(0.569, abs=0.01)
+    assert bps == pytest.approx(0.561, abs=0.01)
     assert bps > MEASURED_ES_BPS, "the model must not be cheaper than the measured cost"
     assert bps < MEASURED_ES_BPS * 1.5, f"{bps:.3f} bps is implausibly far above measured"
 
 
 def test_the_round_turn_is_commission_plus_one_tick():
     sim = _sim("ES")
-    assert sim.round_turn_cost(1.0) == pytest.approx(2 * 2.0 + 12.50)
-    assert sim.round_turn_cost(3.0) == pytest.approx(3 * (2 * 2.0 + 12.50))
+    assert sim.round_turn_cost(1.0) == pytest.approx(2 * 1.89 + 12.50)
+    assert sim.round_turn_cost(3.0) == pytest.approx(3 * (2 * 1.89 + 12.50))
 
 
 def test_micros_cost_more_per_dollar_of_exposure_than_their_parent():
     """The granularity premium, which is the whole mini-versus-micro decision."""
     out = ex.compare_granularity("ES", 5_800.0)
-    assert out["MES/ES"] == pytest.approx(1.364, abs=0.01)
+    assert out["MES/ES"] == pytest.approx(1.517, abs=0.01)
     assert out["MES"] > out["ES"]
 
 
@@ -148,7 +148,7 @@ def test_fills_are_rounded_against_the_trader():
 def test_commission_scales_with_quantity():
     sim = _sim()
     r = sim.execute(_buy(7.0), _q())
-    assert _fill(r).commission == pytest.approx(7 * 2.0)
+    assert _fill(r).commission == pytest.approx(7 * 1.89)
 
 
 def test_a_passive_limit_behind_the_touch_is_refused_not_filled():
@@ -333,7 +333,7 @@ def test_totals_accumulate_across_fills():
     sim = _sim()
     for _ in range(4):
         sim.execute(_buy(2.0), _q())
-    assert sim.total_commission == pytest.approx(4 * 2 * 2.0)
+    assert sim.total_commission == pytest.approx(4 * 2 * 1.89)
     assert sim.total_cost == pytest.approx(sim.total_commission + sim.total_slippage)
 
 

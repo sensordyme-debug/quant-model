@@ -697,6 +697,12 @@ def test_the_funnel_identity_holds_at_a_different_gate_exit(discover, monkeypatc
     """
     monkeypatch.setattr(discover, "MIN_TRADES", 1)
     monkeypatch.setattr(discover, "MAX_COST_SHARE", 10.0)
+    # And gate 0, for the same reason as the other two: this fixture exists to make an
+    # accounting identity checkable, not to look like a plausible strategy, and the leakage
+    # canary refuses it on `ceiling_share`. The canary's own behaviour is asserted in
+    # tests/test_leakage_redteam.py; disabling it here is what lets the identity be reached
+    # at the deepest return statement.
+    monkeypatch.setattr(discover, "MAX_CEILING_SHARE", float("inf"))
     sessions, feats = _funnel_inputs()
     out = discover.evaluator(sessions, feats, contracts=1, twin_obj=_funnel_twin(),
                              symbol="MES")(_FixedSignal(_POSITIONS))

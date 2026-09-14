@@ -682,7 +682,12 @@ def test_best_fit_refuses_to_rank_on_a_score_it_cannot_compute():
     """Topstep with no fee: eligible, compliant, and unrankable. CannotRank, not None-last."""
     reg = VenueRegistry()
     reg.register(_sim(name="sim_topstep", rules=TopstepRules(50_000)))
-    s = _strategy(opens_risk_in=())               # Topstep's profile has no blackouts
+    # 50 minutes, not the helper's default 20. Topstep's mandatory flat is 15:10 CT, which is
+    # 50 minutes before a 16:00 CT close, and the static checker now enforces the same
+    # deadline the runtime gate does. A 20-minute flatten is a real violation, so with the
+    # default this strategy is EXCLUDED and the test can no longer reach the ranking question
+    # it exists to ask.
+    s = _strategy(opens_risk_in=(), flat_by_minutes_before_close=50)
     with pytest.raises(CannotRank) as e:
         reg.best_fit(s, paths=_paths(seed=2))
     assert "fee" in str(e.value).lower()
@@ -707,9 +712,11 @@ def test_a_ruin_constraint_in_the_scoring_excludes_rather_than_ranks():
 
 def test_fit_gives_one_venues_verdict_without_ranking():
     reg = default_registry()
-    v = reg.fit(_strategy(requires=(C.AUTH,)), "projectx")
+    # 50 minutes for the same reason as above: this asks about CAPABILITIES, and a strategy
+    # excluded on the flat deadline never gets far enough to report a missing capability.
+    v = reg.fit(_strategy(requires=(C.AUTH,), flat_by_minutes_before_close=50), "projectx")
     assert v.fits and v.missing == ()
-    v = reg.fit(_strategy(), "projectx")
+    v = reg.fit(_strategy(flat_by_minutes_before_close=50), "projectx")
     assert not v.fits and v.missing == (C.OPEN_ORDERS, C.ORDER_SUBMIT)
 
 

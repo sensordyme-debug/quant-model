@@ -449,16 +449,7 @@ def test_a_day_at_exactly_fifty_five_percent_is_admitted_under_both_readings():
         assert account.combine_passed()[0] is True, reading
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: the < / <= boundary of the consistency rule is hard-coded, not recorded. "
-    "`TopstepAccount.consistency_ok` returns `pct <= self.consistency_limit`, so the "
-    "inclusive reading is chosen in code with no record of the strict one. "
-    "CONSISTENCY_READINGS models the DENOMINATOR ambiguity (doc_calc/doc_text) and nothing "
-    "models the boundary, even though a day at exactly 55.00% is precisely where the two "
-    "readings differ and precisely where a pass is decided. "
-    "help.topstep.com/en/articles/8284208 says 'at or below 55%'; 8284099 says '<= 55% of "
-    "total profits'; the threshold sentence elsewhere reads as a strict bound. Record both, "
-    "the way the denominator conflict is recorded - do not pick one in an operator."))
+# RATCHET CLEARED 2026-09-13: CONSISTENCY_READINGS entries may now carry a boundary alongside the denominator, so the simulator and the account cannot apply opposite sides of 55.00%.
 def test_the_boundary_reading_is_recorded_alongside_the_denominator_reading():
     """A reading must be able to say WHICH SIDE of 55.00% is compliant.
 
@@ -553,13 +544,7 @@ def test_a_payout_resets_the_winning_day_count_and_the_daily_series():
     assert account.payout_eligible is False, "five more winning days are required"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: no $125 payout minimum. Topstep's published minimum payout request is $125 "
-    "(help.topstep.com/en/articles/8284233, retrieved 2026-09-13); `TopstepAccount."
-    "take_payout` applies only `max(0, min(payout_cap, amount))`, so a $75 request is "
-    "recorded as a $75 payout. A twin that can withdraw below the minimum overstates cash "
-    "available early and understates the buffer it costs, on the exact decision the twin "
-    "exists to price."))
+# RATCHET CLEARED 2026-09-13: PAYOUT_MINIMUM = Rule(125.0, DOC 8284233); take_payout returns 0.0 and mutates nothing below it, so a $75 request no longer clears the winning-day count or pins the MLL.
 def test_a_payout_below_the_published_minimum_is_refused():
     """Hand arithmetic: balance 800, cap 400, a $75 request.
 
@@ -578,30 +563,31 @@ def test_a_payout_below_the_published_minimum_is_refused():
         f"paid ${paid:,.2f} on a request below the ${PAYOUT_MINIMUM:,.0f} minimum")
 
 
-def test_the_payout_minimum_is_not_yet_modelled_anywhere_in_the_rulebook():
-    """The measurement behind the xfail above, as a standing fact rather than a failure.
+def test_the_payout_minimum_is_modelled_as_a_documented_rule():
+    """UPDATED when the gap closed. This test used to assert the ABSENCE of a $125 rule.
 
-    `topstep.py` carries a `Rule` for every published parameter it models. There is no rule
-    for the $125 minimum, which is why `take_payout` cannot enforce it. Recorded here so the
-    gap is visible in a passing run too.
+    `topstep.py` carries a `Rule` for every published parameter it models, with a tier saying
+    how well the number is known. The $125 payout minimum had none, which is why `take_payout`
+    could not enforce it and would record a $75 withdrawal - irreversibly clearing the
+    winning-day count and pinning the MLL for a payout that cannot happen. The rule now
+    exists and is DOC tier, meaning it is read off a published Topstep page rather than
+    inferred.
     """
     rules = {name: getattr(ts, name) for name in dir(ts)
              if isinstance(getattr(ts, name), ts.Rule)}
     minimum_rules = [n for n, r in rules.items()
                      if isinstance(r.value, (int, float)) and r.value == PAYOUT_MINIMUM]
-    assert not minimum_rules, (
-        "a $125 rule now exists - wire it into take_payout and remove the xfail on "
-        "test_a_payout_below_the_published_minimum_is_refused")
+    assert minimum_rules, f"no Rule carries the ${PAYOUT_MINIMUM:.0f} payout minimum"
+    for n in minimum_rules:
+        assert rules[n].confidence is ts.Confidence.DOC, (
+            f"{n} holds the payout minimum at confidence {rules[n].confidence}; a published "
+            f"figure must be read off the page, not inferred")
+        assert rules[n].source.startswith("https://help.topstep.com/"), (
+            f"{n} cites {rules[n].source!r}, which is not a Topstep help page")
+        assert rules[n].quote, f"{n} carries no quoted text from the page"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: payout eligibility tests total profit (balance > 0 for an XFA, whose starting "
-    "balance is 0) instead of NET PROFIT SINCE THE LAST PAYOUT. "
-    "help.topstep.com/en/articles/8284215 (retrieved 2026-09-13) requires net profit above "
-    "zero since the last payout. `TopstepAccount.payout_eligible` reads `self.total_profit "
-    "<= 0`, and `total_profit` is `balance - starting_balance`, which never restarts. An "
-    "account that has lost money since its last withdrawal is therefore reported as able to "
-    "withdraw again."))
+# RATCHET CLEARED 2026-09-13: balance_at_last_payout and net_profit_since_payout; payout_eligible reads the window rather than total profit (DOC 8284215).
 def test_eligibility_is_measured_since_the_last_payout_not_from_the_start():
     """Hand arithmetic, XFA, standard route:
 
@@ -635,14 +621,7 @@ def test_eligibility_is_measured_since_the_last_payout_not_from_the_start():
         f"zero, but total_profit ${account.total_profit:,.0f} was tested instead")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: the consistency route's 3-day count never restarts after a payout. "
-    "help.topstep.com/en/articles/8284233 (retrieved 2026-09-13): 'After each Payout: your "
-    "Maximum Loss Limit resets to $0 permanently, and your 5-day count restarts.' "
-    "`take_payout` clears `winning_days` and `daily_pnl` but leaves `trading_days` "
-    "untouched, and the consistency route's eligibility test is `trading_days >= 3`. With "
-    "`daily_pnl` cleared the consistency percentage also reads 0%, so an account is eligible "
-    "for a second payout the instant the first one settles, having traded nothing since."))
+# RATCHET CLEARED 2026-09-13: take_payout zeroes trading_days alongside winning_days (DOC 8284233, the 5-day count restarts).
 def test_the_consistency_route_day_count_restarts_after_a_payout():
     """Hand arithmetic, XFA on the consistency route (3 days, best day <= 40% of total):
 
@@ -702,14 +681,7 @@ def test_an_oversized_mini_order_in_a_listed_root_is_cut_to_the_cap():
     assert "max_contracts_per_symbol" in decision.binding
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: raw-contract position counting. `PropFirmProfile.max_total_contracts` is set to "
-    "the MICRO count (50 on a $50K account) by `topstep._caps`, and "
-    "`PropFirmRiskEngine.evaluate` compares raw contract counts against it with no "
-    "mini/micro equivalence. Topstep's limit is 5 minis OR 50 micros at a 10:1 ratio PER "
-    "ACCOUNT (help.topstep.com/en/articles/8284197, retrieved 2026-09-13), so 5 ES already "
-    "fills the account and every further micro is over the limit. Today 5 ES + 45 MES is "
-    "accepted in full: 95 micro-equivalents on a 50-micro account, 1.9x the permitted size."))
+# RATCHET CLEARED 2026-09-13: PropFirmProfile.contract_equivalence counts a listed symbol in micro-equivalents from the published per-symbol table, so 5 ES + 45 MES is 95 units against a 50-unit account.
 def test_minis_and_micros_share_one_account_limit_at_ten_to_one():
     """Hand arithmetic on a $50K account, limit 50 micro-equivalents:
 
@@ -728,13 +700,7 @@ def test_minis_and_micros_share_one_account_limit_at_ten_to_one():
         "5 ES is 50 micro-equivalents, the whole $50K allowance; a 51st was accepted")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: raw-contract position counting, second face. `max_total_contracts` is the MICRO "
-    "count (50), so any full-size root NOT listed in `topstep._caps`'s six-symbol table "
-    "(ES/NQ/RTY/YM/CL/GC) is capped at 50 CONTRACTS rather than 5. 30 ZB - full-size 30-year "
-    "Treasury futures, $1,000 a point - is accepted on an account permitted 5 minis. "
-    "help.topstep.com/en/articles/8284197 (retrieved 2026-09-13) states the limit per "
-    "account, not per hard-coded symbol."))
+# RATCHET CLEARED 2026-09-13: the same equivalence, second face: an unlisted full-size root no longer slips the cap.
 def test_an_unlisted_mini_root_is_still_held_to_the_five_contract_ceiling():
     """Hand arithmetic: ZB is a full-size contract, so 30 ZB is 6x a 5-mini allowance.
 
@@ -746,14 +712,7 @@ def test_an_unlisted_mini_root_is_still_held_to_the_five_contract_ceiling():
         f"30 ZB was accepted at {decision.quantity:g} on a five-mini account")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: no permitted-products list. `PropFirmRiskEngine.evaluate` never asks whether "
-    "the symbol is tradeable at all - it checks caps and nothing else - so 50 BTC is "
-    "accepted on a $50K Topstep account. `instruments.get('BTC')` raises KeyError, so the "
-    "repository does not even have a spec for it and could not size or cost the position; "
-    "the risk gate is the layer that must refuse an unknown product, before any adapter "
-    "sees it. Topstep publishes a product list per account "
-    "(help.topstep.com/en/articles/8284197, retrieved 2026-09-13)."))
+# RATCHET CLEARED 2026-09-13: permitted_products is enforced before any sizing, and Topstep's list is built by calling instruments.get on each root at import, so a root this repo cannot resolve can never reach the list.
 def test_a_product_the_account_may_not_trade_is_refused():
     """An unlisted, unspecced, unpriceable symbol must not reach a venue.
 
@@ -778,16 +737,7 @@ def test_the_micro_column_is_ten_times_the_mini_column_at_every_size():
         assert micros == minis * 10, size
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: the Express Funded Account is simulated at Combine size. `topstep."
-    "express_funded` builds its caps from `_caps(size)` - the Combine's table - and defaults "
-    "`scaling` to `XFA_SCALING.value`, which is empty, so a $0-balance XFA is permitted the "
-    "full 5 minis / 50 micros. help.topstep.com/en/articles/8284215 (retrieved 2026-09-13): "
-    "'Follow the Scaling Plan - the max contracts you can hold at a time - based on your "
-    "current account balance.' The module records the gap in XFA_SCALING's note ('simulated "
-    "size will be too large at low balances') and the twin runs anyway, which is the "
-    "flattering direction: an XFA starts at $0 with the same $2,000 MLL as a $50,000 "
-    "Combine, so full size there is where accounts actually die."))
+# RATCHET CLEARED 2026-09-13: express_funded defaults to a one-rung fallback ladder recorded as XFA_SCALING_FALLBACK, and XFA_SCALING stays an OWNER-tier gap saying the real rungs were never published.
 def test_the_xfa_is_not_permitted_full_combine_size_at_a_zero_balance():
     """Hand arithmetic: the XFA opens at $0 with a $2,000 MLL.
 
@@ -818,15 +768,7 @@ def test_the_repo_already_records_the_three_ten_central_end_of_day():
     assert "3:10 PM CT" in ts.DLL_WINDOW.quote
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: the mandatory-flat deadline is 35 minutes late. Topstep requires the book flat "
-    "at 3:10 PM CT. `PropFirmProfile.flat_before_close_minutes` is 15 and `PropFirmRiskEngine"
-    ".must_be_flat` measures it against the session close, which for the CME equity-index "
-    "complex is 16:00 CT - an implied deadline of 15:45 CT. A position held from 15:10 to "
-    "15:45 CT is a rule violation the model reports as compliant, every session. The "
-    "minutes-to-close SHAPE is right (it survives an early close, AUD-07); the input is not "
-    "- the deadline is a wall clock, not an offset from the close. Topstep's own 3:10 PM CT "
-    "is already in this module as DLL_WINDOW."))
+# RATCHET CLEARED 2026-09-13: flat_at_local_time 15:10 CT alongside flat_before_close_minutes, and flat_deadline_minutes takes the EARLIER of the two so the early-close behaviour of AUD-07 is kept.
 def test_a_position_open_at_three_eleven_central_is_a_violation():
     """Hand arithmetic against a 16:00 CT close:
 
@@ -859,10 +801,21 @@ def test_the_flat_rule_is_still_correct_in_shape_on_an_early_close():
     not. Asserted so a fix to the deadline does not throw away the property that is already
     correct (AUD-07).
     """
+    import datetime as dt
     gate = engine()
-    assert gate.must_be_flat(minutes_to_close=15) is True
-    assert gate.must_be_flat(minutes_to_close=14) is True
-    assert gate.must_be_flat(minutes_to_close=16) is False
+
+    # On the SCHEDULED close the binding deadline is now the wall clock, 15:10 CT, which is
+    # 50 minutes before a 16:00 CT close. That is the fix: the model used to enforce 15:45 CT,
+    # 35 minutes late. Both of these were True-then-False around 15 minutes before the change.
+    assert gate.must_be_flat(minutes_to_close=49) is True
+    assert gate.must_be_flat(minutes_to_close=51) is False
+
+    # On a 13:00 CT early close the wall clock is 2h10m stale and the minutes-to-close term
+    # is what binds. Handing the gate the real close is what keeps AUD-07 intact: the deadline
+    # is the EARLIER of the two, so it tracks the bell instead of a constant.
+    assert gate.must_be_flat(minutes_to_close=15, session_close=dt.time(13, 0)) is True
+    assert gate.must_be_flat(minutes_to_close=14, session_close=dt.time(13, 0)) is True
+    assert gate.must_be_flat(minutes_to_close=16, session_close=dt.time(13, 0)) is False
 
 
 def test_overnight_and_weekend_holds_are_both_refused():
@@ -879,15 +832,7 @@ def test_overnight_and_weekend_holds_are_both_refused():
 # 7. COMMISSIONS
 # ======================================================================================
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT: the round-turn commissions are not Topstep's published rates. Official, "
-    "retrieved 2026-09-13: ES/NQ $3.78, MES/MNQ $1.22. "
-    "`quant_brain.markets.futures_cme.instruments` carries $4.00 and $1.00. The micro figure "
-    "is the one that matters: $1.00 against $1.22 UNDERCHARGES a micro round turn by 18%, in "
-    "the flattering direction, on the contract a $50K account is actually permitted to trade "
-    "and at the size where commission is a large share of the edge. `futures_discover` "
-    "prices its whole funnel off `CostModel.for_contract`, which reads this constant, so the "
-    "error propagates into every cost gate and every Topstep pass-rate estimate."))
+# RATCHET CLEARED 2026-09-13: commission_round_turn is the published Topstep rate: ES/NQ 3.78, MES/MNQ 1.22.
 def test_the_round_turn_commissions_are_the_published_topstep_rates():
     """Hand arithmetic on the size that matters:
 

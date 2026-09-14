@@ -393,7 +393,13 @@ def _check_one(p: PropFirmProfile, s: StrategyProfile) -> list[str]:
         out.append(f"{who}: strategy holds over the weekend; the rulebook requires flat into it")
     deadline_binds = (not p.allow_overnight) or (not p.allow_weekend)
     if deadline_binds and not s.holds_overnight:
-        need = p.flat_before_close_minutes
+        # The EFFECTIVE deadline, not the offset: a firm may also state a wall clock (Topstep
+        # flattens at 3:10 PM CT, 50 minutes before a 16:00 CT close) and then the earlier of
+        # the two binds. Reading `flat_before_close_minutes` alone here would certify a
+        # strategy as compliant against 15:45 CT while `PropFirmRiskEngine.must_be_flat`
+        # refuses it at 15:10 - two layers applying two different tests, with the looser one
+        # winning on the surface that exists to refuse a strategy BEFORE an account is bought.
+        need = p.flat_deadline_minutes()
         if s.flat_by_minutes_before_close is None:
             out.append(f"{who}: requires flat {need} min before the close; the strategy does "
                        f"not declare flat_by_minutes_before_close, so compliance cannot be shown")
@@ -410,11 +416,18 @@ def _check_one(p: PropFirmProfile, s: StrategyProfile) -> list[str]:
     cap_total = p.contracts_allowed_at(0.0)
     if cap_total is not None:
         total = s.peak_total_contracts
+        # The cap is in the firm's own units. Where those are contract-equivalents (Topstep:
+        # one allowance, 5 minis OR 50 micros), the strategy's raw contract count is not
+        # comparable with it - 3 ES is 30 micro-equivalents, not 3 - so the declared
+        # per-symbol peaks are weighted the way the risk engine weights the live book.
+        if p.contract_equivalence and s.max_contracts_per_symbol:
+            total = sum(p.contract_units(sym) * n
+                        for sym, n in s.max_contracts_per_symbol.items())
         if total is None:
             out.append(f"{who}: caps total size at {cap_total} contracts on day one; the "
                        f"strategy declares no peak size, so compliance cannot be shown")
         elif total > cap_total:
-            out.append(f"{who}: peak {total} total contracts exceeds the day-one cap of "
+            out.append(f"{who}: peak {total:g} total contracts exceeds the day-one cap of "
                        f"{cap_total}")
     if p.max_notional is not None:
         if s.max_notional is None:

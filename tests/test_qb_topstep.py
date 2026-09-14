@@ -711,7 +711,12 @@ def test_a_combine_account_is_never_payout_eligible():
 
 def test_the_scaling_plan_is_recorded_as_a_gap_not_assumed_away():
     assert ts.XFA_SCALING.confidence is ts.Confidence.OWNER
-    assert ts.express_funded(50_000).scaling == ()
+    # The XFA rungs were never published, so `express_funded` no longer builds a profile that
+    # silently permits full Combine size at a zero balance - it falls back to one rung at a
+    # tenth of the account allowance and records that as its own gap. The published ladder is
+    # still unknown, which is what `XFA_SCALING` continues to say.
+    assert ts.express_funded(50_000).scaling == ((0.0, 5),)
+    assert ts.XFA_SCALING.value == ()
     assert "rungs were not published" in ts.XFA_SCALING.note
 
 

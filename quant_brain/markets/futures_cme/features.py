@@ -19,6 +19,11 @@ Every feature here is causal by construction: it is a function of bars at or bef
 timestamp. `assert_causal` verifies that empirically rather than trusting the arithmetic - it
 perturbs a future bar and checks nothing earlier moves. A rolling window with the wrong
 `closed` argument, or a centred window, passes review and fails that test.
+
+The perturbation itself has to be WIDE (every column present, not a hard-coded OHLCV tuple),
+DISORDERED (a per-row random draw, not a uniform scale) and compared EXACTLY (not
+`np.isclose`). Each of those three is a leak the first version of this guard measurably let
+through; `_assert_causal_at` records which, and what each one was worth.
 """
 from __future__ import annotations
 
@@ -250,7 +255,7 @@ def _opening_range_pos(df):
 # CAUSALITY
 # =====================================================================================
 
-def assert_causal(feature: Feature, df, *, at: int | None = None) -> None:
+def assert_causal(feature: Feature, df, *, at: int | None = None, seed: int = 0) -> None:
     """Verify empirically that a feature does not read the future.
 
     Perturbs a bar and checks that no EARLIER value of the feature moves. Arithmetic review
@@ -278,24 +283,76 @@ def assert_causal(feature: Feature, df, *, at: int | None = None) -> None:
     if not points:
         raise ValueError(f"{feature.name}: frame of {n} rows is too short to test causality")
     for point in points:
-        _assert_causal_at(feature, df, point)
+        _assert_causal_at(feature, df, point, seed)
 
 
-def _assert_causal_at(feature: Feature, df, at: int) -> None:
+def _assert_causal_at(feature: Feature, df, at: int, seed: int = 0) -> None:
+    """Rewrite every column from bar `at` onward and require the head to be bit-identical.
+
+    THREE BLIND SPOTS THIS CLOSES. Each was measured against the version that shipped before
+    it, by the counter-examples in `tests/test_leakage_redteam.py` section E.
+
+    WIDE, NOT OHLCV. The first version perturbed the hard-coded tuple ("c", "h", "l", "o")
+    plus "v" and nothing else, so `bid.shift(-1)` - tomorrow's bid, a leak wearing no
+    disguise at all - came back bit-identical and the guard called it clean. A bump that
+    included the quote columns found the same leak at bar 207 of 320. The consequence was
+    worse than one missed counter-example: the library's own microstructure family declares
+    `bid`, `ask`, `bid_size` and `ask_size`, the guard touched none of them, and so
+    `spread_bps` and `quote_imbalance` had never once been tested by the audit that reports
+    them clean. `requires` is the floor here, not the ceiling - `fn` is handed the WHOLE
+    frame, so stopping at the declared set would exempt any feature that under-declares the
+    columns it actually reads.
+
+    RANDOM, NOT A UNIFORM SCALE. The first version multiplied the tail by a constant (1.05
+    for prices, 3.0 for volume), and a uniform positive multiplier PRESERVES ORDER. Anything
+    reading only the order of future bars - an argmax, a rank, "which came first", any order
+    statistic over a window that lies wholly inside the bumped region - is exactly invariant
+    to it. A feature returning the argmax of the session's last five closes was bit-identical
+    under the shipped bump and is caught by a per-row draw. The draw is seeded, and the seed
+    defaults to a constant, because a guard whose verdict changes between runs is not a
+    guard: a leak that fails on one run and passes on the next gets re-run until it passes.
+
+    EXACT, NOT `np.isclose`. The first version compared with rtol 1e-5 / atol 1e-8. A leak
+    carried at amplitude 1e-9 on a base of 1.0 sits inside that tolerance and was reported
+    clean - and its SIGN recovers the next bar's direction exactly, which the red team
+    pushed through the funnel for 100.00% of the theoretical profit ceiling. A leak's
+    amplitude and a leak's value are different quantities, and an absolute floor confuses
+    them. The comparison is now exact, and it can afford to be: every feature in this library
+    is elementwise or forward-cumulative (`cumsum`, `rolling`, `expanding`), so a head row is
+    computed from the same inputs in the same order before and after and comes back
+    bit-identical - verified on the shipped nineteen over both quoted fixtures and the
+    adversarial golden series. If a future feature ever genuinely needs slack, scale it to
+    that column's own dispersion; an absolute atol is the thing that made 1e-9 invisible.
+    """
     import numpy as np
+    import pandas as pd
 
     base = np.asarray(feature.fn(df), dtype=float)
     bumped = df.copy()
-    for col in ("c", "h", "l", "o"):
-        if col in bumped.columns:
-            bumped.iloc[at:, bumped.columns.get_loc(col)] *= 1.05
-    if "v" in bumped.columns:
-        bumped.iloc[at:, bumped.columns.get_loc("v")] *= 3.0
+    rng = np.random.default_rng(seed)
+    for col in df.columns:
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            # A timestamp or a contract code has no magnitude to scale. Nothing in this
+            # library declares a non-numeric input; one that did would need a permutation,
+            # not this perturbation, and this is the place to add it.
+            continue
+        vals = df[col].to_numpy(dtype=float).copy()
+        tail = vals[at:]
+        # Scale AND jitter. Zero is a fixed point of a pure multiplier, so an empty-volume
+        # or all-zero stretch would otherwise be handed to the feature unchanged.
+        spread = float(np.nanstd(tail))
+        if not np.isfinite(spread) or spread == 0.0:
+            spread = 1.0
+        vals[at:] = (tail * rng.uniform(1.5, 4.5, tail.shape)
+                     + rng.normal(0.0, spread, tail.shape))
+        bumped[col] = vals
     after = np.asarray(feature.fn(bumped), dtype=float)
 
     head_base, head_after = base[:at], after[:at]
     both_nan = np.isnan(head_base) & np.isnan(head_after)
-    differs = ~both_nan & ~np.isclose(head_base, head_after, equal_nan=True)
+    # `!=`, not `np.isclose` - see EXACT above. NaN != NaN, so `both_nan` is what stops a
+    # legitimate warm-up NaN from reading as a change.
+    differs = ~both_nan & (head_base != head_after)
     if differs.any():
         first = int(np.argmax(differs))
         raise AssertionError(

@@ -410,6 +410,12 @@ class CVResult:
     coverage: dict[str, float] = field(default_factory=dict)
     horizon: int = 0
     embargo: int = 0
+    #: Whether the PIPELINE was checked, as opposed to the index geometry. False means no
+    #: `probe` was supplied and nothing established that the transform inside `fit_score` was
+    #: fitted on training rows only. That is the default, and it is reported rather than
+    #: assumed away: a scaler fitted on the full sample produces a `CVResult` numerically
+    #: indistinguishable from a clean one, and every field above it is silent about that.
+    transform_verified: bool = False
 
     @property
     def mean(self) -> float:
@@ -425,17 +431,49 @@ class CVResult:
                 f"(h={self.horizon}, embargo={self.embargo}; "
                 f"train {cov.get('train', 0):.0%} of sample, "
                 f"purged {cov.get('purged', 0):.1%}, "
-                f"embargoed {cov.get('embargoed', 0):.1%})")
+                f"embargoed {cov.get('embargoed', 0):.1%}; "
+                f"transform {'probed' if self.transform_verified else 'UNVERIFIED'})")
 
 
 def cross_validate(fit_score, n: int, *, horizon: int, folds: int = 5,
                    embargo: int | float = 0.0, expanding: bool = True,
-                   check: bool = True) -> CVResult:
+                   check: bool = True, probe=None) -> CVResult:
     """Run `fit_score(train_idx, test_idx) -> float` over purged, embargoed folds.
 
     `check` verifies every split against `assert_no_leakage` before it is used. It defaults
     on because the cost is a boolean mask and the failure it catches is one that produces a
     plausible, publishable, wrong number.
+
+    WHAT `check` CANNOT SEE, AND WHAT `probe` IS FOR
+    ------------------------------------------------
+    `assert_no_leakage` inspects index GEOMETRY: which rows are in the training fold, which
+    are purged, which are embargoed. It says nothing about what the code inside `fit_score`
+    actually read, and a standardiser fitted on the whole sample before the split is invisible
+    to it. Measured on a 900-row fixture whose volatility regime changes at row 600, folds
+    1..5 out-of-sample accuracy:
+
+        train-only   0.9867 0.9667 0.9733 0.7333 0.8133
+        full-sample  0.8600 0.8533 0.8400 0.8867 0.8800
+
+    On the two folds that straddle and follow the regime change the contaminated pipeline is
+    materially BETTER out of sample, which is the signature. Its lower mean is not a defence.
+    `cross_validate` reported the two runs identically, down to the coverage line.
+
+    `probe(rows)` closes that. The caller owns the data, so only the caller can perturb it;
+    `probe` takes a boolean mask of the rows OUTSIDE a fold and returns a `fit_score`
+    equivalent in every way except that those rows have been changed. If the score moves, the
+    pipeline read rows it does not own, and this raises `LeakageError`. If it does not move,
+    the transform is train-only and `CVResult.transform_verified` says so.
+
+    Only the LAST fold is probed. It has the largest training set and, on an expanding
+    walk-forward, the smallest out-of-fold remainder, so it is the hardest fold to detect
+    contamination on: a probe that fires there would fire on any earlier one. Probing one
+    fold costs one extra `fit_score` call rather than `folds` of them.
+
+    `probe` is optional because it cannot be synthesised - without it there is no data to
+    perturb. It is NOT defaulted to a no-op that quietly passes: when it is absent
+    `transform_verified` is False and `summary()` prints UNVERIFIED, because "we did not
+    check" and "we checked and it was clean" must not read the same.
     """
     splits = purged_walk_forward(n, horizon=horizon, folds=folds, embargo=embargo,
                                  expanding=expanding)
@@ -445,8 +483,41 @@ def cross_validate(fit_score, n: int, *, horizon: int, folds: int = 5,
         if check:
             assert_no_leakage(s, horizon=horizon, embargo=emb)
         scores.append(float(fit_score(s.train, s.test)))
+
+    verified = False
+    if probe is not None and splits:
+        verified = _probe_transform(fit_score, probe, splits[-1], n)
+
     return CVResult(scores=scores, splits=splits, coverage=coverage(splits, n),
-                    horizon=horizon, embargo=emb)
+                    horizon=horizon, embargo=emb, transform_verified=verified)
+
+
+def _probe_transform(fit_score, probe, split: Split, n: int) -> bool:
+    """Perturb every row outside `split` and require the fold's score not to move.
+
+    Raises `LeakageError` when it moves. Returns True when the probe genuinely ran, and False
+    when this fold leaves no row outside it to perturb - on an expanding walk-forward the last
+    fold can cover the whole sample, and a probe with nothing to move proves nothing. Saying
+    False there is the honest answer; claiming a clean bill from a probe that could not fire
+    is the failure mode this whole function exists to prevent.
+    """
+    outside = np.ones(n, dtype=bool)
+    outside[np.asarray(split.train, dtype=int)] = False
+    outside[np.asarray(split.test, dtype=int)] = False
+    if not outside.any():
+        return False
+
+    base = float(fit_score(split.train, split.test))
+    moved = float(probe(outside)(split.train, split.test))
+    if base != moved:
+        raise LeakageError(
+            f"the pipeline's score on the last fold moved from {base!r} to {moved!r} when "
+            f"{int(outside.sum())} rows OUTSIDE that fold were perturbed. Something inside "
+            f"fit_score read rows it does not own - most often a scaler, imputer or encoder "
+            f"fitted before the split rather than inside it. Index geometry is not the "
+            f"problem here; assert_no_leakage passed."
+        )
+    return True
 
 
 def iter_splits(n: int, *, horizon: int, **kw) -> Iterator[tuple[np.ndarray, np.ndarray]]:

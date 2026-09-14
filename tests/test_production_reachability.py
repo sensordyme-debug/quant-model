@@ -170,14 +170,23 @@ def test_no_broker_sdk_is_importable_above_the_broker_package():
     assert not offenders, f"broker SDK imported outside quant_brain/brokers/: {offenders}"
 
 
+def test_the_leakage_guard_module_is_wired_to_the_research_path(research_reachable):
+    """RATCHET CLEARED 2026-09-13. `quant_brain.core.validation` had no caller of any kind.
+
+    `scripts/futures_discover.py::build_features` now raises `validation.LeakageError` when
+    the feature library fails its own causality audit, which is the module's first real use.
+    That is a narrow foothold and it is worth being honest about what it does NOT mean:
+    `purged_walk_forward` and the write-once `Holdout` are still uncalled, no holdout has
+    ever been carved, and `Holdout.spend()` has never run. Reachability is not use.
+    """
+    assert "quant_brain.core.validation" in research_reachable
+
+
 # ---------------------------------------------------------------------------------------
 # The gap. Each of these SHOULD be on the production or research path and is not.
 # ---------------------------------------------------------------------------------------
 
 _UNWIRED = [
-    ("quant_brain.core.validation",
-     "purged walk-forward and the write-once Holdout; no holdout has ever been carved and "
-     "Holdout.spend() has never been called"),
     ("quant_brain.core.multipletest",
      "Holm/BH/BY/Reality Check/SPA/DSR/PBO; the funnel uses only stats.bonferroni_threshold "
      "and the equity ledger applies no correction at all"),

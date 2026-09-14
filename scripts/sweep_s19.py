@@ -50,6 +50,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from quant_brain.core.validation import LeakageError
+
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "algorithms" / "s1_momo"))
 sys.path.insert(0, str(REPO / "scripts"))
@@ -148,6 +150,20 @@ def simulate(frames: dict, params, lag: int, fill: str, start: str, end: str,
     out-parameter and nothing else: the planning loop below is untouched, so the returned
     book is bit-identical whether it is passed or not.
     """
+    # A NEGATIVE lag is a decision window that reaches PAST the fill, and nothing here used
+    # to stop one. The only place `lag` is bounded is the `i0` line below, and a negative
+    # value makes that bound SMALLER rather than illegal - it loosens the very check that
+    # looks like it is guarding. Measured with lag=-2: CAR 1,369%, Sharpe 15.4, MaxDD 1.8%,
+    # against the deployed 18.7% / 1.04 / 11.1%. That is not a parameter choice, it is a
+    # different universe, and it was reachable by typing a minus sign.
+    if lag < 0:
+        raise LeakageError(
+            f"simulate(lag={lag}): a negative lag is a look-ahead. `lag` counts sessions of "
+            f"EXTRA staleness beyond the backtest's own one-session delay, so the smallest "
+            f"legal value is 0 - the convention the champion and the deployed runner both "
+            f"use. A negative lag lets the decision read prices that have not printed at the "
+            f"moment of the fill."
+        )
     closes = frames["close"]
     opens = frames["open"]
     tickers = [t for t in sig.traded_universe(params) if t in closes.columns]

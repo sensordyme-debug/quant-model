@@ -74,19 +74,36 @@ def _fut(symbol: str, mult: float, tick: float, exch: str, desc: str, *,
     )
 
 
-#: Round-turn commissions are indicative retail/prop levels as of 2026-09. They are a
-#: DEFAULT, not a measurement: F-2a measured the ES round trip at 0.488 bps of notional from
-#: real quotes, and that measurement - not this constant - is what a cost-sensitive result
-#: should cite. Recorded here so a sizing call never silently charges zero.
+#: Round-turn commissions. ES/NQ/MES/MNQ are Topstep's PUBLISHED all-in round-turn rates -
+#: ES $3.78, NQ $3.78, MES $1.22, MNQ $1.22 (help.topstep.com/en/articles/8284197, retrieved
+#: 2026-09-13) - because a Topstep account is the venue this repository is actually sizing
+#: for, and the rate the account pays is not a modelling choice. They replace the round $4.00
+#: / $1.00 placeholders that stood here before: the micro figure was the one that mattered,
+#: $1.00 against $1.22 undercharging a micro round turn by 18% in the flattering direction,
+#: on the contract a $50K account is permitted to trade and at the size where commission is a
+#: large share of the edge. `CostModel.for_contract` halves these into a per-side charge and
+#: `futures_discover` prices its whole funnel off it, so the error propagated into every cost
+#: gate and every Topstep pass-rate estimate.
+#:
+#: The remaining roots (YM, RTY, CL, GC and their micros) keep the indicative $4.00 / $1.00
+#: retail/prop level as of 2026-09. That is a DEFAULT, not a measurement, and it is left
+#: alone deliberately: no per-product rate for them was verified on a Topstep page on
+#: 2026-09-13, and replacing an unverified number with a differently unverified one buys
+#: nothing. Cite a rate before you trade one of them.
+#:
+#: Either way a rate here is a default, not a measurement: F-2a measured the ES round trip at
+#: 0.488 bps of notional from real quotes, and that measurement - not this constant - is what
+#: a cost-sensitive result should cite. Recorded here so a sizing call never silently charges
+#: zero.
 CONTRACTS: dict[str, FuturesContract] = {
     # --- equity index, full size -------------------------------------------------------
-    "ES":  _fut("ES",  50.0,  0.25, "CME",  "E-mini S&P 500",        rt=4.00, tags=("equity_index",)),
-    "NQ":  _fut("NQ",  20.0,  0.25, "CME",  "E-mini Nasdaq-100",     rt=4.00, tags=("equity_index",)),
+    "ES":  _fut("ES",  50.0,  0.25, "CME",  "E-mini S&P 500",        rt=3.78, tags=("equity_index",)),
+    "NQ":  _fut("NQ",  20.0,  0.25, "CME",  "E-mini Nasdaq-100",     rt=3.78, tags=("equity_index",)),
     "YM":  _fut("YM",   5.0,  1.00, "CBOT", "E-mini Dow",            rt=4.00, tags=("equity_index",)),
     "RTY": _fut("RTY", 50.0,  0.10, "CME",  "E-mini Russell 2000",   rt=4.00, tags=("equity_index",)),
     # --- equity index, micro -----------------------------------------------------------
-    "MES": _fut("MES",  5.0,  0.25, "CME",  "Micro E-mini S&P 500",   parent="ES",  rt=1.00, tags=("equity_index", "micro")),
-    "MNQ": _fut("MNQ",  2.0,  0.25, "CME",  "Micro E-mini Nasdaq",    parent="NQ",  rt=1.00, tags=("equity_index", "micro")),
+    "MES": _fut("MES",  5.0,  0.25, "CME",  "Micro E-mini S&P 500",   parent="ES",  rt=1.22, tags=("equity_index", "micro")),
+    "MNQ": _fut("MNQ",  2.0,  0.25, "CME",  "Micro E-mini Nasdaq",    parent="NQ",  rt=1.22, tags=("equity_index", "micro")),
     "MYM": _fut("MYM",  0.5,  1.00, "CBOT", "Micro E-mini Dow",       parent="YM",  rt=1.00, tags=("equity_index", "micro")),
     "M2K": _fut("M2K",  5.0,  0.10, "CME",  "Micro E-mini Russell",   parent="RTY", rt=1.00, tags=("equity_index", "micro")),
     # --- energy ------------------------------------------------------------------------

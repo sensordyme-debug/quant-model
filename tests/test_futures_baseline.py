@@ -83,7 +83,7 @@ def test_the_round_turn_cost_is_actually_charged():
     sim = ex.ExecutionSimulator(cost=ex.CostModel.for_contract(base.SYMBOL),
                                 symbol=base.SYMBOL)
     assert flat.pnl == pytest.approx(-sim.round_turn_cost(1.0))
-    assert flat.pnl == pytest.approx(-2.25), "MES: $1 commission round turn plus one tick"
+    assert flat.pnl == pytest.approx(-2.47), "MES: $1 commission round turn plus one tick"
 
 
 def test_cost_scales_with_contracts():
@@ -98,7 +98,7 @@ def test_pnl_uses_the_micro_multiplier():
     mult = inst.get(base.SYMBOL).spec.multiplier
     assert mult == 5.0
     # Entry at 10:00 (bar 30), exit at 15:45 (bar 375): 345 points at $5.
-    assert out.pnl == pytest.approx(345 * 1.0 * 5.0 - 2.25, abs=0.01)
+    assert out.pnl == pytest.approx(345 * 1.0 * 5.0 - 2.47, abs=0.01)
 
 
 def test_a_roll_day_is_excluded_rather_than_traded_across():

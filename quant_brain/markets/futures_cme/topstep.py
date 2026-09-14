@@ -85,6 +85,7 @@ import math
 from dataclasses import dataclass, field, replace
 from typing import Generic, TypeVar
 
+from quant_brain.markets.futures_cme import instruments as inst
 from quant_brain.markets.futures_cme.propfirm import PropFirmProfile, TrailingMode
 
 RETRIEVED = dt.date(2026, 9, 12)
@@ -214,6 +215,28 @@ DLL_WINDOW = Rule(
     "Net P&L hits or exceeds the DLL during the trading day (5 PM CT - 3:10 PM CT)",
     DLL_DOC, Confidence.DOC, note="Central Time; the trading day wraps midnight.")
 
+#: The wall-clock flat deadline. Same sentence as DLL_WINDOW, read for what it says about
+#: the END of the trading day: the day runs 5 PM CT to 3:10 PM CT, so 3:10 PM CT is when the
+#: book must be flat. The model used to enforce this as `flat_before_close_minutes=15`
+#: against a 16:00 CT close - 15:45 CT, 35 minutes late - which made a position held from
+#: 15:10 to 15:45 CT a rule violation the model reported as compliant, every single session.
+MANDATORY_FLAT = Rule(
+    dt.time(15, 10),
+    "Net P&L hits or exceeds the DLL during the trading day (5 PM CT - 3:10 PM CT)",
+    DLL_DOC, Confidence.DOC,
+    note="A CLOCK, not an offset from the close. It is carried on the profile alongside "
+         "`flat_before_close_minutes` and the EARLIER of the two binds, so the deadline is "
+         "right at 15:10 CT on a normal day without losing the offset's correctness on an "
+         "early close (AUD-07).")
+
+#: The CME equity-index daily close in Central Time, which is the clock MANDATORY_FLAT is
+#: measured against. An EXCHANGE fact rather than a Topstep rule, so it is a constant and not
+#: a `Rule`: this module's tiers describe how well a TOPSTEP page supports a number, and
+#: pinning a DOC tier on a cmegroup.com schedule would abuse them. A caller trading a complex
+#: that closes elsewhere, or a day the bell moves, passes its own close to
+#: `PropFirmRiskEngine.must_be_flat` and the deadline follows it.
+CME_EQUITY_CLOSE = dt.time(16, 0)
+
 # --- consistency ------------------------------------------------------------------------
 COMBINE_CONSISTENCY_DOC = Rule(
     0.55, "Your single best day of profit must stay at or below 55% of your Profit Target.",
@@ -255,14 +278,46 @@ XFA_CONSISTENCY_EXCEEDED = Rule(
     CONSISTENCY_DOC, Confidence.DOC,
     note="Blocks a payout, does not fail the account.")
 
+COMBINE_CONSISTENCY_BOUNDARY = Rule(
+    "inclusive", "Your single best day of profit must stay AT OR BELOW 55% of your Profit "
+                 "Target.",
+    CONSISTENCY_DOC, Confidence.DOC, retrieved=dt.date(2026, 9, 13),
+    note="'At or below' is inclusive, and 8284099's '<= 55% of total profits' agrees, so "
+         "inclusive is the default. It is recorded as a READING rather than compiled into a "
+         "comparison operator because a day at exactly 55.00% is where the two sides differ "
+         "and where a pass is decided, and because the threshold sentence is also read as a "
+         "strict bound elsewhere. Both are in CONSISTENCY_READINGS; nothing here picks one "
+         "silently.")
+
 #: The readings in play, so the difference between them can be measured instead of argued.
-#: (threshold, denominator); "total" divides by total profit, "target" by the profit target.
-CONSISTENCY_READINGS: dict[str, tuple[float, str]] = {
+#: An entry is (threshold, denominator) or (threshold, denominator, boundary):
+#:
+#:     threshold    the share of the denominator the best day may reach
+#:     denominator  "total" divides by total profit, "target" by the profit target
+#:     boundary     "inclusive" admits a day AT the threshold, "exclusive" refuses it
+#:
+#: A two-element entry means the boundary the page's own wording gives - "at or below", i.e.
+#: inclusive - which is why the four published readings keep that shape and why the
+#: exclusive halves are named separately rather than replacing them. `_reading` normalises
+#: both forms, so a reading is always (threshold, denominator, boundary) by the time anything
+#: compares a number with it, and `with_reading` switches the boundary exactly as it switches
+#: the denominator. Before this, the denominator was a reading and the boundary was a
+#: hard-coded `<=` in one property - an ambiguity resolved in an operator, where nobody could
+#: see it or measure it.
+CONSISTENCY_READINGS: dict[str, tuple[float, str] | tuple[float, str, str]] = {
     "doc_calc": (0.55, "total"),      # DEFAULT: settled by the page's own worked example
     "doc_text": (0.55, "target"),     # the threshold sentence read literally
     "strict": (0.50, "total"),        # the owner brief's figure; unsupported on any page
     "owner_target": (0.50, "target"),
+    # The same two published denominators read with a STRICT boundary. 8284208 says "at or
+    # below", so these are not the default; they exist so the cost of the other reading can
+    # be measured on a real path instead of asserted, exactly as the denominators are.
+    "doc_calc_exclusive": (0.55, "total", "exclusive"),
+    "doc_text_exclusive": (0.55, "target", "exclusive"),
 }
+
+#: What a reading means when it does not name a boundary.
+DEFAULT_BOUNDARY = COMBINE_CONSISTENCY_BOUNDARY.value
 
 #: RESOLVED 2026-09-13. The ambiguity recorded above was real but is now settled, and by the
 #: article's own worked example rather than by argument:
@@ -360,6 +415,16 @@ MLL_RESETS_ON_PAYOUT = Rule(
          "balance falls by the amount withdrawn and the floor does NOT follow it down. "
          "Taking the maximum at the first opportunity therefore buys cash by spending the "
          "entire buffer that keeps the account alive.")
+#: The floor on a withdrawal REQUEST. Enforced in `TopstepAccount.take_payout`, and the
+#: enforcement is not cosmetic: a payout clears the winning-day count and pins the MLL at the
+#: lock level permanently, so recording a $75 withdrawal the firm would have rejected spends
+#: two irreversible things to buy cash that never arrives.
+PAYOUT_MINIMUM = Rule(
+    125.0, "Minimum Payout Request: $125", PAYOUT_DOC, Confidence.DOC,
+    retrieved=dt.date(2026, 9, 13),
+    note="A twin that can withdraw below the minimum overstates cash available early and "
+         "understates the buffer it costs, on the exact decision the twin exists to price.")
+
 PROFIT_SPLIT = Rule(0.90, "90/10", XFA_DOC, Confidence.DOC, note="90% to the trader.")
 MAX_ACTIVE_XFA = Rule(5, "up to 5 active Express Funded Accounts", XFA_DOC, Confidence.DOC)
 
@@ -371,6 +436,23 @@ XFA_SCALING = Rule(
     note="The rule exists and is quoted; the ladder's rungs were not published. Populate "
          "`scaling` from your own account before trading an XFA, or simulated size will be "
          "too large at low balances - which is the direction that flatters results.")
+
+XFA_SCALING_FALLBACK = Rule(
+    0.10,
+    "Follow the Scaling Plan - the max contracts you can hold at a time - based on your "
+    "current account balance",
+    XFA_DOC, Confidence.OWNER, retrieved=dt.date(2026, 9, 13),
+    note="A STAND-IN, not Topstep's ladder, and it is in force whenever `scaling` is not "
+         "supplied. The rungs are unpublished (see XFA_SCALING) but the previous behaviour - "
+         "no ladder at all - simulated a $0 XFA at the full Combine allowance, 5 minis "
+         "against the same $2,000 MLL a funded $50,000 Combine has. Five ES is $250 a point: "
+         "an ordinary 40-point session range is $10,000 against $2,000 of room, so full size "
+         "there is where accounts actually die, and it is the flattering direction. The "
+         "stand-in permits a TENTH of the account-wide allowance at every balance - five "
+         "micro-equivalents at $50K, so no mini at all - which is the smallest whole rung of "
+         "the 10:1 ratio the published contract table is built on, and is conservative by "
+         "construction rather than a guess at what Topstep publishes in an image. Supply "
+         "`scaling` from your own dashboard before trading an XFA.")
 
 # --- Live Funded Account --------------------------------------------------------------------
 LFA_DLL: dict[int, Rule[float]] = {
@@ -407,6 +489,10 @@ def unresolved() -> dict[str, Rule]:
         "combine_min_trading_days": COMBINE_MIN_DAYS,
         # Published only as an image on the XFA page - no text, alt-text or caption anywhere.
         "xfa_scaling_plan": XFA_SCALING,
+        # The number actually in force while the rungs above stay unpublished. Listed
+        # separately because "the ladder is unknown" and "here is what we size on instead"
+        # are two different things to read before spending money.
+        "xfa_scaling_fallback": XFA_SCALING_FALLBACK,
         # Retained so the owner's figure stays on the record, but no longer the default:
         # 55% is what every official page says today.
         "combine_consistency_owner_figure": COMBINE_CONSISTENCY_OWNER,
@@ -423,8 +509,10 @@ def rulebook() -> str:
         ("daily loss limit", {f"${k // 1000}K": v for k, v in DLL_OPTIONAL.items()}),
         ("DLL mechanics", {"optional": DLL_IS_OPTIONAL, "ends account": DLL_ENDS_ACCOUNT,
                            "window": DLL_WINDOW}),
+        ("session", {"mandatory flat": MANDATORY_FLAT}),
         ("consistency", {"combine": COMBINE_CONSISTENCY_DOC,
                          "combine denominator": COMBINE_CONSISTENCY_DENOMINATOR,
+                         "combine boundary": COMBINE_CONSISTENCY_BOUNDARY,
                          "combine (owner)": COMBINE_CONSISTENCY_OWNER,
                          "combine exceeded": COMBINE_CONSISTENCY_EXCEEDED,
                          "xfa": XFA_CONSISTENCY,
@@ -438,8 +526,10 @@ def rulebook() -> str:
                             "balance share": XFA_BALANCE_SHARE,
                             "consistency days": XFA_CONSISTENCY_MIN_DAYS,
                             "consistency cap": XFA_CONSISTENCY_CAP,
+                            "payout minimum": PAYOUT_MINIMUM,
                             "profit split": PROFIT_SPLIT, "max accounts": MAX_ACTIVE_XFA,
-                            "scaling": XFA_SCALING}),
+                            "scaling": XFA_SCALING,
+                            "scaling stand-in": XFA_SCALING_FALLBACK}),
         ("live funded", {f"DLL ${k // 1000}K": v for k, v in LFA_DLL.items()}
          | {f"reserve unlock ${k // 1000}K": v for k, v in LFA_RESERVE_UNLOCK.items()}
          | {"tradeable": LFA_TRADEABLE_SHARE, "increments": LFA_RESERVE_INCREMENTS,
@@ -460,18 +550,66 @@ def rulebook() -> str:
 # PROFILES
 # ======================================================================================
 
-def _reading(name: str) -> tuple[float, str]:
+def _reading(name: str) -> tuple[float, str, str]:
+    """One reading, always as (threshold, denominator, boundary).
+
+    A two-element entry in CONSISTENCY_READINGS means the boundary the page's own wording
+    gives, so it is filled in here rather than at each of the four call sites - the whole
+    point of the change is that no caller decides the boundary in a comparison operator.
+    """
     if name not in CONSISTENCY_READINGS:
         raise KeyError(f"unknown consistency reading {name!r}; "
                        f"known: {sorted(CONSISTENCY_READINGS)}")
-    return CONSISTENCY_READINGS[name]
+    entry = CONSISTENCY_READINGS[name]
+    threshold, denominator = entry[0], entry[1]
+    boundary = entry[2] if len(entry) >= 3 else DEFAULT_BOUNDARY
+    return threshold, denominator, boundary
+
+
+#: The roots a Topstep account may hold, as this repository is able to model them. Topstep
+#: publishes a product list per account (8284197); these are the roots on it for which
+#: `instruments` carries a contract spec, which is the honest boundary of what can be sized
+#: or costed here. `_permitted_products` refuses at IMPORT time if one of them ever stops
+#: resolving, because a permitted product with no multiplier is a wrong position waiting to
+#: happen rather than an error anybody would see.
+MINI_ROOTS: tuple[str, ...] = ("ES", "NQ", "RTY", "YM", "CL", "GC")
+MICRO_ROOTS: tuple[str, ...] = ("MES", "MNQ", "M2K", "MYM", "MCL", "MGC")
+
+
+def _permitted_products() -> tuple[str, ...]:
+    for sym in MINI_ROOTS + MICRO_ROOTS:
+        inst.get(sym)          # KeyError here is the fail-closed path, at import
+    return MINI_ROOTS + MICRO_ROOTS
+
+
+PERMITTED_PRODUCTS: tuple[str, ...] = _permitted_products()
 
 
 def _caps(size: int) -> tuple[int, dict[str, int]]:
+    """(account-wide allowance in MICRO-equivalents, per-symbol contract caps).
+
+    The two are one allowance in two units - 5 minis OR 50 micros at 10:1, per account
+    (8284197) - which is why the profile is built with `contract_equivalence=True`: the
+    engine reads the ratio off this table instead of counting 5 ES and 45 MES as 50 raw
+    contracts on a 50-micro account.
+    """
     minis, micros = CONTRACTS[size].require(what=f"contract caps at ${size:,}")
-    per_symbol = {sym: minis for sym in ("ES", "NQ", "RTY", "YM", "CL", "GC")}
-    per_symbol.update({sym: micros for sym in ("MES", "MNQ", "M2K", "MYM", "MCL", "MGC")})
+    per_symbol = {sym: minis for sym in MINI_ROOTS}
+    per_symbol.update({sym: micros for sym in MICRO_ROOTS})
     return micros, per_symbol
+
+
+def _fallback_scaling(size: int) -> tuple[tuple[float, int], ...]:
+    """The stand-in XFA ladder, in the same micro-equivalent units as `_caps`.
+
+    See XFA_SCALING_FALLBACK for why a tenth of the account-wide allowance, and why a
+    stand-in exists at all rather than the profile refusing to build: an XFA profile that
+    cannot be constructed cannot be checked, simulated or compared, and the twin's second
+    barrier - which is the binding one - would simply disappear from every estimate.
+    """
+    micros, _ = _caps(size)
+    rung = max(1, int(round(micros * XFA_SCALING_FALLBACK.value)))
+    return ((0.0, rung),)
 
 
 def combine(size: int, *, profit_target: float | None = None,
@@ -499,7 +637,7 @@ def combine(size: int, *, profit_target: float | None = None,
         profit_target = COMBINE_PROFIT_TARGET[size].require(
             Confidence.SEARCH if allow_unverified_target else Confidence.DOC,
             what=f"Combine profit target at ${size:,}")
-    threshold, denominator = _reading(reading)
+    threshold, denominator, boundary = _reading(reading)
     micros, per_symbol = _caps(size)
     start = float(size) if starting_balance is None else float(starting_balance)
     return PropFirmProfile(
@@ -519,10 +657,17 @@ def combine(size: int, *, profit_target: float | None = None,
         # otherwise the two layers would apply two different tests and the stricter would
         # silently win.
         max_single_day_profit_share=(threshold if denominator == "total" else None),
+        # The boundary travels with the threshold so the engine and `TopstepAccount` cannot
+        # end up applying opposite sides of 55.00% to the same day.
+        max_single_day_share_boundary=boundary,
         max_total_contracts=micros,
         max_contracts_per_symbol=per_symbol,
+        contract_equivalence=True,
+        permitted_products=PERMITTED_PRODUCTS,
         allow_overnight=False,
         allow_weekend=False,
+        flat_at_local_time=MANDATORY_FLAT.require(what="mandatory flat deadline"),
+        regular_close_local_time=CME_EQUITY_CLOSE,
         profit_split=PROFIT_SPLIT.value,
     )
 
@@ -536,8 +681,11 @@ def express_funded(size: int, *, consistency_route: bool = False,
     once the balance reaches that MLL amount - which `trailing_locks_at=0` produces on its
     own, with no separate per-size lock constant to get wrong.
 
-    `scaling` is empty by default and that is a recorded gap, not an assumption: the ladder is
-    documented to exist but its rungs are not published. See `XFA_SCALING`.
+    `scaling` defaults to the STAND-IN ladder in `XFA_SCALING_FALLBACK`, not to nothing. The
+    real rungs are unpublished and still listed in `unresolved()`; what changed is that an
+    absent ladder used to mean "the full Combine allowance", so a $0-balance XFA carrying the
+    same $2,000 MLL as a funded $50,000 Combine was simulated at 5 minis. Pass your own
+    `scaling` before trading one.
     """
     if size not in SIZES:
         raise KeyError(f"no documented Topstep account at ${size:,}; known: {list(SIZES)}")
@@ -556,21 +704,34 @@ def express_funded(size: int, *, consistency_route: bool = False,
         max_single_day_profit_share=(XFA_CONSISTENCY.value if consistency_route else None),
         max_total_contracts=micros,
         max_contracts_per_symbol=per_symbol,
+        contract_equivalence=True,
+        permitted_products=PERMITTED_PRODUCTS,
         allow_overnight=False,
         allow_weekend=False,
+        flat_at_local_time=MANDATORY_FLAT.require(what="mandatory flat deadline"),
+        regular_close_local_time=CME_EQUITY_CLOSE,
         payout_on_pass=(XFA_CONSISTENCY_CAP_BY_SIZE[size].value if consistency_route
                         else XFA_STANDARD_CAP_BY_SIZE[size].value),
         profit_split=PROFIT_SPLIT.value,
-        scaling=scaling if scaling is not None else XFA_SCALING.value,
+        # XFA_SCALING.value is still () - the published rungs remain unknown - so an omitted
+        # ladder falls back to the documented stand-in rather than to no limit at all.
+        scaling=(scaling if scaling is not None
+                 else (XFA_SCALING.value or _fallback_scaling(size))),
     )
 
 
 def with_reading(profile: PropFirmProfile, reading: str) -> PropFirmProfile:
-    """The same profile under a different reading of the consistency rule."""
-    threshold, denominator = _reading(reading)
+    """The same profile under a different reading of the consistency rule.
+
+    Switches the boundary as well as the denominator: both are reading-level ambiguities in
+    Topstep's own pages, and a switch that moved one while leaving the other compiled into an
+    operator would make the comparison unmeasurable in exactly the case that decides a pass.
+    """
+    threshold, denominator, boundary = _reading(reading)
     return replace(profile, name=f"{profile.name}_{reading}",
                    max_single_day_profit_share=(threshold if denominator == "total"
-                                                else None))
+                                                else None),
+                   max_single_day_share_boundary=boundary)
 
 
 def profiles(*, allow_unverified_target: bool = True) -> dict[str, PropFirmProfile]:
@@ -607,6 +768,15 @@ class TopstepStage(str, enum.Enum):
     EXPRESS_FUNDED = "express_funded"
     PAYOUT_ELIGIBLE = "payout_eligible"
     LIVE_FUNDED = "live_funded"
+    #: RESERVED, and deliberately unreachable today. Nothing in this module produces FAILED:
+    #: every way a Topstep account ends is a LIQUIDATION (8284204 - the MLL liquidates
+    #: immediately), a DLL hit is a forced break and not a violation (8284207), and exceeding
+    #: consistency RAISES the target rather than failing the account (8284208). It is
+    #: declared because the brief's five-state vocabulary names it and because a firm-level
+    #: rule violation that is not a liquidation - a banned product, a prohibited strategy - is
+    #: a real category this progression would need. The day something enters it, say so
+    #: loudly: `tests/test_propfirm_acceptance.py` asserts that no exercised path produces it,
+    #: so making it reachable is a deliberate change to that test and not a side effect.
     FAILED = "failed"
     LIQUIDATED = "liquidated"
 
@@ -643,6 +813,11 @@ class TopstepAccount:
     trading_days: int = 0
     payouts_taken: int = 0
     total_paid_out: float = 0.0
+    #: The balance immediately AFTER the most recent payout, or None while none has been
+    #: taken. 8284215 measures payout eligibility on net profit SINCE the last payout, which
+    #: `total_profit` (balance - starting_balance) never restarts: an account down $150 since
+    #: it last withdrew was being reported eligible to withdraw again.
+    balance_at_last_payout: float | None = None
     consistency_route: bool = False
     reading: str = DEFAULT_READING
     #: Set by the first payout and never cleared. See MLL_RESETS_ON_PAYOUT.
@@ -702,6 +877,11 @@ class TopstepAccount:
         return _reading(self.reading)[0]
 
     @property
+    def consistency_boundary(self) -> str:
+        """Which side complies: "inclusive" admits a day AT the limit, "exclusive" does not."""
+        return _reading(self.reading)[2]
+
+    @property
     def consistency_pct(self) -> float | None:
         """Best day over the denominator this account's reading uses.
 
@@ -717,8 +897,20 @@ class TopstepAccount:
 
     @property
     def consistency_ok(self) -> bool:
+        """Compliant under THIS account's reading, boundary included.
+
+        The comparison used to be a hard-coded `<=`, which resolved a published ambiguity in
+        an operator: 8284208 says "at or below 55%" and 8284099 says "<= 55% of total
+        profits", but the threshold sentence is also read as a strict bound, and a day at
+        exactly 55.00% is precisely where the two differ and precisely where a pass is
+        decided. The boundary is now part of the reading, like the denominator.
+        """
         pct = self.consistency_pct
-        return pct is None or pct <= self.consistency_limit
+        if pct is None:
+            return True
+        if self.consistency_boundary == "exclusive":
+            return pct < self.consistency_limit
+        return pct <= self.consistency_limit
 
     @property
     def profit_target_remaining(self) -> float | None:
@@ -744,19 +936,45 @@ class TopstepAccount:
 
     @property
     def contracts_allowed(self) -> int | None:
+        """The account-wide allowance at this balance, in MICRO-EQUIVALENTS.
+
+        The unit matters: the published table's total column is the micro count, and since
+        `contract_equivalence` a mini consumes ten of these units. 50 here means fifty micros
+        or five minis, not fifty of whatever a caller happens to be trading.
+        """
         return self.profile.contracts_allowed_at(self.total_profit)
+
+    @property
+    def net_profit_since_payout(self) -> float:
+        """Profit since the last withdrawal - what 8284215 measures eligibility on.
+
+        Identical to `total_profit` until the first payout, and the two diverge permanently
+        after it. `total_profit` is balance minus the STARTING balance and never restarts, so
+        an account that has lost money since it last took cash out still reads as profitable
+        against a $0 XFA opening balance.
+        """
+        base = (self.profile.starting_balance if self.balance_at_last_payout is None
+                else self.balance_at_last_payout)
+        return self.balance - base
 
     @property
     def payout_eligible(self) -> bool:
         """Whether a payout could be requested now, on this account's route (8284215).
 
-        The XFA consistency denominator is unambiguous in the source, so this uses total net
-        profit directly rather than the Combine's configurable reading.
+        Measured SINCE THE LAST PAYOUT, not from inception: 8284215 requires net profit above
+        zero since the last withdrawal, and 8284233 restarts the day count with it. The
+        consistency route's percentage uses the same window, because `daily_pnl` is cleared by
+        a payout and dividing a since-payout best day by an inception-to-date total would mix
+        two clocks and read low - in the flattering direction.
+
+        The XFA consistency denominator is unambiguous in the source, so this uses net profit
+        directly rather than the Combine's configurable reading.
         """
-        if not self.stage.is_funded or self.total_profit <= 0:
+        net = self.net_profit_since_payout
+        if not self.stage.is_funded or net <= 0:
             return False
         if self.consistency_route:
-            pct = self.best_day / self.total_profit
+            pct = self.best_day / net
             return (self.trading_days >= XFA_CONSISTENCY_MIN_DAYS.value
                     and pct <= XFA_CONSISTENCY.value)
         return self.winning_days >= XFA_WINNING_DAYS.value
@@ -849,23 +1067,42 @@ class TopstepAccount:
         return self.stage
 
     def take_payout(self, amount: float | None = None) -> float:
-        """Withdraw, and reset what a payout resets.
+        """Withdraw, and reset everything a payout resets. Returns what was actually paid.
 
-        8284215 requires net profit above zero since the last payout, so the winning-day
-        count and the daily series restart. The balance falls by the amount withdrawn while
-        the MLL does not follow it down - which is why a payout is a risk decision and not
-        just a cash transfer, and why `distance_to_mll` should be checked after taking one.
+        8284233: "After each Payout: your Maximum Loss Limit resets to $0 permanently, and
+        your 5-day count restarts." So the winning-day count, the daily series and the
+        TRADING-day count all restart, and the profit clock restarts with them (8284215
+        measures the next payout on net profit since this one). The trading-day count is the
+        consistency route's whole eligibility test - three days with a trade - and leaving it
+        standing made an account eligible again the instant a payout settled, having traded
+        nothing since.
+
+        A request below the published $125 minimum is REFUSED outright rather than paid in
+        part: nothing moves, no count clears, the MLL stays where it is. That is not
+        pedantry - recording a payout the firm would have rejected clears the winning-day
+        count and pins the MLL at the lock level permanently, spending two irreversible
+        things for cash that never arrives.
+
+        The balance falls by the amount withdrawn while the MLL does not follow it down -
+        which is why a payout is a risk decision and not just a cash transfer, and why
+        `distance_to_mll` should be checked after taking one.
         """
         if not self.payout_eligible:
             return 0.0
-        paid = max(0.0, min(self.payout_cap, self.payout_cap if amount is None else amount))
+        want = self.payout_cap if amount is None else amount
+        paid = max(0.0, min(self.payout_cap, want))
+        if paid < PAYOUT_MINIMUM.value:
+            return 0.0
         self.balance -= paid
         self.equity = self.balance
         self.total_paid_out += paid
         self.payouts_taken += 1
         self.mll_reset_by_payout = True
         self.winning_days = 0
+        self.trading_days = 0
         self.daily_pnl.clear()
+        # The next payout is measured from HERE, not from the account's opening balance.
+        self.balance_at_last_payout = self.balance
         self.stage = TopstepStage.EXPRESS_FUNDED
         return paid
 

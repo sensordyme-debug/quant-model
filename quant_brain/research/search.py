@@ -72,6 +72,8 @@ class Funnel:
     generated: int = 0
     duplicate: int = 0
     too_short: int = 0
+    degenerate: int = 0
+    rejected_leakage: int = 0
     rejected_statistical: int = 0
     rejected_cost: int = 0
     rejected_topstep: int = 0
@@ -89,6 +91,8 @@ class Funnel:
             ("generated", self.generated),
             ("duplicate (already in ledger)", self.duplicate),
             ("too few sessions", self.too_short),
+            ("degenerate (position never changes)", self.degenerate),
+            ("rejected: leakage / look-ahead", self.rejected_leakage),
             ("rejected: statistical", self.rejected_statistical),
             ("rejected: cost / execution", self.rejected_cost),
             ("rejected: Topstep survival", self.rejected_topstep),
@@ -120,8 +124,9 @@ def search(hypotheses: Iterable[Hypothesis],
         pnl       per-session P&L, net of costs   (sequence of float)
         sessions  how many sessions it traded     (int)
     and optionally:
-        cost_ok / topstep_ok / walkforward_ok  booleans from the later gates, plus any
-        metrics worth recording.
+        leakage_ok / cost_ok / topstep_ok / walkforward_ok  booleans from the gates, plus
+        any metrics worth recording. `leakage_ok` is checked first and for good reason: a
+        t-statistic computed on a look-ahead P&L is not weak evidence, it is no evidence.
 
     The caller supplies `evaluate` rather than this module owning a backtester, for the same
     reason `propfirm.evaluate` takes paths: how a strategy is simulated is a research decision
@@ -167,6 +172,43 @@ def search(hypotheses: Iterable[Hypothesis],
             exp.notes = f"only {sessions} sessions, below the {lim.min_sessions} floor"
             ledger.record(exp)
             _emit(on_result, h, result, "too_short")
+            continue
+
+        # --- not a hypothesis at all ------------------------------------------------
+        # A candidate whose position never changes over the whole sample is buy-and-hold
+        # wearing a rule's name. It is worth counting rather than scoring: measured on the
+        # real ES store, 104 of the 136 cells in the shipped threshold grid are constants,
+        # because the grid's thresholds are absolute numbers (-1.0, -0.5, +0.5, +1.0) and
+        # most of the feature library is scaled in returns, so the comparison never flips.
+        # 104/136 is 76.5%; the ledger's 624 zero-turn rows out of 816 are 76.5%. They are
+        # the same rows. An attrition table that does not separate these is reporting a grid
+        # that mostly did not run.
+        if result.get("degenerate"):
+            fun.degenerate += 1
+            exp.stage = Stage.REJECTED
+            exp.notes = str(result.get("degenerate_reason", "position never changes"))
+            ledger.record(exp)
+            _emit(on_result, h, result, "degenerate")
+            continue
+
+        # --- gate 0: leakage, before any statistic is computed ---------------------------
+        # A statistic computed on leaked P&L is not a weak statistic, it is a meaningless
+        # one, so this cannot sit after the t-test. Measured by the red-team suite
+        # (tests/test_leakage_redteam.py): a one-bar close oracle run through this funnel
+        # earns 100.0000% of the theoretical profit ceiling and clears EVERY later gate,
+        # including 5/5 walk-forward folds and a Topstep pass rate of 1.0. Four separate
+        # cheats did the same. There was no gate here at all.
+        #
+        # `evaluate` is what decides; this only records and stops. Keeping the judgement in
+        # the evaluator is deliberate - what counts as a leak is a market-specific question
+        # and baking one answer in here would quietly override it, the same reasoning that
+        # keeps the backtester out of this module.
+        if not result.get("leakage_ok", True):
+            fun.rejected_leakage += 1
+            exp.stage = Stage.REJECTED
+            exp.notes = str(result.get("leakage_reason", "failed the leakage gate"))
+            ledger.record(exp)
+            _emit(on_result, h, result, "leakage")
             continue
 
         # --- gate 1: statistics, at the ledger's own trial count -------------------------

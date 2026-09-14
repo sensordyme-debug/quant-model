@@ -24,6 +24,7 @@ asks for starts after the funnel is trusted, not before.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import sys
 from pathlib import Path
@@ -33,6 +34,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from quant_brain.core.validation import LeakageError  # noqa: E402
 from quant_brain.markets.futures_cme import dataquality as fdq  # noqa: E402
 from quant_brain.markets.futures_cme import execution_sim as ex  # noqa: E402
 from quant_brain.markets.futures_cme import features as fe  # noqa: E402
@@ -57,6 +59,32 @@ MAX_COST_SHARE = 0.60    # costs above 60% of gross edge: execution eats the res
 MIN_PASS_RATE = 0.10     # Topstep survival floor
 MIN_WF_FOLDS = 3         # walk-forward folds that must be positive out of 5
 
+#: Refuse any hypothesis whose GROSS P&L is this fraction of the one-bar-ahead profit
+#: ceiling. The ceiling is what a perfect oracle earns: sum|close[i+1]-close[i]| times the
+#: contract multiplier, i.e. every tick of every bar, always on the right side. No causal
+#: rule comes near it.
+#:
+#: The level is not tuned, it is read off a measured gap. tests/test_leakage_redteam.py runs
+#: thirteen planted cheats and several clean controls through THIS evaluator and reports each
+#: one's share of the ceiling:
+#:
+#:      close oracle sign(c[i+1]-c[i])       100.0000%      cheat
+#:      future high/low                       99.57%        cheat
+#:      future volume                         94.68%        cheat
+#:      whole-frame X.shift(-1)               44.90%        cheat, the weakest measured
+#:      ---------------------------------------------------- the empty band, 11x wide
+#:      best clean causal rule                 3.97%        honest
+#:
+#: 20% sits in the middle of that band on a log scale. Anything a genuine causal rule has
+#: ever produced here is five times below it; the feeblest leak measured is more than twice
+#: above it. Moving this number to admit a specific result is exactly the thing it exists to
+#: prevent, so if it ever has to move, say why in the commit and re-run the red team.
+#:
+#: ONE-SIDED. A high share is strong evidence of a leak. A low share is evidence of nothing:
+#: a rule that is in the market for a tenth of the session has a tenth of the opportunity and
+#: earns a small share whether or not it is cheating. This canary catches the loud failures.
+MAX_CEILING_SHARE = 0.20
+
 
 def load(store: Path, symbol: str) -> pd.DataFrame:
     df = pd.read_parquet(store)
@@ -71,13 +99,86 @@ def load(store: Path, symbol: str) -> pd.DataFrame:
     return rth[rth["day"].isin(good[good == 1].index)].reset_index(drop=True)
 
 
+#: Start-stamped minute bars from OPEN_ET to CLOSE_ET inclusive. Derived, not written down,
+#: so changing the window cannot leave a stale constant behind.
+SESSION_BARS = int(
+    (dt.datetime.strptime(CLOSE_ET, "%H:%M") - dt.datetime.strptime(OPEN_ET, "%H:%M"))
+    .total_seconds() // 60) + 1
+
+
 def session_frames(df: pd.DataFrame) -> list[pd.DataFrame]:
-    return [g.reset_index(drop=True) for _, g in df.groupby("day", sort=True)
-            if len(g) > 200]
+    """Only COMPLETE sessions, and "complete" is tested rather than approximated.
+
+    THE DEFECT THIS REPLACES
+    The filter was `len(g) > 200`. A 13:00 ET equity early close is 210 start-stamped RTH
+    bars, 55.9% of a session, and cleared that threshold by ten. So `mean_per_session`, the
+    walk-forward fold means and the `TwinDay` P&L the Topstep twin resamples were all
+    averaging half days in with whole ones, and the resampled path distribution was built
+    from days of two different lengths. The stores have early closes in them: three in ES and
+    NQ, two in MES and MNQ.
+
+    WHY THERE IS NO CALENDAR HERE
+    The obvious fix is `SessionCalendar.session_minutes`, and it is wrong, because the repo
+    has no CME futures calendar and the equity one does not describe this market. Measured
+    read-only across all four stores, 1,174 session-days: on 2025-07-03, 2025-11-28 and
+    2025-12-24 the store holds 225 bars where `USEquityCalendar` says 210. The cash market
+    shuts at 13:00 ET on those days and CME equity-index futures run to 13:15, so 09:30-13:14
+    inclusive is 225 minutes and the store is right. There are also ten days per equity-index
+    store that the equity calendar calls non-trading and the futures store has RTH bars for.
+    Building a holiday table from memory of the CME schedule would be a guess wearing the
+    costume of a calendar, and this module's own doctrine is UNKNOWN STATE = DO NOT TRADE.
+
+    So completeness is tested structurally instead: the day must open on the window's first
+    minute, close on its last, and hold exactly one bar for every minute between. Those three
+    together admit no interior hole, because SESSION_BARS distinct minutes cannot fit in a
+    SESSION_BARS-minute span with a gap in it. Duplicate timestamps, which could defeat that
+    counting argument, are a FAIL in the futures validator that `load` runs first.
+
+    WHAT IT CANNOT DO
+    It cannot tell a legitimate early close from an outage that truncated the day. Both are
+    excluded, which is the safe direction: a short day is dropped from the sample rather than
+    averaged into it as though it were whole. It also drops any day the venue genuinely closed
+    early even when that day is perfectly good data - measured cost, 3 of 326 ES sessions.
+    A real CME calendar would let those days be kept and scaled; that is the upgrade path,
+    and it needs a verified holiday table this repo does not yet have.
+    """
+    out = []
+    for _, g in df.groupby("day", sort=True):
+        if len(g) != SESSION_BARS:
+            continue
+        hm = g["hm"]
+        if hm.iloc[0] != OPEN_ET or hm.iloc[-1] != CLOSE_ET:
+            continue
+        out.append(g.reset_index(drop=True))
+    return out
 
 
 def build_features(sessions: list[pd.DataFrame], lib: fe.FeatureSet):
-    """Features per session, so no window ever reaches across a session boundary."""
+    """Features per session, so no window ever reaches across a session boundary.
+
+    The library is audited for causality first. `fe.audit_causality` perturbs the future of
+    each input column and asserts no feature value before the perturbation moves; it lives
+    two imports away and this funnel never called it. Measured consequence
+    (tests/test_leakage_redteam.py): a feature holding the leaked target, and a feature built
+    on `rolling(31, center=True)`, are both caught by that guard and were both admitted here
+    without inspection.
+
+    Three sessions, not one: a leak that only fires on a particular shape of session is still
+    a leak, and the audit costs a fraction of a second per session against a search that runs
+    for minutes. It refuses rather than warns, because a feature library that can see the
+    future makes every number downstream of it meaningless.
+    """
+    probe = [sessions[i] for i in dict.fromkeys(
+        (0, len(sessions) // 2, len(sessions) - 1)) if 0 <= i < len(sessions)]
+    for g in probe:
+        bad = fe.audit_causality(lib, g)
+        if bad:
+            named = "; ".join(f"{k}: {v}" for k, v in sorted(bad.items()))
+            raise LeakageError(
+                f"REFUSING TO SEARCH: the feature library failed its own causality audit on "
+                f"session {g['day'].iloc[0]} -- {named}. Every result built on a feature that "
+                f"can see the future is void. Fix the feature, do not skip this check."
+            )
     out = []
     for g in sessions:
         X, _ = lib.build(g, strict=False)
@@ -141,11 +242,21 @@ def evaluator(sessions, feats, *, contracts: int, twin_obj, symbol: str):
     sim = ex.ExecutionSimulator(cost=ex.CostModel.for_contract(symbol), symbol=symbol)
     tick_cost = sim.round_turn_cost(contracts)
 
+    #: What a perfect one-bar-ahead oracle would earn on this exact data. Computed once,
+    #: outside `run`, because it depends only on the price series.
+    ceiling = float(sum(
+        np.abs(np.diff(g["c"].to_numpy(dtype=float))).sum() * spec.multiplier * contracts
+        for g in sessions))
+
     def run(h):
         pnls, paths, trades, gross, costs = [], [], 0.0, 0.0, 0.0
+        gross_next_open, opens_seen = 0.0, 0
+        seen_positions: set[float] = set()
         for g, X in zip(sessions, feats, strict=True):
+            pos = np.nan_to_num(np.asarray(h.signal(X), dtype=float), nan=0.0)
+            seen_positions.update(np.unique(pos).tolist())
             net_path, turns, session_gross = session_accounting(
-                h.signal(X), g["c"].to_numpy(dtype=float),
+                pos, g["c"].to_numpy(dtype=float),
                 multiplier=spec.multiplier, contracts=contracts, round_turn_cost=tick_cost)
             trades += turns
             gross += session_gross
@@ -153,19 +264,76 @@ def evaluator(sessions, feats, *, contracts: int, twin_obj, symbol: str):
             pnls.append(float(net_path[-1]) if len(net_path) else 0.0)
             paths.append(tuple(float(x) for x in net_path))
 
-        out: dict = {"pnl": pnls, "sessions": len(pnls), "trades": int(round(trades)),
-                     "gross": gross, "costs": costs,
+            # The same rule filled at the NEXT BAR'S OPEN instead of the decision bar's
+            # close. Decide on bar i's close, trade at bar i+1's open, earn to bar i+2's
+            # open. The difference between the two is the fill subsidy, and on a book with
+            # any bid-ask bounce it can BE the strategy: the red team measured a rule whose
+            # entire $11,901.65 of a $11,923.05 gross - 99.8% - was the convention, at
+            # +2.0003 ticks a leg over 4,760 legs. The audit measured the same mechanism at
+            # +0.0551 ticks/leg over 68,388 real ES legs. Neither is a trading result.
+            if "o" in g.columns:
+                o = g["o"].to_numpy(dtype=float)
+                if len(o) > 2:
+                    gross_next_open += float(
+                        (pos[:len(o) - 2] * np.diff(o[1:])).sum()) * spec.multiplier * contracts
+                    opens_seen += 1
+
+        #: Recorded on EVERY hypothesis, passing or failing, so the ledger carries it and a
+        #: later reader can see the distribution rather than only the refusals.
+        ceil_share = abs(gross) / ceiling if ceiling else 0.0
+        priced_at_open = opens_seen == len(sessions) and opens_seen > 0
+
+        out: dict = {"distinct_positions": len(seen_positions),
+                     "pnl": pnls, "sessions": len(pnls), "trades": int(round(trades)),
+                     "gross": gross, "costs": costs, "ceiling": ceiling,
+                     "ceiling_share": ceil_share,
+                     # Named, always, so no reader has to guess. BT-04: the engine used to
+                     # return not one word about where the fill happened.
+                     "fill_convention": "decision_bar_close",
+                     "gross_next_open_fill": gross_next_open if priced_at_open else None,
+                     "fill_subsidy": (gross - gross_next_open) if priced_at_open else None,
                      "mean_per_session": float(np.mean(pnls)) if pnls else 0.0}
+
+        # --- not a hypothesis: the position never changes -------------------------------
+        # `threshold_hypotheses` emits `np.where(x >= thr, 1, -1) * direction`, so a rule is
+        # always in the market and a threshold the feature never crosses collapses the whole
+        # thing to a constant. Measured on the real ES store: 104 of 136 cells are constants
+        # and the 136 cells produce only 32 distinct position paths, two of which (52 cells
+        # each) are plain always-long and always-short. Reporting that is the difference
+        # between "817 hypotheses, 0 survivors" and "of 817 candidates, three quarters were
+        # buy-and-hold with a sign".
+        if len(seen_positions) <= 1:
+            out["degenerate"] = True
+            held = next(iter(seen_positions), 0.0)
+            out["degenerate_reason"] = (
+                f"the position is a constant {held:+.0f} for every bar of every session: the "
+                f"threshold never binds on this data, so this is buy-and-hold with a sign, "
+                f"not a hypothesis")
+            return out
+
+        # --- gate 0: leakage ----------------------------------------------------------
+        # Absolute value, deliberately. A perfectly WRONG oracle is the same bug with the
+        # sign flipped, and the funnel has already produced 40 PASS verdicts with negative t
+        # (the worst at -11.92). Sign-flipping a leak is a one-character edit; the canary
+        # would be trivially evadable if it only looked at profits.
+        if ceil_share > MAX_CEILING_SHARE:
+            out["leakage_ok"] = False
+            out["leakage_reason"] = (
+                f"gross is {ceil_share:.1%} of the one-bar-ahead profit ceiling "
+                f"(${ceiling:,.0f}), above the {MAX_CEILING_SHARE:.0%} refusal level. "
+                f"No causal rule earns this; look for a look-ahead in the feature, or for a "
+                f"rule whose edge is the fill, before believing any statistic below.")
+            return out
 
         if trades < MIN_TRADES:
             out["cost_ok"] = False
             out["cost_reason"] = f"only {trades} round turns; not a strategy"
             return out
-        share = costs / abs(gross) if gross else float("inf")
-        out["cost_share"] = share
-        if share > MAX_COST_SHARE:
+        cost_share = costs / abs(gross) if gross else float("inf")
+        out["cost_share"] = cost_share
+        if cost_share > MAX_COST_SHARE:
             out["cost_ok"] = False
-            out["cost_reason"] = (f"costs are {share:.0%} of gross edge, above "
+            out["cost_reason"] = (f"costs are {cost_share:.0%} of gross edge, above "
                                   f"{MAX_COST_SHARE:.0%}")
             return out
 
