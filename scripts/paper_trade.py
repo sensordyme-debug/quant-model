@@ -67,6 +67,13 @@ LIVE = REPO / "live"
 LOG_DIR = LIVE / "log"
 STATE_DIR = LIVE / "state"
 APPROVAL = LIVE / "APPROVED_PAPER.md"
+#: The one switch that decides whether this process may reach a venue. False during
+#: research remediation, matching `scripts/intraday_trader.py:55`. The two runners disagreeing
+#: is how the hole below survived: this file grew a hard disable in front of the REBALANCE
+#: path and nothing in front of the FLATTEN path, which sits ~130 lines earlier and builds a
+#: real IBKRAdapter.
+ORDER_TRANSMISSION_ENABLED = False
+
 HALT = LIVE / "HALT"
 ALERTS = LIVE / "alerts.json"          # {"channel": "telegram", "target": "<chat id>"}; optional
 CHAMPION = REPO / "research" / "champion.json"
@@ -658,6 +665,37 @@ def main() -> int:
         reason = "HALT file present" if HALT.exists() else "--flatten"
         print(f"FLATTEN: {reason}; closing {len(positions)} positions")
         log_event("flatten", reason=reason, positions=positions)
+        if not ORDER_TRANSMISSION_ENABLED and not args.dry_run and ib and positions:
+            # THE HOLE THIS CLOSES
+            # This branch runs on `--flatten` or on the mere existence of `live/HALT`. It sits
+            # after the DU paper-account check but BEFORE the `live/APPROVED_PAPER.md` check
+            # and BEFORE the remediation hard disable further down, and it constructs an
+            # IBKRAdapter and calls RoutedExecutor.flatten, which reaches ib.placeOrder. So
+            # `python scripts/paper_trade.py --flatten`, or any run at all while a HALT file
+            # exists, transmitted market orders while the file's own guard reported that
+            # transmission was hard-disabled. `docs/READINESS_REMEDIATION_REPORT.md` said no
+            # broker order could be made; for this branch that was not true.
+            #
+            # WHY REFUSING IS SAFE HERE, WHICH IS NOT OBVIOUS
+            # Flattening on HALT is a safety feature and switching it off usually would not
+            # be. It is safe now only because nothing in this repository can OPEN a position:
+            # the rebalance path below is hard-disabled and intraday_trader.py refuses every
+            # submission at its own switch. With no way in, there is nothing that needs an
+            # automatic way out. If a position exists it predates the freeze, and a human
+            # closing it deliberately is better than a scheduled task doing it silently.
+            #
+            # It stays LOUD. The positions are logged and pushed to the chat channel with an
+            # explicit instruction, because a refusal nobody hears is worse than the order.
+            print(f"REFUSED: order transmission is hard-disabled; {len(positions)} position(s) "
+                  f"were NOT closed and need a human: {positions}")
+            log_event("refused", reason="research_remediation_hard_disable",
+                      path="flatten", trigger=reason, positions=positions)
+            notify(f"paper_trade FLATTEN REFUSED ({reason}): transmission is hard-disabled, so "
+                   f"{len(positions)} position(s) are STILL OPEN and must be closed by hand in "
+                   f"TWS: {positions}")
+            ib.disconnect()
+            return 3
+
         if not args.dry_run and ib and positions:
             held = {s_: q_ for s_, q_ in positions.items() if q_}
             contracts = {s_: Stock(IB_SYMBOL_MAP.get(s_, s_), "SMART", "USD") for s_ in held}
@@ -785,6 +823,17 @@ def main() -> int:
 
     # ---- execution --------------------------------------------------------------------
     # Signal -> OrderIntent -> risk -> adapter -> broker. The contracts are qualified up
+    # This repository is in research/backtest remediation. Keep this guard before
+    # any broker object so a CLI flag or stale approval cannot transmit an order.
+    print("REFUSED: order transmission is hard-disabled during research remediation")
+    log_event("refused", reason="research_remediation_hard_disable")
+    notify("paper_trade REFUSED: order transmission is hard-disabled during research remediation. " + plan_text)
+    ib.disconnect()
+    return 3
+
+    # The code below remains intentionally unreachable until a reviewed controlled
+    # deployment change removes the remediation guard.
+
     # front because qualification is a connection-time concern, not a per-order one.
     live = [(sym, delta, px) for sym, delta, px, _tgt, _cur in plan if delta]
     contracts = {sym: Stock(IB_SYMBOL_MAP.get(sym, sym), "SMART", "USD")

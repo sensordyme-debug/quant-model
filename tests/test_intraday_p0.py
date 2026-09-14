@@ -15,6 +15,7 @@ the fix commit, and the docstring on each says what the observed defect was.
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import intraday_trader as it
 import pandas as pd
@@ -258,6 +259,41 @@ def test_reconcile_reports_every_discrepancy_for_the_log():
     assert changes["AMD"] == (0, 50)
     assert "TSLA" not in changes
 
+
+
+def test_live_executor_settle_keeps_adapter_orders_authoritative():
+    """A submitted fill must be booked once and removed from the adapter's list."""
+    trade = SimpleNamespace(
+        orderStatus=SimpleNamespace(status="Filled"),
+        order=SimpleNamespace(orderId=17, action="BUY", totalQuantity=10),
+        contract=SimpleNamespace(symbol="NVDA"),
+        fills=[SimpleNamespace(
+            execution=SimpleNamespace(shares=10, price=100.0),
+            commissionReport=SimpleNamespace(commission=1.0), time=None,
+        )],
+    )
+    executor = object.__new__(it.LiveExecutor)
+    executor.ib = SimpleNamespace(sleep=lambda _seconds: None)
+    executor.adapter = SimpleNamespace(open=[trade])
+
+    fills = executor.settle(None)
+
+    assert fills == [("NVDA", 10, 100.0, 1.0)]
+    assert executor.adapter.open == []
+
+
+def test_live_executor_hard_refuses_transmission_during_remediation(sink):
+    """No entry, flatten, stale approval, or environment can reach IBKR now."""
+    executor = object.__new__(it.LiveExecutor)
+    assert executor.submit({"NVDA": 10}, None) == []
+    assert "order_transmission_refused" in sink.kinds()
+
+
+def test_live_loop_exit_uses_wall_clock_not_unassigned_bar_timestamp():
+    """The exit guard must work before any feed bar has assigned local `t`."""
+    source = it.Path(it.__file__).read_text(encoding="utf-8")
+    assert "exit_minute_for(now.date())" in source
+    assert "exit_minute_for(t.date())" in source  # replay still correctly uses bar time
 
 # ============================================ AUD-07 live wiring + AUD-09 crash/feed guards
 

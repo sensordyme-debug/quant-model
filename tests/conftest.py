@@ -82,6 +82,12 @@ def run_as_scheduler(script, *args, timeout: int = 120) -> subprocess.CompletedP
 # failure in one of these means the arithmetic of the deployed sleeve is wrong, which is the
 # only thing worth refusing to trade over.
 RUNNER_TESTS = frozenset({
+    # the one that says no process here can reach a venue. It belongs in the gating set for
+    # the obvious reason: if the transmission freeze has come off by accident, the 09:25 task
+    # must not start. It caught a real hole - paper_trade.py's FLATTEN branch built an
+    # IBKRAdapter and called RoutedExecutor.flatten ~130 lines before the file's own hard
+    # disable, so `--flatten`, or the mere existence of live/HALT, transmitted orders.
+    "test_no_order_can_be_transmitted",
     # the governor in the live path and the FLATTEN close-out; a failure here must stop the sleeve
     "test_intraday_governor",
     "test_costs",             # the cost model positions are sized and marked with

@@ -50,6 +50,11 @@ from quant_brain.core.mode import Authority  # noqa: E402
 ORDER_REF = "INTRADAY"
 LOG = "intraday"
 
+# This remediation phase is research/backtest only. This code constant cannot be
+# overridden by an inherited environment or a stale scheduler approval file.
+ORDER_TRANSMISSION_ENABLED = False
+
+
 
 def log(kind, **f):
     log_event(LOG, kind, **f)
@@ -346,7 +351,6 @@ class LiveExecutor:
         self.routed = RoutedExecutor(risk or RiskChain(), self.adapter,
                                      authority=Authority.paper("ibkr", ORDER_REF),
                                      on_event=lambda ev, **kw: log(ev, **kw))
-        self.open = self.adapter.open
 
     def attach_governor(self, governor) -> bool:
         """Add a RiskEngine to this executor's chain. Every non-flatten order then meets it."""
@@ -357,6 +361,10 @@ class LiveExecutor:
         return False
 
     def submit(self, orders: dict[str, int], when, *, flatten: bool = False):
+        if not ORDER_TRANSMISSION_ENABLED:
+            log("order_transmission_refused", orders=orders, flatten=flatten,
+                reason="research_remediation_hard_disable")
+            return []
         # AUD-08/09: an order sent outside RTH has outsideRth=False, so IBKR queues it to the
         # next open where nothing is tracking it and the sleeve re-sells it. Refuse and say so.
         now_et = pd.Timestamp(dt.datetime.now(ET))
@@ -406,7 +414,9 @@ class LiveExecutor:
         seen = getattr(self, "_seen", None)
         if seen is None:
             seen = self._seen = {}
-        for tr in self.open:
+        # The adapter owns this collection. Rebinding an executor copy made new
+        # submitted orders invisible to fill booking and pending-quantity netting.
+        for tr in self.adapter.open:
             st = tr.orderStatus
             oid = tr.order.orderId
             seen.setdefault(oid, now)
@@ -441,7 +451,7 @@ class LiveExecutor:
                 seen.pop(oid, None)
                 continue
             still.append(tr)
-        self.open = still
+        self.adapter.open[:] = still
         return fills
 
 
@@ -888,7 +898,7 @@ def live(strategy, params, args):
         ib.sleep(1)
         now = dt.datetime.now(ET)
         m = minute_index(pd.Timestamp(now))
-        if m >= exit_minute_for(t.date()):
+        if m >= exit_minute_for(now.date()):
             break
         if now.second < 5 or now.minute == last_minute:
             continue
