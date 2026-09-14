@@ -1098,3 +1098,63 @@ def test_a_profile_cannot_be_mutated_after_it_is_built():
     # The supported way to vary one is an explicit copy, which is visible in a diff.
     looser = replace(profile, max_drawdown=10_000.0)
     assert profile.max_drawdown == MLL and looser.max_drawdown == 10_000.0
+
+
+# ======================================================================================
+# THE ONE STILL OPEN
+# ======================================================================================
+
+@pytest.mark.xfail(strict=True, reason=(
+    "UNIT MISMATCH. TopstepAccount.contracts_allowed returns MICRO-EQUIVALENTS - 50 on a "
+    "$50K Combine, which is fifty micros or five minis - and both consumers treat the number "
+    "as raw contracts of whatever is being traded: core/sizing.py:359 caps at int(allowed), "
+    "and futures_cme/twin.py:453 clamps at min(n, cap). Neither knows the unit. Measured on "
+    "a fresh $50K Combine, ES, PropFirmSizer at its default quarter of the $2,000 MLL room: "
+    "5 contracts at a 2-point stop (a coincidence, the room happens to bind there), 10 at "
+    "1 point, 20 at half a point, 40 at one tick - against a published ceiling of five, with "
+    "the binding reported as strategy_signal every time, because the prop-firm cap never "
+    "binds at all. The fix needs the equivalence to reach core, which may not import markets: "
+    "a max_contracts_for(symbol) on the MllAccount protocol, implemented where the table "
+    "lives. It does not bite the futures funnel today, which sizes in micros where the two "
+    "units coincide, and it does bite any mini and every twin estimate that uses one."))
+def test_the_contract_ceiling_is_enforced_in_the_unit_the_caller_is_trading():
+    """The account allowance and the sizer must agree on what a contract is."""
+    from quant_brain.core import sizing as sz
+    from quant_brain.markets.futures_cme import instruments as finst
+
+    account = ts.TopstepAccount(ts.combine(SIZE))
+    assert account.contracts_allowed == 50, "the published $50K total column, in micros"
+
+    sizer = sz.PropFirmSizer()
+    spec = finst.get("ES").spec
+    worst = 0
+    for stop_points in (2.0, 1.0, 0.5, 0.25):
+        ctx = sz.SizeContext(spec=spec, prop_account=account, stop_distance=stop_points,
+                             price=6_000.0, requested=1_000)
+        decision = sz.enforce(sizer.name, ctx, sizer.propose(ctx))
+        worst = max(worst, decision.contracts)
+    assert worst <= 5, (
+        f"the sizer proposed up to {worst} ES contracts on an account permitted five. The "
+        f"allowance is in micro-equivalents and the sizer is counting minis.")
+
+
+def test_the_micro_case_is_unaffected_which_is_why_this_has_not_bitten_yet():
+    """Not an xfail: on a micro the two units coincide, so the cap is enforced correctly.
+
+    This is the control that stops the pin above from being read as "sizing is broken". It is
+    broken for minis and correct for micros, and the futures funnel trades micros - which is
+    exactly why a live unit mismatch has sat here without producing a wrong number anyone
+    noticed.
+    """
+    from quant_brain.core import sizing as sz
+    from quant_brain.markets.futures_cme import instruments as finst
+
+    account = ts.TopstepAccount(ts.combine(SIZE))
+    sizer = sz.PropFirmSizer()
+    spec = finst.get("MES").spec
+    ctx = sz.SizeContext(spec=spec, prop_account=account, stop_distance=0.25,
+                         price=6_000.0, requested=1_000)
+    decision = sz.enforce(sizer.name, ctx, sizer.propose(ctx))
+    assert decision.contracts <= 50, (
+        f"{decision.contracts} micros against a 50-micro allowance; the cap failed even in "
+        f"the unit it is written in")

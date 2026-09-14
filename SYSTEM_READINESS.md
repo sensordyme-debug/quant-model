@@ -1,6 +1,6 @@
 # System readiness
 
-As of 2026-09-14, at `28fa331`. Every number here was measured on this tree by the command
+As of 2026-09-14, at `e5364fb` plus the changes committed with it. Every number here was measured on this tree by the command
 named beside it. Nothing is carried over from `AUDIT_REPORT.md` or
 `QUANT_MODEL_SYSTEM_AUDIT.md` without re-deriving it; three of their figures did not survive
 that and are corrected below.
@@ -45,11 +45,14 @@ What holds it back, in order of how much:
 
 1. **No result has been produced by this code.** The ledger is entirely pre-fix. Until the
    funnel is rerun, the backtest machinery is verified and unused.
-2. **NQ's spread is undercharged by 36%.** The cost model assumes ES's one tick everywhere.
-   Measured from BID_ASK pages that were already on disk and had never been assembled, NQ's
-   RTH median is 2.00 ticks with only 4.75% of minutes at one tick, so the round turn should
-   be $13.78 and the model charges $8.78. MES's median is 1.00 tick, so the assumption holds
-   there; MNQ has no quote data at all.
+2. ~~NQ's spread is undercharged by 36%~~ **FIXED.** The quote pages were already on disk
+   and had never been assembled. Measured RTH: ES 1.00 tick over 152,736 observations, MES
+   1.00 over 120,463, NQ **2.00** over 8,106 with only a 4.8% one-tick share. NQ's round turn
+   moves $8.78 to $13.78. `CostModel.for_contract` now reads a measured table and
+   `spread_measured` records which contracts are measurements and which are the one-tick
+   fallback. MNQ has no quote page and is explicitly the fallback. NQ's figure rests on one
+   page and 27 days, which is enough to reject one tick and not enough to be sure of exactly
+   two.
 3. **The roll is a raw stitch with no marker.** Gaps of +57.75 to +276.50 points sit in the
    series. Nothing differences across a session boundary today, so it is contained, but the
    containment is a property of the current code rather than of the data.
@@ -115,7 +118,7 @@ favour still has to be corrected:
 
 ---
 
-## The nine open pinned defects
+## The ten open pinned defects
 
 Each is a `pytest.mark.xfail(strict=True)`. The day one is fixed its test starts passing,
 strict turns that into a failure, and whoever fixed it must delete the marker. That is the
@@ -132,12 +135,22 @@ only mechanism here that makes a to-do list get shorter.
 | `research.analytics` has no caller | same |
 | `research.robustness` has no caller | same |
 | `Ledger` cannot read the equity experiment log | same |
+| the contract ceiling is enforced in the wrong unit | `test_propfirm_acceptance.py` |
 
-Seven of the nine are the same fact: the validation apparatus is still largely disconnected.
+Seven of the ten are the same fact: the validation apparatus is still largely disconnected.
 16 of 53 modules, 7,581 lines, 40.0% of `quant_brain`, are unreachable from any non-test
 importer. That is down from 17 modules and 44.3%, and the single module that moved —
 `core.validation`, now raising `LeakageError` from the funnel's feature builder — moved
 because of one narrow use. Reachability is not use.
+
+The tenth is new and was measured rather than inferred. `TopstepAccount.contracts_allowed`
+returns micro-equivalents - 50 on a $50K Combine, which is fifty micros or five minis - and
+both consumers treat it as raw contracts. On a fresh Combine the sizer proposes 10 ES at a
+one-point stop, 20 at half a point and 40 at one tick, against a published ceiling of five,
+with the binding reported as the strategy signal every time because the prop-firm cap never
+binds. It has not produced a wrong number anyone noticed because the futures funnel sizes in
+micros, where the two units coincide; a passing control test asserts exactly that, so the pin
+cannot be read as "sizing is broken".
 
 On `sweep_s25` specifically, since a negative result is worth recording: a guard requiring the
 hook to accept the causal window was implemented and measured, and it refused the causal
@@ -153,9 +166,9 @@ Six commits, `0bababd` through `28fa331`.
 
 | | before | after |
 |---|---|---|
-| tests collected | 1,797 | 2,238 |
-| passing | 1,790 | 2,220 |
-| open pinned defects | 36 | 9 |
+| tests collected | 1,797 | 2,250 |
+| passing | 1,790 | 2,231 |
+| open pinned defects | 36 | 10 |
 | planted cheats refused by production code | 0 of 13 | 12 of 13 |
 | `quant_brain` unreachable from any non-test importer | 17 modules, 44.3% | 16 modules, 40.0% |
 | runners that can transmit an order | 1 of 2 | 0 of 2 |
@@ -217,9 +230,15 @@ refusal the same file prints on its other path.
    largest single reproducibility gap and the cheapest to close.
 8. **Resolve the two recovery refs.** `accidental-vault-commit-592e11a`,
    `accidental-vault-commit-bb4bbf8` and the tag `incident/2026-09-13-vault-commit` still hold
-   the Obsidian vault. `git push --all` or `git push --tags` would publish it. Deleting a ref
-   that holds the only copy of something is the owner's decision, which is why it has not been
-   done.
+   the Obsidian vault. `git push --all` or `git push --tags` would publish it. Now measured:
+   3,522 objects, 636.4 MiB, 418.9 MiB on disk, reachable only from those refs - 99% of the
+   423 MiB pack. Two further facts found while documenting it: `Quant Brain/QuantModel/.git`
+   is a 35-byte gitfile pointing at a module directory that does not exist, so git swept 942
+   files in as a plain tree rather than a submodule link, which is *why* the vault was
+   committable at all; and `.gitignore` is the entire protection - neither `qb_check.py` nor
+   the pre-commit hook mentions the vault, and `commit_scope.py` would not stop an explicit
+   `git commit -- "Quant Brain/"`. Deleting a ref that holds the only copy of something is
+   the owner's decision, which is why it has not been done.
 
 Items 1 through 3 are corrections to things now known to be wrong. Items 4 through 7 are the
 difference between a machine that can detect a false result and a machine that can produce a

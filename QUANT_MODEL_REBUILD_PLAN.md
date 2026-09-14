@@ -70,7 +70,7 @@ attrition, naming which differences are explained by which of the four fixes.
 These are not improvements. They are places where the system currently produces a number that
 is wrong by an amount that has been measured.
 
-### 2.1 The NQ spread
+### 2.1 The NQ spread — DONE 2026-09-14
 
 The cost model assumes ES's one-tick spread for every contract. Measured on BID_ASK pages
 already sitting unassembled in `data/futures/.raw/`: NQ's RTH median is 2.00 ticks with only
@@ -84,16 +84,24 @@ inheriting ES's.
 
 **Done when** `CostModel.for_contract` reads a measured spread per contract, a test pins each
 measured value to the store it came from, and MNQ's remaining assumption is named in the code
-and in `docs/DATA.md`.
+and in `docs/DATA.md`. All three are done. What remains is the sample: NQ's two ticks rest on
+one BID_ASK page, 8,106 RTH observations over 27 days of a single contract month. Fetching
+more NQ pages is the cheapest improvement available anywhere on this list.
 
 ### 2.2 The contracts-allowed unit mismatch
 
 `TopstepAccount.contracts_allowed` returns micro-equivalents. `core/sizing.py::PropFirmSizer`
 treats the same number as raw contracts. Both are on the sizing path.
 
-**Done when** one unit is used end to end, the conversion happens in exactly one place, and a
-test sizes a mini and a micro position from the same allowance and checks both against hand
-arithmetic.
+Now pinned rather than only described:
+`test_the_contract_ceiling_is_enforced_in_the_unit_the_caller_is_trading` is a strict xfail
+carrying the measured numbers, and a passing control asserts the micro case is correct, so
+the pin cannot be read as "sizing is broken". The fix needs the equivalence to reach `core`,
+which may not import `markets`: a `max_contracts_for(symbol)` on the `MllAccount` protocol,
+implemented where the table lives.
+
+**Done when** one unit is used end to end, the conversion happens in exactly one place, the
+strict xfail's marker is deleted because it passes, and the micro control still passes.
 
 ### 2.3 The four validator holes found while documenting
 
