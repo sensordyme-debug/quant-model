@@ -7,11 +7,25 @@ __pycache__/
 .pytest_cache/
 .venv/
 # secrets
+# `.env` alone left `.env.local`, `.env.production` and every other suffix TRACKABLE, which
+# was measured on 2026-09-14: `git check-ignore .env.local` said NOT ignored. The negation
+# keeps the placeholder template, which carries no real value and is meant to be committed.
 .env
+.env.*
+!.env.example
 *.key
 *.pem
 live/secrets*.json
 live/secrets.env
+# Any credential file placed under live/, not just the two named above. ProjectX credentials
+# belong in live/secrets.env; this covers a second file created by someone who did not read
+# that far.
+live/*.env
+!live/*.env.example
+# Per-venue, per-account human approvals written by mode.write_approval. Machine-local by
+# design: a committed approval would let a fresh checkout carry authorisation for an account,
+# which is the stale-artefact accident the approval mechanism exists to prevent.
+live/approvals/
 # machine-local paper-trading state and gates (never committed by automation)
 live/log/
 live/state/

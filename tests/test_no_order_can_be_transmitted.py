@@ -42,9 +42,12 @@ import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 
-#: Every runner that can hold a broker connection. Both must carry the switch and both must
-#: have it off. Keeping them in one list is the point: they disagreed, and that was the bug.
-RUNNERS = ("scripts/intraday_trader.py", "scripts/paper_trade.py")
+#: Every module that can hold a broker connection. Each must carry the switch and each must
+#: have it off. Keeping them in one list is the point: two of them disagreed, and that was the
+#: bug. The ProjectX adapter is here because it is importable on its own - a script building
+#: it directly with `dry_run=False` would otherwise never meet a runner's guard.
+RUNNERS = ("scripts/intraday_trader.py", "scripts/paper_trade.py",
+           "quant_brain/brokers/projectx.py")
 
 #: Names whose call can put an order on the wire. `submit` and `flatten` are the
 #: `RoutedExecutor` surface; `placeOrder` is `ib_async` itself.
@@ -77,17 +80,48 @@ def _enclosing_functions(tree: ast.Module) -> list[ast.FunctionDef]:
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
 
 
+#: The composite gate in `quant_brain/core/config.py`. It requires the runner's code-level
+#: constant AND all four environment flags AND an Authority at EXECUTION_READY, and returns
+#: every reason it refused. A guard may check the bare constant or call this; calling this is
+#: strictly stronger, because the constant alone cannot see a permissive environment.
+GATE = "transmission_allowed"
+
+
+def _gate_names(fn) -> set[str]:
+    """Locals in `fn` bound from a `transmission_allowed(...)` call.
+
+    The call returns `(allowed, reasons)`, so the guard reads `if not _allowed:` and the
+    switch's name never appears in the `if` test at all. Without this, a guard that got
+    STRONGER would look to this file like a guard that disappeared - which is exactly what
+    happened when the gate landed, and is why the resolution is to teach the test the new
+    shape rather than to keep the weaker one.
+    """
+    out: set[str] = set()
+    for node in ast.walk(fn):
+        if not isinstance(node, ast.Assign):
+            continue
+        if GATE not in ast.dump(node.value):
+            continue
+        for t in node.targets:
+            for sub in ast.walk(t):
+                if isinstance(sub, ast.Name):
+                    out.add(sub.id)
+    return out
+
+
 def _guard_lines(fn) -> list[int]:
-    """Lines of every `if ... ORDER_TRANSMISSION_ENABLED ...:` whose body can return or log.
+    """Lines of every `if` that refuses on the switch, directly or through the gate.
 
     A guard that neither returns nor skips the call would be decoration, so the body must
     contain a `return` or the whole `if` must wrap the call itself.
     """
+    names = _gate_names(fn) | {SWITCH}
     out = []
     for node in ast.walk(fn):
         if not isinstance(node, ast.If):
             continue
-        if SWITCH not in ast.dump(node.test):
+        dumped = ast.dump(node.test)
+        if not any(n in dumped for n in names):
             continue
         returns = any(isinstance(n, ast.Return) for n in ast.walk(node))
         wraps_call = any(isinstance(n, ast.Call) and _call_name(n) in VENUE_CALLS
@@ -238,7 +272,8 @@ def test_the_flatten_path_refuses_and_says_the_positions_are_still_open():
     i = src.index("if HALT.exists() or args.flatten:")
     j = src.index("held = {s_: q_ for s_, q_ in positions.items() if q_}", i)
     branch = src[i:j]
-    assert f"if not {SWITCH}" in branch, "the flatten branch does not check the switch"
+    assert GATE in branch or f"if not {SWITCH}" in branch, (
+        "the flatten branch neither checks the switch directly nor calls the composite gate")
     assert "log_event" in branch and "notify" in branch, (
         "the flatten refusal must both log and push to the chat channel")
     assert "STILL OPEN" in branch, (
@@ -291,8 +326,10 @@ def test_both_paths_in_paper_trade_read_the_same_switch():
     switch is set to, both paths must agree with it.
     """
     _, src = _tree("scripts/paper_trade.py")
-    assert src.count(f"if not {SWITCH}") >= 2, (
-        "paper_trade.py has fewer than two switch checks; the flatten path and the rebalance "
-        "path must each read it")
+    assert src.count(GATE) >= 2, (
+        "paper_trade.py calls the composite gate fewer than twice; the flatten path and the "
+        "rebalance path must each go through it")
+    assert src.count(SWITCH) >= 3, (
+        "the code-level constant must be declared once and passed to the gate on both paths")
     assert 'path="flatten"' in src and 'path="rebalance"' in src, (
         "each refusal must say which path it came from, so a log line is diagnosable")

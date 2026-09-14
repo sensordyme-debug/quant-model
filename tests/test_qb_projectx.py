@@ -85,8 +85,26 @@ def test_a_dry_run_records_the_order_and_never_reaches_the_transport():
     assert a.would_send[-1]["size"] == 2
 
 
-def test_live_submission_is_not_implemented_rather_than_gated():
-    """An implementation present but gated is one edit from an accident."""
+def test_live_submission_is_not_implemented_rather_than_gated(monkeypatch):
+    """An implementation present but gated is one edit from an accident.
+
+    STRENGTHENED when the configuration gate landed. `submit` now also consults
+    `config.transmission_allowed`, so a forced-open connection alone routes into the dry-run
+    branch and this test would have passed for the wrong reason - proving the config gate
+    works rather than proving there is no live code. So the gate is forced open too, by
+    replacing it wholesale with a function that says yes.
+
+    That makes this the most adversarial test in the file: connection state forced to
+    EXECUTION_READY, `dry_run` forced False, and the entire configuration layer replaced by a
+    stub that permits everything. There is still nothing to send, because the branch that
+    would send does not exist.
+
+    The gate is stubbed rather than driven with environment variables on purpose - no string
+    resembling a credential is set anywhere in this suite.
+    """
+    from quant_brain.core import config as qb_config
+    monkeypatch.setattr(qb_config, "transmission_allowed", lambda *a, **k: (True, []))
+
     a, _ = _authed(dry_run=False)
     a.arm(Authority.practice("topstep", "ACC1"), confirmed_practice=True)
     # Forced past every gate by hand - the hardest possible case for the claim below.
@@ -95,6 +113,24 @@ def test_live_submission_is_not_implemented_rather_than_gated():
     with pytest.raises(NotPermitted) as e:
         a.submit(OrderIntent(symbol="X", side=Side.BUY, quantity=1))
     assert "not implemented" in str(e.value)
+
+
+def test_the_configuration_gate_diverts_a_live_looking_submit_into_a_dry_run():
+    """The layer below the missing implementation, on its own.
+
+    Connection forced to EXECUTION_READY and `dry_run` False, but configuration untouched and
+    therefore refusing. The order is recorded rather than sent, and the reason it was blocked
+    travels with the event so an operator can see WHICH condition stopped it.
+    """
+    a, t = _authed(dry_run=False)
+    a.arm(Authority.practice("topstep", "ACC1"), confirmed_practice=True)
+    a.state = ConnectionState.EXECUTION_READY
+    a.dry_run = False
+    before = len(t.calls)
+    ack = a.submit(OrderIntent(symbol="CON.F.US.MNQ.Z25", side=Side.BUY, quantity=1))
+    assert not ack.accepted
+    assert len(t.calls) == before, "the transport was reached despite the configuration gate"
+    assert a.would_send, "the translated body must still be recorded"
 
 
 def test_reconciliation_refuses_rather_than_returning_an_empty_position_set():

@@ -51,6 +51,7 @@ import enum
 import os
 from dataclasses import dataclass, field
 
+from quant_brain.core import config as qb_config
 from quant_brain.core.execution import Ack, ExecutionAdapter, OrderIntent, OrderType, Side
 from quant_brain.core.mode import Authority, Mode, NotPermitted
 
@@ -69,6 +70,13 @@ ENV_KEY = "PROJECTX_API_KEY"
 ENV_BASE = "PROJECTX_BASE_URL"
 
 DEFAULT_BASE = "https://api.topstepx.com"
+
+#: This module's own code-level switch, spelled and defaulted exactly as the two runners
+#: spell theirs, so all three agree and one grep finds them. Configuration cannot reach it:
+#: flipping every environment flag leaves this False and `transmission_allowed` refuses.
+#: There is also no live branch below for it to unlock, which is a second, independent
+#: reason nothing here can send - see `submit`.
+ORDER_TRANSMISSION_ENABLED = False
 
 
 class ConnectionState(str, enum.Enum):
@@ -349,16 +357,28 @@ class ProjectXAdapter(ExecutionAdapter):
         return body
 
     def submit(self, intent: OrderIntent) -> Ack:
-        """Translate, then send only if BOTH the connection and the process permit it."""
+        """Translate, then send only if the connection, the configuration and the process all
+        permit it. Today none of the three does, and the third has nothing to reach anyway.
+
+        The configuration layer is consulted here rather than only in the runners because
+        this adapter is importable on its own: a script that constructed it directly with
+        `dry_run=False` would otherwise have bypassed the four environment flags entirely.
+        A refusal from configuration routes into the dry-run branch rather than raising, so
+        the translated body is still recorded and still inspectable - a dry run's whole
+        deliverable is what it WOULD have sent, and losing that on a config error would make
+        the safe path less useful than the dangerous one.
+        """
         self._check_live()
         body = self._translate(intent)
+        allowed, blocked = qb_config.transmission_allowed(ORDER_TRANSMISSION_ENABLED)
 
-        if self.dry_run or not self.state.can_send:
+        if self.dry_run or not self.state.can_send or not allowed:
             # No request is built and not sent - the transport is not reached at all. There
             # is no boolean here that could be flipped to make this send.
             self.would_send.append(body)
             self._emit("projectx_dry_run", symbol=intent.symbol,
-                       side=intent.side.value, qty=intent.quantity, state=self.state.value)
+                       side=intent.side.value, qty=intent.quantity, state=self.state.value,
+                       blocked_by=blocked)
             return Ack(intent=intent, accepted=False,
                        reason=f"dry run: recorded, not sent (state={self.state.value})",
                        handle=body)

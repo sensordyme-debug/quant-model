@@ -8,6 +8,7 @@ architecture.
 Every command answers a question that is genuinely hard to answer otherwise:
 
     mode                what is THIS process allowed to do, and why
+    config doctor       what is configured and what it permits, without printing a value
     topstep rules       every rule with its source and confidence tier
     topstep unresolved  what still needs the owner before money is spent
     topstep readiness   the gate between here and a practice account
@@ -26,6 +27,45 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+
+
+def _config_doctor(_args) -> int:
+    """Report the configuration without printing one value of it.
+
+    Reads `live/secrets.env` into the environment first, the same file and the same
+    `setdefault` precedence `scripts/apikeys.py` has always used, so the answer describes
+    what a runner would actually see rather than what this shell happens to hold.
+
+    Exit code carries the verdict, because a doctor whose output has to be grepped is a
+    doctor nobody puts in a script:
+
+        0  configuration is usable for what it claims
+        1  CONFIG_MISSING or CONFIG_INVALID
+        2  a credential file is tracked by git, which is the one finding that is an
+           incident rather than a setup step
+    """
+    from quant_brain.core import config as cfg
+    from quant_brain.core.mode import from_environment
+
+    try:
+        authority = from_environment()
+    except Exception as exc:                                            # noqa: BLE001
+        # A refused QB_ACCOUNT_MODE must not stop the doctor: the whole point of the command
+        # is to run when configuration is broken. The exception type and message are safe to
+        # show - mode.py raises on the MODE NAME, never on a credential.
+        print(f"  authority     UNAVAILABLE ({type(exc).__name__}: {exc})")
+        authority = None
+
+    conf = cfg.Configuration.load()
+    tracked = cfg.secret_files_tracked_by_git()
+    for line in conf.report(authority=authority, tracked=tracked):
+        print(f"  {line}" if line else "")
+    if tracked:
+        return 2
+    if conf.state(authority) in (cfg.ConfigState.CONFIG_MISSING,
+                                 cfg.ConfigState.CONFIG_INVALID):
+        return 1
+    return 0
 
 
 def _mode(_args) -> int:
@@ -280,6 +320,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub = ap.add_subparsers(dest="group", required=True)
 
     sub.add_parser("mode", help="what this process is allowed to do").set_defaults(fn=_mode)
+
+    cf = sub.add_parser("config", help="secrets, settings, safety policy and the target account")
+    cfsub = cf.add_subparsers(dest="cmd", required=True)
+    cfsub.add_parser("doctor", help="what is configured, what is missing, and what it permits"
+                     ).set_defaults(fn=_config_doctor)
 
     ts = sub.add_parser("topstep", help="the Topstep rulebook and readiness")
     tsub = ts.add_subparsers(dest="cmd", required=True)

@@ -62,6 +62,7 @@ from quant_brain.core.execution import (  # noqa: E402
     RoutedExecutor,
     Side,
 )
+from quant_brain.core import config as qb_config  # noqa: E402
 from quant_brain.core.mode import Authority  # noqa: E402
 from quant_brain.core.risk import RiskChain  # noqa: E402
 
@@ -673,7 +674,8 @@ def main() -> int:
         reason = "HALT file present" if HALT.exists() else "--flatten"
         print(f"FLATTEN: {reason}; closing {len(positions)} positions")
         log_event("flatten", reason=reason, positions=positions)
-        if not ORDER_TRANSMISSION_ENABLED and not args.dry_run and ib and positions:
+        _flat_ok, _flat_blocked = qb_config.transmission_allowed(ORDER_TRANSMISSION_ENABLED)
+        if not _flat_ok and not args.dry_run and ib and positions:
             # THE HOLE THIS CLOSES
             # This branch runs on `--flatten` or on the mere existence of `live/HALT`. It sits
             # after the DU paper-account check but BEFORE the `live/APPROVED_PAPER.md` check
@@ -697,7 +699,8 @@ def main() -> int:
             print(f"REFUSED: order transmission is hard-disabled; {len(positions)} position(s) "
                   f"were NOT closed and need a human: {positions}")
             log_event("refused", reason="research_remediation_hard_disable",
-                      path="flatten", trigger=reason, positions=positions)
+                      path="flatten", trigger=reason, positions=positions,
+                      blocked_by=_flat_blocked)
             notify(f"paper_trade FLATTEN REFUSED ({reason}): transmission is hard-disabled, so "
                    f"{len(positions)} position(s) are STILL OPEN and must be closed by hand in "
                    f"TWS: {positions}")
@@ -839,9 +842,11 @@ def main() -> int:
     # flipping the switch to True re-armed the flatten branch above and left this one dead -
     # a half-thaw, in the direction where the runner can close positions but not open them,
     # which is the sort of asymmetry nobody discovers until the day it matters.
-    if not ORDER_TRANSMISSION_ENABLED:
+    _reb_ok, _reb_blocked = qb_config.transmission_allowed(ORDER_TRANSMISSION_ENABLED)
+    if not _reb_ok:
         print("REFUSED: order transmission is hard-disabled during research remediation")
-        log_event("refused", reason="research_remediation_hard_disable", path="rebalance")
+        log_event("refused", reason="research_remediation_hard_disable", path="rebalance",
+                  blocked_by=_reb_blocked)
         notify("paper_trade REFUSED: order transmission is hard-disabled during research "
                "remediation. " + plan_text)
         ib.disconnect()

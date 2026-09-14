@@ -619,9 +619,13 @@ POLYGON_API_KEY  FINNHUB_API_KEY     NASDAQ_DATA_LINK_API_KEY   TELEGRAM_BOT_TOK
 Theta Terminal jar consumes it (`theta_data.py:3`). The remaining four names are anticipated
 by `apikeys.py` and not used by any fetcher.
 
-`.env.example` declares a separate, execution-side set (`QB_ACCOUNT_MODE`, `QB_VENUE`,
-`QB_LIVE_TRADING_ENABLED`, `DRY_RUN`, `PROJECTX_USERNAME`, `PROJECTX_API_KEY`, ...) with
-placeholders only.
+`.env.example` also declares the execution-side set (`QB_ACCOUNT_MODE`, `QB_VENUE`,
+`QB_LIVE_TRADING_ENABLED`, `DRY_RUN`, `PROJECTX_USERNAME`, `PROJECTX_API_KEY`,
+`TOPSTEP_TARGET_ACCOUNT_ID`, ...) with placeholders only. Updated 2026-09-14: those two sets
+are no longer separate mechanisms. ProjectX credentials belong in the same `live/secrets.env`
+as the vendor keys, and `quant_brain/core/config.py` reads that file with the same format and
+the same `setdefault` precedence `apikeys.py` uses. `apikeys.py` itself is unchanged. See
+`docs/CONFIGURATION.md`.
 
 **Not verified: whether the Alpaca or FMP keys still authenticate.** No network call was made
 for this document. "Live" for those two means the key name is present, the code path is

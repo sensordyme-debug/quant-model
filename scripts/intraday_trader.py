@@ -44,6 +44,7 @@ from base import features  # noqa: E402
 APPROVAL = LIVE / "APPROVED_PAPER.md"
 HALT_FILES = [LIVE / "HALT", LIVE / "HALT_INTRADAY"]
 BOOK_FILE = LIVE / "state" / "intraday_book.json"
+from quant_brain.core import config as qb_config  # noqa: E402
 from quant_brain.core.execution import OrderIntent, OrderType, Side  # noqa: E402
 from quant_brain.core.mode import Authority  # noqa: E402
 
@@ -361,9 +362,19 @@ class LiveExecutor:
         return False
 
     def submit(self, orders: dict[str, int], when, *, flatten: bool = False):
-        if not ORDER_TRANSMISSION_ENABLED:
+        # Two layers, deliberately kept apart. The constant above is in this file's source
+        # and cannot be reached by configuration; the four environment flags are in a shell
+        # or a gitignored file and cannot be reached by a deploy. `transmission_allowed`
+        # requires BOTH, plus an Authority at EXECUTION_READY, and returns every reason it
+        # refused rather than the first - so nobody works through them one run at a time.
+        #
+        # Before this, the four flags in `.env.example` were read by nothing at all. Setting
+        # ORDER_TRANSMISSION_ENABLED=true in a shell changed nothing, and setting it to false
+        # and believing it had disabled something was equally wrong.
+        _allowed, _blocked = qb_config.transmission_allowed(ORDER_TRANSMISSION_ENABLED)
+        if not _allowed:
             log("order_transmission_refused", orders=orders, flatten=flatten,
-                reason="research_remediation_hard_disable")
+                reason="research_remediation_hard_disable", blocked_by=_blocked)
             return []
         # AUD-08/09: an order sent outside RTH has outsideRth=False, so IBKR queues it to the
         # next open where nothing is tracking it and the sleeve re-sells it. Refuse and say so.

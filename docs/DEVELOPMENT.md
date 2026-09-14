@@ -166,29 +166,32 @@ where agents learn the correct one.
 
 ## Secrets and `.env`
 
-`.gitignore` line 10 is `.env`. Lines 11-14 add `*.key`, `*.pem`, `live/secrets*.json`,
-`live/secrets.env`; lines 15-20 keep `live/log/`, `live/state/`, `live/HALT`,
-`live/APPROVED_PAPER.md` and `live/alerts.json` out of git so automation can never commit
-them. `.env.example` is not matched by the `.env` pattern and is meant to be committed.
+**`docs/CONFIGURATION.md` is the canonical document.** This section is the short version and
+was rewritten on 2026-09-14, when the configuration architecture changed.
 
-`.env.example` at the repository root lists the seven variables `quant_brain` reads, with
-placeholder values only. Two facts about it:
+Ignored, verified with `git check-ignore` rather than by reading the file: `.env`, `.env.*`
+except `.env.example`, `*.key`, `*.pem`, `live/secrets.env`, `live/secrets*.json`,
+`live/*.env`, `live/approvals/`, plus `live/log/`, `live/state/`, `live/HALT`,
+`live/APPROVED_PAPER.md` and `live/alerts.json` so automation can never commit them.
+`.env.example` is deliberately tracked and is the canonical template.
 
-- **Nothing loads a `.env` file.** There is no `python-dotenv` in the tree and no code that
-  parses `.env`. `quant_brain/core/mode.py` reads `QB_ACCOUNT_MODE`, `QB_VENUE`, `QB_ACCOUNT`
-  and `QB_LIVE_TRADING_ENABLED` from `os.environ`; `quant_brain/brokers/projectx.py` reads
-  `PROJECTX_USERNAME`, `PROJECTX_API_KEY`, `PROJECTX_BASE_URL` the same way and refuses
-  credentials from any other source. Values have to be in the process environment - set by
-  the shell, or by the Task Scheduler action. Copying `.env.example` to `.env` documents your
-  intent and is gitignored; it does not configure anything by itself.
-- The other API keys (Alpaca, Theta, FMP, Telegram) are a different mechanism:
-  `scripts/apikeys.py` parses `live/secrets.env`, also gitignored.
+Two facts that used to be listed here and are no longer both true:
 
-`tests/test_qb_projectx.py::test_no_credential_appears_in_the_source_of_this_package` scans
-every `.py` under `quant_brain/` for `sk-...`, JWT `eyJ...` and `Bearer ...` shapes, and
-`test_the_secret_is_absent_from_every_printable_form` covers `repr`, `str`, f-strings and
-event payloads of the credential objects. `test_this_checkout_is_not_configured_for_live`
-asserts the tree cannot reach `EXECUTION_READY` as configured.
+- **Nothing loads a `.env` file.** Still true. There is no `python-dotenv` and no parser for
+  `.env`. But `quant_brain/core/config.py` DOES load `live/secrets.env`, with the same format
+  and the same `setdefault` precedence `scripts/apikeys.py` has always used, so an exported
+  variable still wins over the file.
+- **The two credential sets are no longer separate mechanisms.** ProjectX credentials go in
+  `live/secrets.env` alongside the data-vendor keys. `scripts/apikeys.py` is unchanged and
+  still serves the vendors; `config.py` reads the same file for the execution side.
+
+`.env.example` documents sixteen variables, not the seven it used to: the four data-vendor keys are listed there too, so the template is a complete map of what the repository consumes. Every one of them names
+its reader, and `tests/test_config_safety.py` enforces the mapping in both directions - a
+documented variable with no reader fails the suite, and a variable the package reads and the
+template omits fails it too. That check exists because four of the flags in that file were,
+until 2026-09-14, read by nothing at all.
+
+Verify with `python -m quant_brain config doctor`, which prints presence and never a value.
 
 ---
 
