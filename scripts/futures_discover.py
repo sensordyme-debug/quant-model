@@ -85,6 +85,56 @@ def build_features(sessions: list[pd.DataFrame], lib: fe.FeatureSet):
     return out
 
 
+def session_accounting(pos, close, *, multiplier: float, contracts: int,
+                       round_turn_cost: float):
+    """One session's net equity path, its round-turn count and its gross P&L.
+
+    COUNTING THE LEGS
+    -----------------
+    A session starts flat and must end flat: the funnel trades a 09:30-15:45 ET window and
+    Topstep requires a flat book at 3:10 PM CT. So the exit is always traded. The previous
+    count was `int(abs(diff(pos, prepend=0)).sum() / 2)`, which supplies the opening leg and
+    never the closing one, then truncates the odd total downwards. A rule that is simply long
+    all session therefore reported ZERO round turns and was charged ZERO cost. Measured on
+    the funnel's own ledger, 624 of the 816 scored hypotheses (76%) recorded `trades: 0` and
+    `costs: 0.0`, and were then discarded by the 40-trade floor as "not a strategy" before the
+    Topstep and walk-forward gates ever ran. `append=0.0` closes the book.
+
+    WHEN THE COST LANDS
+    -------------------
+    Cost used to be spread across the session with `linspace(0, cost, n)`. The terminal P&L
+    is identical either way, but this path is what `TwinDay(path=...)` hands to the Topstep
+    twin, and the trailing maximum loss limit tracks peak equity intraday. Cost not yet
+    charged is equity the twin believes the account has. Each leg is now paid at the bar it
+    trades: half a round turn on the way in, half on the way out.
+
+    THE ONE-BAR LAG
+    ---------------
+    Position decided on bar i earns bar i+1's move. That is what separates a backtest from a
+    look-ahead and it is unchanged here.
+    """
+    pos = np.nan_to_num(np.asarray(pos, dtype=float), nan=0.0)
+    close = np.asarray(close, dtype=float)
+    n = len(pos)
+    if n < 2:
+        return np.zeros(1), 0.0, 0.0
+
+    step = np.diff(close, prepend=close[0]) * multiplier * contracts
+    gross_path = np.cumsum(pos[:-1] * step[1:])
+
+    #: Contracts traded at each boundary, including the entry (prepend) and the flatten at
+    #: the bell (append). Length n+1; index k is the trade that happens at bar k.
+    legs = np.abs(np.diff(pos, prepend=0.0, append=0.0))
+    turns = float(legs.sum()) / 2.0
+
+    #: Cumulative cost through bar k, at half a round turn per leg.
+    paid = np.cumsum(legs) * (round_turn_cost / 2.0)
+    #: gross_path[j] is the P&L after bar j+1's move, so it carries the cost through bar j+1.
+    incurred = paid[1:n].copy()
+    incurred[-1] = paid[-1]          # the closing flatten settles on the last point
+    return gross_path - incurred, turns, float(gross_path[-1])
+
+
 def evaluator(sessions, feats, *, contracts: int, twin_obj, symbol: str):
     """Backtest one hypothesis and run every gate that does not need the survivors."""
     spec = inst.get(symbol).spec
@@ -92,25 +142,18 @@ def evaluator(sessions, feats, *, contracts: int, twin_obj, symbol: str):
     tick_cost = sim.round_turn_cost(contracts)
 
     def run(h):
-        pnls, paths, trades, gross, costs = [], [], 0, 0.0, 0.0
+        pnls, paths, trades, gross, costs = [], [], 0.0, 0.0, 0.0
         for g, X in zip(sessions, feats, strict=True):
-            pos = np.asarray(h.signal(X), dtype=float)
-            pos = np.nan_to_num(pos, nan=0.0)
-            close = g["c"].to_numpy(dtype=float)
-            # Position is decided on bar i and earns bar i+1's move: the one-bar lag that
-            # separates a backtest from a look-ahead.
-            step = np.diff(close, prepend=close[0]) * spec.multiplier * contracts
-            pnl_path = np.cumsum(pos[:-1] * step[1:]) if len(pos) > 1 else np.zeros(1)
-            turns = int(np.abs(np.diff(pos, prepend=0.0)).sum() / 2)
-            cost = turns * tick_cost
+            net_path, turns, session_gross = session_accounting(
+                h.signal(X), g["c"].to_numpy(dtype=float),
+                multiplier=spec.multiplier, contracts=contracts, round_turn_cost=tick_cost)
             trades += turns
-            gross += float(pnl_path[-1]) if len(pnl_path) else 0.0
-            costs += cost
-            net_path = pnl_path - np.linspace(0, cost, len(pnl_path))
+            gross += session_gross
+            costs += turns * tick_cost
             pnls.append(float(net_path[-1]) if len(net_path) else 0.0)
             paths.append(tuple(float(x) for x in net_path))
 
-        out: dict = {"pnl": pnls, "sessions": len(pnls), "trades": trades,
+        out: dict = {"pnl": pnls, "sessions": len(pnls), "trades": int(round(trades)),
                      "gross": gross, "costs": costs,
                      "mean_per_session": float(np.mean(pnls)) if pnls else 0.0}
 
