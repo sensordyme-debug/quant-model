@@ -470,3 +470,62 @@ def test_the_model_and_the_tape_agree_when_compared_at_the_same_price():
         f"model {model:.3f} bps vs tape {tape:.3f} bps. If these diverge, check that both "
         f"include commission and that both are evaluated at the same price - the two "
         f"previous disagreements about this number were both category errors, not defects.")
+
+
+# ---------------------------------------------------------------------------------------
+# The spread is measured per contract, not inherited from ES
+# ---------------------------------------------------------------------------------------
+
+def test_the_spread_is_read_per_contract_and_nq_is_two_ticks():
+    """Every contract used to inherit ES's one tick, and for NQ that was wrong by 36%.
+
+    Measured read-only on the BID_ASK pages under `data/futures/.raw/`, RTH only, 2026-09-14:
+
+        root   pages   RTH obs    days   median   one-tick share
+        ES        19   152,736     416     1.00            77.4%
+        MES       15   120,463     338     1.00            76.6%
+        NQ         1     8,106      27     2.00             4.8%
+
+    A 4.8% one-tick share is not a sampling accident, so one tick is rejected for NQ even on
+    27 days of data. The modelled round turn moves from $8.78 to $13.78 - and that is a cost
+    gate input for every NQ hypothesis the funnel has ever scored.
+    """
+    assert ex.MEASURED_SPREAD_TICKS["ES"] == 1.00
+    assert ex.MEASURED_SPREAD_TICKS["MES"] == 1.00
+    assert ex.MEASURED_SPREAD_TICKS["NQ"] == 2.00
+    assert ex.CostModel.for_contract("NQ").spread_ticks == 2.00
+    assert _sim("NQ").round_turn_cost(1.0) == pytest.approx(2 * 1.89 + 2 * 0.25 * 20.0)
+
+
+def test_a_contract_with_no_quote_data_says_so_instead_of_looking_measured():
+    """MNQ has no BID_ASK page at all, so it falls back to one tick.
+
+    One tick is the venue minimum and therefore the most optimistic value possible, which is
+    exactly the kind of number that must not be mistaken for a measurement. `spread_measured`
+    is what lets a result say which it was.
+    """
+    assert "MNQ" not in ex.MEASURED_SPREAD_TICKS
+    c = ex.CostModel.for_contract("MNQ")
+    assert c.spread_ticks == 1.0
+    assert c.spread_measured is False
+    for sym in ("ES", "MES", "NQ"):
+        assert ex.CostModel.for_contract(sym).spread_measured is True, sym
+
+
+def test_an_explicit_spread_beats_the_table():
+    """A caller measuring its own tape should not have to fight the table, and the override
+    must not silently claim to be a measurement from it."""
+    c = ex.CostModel.for_contract("NQ", spread_ticks=1.0)
+    assert c.spread_ticks == 1.0
+    assert c.spread_measured is False
+
+
+def test_the_measured_spread_moves_the_cost_gate_in_the_conservative_direction():
+    """The whole reason this matters. Every entry in the table is >= the old assumption, so
+    no contract got cheaper. A future entry below 1.0 would be a real finding and should be
+    argued for rather than slipped in."""
+    for sym, ticks in ex.MEASURED_SPREAD_TICKS.items():
+        assert ticks >= 1.0, (
+            f"{sym} is modelled at {ticks} ticks, below the venue minimum of one. That is "
+            f"either a measurement error or a genuine sub-tick venue, and either way it "
+            f"needs saying out loud rather than sitting in a table.")

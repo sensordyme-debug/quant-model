@@ -84,6 +84,43 @@ class Quote:
         return self.ask_size if side is Side.BUY else self.bid_size
 
 
+#: Quoted spread in TICKS, measured per root, RTH only, from the BID_ASK pages under
+#: `data/futures/.raw/`. Read-only measurement, 2026-09-14:
+#:
+#:      root   pages   RTH obs    days   median   mean   p90   share at 1 tick
+#:      ES        19   152,736     416     1.00   1.43  3.00            77.4%
+#:      MES       15   120,463     338     1.00   1.51  3.00            76.6%
+#:      NQ         1     8,106      27     2.00   2.11  3.00             4.8%
+#:
+#: The median is what belongs here. The mean is dragged by halt and rollover artefacts no
+#: strategy trades through, which is why `measure_spread_ticks` reports both and bounds the
+#: sample.
+#:
+#: NQ IS THE POINT OF THIS TABLE. Every contract used to inherit ES's one tick. NQ's median
+#: is two, and only 4.8% of its RTH minutes are at one tick, so the modelled round turn was
+#: $8.78 where the tape says $13.78 - a 36% undercharge on the contract with the largest
+#: point value in the universe, in the flattering direction, propagating into every cost gate
+#: the futures funnel has ever run.
+#:
+#: HOW GOOD EACH NUMBER IS, because they are not equally good. ES and MES rest on hundreds of
+#: thousands of observations across more than a year and several contract months, and both
+#: confirm the one-tick assumption that was previously asserted. NQ rests on ONE page: 8,106
+#: observations over 27 days of a single contract month. That is enough to reject one tick -
+#: a 4.8% one-tick share is not a sampling accident - and not enough to be confident the
+#: median is exactly two rather than somewhere near it. Fetching more NQ BID_ASK pages is the
+#: cheapest way to improve this number and is listed in QUANT_MODEL_REBUILD_PLAN.md.
+#:
+#: A root that is absent here has NO quote data at all and falls back to one tick, which is
+#: the venue minimum and therefore the most optimistic value possible. `CostModel.for_contract`
+#: records which of the two happened in `spread_measured`, so a reader never has to guess
+#: whether a spread was measured or assumed. MNQ is the live example: it has no BID_ASK page.
+MEASURED_SPREAD_TICKS: dict[str, float] = {
+    "ES": 1.00,
+    "MES": 1.00,
+    "NQ": 2.00,
+}
+
+
 @dataclass(frozen=True)
 class CostModel:
     """Commission and slippage, per contract.
@@ -100,12 +137,25 @@ class CostModel:
     #: for sizes small against the book.
     impact_ticks_per_book: float = 1.0
     #: The quoted spread, in ticks. One tick is the default because it is the minimum the
-    #: venue permits, but it is an ASSUMPTION until a quote store exists - use
-    #: `measure_spread_ticks` to replace it with the tape.
+    #: venue permits, and therefore the most optimistic value possible - use
+    #: `measure_spread_ticks` to replace it with the tape, or let `for_contract` read it from
+    #: `MEASURED_SPREAD_TICKS`.
     spread_ticks: float = 1.0
+    #: False when `spread_ticks` is the one-tick fallback rather than a measurement. Carried
+    #: so a result can say which it was instead of the reader having to know the table.
+    spread_measured: bool = False
 
     @classmethod
     def for_contract(cls, symbol: str, **kw) -> CostModel:
+        """Build the cost model for `symbol` from measured numbers where they exist.
+
+        The commission is required and has no default: brokers differ by a factor of three on
+        futures and a wrong commission on a micro can be most of the edge.
+
+        The spread is taken from `MEASURED_SPREAD_TICKS` when the root has quote data and
+        falls back to one tick when it does not. An explicit `spread_ticks=` in `kw` always
+        wins, because a caller measuring its own tape should not have to fight this table.
+        """
         c = inst.get(symbol)
         if not c.commission_round_turn:
             raise ValueError(
@@ -113,6 +163,11 @@ class CostModel:
                 "cost model without a commission is not conservative, it is wrong - on a "
                 "micro contract the commission can exceed the edge. Record the rate from "
                 "your own broker statement.")
+        if "spread_ticks" not in kw:
+            measured = MEASURED_SPREAD_TICKS.get(symbol.upper())
+            if measured is not None:
+                kw["spread_ticks"] = measured
+                kw.setdefault("spread_measured", True)
         return cls(commission_per_side=c.commission_round_turn / 2, **kw)
 
 
@@ -310,6 +365,23 @@ class ExecutionSimulator:
         95.6% of bars at one tick, giving 0.480 bps of round turn at ES's median price of
         6,872. The model charges 0.480 bps. F-2a's independently measured realised cost was
         0.488 bps. Three numbers, agreeing to within 2%.
+
+        TWO CAVEATS ON THAT PARAGRAPH, both found on 2026-09-14.
+
+        The 0.480 bps figure predates the commission correction. With the published Topstep
+        round turn of $3.78 rather than the earlier $4.00, the same calculation gives 0.4738
+        bps. The agreement with F-2a's 0.488 is unaffected; the number in the sentence is not.
+
+        The 95.6% one-tick share is from the assembled `ES_quotes.parquet`. Measured
+        independently on the 19 raw BID_ASK pages, RTH, the ES one-tick share is 77.4% over
+        152,736 observations. Both give a median of exactly 1.00 tick, which is the figure the
+        model uses, so the disagreement does not move any cost - but the two sources are not
+        interchangeable and the difference has not been explained.
+
+        The by-quarter table below is SPREAD ONLY. At 2026Q1's median price of 6,888,
+        12.50 / (6,888 x 50) is 0.363 bps exactly, which is the row shown - it excludes the
+        commission that the 0.480 figure above includes. They are different bases and sit two
+        paragraphs apart.
 
         WHY THE COST IS CHARGED IN TICKS AND NOT IN BASIS POINTS
         Measured on the ES quote store, RTH, by quarter:
