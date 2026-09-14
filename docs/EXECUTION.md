@@ -12,7 +12,7 @@ that produced it.
 |---|---|---|
 | ENGINE VALIDATED | partly | `tests/test_qb_adapter.py` (31 tests over the routing and the IBKR adapter), `tests/test_qb_mode.py`, `tests/test_intraday_p0.py` (32), `tests/test_qb_execution_sim.py` (44) — all passing as of this writing |
 | LIVE EXECUTION VALIDATED | **no** | order transmission is hard-disabled in both runners; **nothing has been sent since the disable landed** |
-| THE SYSTEM CAN SEND AN ORDER | **no, with one hole** | `intraday_trader.py` cannot. `paper_trade.py` cannot rebalance, but its `--flatten` / HALT branch is **not behind the guard** and still calls `ib.placeOrder` |
+| THE SYSTEM CAN SEND AN ORDER | **no** | Both runners refuse. The `--flatten` / HALT hole described below was real when this document was written and was closed the same day in `a6506fb`; `tests/test_no_order_can_be_transmitted.py` now enforces it |
 | PROFITABILITY DEMONSTRATED | **no** | see `docs/BACKTESTING.md` |
 
 ---
@@ -84,7 +84,16 @@ There is no condition on it. Everything below — the `IBKRAdapter` at line 805,
 a comment. Exit code 3 is the repository's "refused by a safety gate" code
 (`paper_trade.py` docstring, line 31).
 
-### The hole: `paper_trade.py --flatten` and `live/HALT` are NOT behind that guard
+### The hole that was here: `paper_trade.py --flatten` and `live/HALT`
+
+**CLOSED 2026-09-14 in `a6506fb`.** The section below is kept as the description of the
+defect, because a hole this shape can come back and the shape is the useful part. What
+changed: the flatten branch now checks `ORDER_TRANSMISSION_ENABLED` before it constructs
+anything, prints and logs `path="flatten"`, and pushes a message saying the positions are
+STILL OPEN and need closing by hand. The rebalance guard, which used to be unconditional,
+now reads the same constant, so one switch governs both paths instead of a half-thaw in
+which the runner could close positions but not open them.
+
 
 `docs/READINESS_REMEDIATION_REPORT.md` states that "the two existing IBKR runner paths are now
 hard-refused before a broker order can be made." **For `paper_trade.py` that is true of the
@@ -115,9 +124,15 @@ approval-file check (line 779) — so it does not even require `live/APPROVED_PA
 
 Whether that is a bug depends on what the disable is for. If the aim is "no new risk", flatten
 is the one order you want to keep. If the aim is what the remediation report says — "no broker
-order can be made" — it is a gap. Either way the report and the code disagree, and there is no
-test on the `paper_trade.py` refusal at all: `grep -rn "research_remediation_hard_disable" tests/`
-returns nothing.
+order can be made" — it is a gap. It was resolved in favour of the second reading, and the
+reasoning is worth stating because it is not obvious: refusing to flatten is safe here ONLY
+because nothing in the repository can open a position. With no way in, there is no need for an
+automatic way out, and a human closing a position deliberately beats a scheduled task doing it
+quietly. That argument stops holding the moment either runner is thawed, which is why the two
+paths now share one switch.
+
+There is also now a test, which there was not: `tests/test_no_order_can_be_transmitted.py`, ten
+assertions, in the 09:25 gating set so a failure stops the sleeve rather than warning.
 
 ### What would have to change to enable transmission
 
@@ -533,8 +548,10 @@ decided on.
 - **No live-execution path for futures at all.** `brokers/projectx.py` raises on submit and has
   no caller. The only adapter that reaches a venue is IBKR, and it trades equities on a paper
   account.
-- **No test on `paper_trade.py`'s transmission refusal**, and its flatten branch is not covered
-  by that refusal.
+- ~~No test on `paper_trade.py`'s transmission refusal~~ — added in `a6506fb`, extended in
+  `f0bf65a`'s follow-up. The remaining limit is stated in the test's own docstring: it is a
+  source-structure test and cannot prove the ABSENCE of an order path, only that the paths
+  which exist are guarded.
 
 ## What this document does not claim
 

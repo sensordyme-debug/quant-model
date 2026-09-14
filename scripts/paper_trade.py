@@ -1,10 +1,18 @@
 #!/usr/bin/env python
 """IBKR paper-trading runner for the champion strategy (ib_async, IB Gateway on 127.0.0.1:4002).
 
-Safety gates, all enforced before any order is sent:
-  * live/APPROVED_PAPER.md must exist (the human's go-ahead for paper orders)
+ORDER TRANSMISSION IS OFF. `ORDER_TRANSMISSION_ENABLED = False` below, and BOTH paths in this
+file read it: the rebalance path and the `--flatten` / `live/HALT` path. Nothing here can reach
+a venue. `tests/test_no_order_can_be_transmitted.py` enforces that and is in the 09:25 gating
+set, so a regression stops the sleeve rather than warning.
+
+Safety gates, in the order they are reached:
   * the connected account id must start with "DU" (IBKR paper accounts)
-  * live/HALT must not exist; if it does, every position is flattened and the run stops
+  * live/HALT or --flatten: the run WOULD flatten, and while transmission is off it refuses
+    instead, logs the open positions and says loudly that they need closing by hand. It does
+    NOT close them. That is safe only because nothing here can open a position either.
+  * live/APPROVED_PAPER.md must exist (the human's go-ahead for paper orders)
+  * the transmission switch, checked again before the rebalance path builds anything
   * --dry-run computes and prints the orders and stops
 
 Usage:
@@ -823,13 +831,21 @@ def main() -> int:
 
     # ---- execution --------------------------------------------------------------------
     # Signal -> OrderIntent -> risk -> adapter -> broker. The contracts are qualified up
-    # This repository is in research/backtest remediation. Keep this guard before
-    # any broker object so a CLI flag or stale approval cannot transmit an order.
-    print("REFUSED: order transmission is hard-disabled during research remediation")
-    log_event("refused", reason="research_remediation_hard_disable")
-    notify("paper_trade REFUSED: order transmission is hard-disabled during research remediation. " + plan_text)
-    ib.disconnect()
-    return 3
+    # This repository is in research/backtest remediation. Keep this guard before any broker
+    # object so a CLI flag or stale approval cannot transmit an order.
+    #
+    # It reads ORDER_TRANSMISSION_ENABLED rather than being unconditional, so that ONE
+    # constant governs both paths in this file. It used to be unconditional, which meant
+    # flipping the switch to True re-armed the flatten branch above and left this one dead -
+    # a half-thaw, in the direction where the runner can close positions but not open them,
+    # which is the sort of asymmetry nobody discovers until the day it matters.
+    if not ORDER_TRANSMISSION_ENABLED:
+        print("REFUSED: order transmission is hard-disabled during research remediation")
+        log_event("refused", reason="research_remediation_hard_disable", path="rebalance")
+        notify("paper_trade REFUSED: order transmission is hard-disabled during research "
+               "remediation. " + plan_text)
+        ib.disconnect()
+        return 3
 
     # The code below remains intentionally unreachable until a reviewed controlled
     # deployment change removes the remediation guard.

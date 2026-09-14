@@ -32,12 +32,14 @@ $50K Trading Combine
     payout minimum           $125
     round-turn commission    ES/NQ $3.78, MES/MNQ $1.22
 
-DEFECTS PINNED WITH xfail(strict=True)
---------------------------------------
-A strict xfail is a tripwire in both directions: the test must fail today, and the day the
-defect is fixed the marker itself becomes an error, so a fix cannot be smuggled in by
-deleting the test. Ten defects are pinned, each xfail reason carrying the official
-citation and the module-level cause:
+TEN DEFECTS, ALL NOW FIXED
+--------------------------
+These were pinned with `xfail(strict=True)`: a tripwire in both directions, since the test had
+to fail while the defect stood and the marker itself became an error the day it was fixed, so
+no fix could be smuggled in by deleting the test. The mechanism worked. All ten were fixed on
+2026-09-14, every marker is gone, and each test now carries a dated RATCHET CLEARED line saying
+what landed. The list is kept because knowing what was once wrong is how a reader judges what
+to re-check:
 
     consistency boundary  the < / <= reading is a hard-coded operator, not a reading
     payout minimum        a $75 payout is recorded; the published minimum is $125

@@ -149,11 +149,34 @@ def _guarded_chokepoints(tree: ast.Module) -> set[str]:
     A single chokepoint is the better design of the two, and this function is what lets the
     test accept it instead of forcing every caller to repeat a check.
     """
-    out = set()
+    by_name: dict[str, list] = {}
     for fn in _enclosing_functions(tree):
-        if _guard_lines(fn):
-            out.add(fn.name)
+        by_name.setdefault(fn.name, []).append(fn)
+    out = set()
+    for name, fns in by_name.items():
+        # EVERY definition of the name has to be safe, not just one. Matching on the name
+        # alone was the first version of this and it has a hole worth stating:
+        # `intraday_trader.py` defines both `LiveExecutor.submit`, which is guarded, and
+        # `SimExecutor.submit`, which is not - and once the guarded one existed, every call
+        # written `x.submit(...)` was exempt regardless of which class it landed on. Today
+        # `SimExecutor.submit` only updates a dict and cannot reach a venue, so nothing is
+        # actually wrong; the point is that the test could not tell.
+        #
+        # "Safe" is therefore guarded OR demonstrably broker-free: a body that names none of
+        # the broker handles below cannot place an order whatever it is called.
+        if all(_guard_lines(fn) or not _touches_a_broker(fn) for fn in fns):
+            out.add(name)
     return out
+
+
+#: Identifiers that only appear in code that can reach a venue. A function whose body
+#: mentions none of these is not the function that places an order.
+BROKER_HANDLES = ("IBKRAdapter", "RoutedExecutor", "placeOrder", "qualifyContracts",
+                  "self.adapter", "self.ib", "ib.")
+
+
+def _touches_a_broker(fn) -> bool:
+    return any(h in ast.unparse(fn) for h in BROKER_HANDLES)
 
 
 @pytest.mark.runner
@@ -236,3 +259,40 @@ def test_the_venue_call_list_still_matches_the_code():
     assert not missing, (
         f"{missing} no longer appear in either runner. Either they were renamed - in which "
         f"case add the new name here before deleting the old one - or the path is gone.")
+
+
+def test_a_same_named_method_cannot_hide_behind_a_guarded_one():
+    """The hole the chokepoint rule closes, asserted directly.
+
+    `intraday_trader.py` defines `submit` twice: `LiveExecutor.submit`, which is guarded, and
+    `SimExecutor.submit`, which is not. Under a rule that matched on the name alone, the
+    guarded one made every `submit` call in the file exempt. `SimExecutor.submit` is safe
+    today because it only updates a dict, and this test says that out loud so that the day it
+    grows a broker handle the exemption disappears with it.
+    """
+    tree, _ = _tree("scripts/intraday_trader.py")
+    submits = [fn for fn in _enclosing_functions(tree) if fn.name == "submit"]
+    assert len(submits) >= 2, (
+        f"expected at least two definitions of submit in intraday_trader.py, found "
+        f"{len(submits)}; if the simulator was renamed, this test is stale rather than wrong")
+    guarded = [fn for fn in submits if _guard_lines(fn)]
+    brokerless = [fn for fn in submits if not _touches_a_broker(fn)]
+    assert guarded, "no definition of submit checks the switch"
+    assert len(guarded) + len(brokerless) >= len(submits), (
+        "a definition of submit neither checks the switch nor is free of broker handles")
+
+
+def test_both_paths_in_paper_trade_read_the_same_switch():
+    """One constant, both paths.
+
+    The rebalance guard was unconditional while the flatten branch had none, so flipping
+    ORDER_TRANSMISSION_ENABLED to True would have re-armed flatten and left rebalance dead -
+    a half-thaw in which the runner can close positions but not open them. Whatever the
+    switch is set to, both paths must agree with it.
+    """
+    _, src = _tree("scripts/paper_trade.py")
+    assert src.count(f"if not {SWITCH}") >= 2, (
+        "paper_trade.py has fewer than two switch checks; the flatten path and the rebalance "
+        "path must each read it")
+    assert 'path="flatten"' in src and 'path="rebalance"' in src, (
+        "each refusal must say which path it came from, so a log line is diagnosable")
