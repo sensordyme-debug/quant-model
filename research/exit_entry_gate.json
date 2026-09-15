@@ -1,0 +1,8 @@
+{
+ "breakout.failed_reversal|MNQ": "PASS",
+ "revert.vwap.q95|MNQ": "MARGINAL",
+ "revert.vwap.q90|NQ": "FAIL",
+ "session.midday_reversion|MNQ": "MARGINAL",
+ "trend.ret_30.q80|MNQ": "MARGINAL",
+ "breakout.range_expansion.q80|MNQ": "FAIL"
+}

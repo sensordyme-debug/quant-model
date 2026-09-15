@@ -79,6 +79,30 @@ from tests.golden import build as gb  # noqa: E402
 #: suite is what `intraday_launch` runs as the 09:25 gate.
 pytestmark = pytest.mark.golden
 
+
+@pytest.fixture(autouse=True)
+def _golden_session_window():
+    """Every fixture in `tests/golden/build.py` is a 09:30-15:45 ET day, so this suite says so.
+
+    `futures_discover` has no default session any more. It used to default to 09:30-15:45,
+    which is twenty-five minutes short of the 16:10 ET Topstep flatten deadline and throws
+    away the heaviest quarter-hour of the session; a caller who never thought about the
+    window silently got the wrong one. The loaders now refuse to run until a window is
+    declared, and this fixture is that declaration for the golden datasets - whose bar
+    counts, DST boundaries and early-close arithmetic were all worked out by hand against
+    the legacy window and would have to be recomputed to move.
+
+    The prior module state is restored afterwards so that this suite cannot leak a window
+    into whatever runs next in the same interpreter.
+    """
+    before = (fd.OPEN_ET, fd.CLOSE_ET, fd.SESSION_BARS)
+    fd.use_session(*fd.LEGACY_1545_SESSION)
+    try:
+        yield
+    finally:
+        fd.OPEN_ET, fd.CLOSE_ET, fd.SESSION_BARS = before
+
+
 #: The four roots the store actually has verified data for.
 ROOTS = ("ES", "MES", "NQ", "MNQ")
 
@@ -849,9 +873,47 @@ def test_the_early_close_is_dropped_rather_than_scaled(tmp_path):
 
 
 def test_the_session_length_is_derived_from_the_window_not_written_down():
-    """Protects: the one place the session length lives. 09:30-15:45 inclusive is 376."""
+    """Protects: that the bar count follows the window instead of being a separate literal.
+
+    Two windows, one derivation. 09:30-15:45 inclusive is 376 start-stamped minutes and
+    09:30-16:00 inclusive is 391; if `SESSION_BARS` were written down rather than computed,
+    one of these would be wrong and `session_frames` - which filters on
+    `len(g) != SESSION_BARS` - would silently discard every session.
+    """
+    fd.use_session(*fd.LEGACY_1545_SESSION)
+    assert (fd.OPEN_ET, fd.CLOSE_ET) == ("09:30", "15:45")
     assert fd.SESSION_BARS == gb.FULL_SESSION_BARS == 376
-    assert fd.OPEN_ET == "09:30" and fd.CLOSE_ET == "15:45"
+
+    fd.use_session(*fd.TOPSTEP_SESSION)
+    assert (fd.OPEN_ET, fd.CLOSE_ET) == ("09:30", "16:00")
+    assert fd.SESSION_BARS == 391
+
+    with pytest.raises(ValueError):
+        fd.use_session("16:00", "09:30")
+
+
+@needs_parquet
+def test_the_loaders_refuse_to_run_until_a_session_window_is_declared(tmp_path):
+    """Protects: that there is no default session, dangerous or otherwise.
+
+    The old default of 09:30-15:45 flattened twenty-five minutes before the 16:10 ET
+    deadline a Topstep account actually has, and a caller who never named a window got it
+    anyway. The replacement must FAIL CLOSED: with no window set, both entry points raise
+    rather than picking one. A test that only checked the new default would pass just as
+    happily against a new wrong default.
+    """
+    store = write_store(gb.dataset_b_linear_trend(), tmp_path, "no_window")
+    fd.OPEN_ET = fd.CLOSE_ET = fd.SESSION_BARS = None
+
+    with pytest.raises(RuntimeError, match="no session window has been set"):
+        fd.load(store, "ES")
+
+    fd.use_session(*fd.LEGACY_1545_SESSION)
+    loaded = fd.load(store, "ES")
+    fd.OPEN_ET = fd.CLOSE_ET = fd.SESSION_BARS = None
+
+    with pytest.raises(RuntimeError, match="no session window has been set"):
+        fd.session_frames(loaded)
 
 
 @needs_parquet

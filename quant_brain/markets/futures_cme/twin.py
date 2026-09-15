@@ -57,6 +57,35 @@ class TwinDay:
 
 
 @dataclass(frozen=True)
+class DayState:
+    """What the account looked like on one session. Recorded, never recomputed.
+
+    The twin already knows every one of these while it is stepping; before this existed a
+    caller who wanted the limit path had to rebuild it from the rulebook, which is a second
+    implementation of the thing being reported. `TwinResult.trace` hands back the levels the
+    breach test actually used.
+
+    `mll` and `dll` are the equity LEVELS in force for the session, fixed before its first
+    mark. `buffer_*` are the distances at the CLOSE; the intraday minima are `worst_*`.
+    """
+
+    day: dt.date
+    phase: str                      # the stage the session was traded under
+    opening_balance: float
+    closing_balance: float
+    mll: float
+    dll: float | None
+    buffer_mll: float
+    buffer_dll: float | None
+    worst_buffer_mll: float
+    worst_buffer_dll: float | None
+    worst_mark: float
+    settled_pnl: float
+    survived: bool
+    event: str                      # "" | "dll_capped" | "breach_intraday" | "breach_eod"
+
+
+@dataclass(frozen=True)
 class PayoutPolicy:
     """When to take money out. Not a formality - see the module docstring.
 
@@ -106,6 +135,8 @@ class TwinResult:
     breach_reason: str = ""
     min_buffer: float = 0.0
     min_buffer_funded: float = 0.0           # the buffer that matters after passing
+    #: One entry per session actually stepped, in order. Purely a record.
+    trace: list[DayState] = field(default_factory=list)
     final_balance: float = 0.0
     path_supplied: bool = True
 
@@ -173,12 +204,18 @@ class TopstepTwin:
 
     # -- one session, against whichever account is live -------------------------------------
 
-    def _step(self, account: ts.TopstepAccount, day: TwinDay) -> tuple[bool, str]:
-        """Apply one session. Returns (survived, reason).
+    def _step(self, account: ts.TopstepAccount,
+              day: TwinDay) -> tuple[bool, str, DayState]:
+        """Apply one session. Returns (survived, reason, the state it was traded under).
 
         The order matters and follows the rulebook rather than convenience: the intraday
         breach test runs on every mark before the day is settled, because Topstep liquidates
         the moment equity touches the MLL and does not wait for the close.
+
+        The `DayState` is a RECORD of the levels this step used, not a second computation of
+        them. It is built from `mll_level` and `dll_level` - the same locals the breach test
+        reads - so a caller reporting the limit path and the twin deciding the breach can
+        never be looking at different numbers.
         """
         dll = account.profile.daily_loss_limit
         # Both limits are equity LEVELS the day can fall through, and both are fixed for the
@@ -191,9 +228,25 @@ class TopstepTwin:
         # above the DLL, and then the DLL protects nothing.
         mll_level = account.mll
         dll_level = (account.balance - dll) if dll is not None else -math.inf
+        opening = account.balance
+        phase = account.stage.value
+        worst_equity = opening
+
+        def state(closing: float, settled: float, survived: bool, event: str) -> DayState:
+            return DayState(
+                day=day.day, phase=phase, opening_balance=opening,
+                closing_balance=closing, mll=mll_level,
+                dll=(dll_level if dll is not None else None),
+                buffer_mll=closing - mll_level,
+                buffer_dll=(closing - dll_level) if dll is not None else None,
+                worst_buffer_mll=worst_equity - mll_level,
+                worst_buffer_dll=((worst_equity - dll_level) if dll is not None else None),
+                worst_mark=worst_equity - opening, settled_pnl=settled,
+                survived=survived, event=event)
 
         for mark in day.path:
             account.mark(mark)
+            worst_equity = min(worst_equity, account.equity)
             hit_dll = account.equity <= dll_level
             hit_mll = account.equity <= mll_level
             if hit_dll and hit_mll:
@@ -202,21 +255,26 @@ class TopstepTwin:
                 hit_mll = mll_level > dll_level
                 hit_dll = not hit_mll
             if hit_mll:
-                return False, (f"intraday equity {account.equity:,.0f} reached the MLL "
-                               f"{mll_level:,.0f}")
+                reason = (f"intraday equity {account.equity:,.0f} reached the MLL "
+                          f"{mll_level:,.0f}")
+                return False, reason, state(account.equity, 0.0, False, "breach_intraday")
             if hit_dll and dll is not None:      # dll_level is -inf when the DLL is off
                 # 8284207: flat, cancelled, no new trades until 5 PM CT next session. The
                 # day ends at the capped loss; the account survives.
                 account.mark(0.0)
                 account.settle_day(-dll, traded=day.traded)
-                return (not account.breached()), "daily loss limit - session over"
+                alive = not account.breached()
+                return (alive, "daily loss limit - session over",
+                        state(account.balance, -dll, alive, "dll_capped"))
         account.mark(0.0)
         pnl = day.pnl if dll is None else max(day.pnl, -dll)
         account.settle_day(pnl, traded=day.traded)
+        worst_equity = min(worst_equity, account.balance)
         if account.breached():
-            return False, (f"end-of-day balance {account.balance:,.0f} reached the MLL "
-                           f"{account.mll:,.0f}")
-        return True, ""
+            reason = (f"end-of-day balance {account.balance:,.0f} reached the MLL "
+                      f"{account.mll:,.0f}")
+            return False, reason, state(account.balance, pnl, False, "breach_eod")
+        return True, "", state(account.balance, pnl, True, "")
 
     def run(self, sessions: Sequence[TwinDay]) -> TwinResult:
         if self.strict_path and any(not d.path for d in sessions):
@@ -238,7 +296,8 @@ class TopstepTwin:
 
         for i, day in enumerate(sessions):
             result.days = i + 1
-            survived, reason = self._step(account, day)
+            survived, reason, day_state = self._step(account, day)
+            result.trace.append(day_state)
             # Only measured while the account is alive. Recording the distance on the
             # breaching day would make "minimum buffer" negative on every failed path, which
             # is not a buffer - it is the overshoot past a barrier the account never crossed

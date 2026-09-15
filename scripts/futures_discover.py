@@ -50,7 +50,53 @@ LEDGER = Path("research/experiments_futures.jsonl")
 #: carry an ES point ($50) or an NQ point ($20), so the grid is priced on the parent series
 #: and sized in the micro. The micro is also what the account is permitted at entry.
 TRADED = {"ES": "MES", "NQ": "MNQ", "MES": "MES", "MNQ": "MNQ"}
-OPEN_ET, CLOSE_ET = "09:30", "15:45"
+#: THE SESSION WINDOW IS NOT SET BY DEFAULT, AND THAT IS DELIBERATE.
+#:
+#: This module used to default to 09:30-15:45. That is WRONG for anything Topstep-related:
+#: the mandatory flat is 15:10 CT = 16:10 ET, so 15:45-16:00 ET is eligible trading time -
+#: and measured on this store it is the heaviest quarter-hour of the day, 10.58% of RTH
+#: volume. Five research phases had to override the constant by hand, and a caller who forgot
+#: silently got a truncated session and a flatten 25 minutes early.
+#:
+#: A dangerous implicit default is not fixed by documenting it. `load` and `session_frames`
+#: now REFUSE to run until a caller states the window through `use_session`, which also
+#: recomputes SESSION_BARS - the second half of the old footgun, because setting CLOSE_ET
+#: without SESSION_BARS silently dropped every session.
+OPEN_ET: str | None = None
+CLOSE_ET: str | None = None
+SESSION_BARS: int | None = None
+
+#: The window every Topstep-compatible backtest should use: 09:30-16:00 ET, ten minutes
+#: inside the 16:10 ET flatten. Named so callers can state it rather than retype it.
+TOPSTEP_SESSION = ("09:30", "16:00")
+#: The legacy window, kept ONLY so the golden fixtures can ask for it by name.
+LEGACY_1545_SESSION = ("09:30", "15:45")
+
+
+def use_session(open_et: str, close_et: str) -> None:
+    """Set the session window and derive SESSION_BARS from it, atomically.
+
+    Always use this rather than assigning the constants: assigning CLOSE_ET alone leaves
+    SESSION_BARS stale, and `session_frames` filters on `len(g) != SESSION_BARS`, so every
+    session is silently discarded and the run reports zero trades rather than an error.
+    """
+    global OPEN_ET, CLOSE_ET, SESSION_BARS
+    o = dt.datetime.strptime(open_et, "%H:%M")
+    c = dt.datetime.strptime(close_et, "%H:%M")
+    if c <= o:
+        raise ValueError(f"close {close_et} is not after open {open_et}")
+    OPEN_ET, CLOSE_ET = open_et, close_et
+    SESSION_BARS = int((c - o).total_seconds() // 60) + 1
+
+
+def _require_session() -> None:
+    if OPEN_ET is None or CLOSE_ET is None or SESSION_BARS is None:
+        raise RuntimeError(
+            "no session window has been set. Call "
+            "futures_discover.use_session(*futures_discover.TOPSTEP_SESSION) for the "
+            "Topstep-compatible 09:30-16:00 ET window, or pass your own. There is no "
+            "default: the previous default of 09:30-15:45 flattened 25 minutes before the "
+            "actual deadline and discarded the heaviest quarter-hour of the session.")
 
 #: Gate thresholds. Named and documented rather than tuned: a gate whose level was chosen
 #: after seeing the results is not a gate.
@@ -87,6 +133,7 @@ MAX_CEILING_SHARE = 0.20
 
 
 def load(store: Path, symbol: str) -> pd.DataFrame:
+    _require_session()
     df = pd.read_parquet(store)
     fdq.require_usable(symbol, df, time_col="t")
     df["t"] = pd.to_datetime(df["t"], utc=True)
@@ -99,11 +146,6 @@ def load(store: Path, symbol: str) -> pd.DataFrame:
     return rth[rth["day"].isin(good[good == 1].index)].reset_index(drop=True)
 
 
-#: Start-stamped minute bars from OPEN_ET to CLOSE_ET inclusive. Derived, not written down,
-#: so changing the window cannot leave a stale constant behind.
-SESSION_BARS = int(
-    (dt.datetime.strptime(CLOSE_ET, "%H:%M") - dt.datetime.strptime(OPEN_ET, "%H:%M"))
-    .total_seconds() // 60) + 1
 
 
 def session_frames(df: pd.DataFrame) -> list[pd.DataFrame]:
@@ -142,6 +184,7 @@ def session_frames(df: pd.DataFrame) -> list[pd.DataFrame]:
     A real CME calendar would let those days be kept and scaled; that is the upgrade path,
     and it needs a verified holiday table this repo does not yet have.
     """
+    _require_session()
     out = []
     for _, g in df.groupby("day", sort=True):
         if len(g) != SESSION_BARS:

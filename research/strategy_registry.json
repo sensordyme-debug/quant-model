@@ -1,0 +1,988 @@
+[
+ {
+  "name": "trend.ret_15.q80",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "z_60"
+  ],
+  "parameters": {
+   "horizon": "ret_15",
+   "z_quantile": 0.8,
+   "z_hi": 1.313387977167344,
+   "z_lo": -1.276880818418731
+  },
+  "default_parameters": {
+   "horizon": "ret_15",
+   "z_quantile": 0.8,
+   "z_hi": 1.313387977167344,
+   "z_lo": -1.276880818418731
+  },
+  "tunable_parameters": [
+   "horizon",
+   "z_quantile"
+  ],
+  "entry_logic": "long when the h-minute return is positive AND the 60-bar z-score is above its train-split upper quantile; short on the mirror",
+  "exit_logic": "position closes when either leg of the condition fails",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "trend.ret_15.q90",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "z_60"
+  ],
+  "parameters": {
+   "horizon": "ret_15",
+   "z_quantile": 0.9,
+   "z_hi": 1.7247808633869104,
+   "z_lo": -1.7879812047367158
+  },
+  "default_parameters": {
+   "horizon": "ret_15",
+   "z_quantile": 0.9,
+   "z_hi": 1.7247808633869104,
+   "z_lo": -1.7879812047367158
+  },
+  "tunable_parameters": [
+   "horizon",
+   "z_quantile"
+  ],
+  "entry_logic": "long when the h-minute return is positive AND the 60-bar z-score is above its train-split upper quantile; short on the mirror",
+  "exit_logic": "position closes when either leg of the condition fails",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "trend.ret_30.q80",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_30",
+   "z_60"
+  ],
+  "parameters": {
+   "horizon": "ret_30",
+   "z_quantile": 0.8,
+   "z_hi": 1.313387977167344,
+   "z_lo": -1.276880818418731
+  },
+  "default_parameters": {
+   "horizon": "ret_30",
+   "z_quantile": 0.8,
+   "z_hi": 1.313387977167344,
+   "z_lo": -1.276880818418731
+  },
+  "tunable_parameters": [
+   "horizon",
+   "z_quantile"
+  ],
+  "entry_logic": "long when the h-minute return is positive AND the 60-bar z-score is above its train-split upper quantile; short on the mirror",
+  "exit_logic": "position closes when either leg of the condition fails",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "trend.ret_30.q90",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_30",
+   "z_60"
+  ],
+  "parameters": {
+   "horizon": "ret_30",
+   "z_quantile": 0.9,
+   "z_hi": 1.7247808633869104,
+   "z_lo": -1.7879812047367158
+  },
+  "default_parameters": {
+   "horizon": "ret_30",
+   "z_quantile": 0.9,
+   "z_hi": 1.7247808633869104,
+   "z_lo": -1.7879812047367158
+  },
+  "tunable_parameters": [
+   "horizon",
+   "z_quantile"
+  ],
+  "entry_logic": "long when the h-minute return is positive AND the 60-bar z-score is above its train-split upper quantile; short on the mirror",
+  "exit_logic": "position closes when either leg of the condition fails",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "trend.ret_60.q80",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_60",
+   "z_60"
+  ],
+  "parameters": {
+   "horizon": "ret_60",
+   "z_quantile": 0.8,
+   "z_hi": 1.313387977167344,
+   "z_lo": -1.276880818418731
+  },
+  "default_parameters": {
+   "horizon": "ret_60",
+   "z_quantile": 0.8,
+   "z_hi": 1.313387977167344,
+   "z_lo": -1.276880818418731
+  },
+  "tunable_parameters": [
+   "horizon",
+   "z_quantile"
+  ],
+  "entry_logic": "long when the h-minute return is positive AND the 60-bar z-score is above its train-split upper quantile; short on the mirror",
+  "exit_logic": "position closes when either leg of the condition fails",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "trend.ret_60.q90",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_60",
+   "z_60"
+  ],
+  "parameters": {
+   "horizon": "ret_60",
+   "z_quantile": 0.9,
+   "z_hi": 1.7247808633869104,
+   "z_lo": -1.7879812047367158
+  },
+  "default_parameters": {
+   "horizon": "ret_60",
+   "z_quantile": 0.9,
+   "z_hi": 1.7247808633869104,
+   "z_lo": -1.7879812047367158
+  },
+  "tunable_parameters": [
+   "horizon",
+   "z_quantile"
+  ],
+  "entry_logic": "long when the h-minute return is positive AND the 60-bar z-score is above its train-split upper quantile; short on the mirror",
+  "exit_logic": "position closes when either leg of the condition fails",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "trend.ma_agree.30_120",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ma_dist_30",
+   "ma_dist_120"
+  ],
+  "parameters": {},
+  "default_parameters": {},
+  "tunable_parameters": [],
+  "entry_logic": "long when price is above both the 30- and 120-bar moving averages",
+  "exit_logic": "closes when the two averages disagree",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "trend.multi_horizon_agree",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "ret_30",
+   "ret_60"
+  ],
+  "parameters": {},
+  "default_parameters": {},
+  "tunable_parameters": [],
+  "entry_logic": "long when the 15-, 30- and 60-bar returns are all positive",
+  "exit_logic": "closes when the horizons disagree",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "trend.accel_confirm",
+  "family": "A.trend",
+  "family_name": "trend",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_30",
+   "accel_30"
+  ],
+  "parameters": {},
+  "default_parameters": {},
+  "tunable_parameters": [],
+  "entry_logic": "long when 30-bar acceleration and 30-bar return agree in sign",
+  "exit_logic": "closes when they disagree",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "breakout.opening_range.q90",
+  "family": "B.breakout",
+  "family_name": "breakout",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "minutes_from_open",
+   "opening_range_pos"
+  ],
+  "parameters": {
+   "quantile": 0.9,
+   "hi": 1.7052631578947368,
+   "lo": -1.0524265208475734
+  },
+  "default_parameters": {
+   "quantile": 0.9,
+   "hi": 1.7052631578947368,
+   "lo": -1.0524265208475734
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "long when price breaks above the opening range by more than the train-split quantile, after a warm-up",
+  "exit_logic": "closes on re-entry into the range",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "breakout.opening_range.q95",
+  "family": "B.breakout",
+  "family_name": "breakout",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "minutes_from_open",
+   "opening_range_pos"
+  ],
+  "parameters": {
+   "quantile": 0.95,
+   "hi": 1.9993449781659325,
+   "lo": -1.7872321428571427
+  },
+  "default_parameters": {
+   "quantile": 0.95,
+   "hi": 1.9993449781659325,
+   "lo": -1.7872321428571427
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "long when price breaks above the opening range by more than the train-split quantile, after a warm-up",
+  "exit_logic": "closes on re-entry into the range",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "breakout.range_expansion.q80",
+  "family": "B.breakout",
+  "family_name": "breakout",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "range_expansion"
+  ],
+  "parameters": {
+   "quantile": 0.8,
+   "level": 1.0580505855208742
+  },
+  "default_parameters": {
+   "quantile": 0.8,
+   "level": 1.0580505855208742
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "long when the session range expands past its quantile and price leads the move",
+  "exit_logic": "closes when expansion subsides",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "breakout.range_expansion.q90",
+  "family": "B.breakout",
+  "family_name": "breakout",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "range_expansion"
+  ],
+  "parameters": {
+   "quantile": 0.9,
+   "level": 1.1964498806682577
+  },
+  "default_parameters": {
+   "quantile": 0.9,
+   "level": 1.1964498806682577
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "long when the session range expands past its quantile and price leads the move",
+  "exit_logic": "closes when expansion subsides",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "breakout.failed_reversal",
+  "family": "B.breakout",
+  "family_name": "breakout",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "minutes_from_open",
+   "opening_range_pos"
+  ],
+  "parameters": {
+   "hi": 1.9993449781659325,
+   "lo": -1.7872321428571427
+  },
+  "default_parameters": {
+   "hi": 1.9993449781659325,
+   "lo": -1.7872321428571427
+  },
+  "tunable_parameters": [],
+  "entry_logic": "fades a breakout that immediately reverses",
+  "exit_logic": "closes when the reversal stalls",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "breakout.compression_expansion",
+  "family": "B.breakout",
+  "family_name": "breakout",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "rvol_30"
+  ],
+  "parameters": {
+   "quiet": 0.0001462085842735676
+  },
+  "default_parameters": {
+   "quiet": 0.0001462085842735676
+  },
+  "tunable_parameters": [],
+  "entry_logic": "enters on expansion out of a compressed range",
+  "exit_logic": "closes when compression returns",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "revert.z_60.q90",
+  "family": "C.reversion",
+  "family_name": "reversion",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "z_60"
+  ],
+  "parameters": {
+   "quantile": 0.9,
+   "hi": 1.7247808633869104,
+   "lo": -1.7879812047367158
+  },
+  "default_parameters": {
+   "quantile": 0.9,
+   "hi": 1.7247808633869104,
+   "lo": -1.7879812047367158
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "fades a 60-bar z-score beyond its train-split extreme",
+  "exit_logic": "closes when the z-score returns inside",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "revert.z_60.q95",
+  "family": "C.reversion",
+  "family_name": "reversion",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "z_60"
+  ],
+  "parameters": {
+   "quantile": 0.95,
+   "hi": 2.061061146245395,
+   "lo": -2.1770873223190588
+  },
+  "default_parameters": {
+   "quantile": 0.95,
+   "hi": 2.061061146245395,
+   "lo": -2.1770873223190588
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "fades a 60-bar z-score beyond its train-split extreme",
+  "exit_logic": "closes when the z-score returns inside",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "revert.vwap.q90",
+  "family": "C.reversion",
+  "family_name": "reversion",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "vwap_dist"
+  ],
+  "parameters": {
+   "quantile": 0.9,
+   "hi": 0.00331687773588049,
+   "lo": -0.0030613630565722656
+  },
+  "default_parameters": {
+   "quantile": 0.9,
+   "hi": 0.00331687773588049,
+   "lo": -0.0030613630565722656
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "fades distance from session VWAP beyond its train-split extreme",
+  "exit_logic": "closes when price returns toward VWAP",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "revert.vwap.q95",
+  "family": "C.reversion",
+  "family_name": "reversion",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "vwap_dist"
+  ],
+  "parameters": {
+   "quantile": 0.95,
+   "hi": 0.00452293750679076,
+   "lo": -0.004422875462700665
+  },
+  "default_parameters": {
+   "quantile": 0.95,
+   "hi": 0.00452293750679076,
+   "lo": -0.004422875462700665
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "fades distance from session VWAP beyond its train-split extreme",
+  "exit_logic": "closes when price returns toward VWAP",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "revert.z_calm_only",
+  "family": "C.reversion",
+  "family_name": "reversion",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "z_60",
+   "range_expansion"
+  ],
+  "parameters": {
+   "calm_below": 0.8877774216496377
+  },
+  "default_parameters": {
+   "calm_below": 0.8877774216496377
+  },
+  "tunable_parameters": [],
+  "entry_logic": "fades a z-score extreme ONLY when range expansion is below its median, so a genuine regime change is not faded",
+  "exit_logic": "closes on return or on expansion",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "session.late_day_continuation",
+  "family": "D.session",
+  "family_name": "session",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_30",
+   "minutes_from_open"
+  ],
+  "parameters": {
+   "after_minutes": 300,
+   "preregistered": true
+  },
+  "default_parameters": {
+   "after_minutes": 300,
+   "preregistered": true
+  },
+  "tunable_parameters": [],
+  "entry_logic": "takes a directional stance in the closing hour",
+  "exit_logic": "closes at the flatten",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "session.late_day_fade",
+  "family": "D.session",
+  "family_name": "session",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_30",
+   "minutes_from_open"
+  ],
+  "parameters": {
+   "after_minutes": 300
+  },
+  "default_parameters": {
+   "after_minutes": 300
+  },
+  "tunable_parameters": [],
+  "entry_logic": "takes a directional stance in the closing hour",
+  "exit_logic": "closes at the flatten",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "session.opening_drive",
+  "family": "D.session",
+  "family_name": "session",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "minutes_from_open"
+  ],
+  "parameters": {},
+  "default_parameters": {},
+  "tunable_parameters": [],
+  "entry_logic": "rides the first move off the open",
+  "exit_logic": "closes when the drive stalls",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "session.midday_reversion",
+  "family": "D.session",
+  "family_name": "session",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "z_60",
+   "minutes_from_open"
+  ],
+  "parameters": {},
+  "default_parameters": {},
+  "tunable_parameters": [],
+  "entry_logic": "fades the midday drift",
+  "exit_logic": "closes on return",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "vol.expansion_trend",
+  "family": "E.volatility",
+  "family_name": "volatility",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_30",
+   "rvol_30",
+   "rvol_120"
+  ],
+  "parameters": {},
+  "default_parameters": {},
+  "tunable_parameters": [],
+  "entry_logic": "rides direction when realised volatility expands",
+  "exit_logic": "closes when expansion subsides",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "vol.contraction_revert",
+  "family": "E.volatility",
+  "family_name": "volatility",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "z_60",
+   "rvol_30",
+   "rvol_120"
+  ],
+  "parameters": {},
+  "default_parameters": {},
+  "tunable_parameters": [],
+  "entry_logic": "fades direction when volatility contracts",
+  "exit_logic": "closes when contraction ends",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "vol.vol_of_vol_shock",
+  "family": "E.volatility",
+  "family_name": "volatility",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_30",
+   "vol_of_vol"
+  ],
+  "parameters": {
+   "shock": 0.00010735118845112364
+  },
+  "default_parameters": {
+   "shock": 0.00010735118845112364
+  },
+  "tunable_parameters": [],
+  "entry_logic": "reacts to a shock in the volatility of volatility",
+  "exit_logic": "closes when the shock passes",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "volume.heavy_continuation.q80",
+  "family": "F.volume",
+  "family_name": "volume",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "rel_volume"
+  ],
+  "parameters": {
+   "quantile": 0.8,
+   "level": 1.1957847972156306
+  },
+  "default_parameters": {
+   "quantile": 0.8,
+   "level": 1.1957847972156306
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "rides direction on heavy relative volume",
+  "exit_logic": "closes when volume normalises",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "volume.heavy_continuation.q90",
+  "family": "F.volume",
+  "family_name": "volume",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "ret_15",
+   "rel_volume"
+  ],
+  "parameters": {
+   "quantile": 0.9,
+   "level": 1.6067482857001583
+  },
+  "default_parameters": {
+   "quantile": 0.9,
+   "level": 1.6067482857001583
+  },
+  "tunable_parameters": [
+   "quantile"
+  ],
+  "entry_logic": "rides direction on heavy relative volume",
+  "exit_logic": "closes when volume normalises",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "volume.climax_reversion",
+  "family": "F.volume",
+  "family_name": "volume",
+  "source_module": "scripts/strategy_tournament.py",
+  "required_features": [
+   "z_60",
+   "volume_accel"
+  ],
+  "parameters": {
+   "accel": 1.2819194637618097
+  },
+  "default_parameters": {
+   "accel": 1.2819194637618097
+  },
+  "tunable_parameters": [],
+  "entry_logic": "fades a volume climax",
+  "exit_logic": "closes on return",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": false,
+  "notes": "pre-existing in the tournament library"
+ },
+ {
+  "name": "added.donchian_breakout",
+  "family": "H.added",
+  "family_name": "added",
+  "source_module": "scripts/strategy_registry.py",
+  "required_features": [
+   "minutes_from_open",
+   "opening_range_pos"
+  ],
+  "parameters": {
+   "channel_quantile": 0.95,
+   "warmup_minutes": 20,
+   "hi": 1.9993449781659325,
+   "lo": -1.7872321428571427
+  },
+  "default_parameters": {
+   "channel_quantile": 0.95,
+   "warmup_minutes": 20,
+   "hi": 1.9993449781659325,
+   "lo": -1.7872321428571427
+  },
+  "tunable_parameters": [
+   "channel_quantile",
+   "warmup_minutes"
+  ],
+  "entry_logic": "long on a break above the session channel extreme after a 20-bar warm-up; short on the mirror",
+  "exit_logic": "closes on re-entry into the channel",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": true,
+  "notes": "added by this phase; canonical parameters, no prior standing"
+ },
+ {
+  "name": "added.bollinger_revert.2sd",
+  "family": "H.added",
+  "family_name": "added",
+  "source_module": "scripts/strategy_registry.py",
+  "required_features": [
+   "z_60"
+  ],
+  "parameters": {
+   "sigma": 2.0
+  },
+  "default_parameters": {
+   "sigma": 2.0
+  },
+  "tunable_parameters": [
+   "sigma"
+  ],
+  "entry_logic": "fades a 2-sigma band touch, the canonical parameter, uncalibrated",
+  "exit_logic": "closes when the z-score returns inside 2 sigma",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": true,
+  "notes": "added by this phase; canonical parameters, no prior standing"
+ },
+ {
+  "name": "added.vwap_trend",
+  "family": "H.added",
+  "family_name": "added",
+  "source_module": "scripts/strategy_registry.py",
+  "required_features": [
+   "vwap_dist",
+   "rvol_30"
+  ],
+  "parameters": {
+   "vol_gate_quantile": 0.5,
+   "gate": 0.0002453022234064424
+  },
+  "default_parameters": {
+   "vol_gate_quantile": 0.5,
+   "gate": 0.0002453022234064424
+  },
+  "tunable_parameters": [
+   "vol_gate_quantile"
+  ],
+  "entry_logic": "rides distance from VWAP when relative volume is above its median",
+  "exit_logic": "closes when the gate closes or the sign flips",
+  "stop_logic": "NONE - no stop is implemented",
+  "target_logic": "NONE - no profit target is implemented",
+  "session_restriction": "09:30-16:00 ET, flat at session end",
+  "implementation_status": "implemented",
+  "backtestable": true,
+  "combine_compatible": true,
+  "newly_added": true,
+  "notes": "added by this phase; canonical parameters, no prior standing"
+ }
+]

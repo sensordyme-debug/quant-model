@@ -1,0 +1,29 @@
+{
+ "rule_hash": "8ed5bb73283cb506",
+ "spec": {
+  "mechanism_id": "breakout.failed_reversal",
+  "family": "B.breakout",
+  "source_module": "scripts/strategy_tournament.py",
+  "source_lines": "230-237",
+  "bar_timeframe": "1 minute",
+  "session_window_et": "09:30-16:00",
+  "features_required": [
+   "opening_range_pos",
+   "minutes_from_open"
+  ],
+  "warmup_minutes": 45,
+  "upper_quantile": 0.95,
+  "lower_quantile": 0.05,
+  "calibration": "quantiles of opening_range_pos on the first 50% of sessions, frozen",
+  "entry_long": "prev_bar_orp > q95 AND this_bar_orp < q95",
+  "entry_short": "prev_bar_orp < q05 AND this_bar_orp > q05",
+  "direction_convention": "position is taken in the direction of the ORIGINAL breakout; the bet is that the retracement fails",
+  "exit": "signal invalidation (position closes when the signal is no longer that direction) plus mandatory session-end flatten; equivalently a 1-bar hold, since the signal is a single-bar crossing event",
+  "stop": "NONE",
+  "target": "NONE",
+  "sizing": "1 contract / 100 shares equivalent, fixed",
+  "prev_at_first_bar": "hardcoded 0.0; harmless because the 45-minute warm-up excludes the first bar and features are built per session so `prev` never crosses a session boundary"
+ },
+ "source": "def failed_reversal(orp, mins, hi, lo):\n    \"\"\"opening_range_pos, minutes_from_open, upper threshold, lower threshold.\"\"\"\n    live = mins > 45\n    prev = np.concatenate(([0.0], orp[:-1]))\n    long_cond = live & (prev > hi) & (orp < hi)\n    short_cond = live & (prev < lo) & (orp > lo)\n    pos = np.zeros(len(orp), dtype=float)\n    pos[long_cond & ~short_cond] = 1.0\n    pos[short_cond & ~long_cond] = -1.0\n    return pos",
+ "matches_live_implementation": true
+}
