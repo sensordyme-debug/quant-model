@@ -42,7 +42,7 @@ C. RISK
   MFE distribution ($)           n=340  mean 19  p5 1  p25 7  med 14  p75 24  p95 59  min 0  max 120
   MAE/MFE basis                  bar-resolution extreme: the worst price printed by any one-minute bar the trade was open across. An UPPER BOUND on what the trade experienced, because a trade entered part-way through a bar did not see all of that bar's range.
   average risk per trade         $15.34
-  risk basis                     NO STOP DECLARED: risk per trade is undefined, so the figure below is the realised average loss on losing trades, which is not the same quantity
+  risk basis                     NO STOP DECLARED: risk per trade is undefined, so the figure above is the realised average loss on losing trades, which is not the same quantity
   worst daily loss               $-97  on 2026-04-02
   best daily gain                $181
   exposure                       0.3% of session bars holding a position
@@ -88,31 +88,32 @@ D. TIME DISTRIBUTION
 
 E. TOPSTEP ACCOUNT
   starting balance                      $50,000
-  ending STRATEGY equity                $100,301  (P&L $50,301)
-  ending ACCOUNT equity                 $50,301
+  ending STRATEGY equity                $50,301  (strategy P&L $+301, unconstrained)
+  ending ACCOUNT equity                 $50,301  (P&L under the account's rules $+301)
   MLL at the end                        $48,470
   minimum MLL buffer                    $1,796   intraday $1,790
   DLL                                   not armed
   liquidation                           False
-  $3,000 target                         False
+  Combine target reached                False
+  what 'target' means here              NOT simply 'profit >= $3,000'. It is Topstep's Combine pass condition: profit at or above the target AFTER the consistency rule has been applied, plus the minimum trading days. The consistency rule RAISES the target when one day carries too much of the profit - a single +$3,100 day is 100% of profit against a 55% limit and lifts the target to $5,636, so it does NOT pass. Every 'target' figure in this report is the Combine condition, never the raw $3,000.
   forced flat                           0 sessions, $0
   maximum contracts                     1 of 50 MNQ permitted
   contract-limit violations             0
-  complete-account survival             249 of 71 sessions traded; terminal stage trading_combine
+  complete-account survival             survived 249 of 249 sessions, traded on 71; terminal stage trading_combine
   cross-check vs independent reference  AGREES (17 fields)
 
 F. PAYOUT ANALYSIS
-  rules version                   topstep-50k-2026-09-12
-  P(survive to target)            0.0%
-  P(payout eligibility)           0.0%
-  P(survive the period)           100.0%
-  payout-eligible sessions        0
-  first eligible                  never within the sample
-  sessions to first eligible      n/a
-  payouts taken under the policy  0  total $0
-  trader share                    $0
-  NOT A PAYOUT                    A backtest profit is not a payout. Everything above is the account simulation's own payout clock; nothing on this line is money that was withdrawn.
-  probability basis               HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.
+  rules version                           topstep-50k-2026-09-12
+  P(pass the Combine before a violation)  0.0%
+  P(payout eligibility)                   0.0%
+  P(survive the period)                   100.0%
+  payout-eligible sessions                0
+  first eligible                          never within the sample
+  sessions to first eligible              n/a
+  payouts taken under the policy          0  total $0
+  trader share                            $0
+  NOT A PAYOUT                            A backtest profit is not a payout. Everything above is the account simulation's own payout clock; nothing on this line is money that was withdrawn.
+  probability basis                       HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.
 
 EXECUTION SCENARIO LADDER
   mode                net $  expectancy $    maxDD $  MLL survives  P(target)  P(payout)
@@ -122,17 +123,18 @@ EXECUTION SCENARIO LADDER
   CONSERVATIVE          301          0.89       -204          True       0.0%       0.0%
   STRESS                131          0.39       -220          True       0.0%       0.0%
   The headline is CONSERVATIVE. IDEAL is printed only so the distance between them is visible as a number.
+  NOTE: the Sharpe and Sortino printed in the run's own EXECUTION LADDER table are DAILY-clock ratios scaled by sqrt(252). On a sample this short that is an arithmetic rescaling, not an annual expectation; nothing in this scorecard is annualised.
 
 MONTE CARLO / PATH SIMULATION
-  paths                   1,000 moving-block resamples, block 10, 249 sessions each
+  paths                   5,000 moving-block resamples, block 10, 249 sessions each
   P(MLL breach)           0.0%
   P(DLL hit)              DLL not armed
-  P(reach $3,000)         0.0%
+  P(pass the Combine)     0.0%
   P(payout eligible)      0.0%
   median days to target   never in over half the paths
-  ending strategy P&L     p5 -239  p25 78  p50 330  p75 579  p95 977
-  ending ACCOUNT balance  p5 49,761  p25 50,078  p50 50,330  p75 50,579  p95 50,977
-  worst drawdown          p5 -539  p25 -361  p50 -275  p75 -208  p95 -148
+  ending strategy P&L     p5 -227  p25 105  p50 359  p75 607  p95 992
+  ending ACCOUNT balance  p5 49,773  p25 50,105  p50 50,359  p75 50,607  p95 50,992
+  worst drawdown          p5 -529  p25 -353  p50 -268  p75 -206  p95 -146
   max losing streak       p5 2  p25 2  p50 2  p75 2  p95 3
   what this is            BOOTSTRAP / PATH SIMULATION, not historical replay and not independent evidence of an edge. It reorders the SAME sessions, so it inherits every bias in the sample and cannot discover one that is not already there. What it measures is PATH RISK: how differently the same sessions could have been arranged against a moving loss limit.
 
@@ -181,10 +183,18 @@ REGIME ANALYSIS  (every bucket is shown, including thin ones; buckets under 20 t
   exit reason
     signal_invalidation      340 trades  100.0%  net $       301  win  47.9%
 
+RESULT INTEGRITY  (is this result believable at all?)
+  one-bar oracle ceiling    $1,670,664  (what a perfect one-bar-ahead forecast would earn)
+  gross as a share of it    0.06%  limit 20%
+  lookahead canary          below the refusal level (which is evidence of nothing on its own - a rule that is rarely in the market earns a small share either way)
+  entry fill convention     decision bar's CLOSE, zero latency (declared, and optimistic: no one trades at a price they have just finished observing)
+  entry fill sensitivity    $-20.50 over the whole run
+  what that sensitivity is  what the SAME trades would have gained or lost if every entry had filled at the NEXT bar's open instead, exits held fixed. A large figure with the same sign as net P&L means the edge is the fill.
+
 STATISTICAL CONFIDENCE
   sample                           340 trades over 249 independent sessions and 13 months
   expectancy / session             $1.21
-  expectancy t                     0.75   (Newey-West HAC, lag 4)
+  expectancy t                     0.75   (hac, lag 4, n 249)
   expectancy 95% CI / session      [-1.94, 4.36]
   multiple-testing exposure        ONE spec was run, hashed, and reported. No search was performed inside this run, so no multiplicity correction applies to it. That does NOT cover how the spec was arrived at: if it was selected after looking at this data, the correction belongs to that selection and this report cannot see it.
   top 5% of sessions carry         384% of net

@@ -65,6 +65,25 @@ MAE_BASIS = ("bar-resolution extreme: the worst price printed by any one-minute 
 #: The verdict thresholds. Fixed HERE, in the module, so they are visible before any result
 #: exists. A threshold chosen after seeing a number is not a threshold, it is a decision
 #: wearing one - which is the same reasoning `futures_discover.MAX_CEILING_SHARE` carries.
+COMBINE_TARGET_NOTE = (
+    "NOT simply 'profit >= $3,000'. It is Topstep's Combine pass condition: profit at or "
+    "above the target AFTER the consistency rule has been applied, plus the minimum trading "
+    "days. The consistency rule RAISES the target when one day carries too much of the "
+    "profit - a single +$3,100 day is 100% of profit against a 55% limit and lifts the "
+    "target to $5,636, so it does NOT pass. Every 'target' figure in this report is the "
+    "Combine condition, never the raw $3,000.")
+
+#: Gross P&L as a share of the one-bar-ahead oracle ceiling, above which a result is treated
+#: as a suspected lookahead rather than a strategy. THE SAME measured band as
+#: `futures_discover.MAX_CEILING_SHARE`, and `tests/test_certification.py` asserts the two
+#: constants are equal so they cannot drift: the red team measured every planted cheat at
+#: >= 44.9% of the ceiling and the best clean causal rule at 3.97%, an 11x empty band, and
+#: 20% sits in the middle of it on a log scale.
+#:
+#: ONE-SIDED. A high share is strong evidence of a leak; a low share is evidence of nothing,
+#: because a rule that is in the market a tenth of the session has a tenth of the opportunity.
+LOOKAHEAD_CEILING_SHARE = 0.20
+
 MIN_TRADES_FOR_A_VERDICT = 30        # below this, no expectancy statistic means anything
 MIN_SESSIONS_FOR_A_VERDICT = 60      # a quarter of trading days
 MIN_MONTHS_FOR_A_VERDICT = 6
@@ -346,7 +365,7 @@ class MonteCarlo:
                       f"{self.sessions_per_path} sessions each"),
             ("P(MLL breach)", _pct(self.p_mll_breach)),
             ("P(DLL hit)", _pct(self.p_dll_hit) if self.dll_armed else "DLL not armed"),
-            ("P(reach $3,000)", _pct(self.p_reach_target)),
+            ("P(pass the Combine)", _pct(self.p_reach_target)),
             ("P(payout eligible)", _pct(self.p_payout_eligible)),
             ("median days to target",
              "never in over half the paths" if self.median_days_to_target is None
@@ -393,6 +412,47 @@ class RegimeBreakdown:
 # ======================================================================================
 # STATISTICS AND CLASSIFICATION
 # ======================================================================================
+
+@dataclass(frozen=True)
+class Integrity:
+    """The two checks that ask whether the RESULT ITSELF is believable, before its statistics.
+
+    Both exist because `run_strategy` had neither. The funnel refuses a hypothesis whose gross
+    exceeds a share of the one-bar oracle ceiling, and measures what the fill convention is
+    worth; the user-facing strategy path - the one about to be handed real strategies - did
+    both of nothing. A signal is arbitrary Python, so the feature-library causality audit
+    cannot see a lookahead written directly into it. This can.
+    """
+
+    oracle_ceiling: float
+    gross_pnl: float
+    ceiling_share: float
+    ceiling_limit: float
+    lookahead_suspected: bool
+    entry_fill_convention: str
+    entry_fill_sensitivity: float | None
+    entry_fill_note: str
+
+    def lines(self) -> list[tuple[str, str]]:
+        verdict = ("*** SUSPECTED LOOKAHEAD *** gross is above the refusal level; no causal "
+                   "rule measured in this repository has ever earned this share"
+                   if self.lookahead_suspected else
+                   "below the refusal level (which is evidence of nothing on its own - a "
+                   "rule that is rarely in the market earns a small share either way)")
+        sens = ("not computable (no open price on the store)"
+                if self.entry_fill_sensitivity is None
+                else f"${self.entry_fill_sensitivity:+,.2f} over the whole run")
+        return [
+            ("one-bar oracle ceiling", f"${self.oracle_ceiling:,.0f}  "
+                                       f"(what a perfect one-bar-ahead forecast would earn)"),
+            ("gross as a share of it", f"{self.ceiling_share:.2%}  "
+                                       f"limit {self.ceiling_limit:.0%}"),
+            ("lookahead canary", verdict),
+            ("entry fill convention", self.entry_fill_convention),
+            ("entry fill sensitivity", sens),
+            ("what that sensitivity is", self.entry_fill_note),
+        ]
+
 
 @dataclass(frozen=True)
 class Statistics:
@@ -460,6 +520,7 @@ class StrategyReport:
     ladder: list[dict]
     monte_carlo: MonteCarlo
     regime: RegimeBreakdown
+    integrity: Integrity
     statistics: Statistics
     classification: Classification
     limitations: list[str] = field(default_factory=list)
@@ -480,13 +541,16 @@ class StrategyReport:
                                     for r in self.time.quarterly]),
             _block("   yearly", [(r.period, f"${r.net_pnl:,.0f}  {r.trades} trades")
                                  for r in self.time.yearly]),
-            _block("E. TOPSTEP ACCOUNT", _topstep_lines(self.account)),
+            _block("E. TOPSTEP ACCOUNT",
+                   _topstep_lines(self.account, self.summary.sessions_tested)),
             _block("F. PAYOUT ANALYSIS", _payout_lines(self.account)),
             "\nEXECUTION SCENARIO LADDER",
             _ladder_table(self.ladder),
             _block("MONTE CARLO / PATH SIMULATION", self.monte_carlo.lines()),
             "\nREGIME ANALYSIS  (" + self.regime.note + ")",
             self.regime.table(),
+            _block("RESULT INTEGRITY  (is this result believable at all?)",
+                   self.integrity.lines()),
             _block("STATISTICAL CONFIDENCE", self.statistics.lines()),
             "\nEXPLICIT LIMITATIONS",
             "\n".join(f"  {i + 1}. {t}" for i, t in enumerate(self.limitations)),
@@ -513,6 +577,7 @@ class StrategyReport:
             "execution_ladder": self.ladder,
             "monte_carlo": dataclasses.asdict(self.monte_carlo),
             "regime": dataclasses.asdict(self.regime),
+            "integrity": dataclasses.asdict(self.integrity),
             "statistics": dataclasses.asdict(self.statistics),
             "classification": dataclasses.asdict(self.classification),
             "limitations": list(self.limitations),
@@ -558,11 +623,12 @@ def build(ledger: CanonicalLedger, account: AccountResult, *, spec, sset, ladder
     mc = _monte_carlo(ledger, account, paths=mc_paths, block=mc_block,
                       daily_loss_limit=daily_loss_limit, seed=seed)
     regime = _regime(sset, trades)
+    integrity = _integrity(ledger, sset, trades)
     statistics = _statistics(ledger, daily, trades, time, spec, sset, holdout)
-    classification = _classify(ts_, time, statistics, account, ladder, ledger)
+    classification = _classify(ts_, time, statistics, account, ladder, ledger, integrity)
     return StrategyReport(
         summary=summary, trades=ts_, risk=risk, time=time, account=account, ladder=ladder,
-        monte_carlo=mc, regime=regime, statistics=statistics,
+        monte_carlo=mc, regime=regime, integrity=integrity, statistics=statistics,
         classification=classification,
         limitations=_limitations(sset, ledger, account, time, months))
 
@@ -710,9 +776,19 @@ def _monte_carlo(ledger, account, *, paths: int, block: int,
             account_ending_balance_percentiles={}, worst_drawdown_percentiles={},
             max_losing_streak_percentiles={}, label="")
 
+    # THE POLICY MUST BE THE ACCOUNT'S OWN.
+    #
+    # This used to hardcode `fraction=0.0` - never withdraw - while the account result beside
+    # it ran the CLI's policy (default: withdraw the whole eligible cap). A payout lowers the
+    # balance while the MLL stays put, so a no-withdrawal twin has a buffer the reported
+    # account does not, and the Monte Carlo understated ruin in the flattering direction.
+    # Measured on a 120-session sample: P(breach) 87.1% at fraction=0.0 against 98.5% at
+    # fraction=1.0, an 11.4-point understatement of the number a reader uses to decide
+    # whether to risk the fee.
     twin_obj = tw.TopstepTwin(account.account_size, daily_loss_limit=daily_loss_limit,
                               payout_policy=account.payout.rules.to_policy(
-                                  fraction=0.0, min_buffer_after=0.0))
+                                  fraction=account.payout.policy_fraction,
+                                  min_buffer_after=account.payout.policy_min_buffer_after))
     sample = pa.moving_block(days, block=block, reps=paths, seed=seed)
     ends, balances, dds, streaks = [], [], [], []
     breach = dll_hit = target = payout = 0
@@ -755,6 +831,59 @@ def _monte_carlo(ledger, account, *, paths: int, block: int,
 def _pcts(v) -> dict[str, float]:
     a = np.asarray(v, dtype=float)
     return {str(q): float(np.percentile(a, q)) for q in (5, 25, 50, 75, 95)}
+
+
+def _integrity(ledger: CanonicalLedger, sset, trades: pd.DataFrame) -> Integrity:
+    """The lookahead canary and the fill-convention sensitivity.
+
+    THE CEILING. A perfect one-bar-ahead oracle earns sum|c[i+1]-c[i]| x multiplier x
+    contracts over the sessions actually traded - every tick of every bar, always on the right
+    side. No causal rule comes near it. Computed on the SAME frames the ledger was built from,
+    so the denominator is the opportunity this run actually had.
+
+    THE FILL SENSITIVITY. Every entry here is filled at its DECISION bar's close, which
+    assumes zero latency between seeing a price and trading at it. The honest alternative is
+    the next bar's open. Holding the exits fixed, this reprices each entry at the next bar's
+    open and reports the difference: a strategy whose edge IS the convention shows up as a
+    large number with the same sign as its P&L.
+    """
+    mult, ct = ledger.multiplier, ledger.contracts
+    ceiling = 0.0
+    opens: dict = {}
+    for g in sset.frames:
+        c = g["c"].to_numpy(dtype=float)
+        ceiling += float(np.abs(np.diff(c)).sum()) * mult * ct
+        if "o" in g.columns:
+            opens[g["day"].iloc[0]] = g["o"].to_numpy(dtype=float)
+
+    gross = float(trades["gross_pnl"].sum()) if len(trades) else 0.0
+    share = abs(gross) / ceiling if ceiling else 0.0
+
+    sens = None
+    if len(trades) and len(opens) == len(sset.frames):
+        delta = 0.0
+        ok = True
+        for _, r in trades.iterrows():
+            o = opens.get(r["session"])
+            nb = int(r["entry_bar"]) + 1
+            if o is None or nb >= len(o):
+                ok = False
+                break
+            # Paying the next bar's open instead of this bar's close moves the entry price;
+            # the P&L moves by the price difference against the direction held.
+            delta += (float(o[nb]) - float(r["entry_price"])) * -int(r["direction"]) * mult * ct
+        sens = delta if ok else None
+
+    return Integrity(
+        oracle_ceiling=ceiling, gross_pnl=gross, ceiling_share=share,
+        ceiling_limit=LOOKAHEAD_CEILING_SHARE,
+        lookahead_suspected=bool(ceiling and share > LOOKAHEAD_CEILING_SHARE),
+        entry_fill_convention="decision bar's CLOSE, zero latency (declared, and optimistic: "
+                              "no one trades at a price they have just finished observing)",
+        entry_fill_sensitivity=sens,
+        entry_fill_note="what the SAME trades would have gained or lost if every entry had "
+                        "filled at the NEXT bar's open instead, exits held fixed. A large "
+                        "figure with the same sign as net P&L means the edge is the fill.")
 
 
 def _regime(sset, t: pd.DataFrame) -> RegimeBreakdown:
@@ -844,12 +973,12 @@ def _statistics(ledger, daily: pd.Series, t: pd.DataFrame, time: TimeDistributio
     if d.size >= 2:
         # HAC because session P&L on an intraday strategy is not guaranteed independent -
         # a regime persists across days, and the i.i.d. t would overstate the evidence.
+        # The estimator reports its own standard error. Reconstructing it as mean/t divides
+        # by zero on a sample whose mean is zero and silently returned the i.i.d. error there.
         hac = st.tstat_hac(d)
         tstat = float(hac.t)
-        se = float(np.std(d, ddof=1)) / math.sqrt(len(d))
-        se_hac = abs(float(d.mean()) / hac.t) if hac.t else se
-        ci = (float(d.mean()) - 1.96 * se_hac, float(d.mean()) + 1.96 * se_hac)
-        method = f"Newey-West HAC, lag {hac.lag}" if hasattr(hac, "lag") else "Newey-West HAC"
+        ci = (float(hac.mean) - 1.96 * float(hac.se), float(hac.mean) + 1.96 * float(hac.se))
+        method = f"{hac.method}, lag {hac.lag}, n {hac.n}"
     return Statistics(
         trades=len(t), sessions=len(d), months=time.months,
         expectancy_per_session=float(d.mean()) if d.size else 0.0,
@@ -888,8 +1017,17 @@ def _statistics(ledger, daily: pd.Series, t: pd.DataFrame, time: TimeDistributio
 
 
 def _classify(t: TradeStats, time: TimeDistribution, s: Statistics, account: AccountResult,
-              ladder: list[dict], ledger) -> Classification:
+              ladder: list[dict], ledger, integrity: Integrity) -> Classification:
     good, bad = [], []
+    # Before any statistic: is the result believable? A suspected lookahead is not a FRAGILE
+    # strategy, it is a void measurement, and grading it on a scale of profitability would
+    # dignify it.
+    if integrity.lookahead_suspected:
+        return Classification(UNTESTABLE, [], [
+            f"SUSPECTED LOOKAHEAD: gross is {integrity.ceiling_share:.1%} of the one-bar "
+            f"oracle ceiling, above the {integrity.ceiling_limit:.0%} refusal level. No "
+            f"causal rule measured in this repository has earned this. Find the leak in the "
+            f"signal before reading any number below it."])
     if (t.total < MIN_TRADES_FOR_A_VERDICT or s.sessions < MIN_SESSIONS_FOR_A_VERDICT
             or time.months < MIN_MONTHS_FOR_A_VERDICT):
         return Classification(UNTESTABLE, [], [
@@ -1040,12 +1178,20 @@ def _monthly_lines(t: TimeDistribution) -> list[tuple[str, str]]:
     return out
 
 
-def _topstep_lines(a: AccountResult) -> list[tuple[str, str]]:
+def _topstep_lines(a: AccountResult, sessions_tested: int) -> list[tuple[str, str]]:
+    # `AccountResult.final_equity` is an ALIAS of `ending_balance` - an account LEVEL, not a
+    # P&L. This function used to print `starting_balance + final_equity` as "ending strategy
+    # equity", which on a $50,000 account that ended at $48,095 rendered as $98,095 with a
+    # "P&L" of $48,095. The strategy's own result is `returns.net_pnl`, which is the sum the
+    # ledger settled; the two differ by exactly what the account's rules took away.
+    strategy_pnl = a.returns.net_pnl
     return [
         ("starting balance", f"${a.starting_balance:,.0f}"),
-        ("ending STRATEGY equity", f"${a.starting_balance + a.final_equity:,.0f}  "
-                                   f"(P&L ${a.final_equity:,.0f})"),
-        ("ending ACCOUNT equity", f"${a.ending_balance:,.0f}"),
+        ("ending STRATEGY equity", f"${a.starting_balance + strategy_pnl:,.0f}  "
+                                   f"(strategy P&L ${strategy_pnl:+,.0f}, unconstrained)"),
+        ("ending ACCOUNT equity", f"${a.ending_balance:,.0f}  "
+                                  f"(P&L under the account's rules "
+                                  f"${a.returns.pnl_under_account_constraints:+,.0f})"),
         ("MLL at the end", f"${a.ending_mll:,.0f}"),
         ("minimum MLL buffer", f"${a.min_mll_buffer:,.0f}   "
                                f"intraday ${a.min_mll_buffer_intraday:,.0f}"),
@@ -1055,14 +1201,20 @@ def _topstep_lines(a: AccountResult) -> list[tuple[str, str]]:
         ("liquidation", f"{a.liquidated}" + (f" on {a.liquidation_session} - "
                                              f"{a.liquidation_reason}" if a.liquidated
                                              else "")),
-        ("$3,000 target", f"{a.target_reached}" + (f" after {a.combine_sessions} sessions"
-                                                   if a.combine_sessions else "")),
+        ("Combine target reached", f"{a.target_reached}"
+         + (f" after {a.combine_sessions} sessions" if a.combine_sessions else "")),
+        ("what 'target' means here", COMBINE_TARGET_NOTE),
         ("forced flat", f"{a.forced_flatten_sessions} sessions, "
                         f"${a.forced_flatten_pnl:,.0f}"),
         ("maximum contracts", a.contract_limit_detail),
         ("contract-limit violations", "0" if a.contract_limit_ok else "SEE ABOVE"),
-        ("complete-account survival", f"{a.days_survived} of {a.days_traded} sessions "
-                                      f"traded; terminal stage {a.terminal_stage}"),
+        # `days_survived` counts sessions the account was STEPPED through; `days_traded`
+        # counts sessions on which a trade actually happened. Printing them as "X of Y
+        # sessions traded" read as 249 of 71, which is not a sentence.
+        ("complete-account survival",
+         f"survived {a.days_survived} of {sessions_tested} sessions"
+         + (f", traded on {a.days_traded}" if a.days_traded != a.days_survived else "")
+         + f"; terminal stage {a.terminal_stage}"),
         ("cross-check vs independent reference",
          f"{'AGREES' if a.cross_check.agrees else 'MISMATCH'} "
          f"({a.cross_check.fields_compared} fields)"),
@@ -1073,7 +1225,7 @@ def _payout_lines(a: AccountResult) -> list[tuple[str, str]]:
     p = a.payout
     return [
         ("rules version", p.rules.version),
-        ("P(survive to target)", _pct(a.p_target_before_violation)),
+        ("P(pass the Combine before a violation)", _pct(a.p_target_before_violation)),
         ("P(payout eligibility)", _pct(a.p_payout_eligible)),
         ("P(survive the period)", _pct(a.p_survive_period)),
         ("payout-eligible sessions", str(p.eligible_sessions)),
@@ -1103,6 +1255,10 @@ def _ladder_table(ladder: list[dict]) -> str:
             f"{r.get('p_payout', float('nan')):10.1%}")
     rows.append("  The headline is CONSERVATIVE. IDEAL is printed only so the distance "
                 "between them is visible as a number.")
+    rows.append("  NOTE: the Sharpe and Sortino printed in the run's own EXECUTION LADDER "
+                "table are DAILY-clock ratios scaled by sqrt(252). On a sample this short "
+                "that is an arithmetic rescaling, not an annual expectation; nothing in "
+                "this scorecard is annualised.")
     return "\n".join(rows)
 
 

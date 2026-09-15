@@ -477,6 +477,14 @@ class StrategySpec:
         except KeyError:
             return None
 
+    def _multiplier(self) -> float | None:
+        """Dollars per point, or None when the registry does not know the instrument."""
+        from quant_brain.markets.futures_cme import instruments as inst
+        try:
+            return float(inst.get(self.instrument).spec.multiplier)
+        except KeyError:
+            return None
+
     def _session_bars(self) -> int:
         return (_minutes(self.session.close_et, "close_et")
                 - _minutes(self.session.open_et, "open_et") + 1)
@@ -533,6 +541,17 @@ class StrategySpec:
             f"TRADE LIMITS    {self.risk.describe()}",
             f"COSTS           {self.cost.describe()}",
         ]
+        legs = self.exit.price_legs
+        tick = self._tick_size()
+        if legs and tick:
+            # THE UNIT CHECK A READER CAN MAKE. The engine cannot tell that an author who
+            # typed `stop_points=10` meant ten TICKS (2.5 points) - both are legal distances
+            # and both are whole ticks. Printing every distance in all three units puts the
+            # mistake in front of the person who can recognise it, before the run.
+            mult = self.sizing.contracts * (self._multiplier() or 0.0)
+            lines.append("DISTANCES       " + " | ".join(
+                f"{name.replace('_points', '')} {v:g} pts = {v / tick:g} ticks = "
+                f"${v * mult:,.2f}" for name, v in sorted(legs.items())))
         if self.params:
             lines.append("PARAMETERS      " + ", ".join(f"{k}={v!r}"
                                                         for k, v in sorted(self.params.items())))

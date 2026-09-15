@@ -2,7 +2,7 @@
  "verdict": "EQUIVALENT",
  "spec": {
   "name": "example_failed_reversal",
-  "hash": "a15de48738302470",
+  "hash": "901bd7c3f2ce1242",
   "instrument": "ES",
   "session": [
    "09:30",
@@ -128,7 +128,7 @@
   {
    "name": "IDEAL.ledger.spec_hash",
    "status": "MATCH",
-   "detail": "'a15de48738302470'",
+   "detail": "'901bd7c3f2ce1242'",
    "worst_abs_difference": null
   },
   {
@@ -1082,7 +1082,7 @@
   {
    "name": "BASELINE.ledger.spec_hash",
    "status": "MATCH",
-   "detail": "'a15de48738302470'",
+   "detail": "'901bd7c3f2ce1242'",
    "worst_abs_difference": null
   },
   {
@@ -2036,7 +2036,7 @@
   {
    "name": "CONSERVATIVE.ledger.spec_hash",
    "status": "MATCH",
-   "detail": "'a15de48738302470'",
+   "detail": "'901bd7c3f2ce1242'",
    "worst_abs_difference": null
   },
   {
@@ -2990,7 +2990,7 @@
   {
    "name": "STRESS.ledger.spec_hash",
    "status": "MATCH",
-   "detail": "'a15de48738302470'",
+   "detail": "'901bd7c3f2ce1242'",
    "worst_abs_difference": null
   },
   {
@@ -3980,7 +3980,7 @@
   {
    "name": "wall_clock",
    "status": "EXPLAINED",
-   "detail": "canonical 28.2s vs legacy 9.6s. The canonical path is slower because it runs the schema validation and the full quality gate on every load. That is a cost, not a difference in the answer.",
+   "detail": "canonical 48.9s vs legacy 14.1s. The canonical path is slower because it runs the schema validation and the full quality gate on every load. That is a cost, not a difference in the answer.",
    "worst_abs_difference": null
   }
  ],
@@ -4125,7 +4125,7 @@
   ]
  },
  "seconds": {
-  "canonical": 28.242117881774902,
-  "legacy": 9.647554159164429
+  "canonical": 48.92933535575867,
+  "legacy": 14.055038452148438
  }
 }

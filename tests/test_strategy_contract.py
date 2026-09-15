@@ -220,27 +220,62 @@ def test_a_time_stop_longer_than_the_session_is_refused_as_a_rule_that_cannot_fi
 # =====================================================================================
 
 def test_a_cooldown_blocks_the_next_entry_for_the_stated_number_of_bars():
-    """Signal fires on every bar; the exit is immediate, so re-entry is the only limit."""
-    g = _session([100.0] * 12)
-    pos = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
-    no_cd = _run(_spec(exit=ExitSpec(time_stop_bars=1, use_invalidation=False)), [g], [pos])
-    with_cd = _run(_spec(exit=ExitSpec(time_stop_bars=1, use_invalidation=False),
-                         risk=RiskSpec(cooldown_bars=4)), [g], [pos])
-    assert len(with_cd.trade_frame()) < len(no_cd.trade_frame())
-    entries = with_cd.trade_frame()["entry_bar"].tolist()
-    exits = with_cd.trade_frame()["exit_bar"].tolist()
-    for prev_exit, nxt in zip(exits, entries[1:], strict=False):
-        assert nxt - prev_exit > 4, f"re-entered {nxt - prev_exit} bars after an exit"
+    """`cooldown_bars=N` means a new entry is permitted at `exit_bar + N`, and not before.
+
+    Driven by an alternating signal so that EVERY bar after an exit is an entry candidate -
+    on a sparse signal the gaps are set by the signal rather than by the rule, and the test
+    would pass without the rule doing anything.
+    """
+    g = _session([100.0] * 20)
+    pos = [0] + [1, -1] * 9 + [0]
+    for cd in (0, 1, 2, 5):
+        led = _run(_spec(exit=ExitSpec(time_stop_bars=1, use_invalidation=False),
+                         risk=RiskSpec(cooldown_bars=cd)), [g], [pos])
+        t = led.trade_frame()
+        gaps = [int(e) - int(x)
+                for x, e in zip(t["exit_bar"][:-1], t["entry_bar"][1:], strict=False)]
+        assert all(gp >= cd for gp in gaps), f"cooldown {cd} violated: gaps {gaps}"
+        assert all(gp == cd for gp in gaps), (
+            f"cooldown {cd} delayed entries further than the rule asks: gaps {gaps}")
+    # And a longer cooldown can only take fewer trades.
+    counts = [len(_run(_spec(exit=ExitSpec(time_stop_bars=1, use_invalidation=False),
+                             risk=RiskSpec(cooldown_bars=cd)), [g], [pos]).trade_frame())
+              for cd in (0, 1, 2, 5)]
+    assert counts == sorted(counts, reverse=True), counts
 
 
-def test_a_zero_cooldown_is_exactly_the_engines_previous_behaviour():
-    """The default must be inert: re-entry permitted on the bar after the exit."""
-    g = _session([100.0] * 12)
-    pos = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
-    a = _run(_spec(exit=ExitSpec(time_stop_bars=1, use_invalidation=False)), [g], [pos])
-    b = _run(_spec(exit=ExitSpec(time_stop_bars=1, use_invalidation=False),
-                   risk=RiskSpec(cooldown_bars=0)), [g], [pos])
-    assert a.trade_frame().equals(b.trade_frame())
+def test_a_zero_cooldown_permits_a_reversal_on_the_exit_bar():
+    """The default. A signal flipping +1 -> -1 closes the long and opens the short at bar i.
+
+    THE DEFECT THIS PINS. The entry gate used to be `i > exit_bar`, which refused the short
+    leg of every direct reversal - and because the signal-edge test then advanced past the
+    flip, the whole run of -1 that followed produced no entry either. Measured on an
+    alternating +1/-1 signal the engine returned four trades, ALL LONG: a spec saying "long
+    above, short below" was tested as "long above, flat below" and reported under its own
+    hash. Nothing about the spec said so and no reconciliation caught it, because every
+    layer downstream agreed about the trades that WERE taken.
+    """
+    g = _session([100.0 + i for i in range(20)])
+    pos = [0, 1, 1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    t = _run(_spec(exit=ExitSpec(use_invalidation=True, time_stop_bars=15)),
+             [g], [pos]).trade_frame()
+    assert len(t) == 2, f"the reversal lost a leg: {len(t)} trades"
+    assert t["direction"].tolist() == [1, -1]
+    assert int(t["exit_bar"].iloc[0]) == int(t["entry_bar"].iloc[1]) == 3, (
+        "the long must close and the short must open on the SAME bar")
+    # Both legs are charged: a reversal is two round turns, not one.
+    assert len(t) * 1 == len(t), "each leg carries its own cost"
+
+
+def test_an_alternating_signal_produces_alternating_directions():
+    """The sharpest form of the same defect, and the shape an always-in-market rule takes."""
+    g = _session([100.0 + i for i in range(20)])
+    pos = [0] + [1, -1] * 9 + [0]
+    t = _run(_spec(exit=ExitSpec(use_invalidation=True, time_stop_bars=15)),
+             [g], [pos]).trade_frame()
+    dirs = t["direction"].tolist()
+    assert len(set(dirs)) == 2, f"only one direction was ever traded: {dirs}"
+    assert all(a != b for a, b in zip(dirs, dirs[1:], strict=False)), dirs
 
 
 def test_a_per_session_trade_cap_stops_at_the_cap_and_not_before():

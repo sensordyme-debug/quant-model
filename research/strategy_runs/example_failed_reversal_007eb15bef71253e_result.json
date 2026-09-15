@@ -96,7 +96,7 @@
  "provenance": {
   "spec_hash": "007eb15bef71253e",
   "engine_version": "2.0.0-integrated",
-  "git_sha": "a583612fa49c9472240a68fb4b387aad22423cb0",
+  "git_sha": "455972a535f0a50d62f9c608c387cab0221ec6b0",
   "git_dirty": true,
   "data_source": "canonical:ibkr-MNQ-1min@e0f411ac6298e690",
   "data_hash": "31aaceb369ced394",
@@ -106,7 +106,7 @@
   "python": "3.14.7 (Windows)",
   "numpy": "2.5.3",
   "pandas": "3.0.5",
-  "run_at": "2026-09-15T13:27:42-04:00",
+  "run_at": "2026-09-15T16:08:01-04:00",
   "seed": null
  },
  "data": {
@@ -644,7 +644,7 @@
    },
    "mae_basis": "bar-resolution extreme: the worst price printed by any one-minute bar the trade was open across. An UPPER BOUND on what the trade experienced, because a trade entered part-way through a bar did not see all of that bar's range.",
    "average_risk_per_trade": 15.335819209039546,
-   "risk_basis": "NO STOP DECLARED: risk per trade is undefined, so the figure below is the realised average loss on losing trades, which is not the same quantity",
+   "risk_basis": "NO STOP DECLARED: risk per trade is undefined, so the figure above is the realised average loss on losing trades, which is not the same quantity",
    "worst_daily_loss": -96.63999999999999,
    "worst_session": "2026-04-02",
    "best_daily_gain": 181.20000000000002,
@@ -982,7 +982,7 @@
   "monte_carlo": {
    "ran": true,
    "reason": "",
-   "paths": 1000,
+   "paths": 5000,
    "block": 10,
    "sessions_per_path": 249,
    "p_mll_breach": 0.0,
@@ -992,25 +992,25 @@
    "p_payout_eligible": 0.0,
    "median_days_to_target": null,
    "ending_pnl_percentiles": {
-    "5": -239.1859999999997,
-    "25": 77.90500000000026,
-    "50": 330.1900000000004,
-    "75": 578.6650000000003,
-    "95": 977.3139999999995
+    "5": -227.32199999999952,
+    "25": 105.23000000000036,
+    "50": 358.88000000000045,
+    "75": 607.2550000000005,
+    "95": 991.6280000000005
    },
    "account_ending_balance_percentiles": {
-    "5": 49760.814000000006,
-    "25": 50077.904999999955,
-    "50": 50330.18999999997,
-    "75": 50578.66499999995,
-    "95": 50977.31399999998
+    "5": 49772.67799999996,
+    "25": 50105.22999999996,
+    "50": 50358.87999999996,
+    "75": 50607.25499999998,
+    "95": 50991.627999999975
    },
    "worst_drawdown_percentiles": {
-    "5": -539.3449999999999,
-    "25": -360.99999999999983,
-    "50": -274.71,
-    "75": -208.39499999999995,
-    "95": -148.17800000000017
+    "5": -529.49,
+    "25": -352.76499999999993,
+    "50": -267.71000000000004,
+    "75": -206.09499999999994,
+    "95": -145.89899999999997
    },
    "max_losing_streak_percentiles": {
     "5": 2.0,
@@ -1322,6 +1322,16 @@
    },
    "note": "every bucket is shown, including thin ones; buckets under 20 trades are marked THIN and no bucket is selected or recommended by this report"
   },
+  "integrity": {
+   "oracle_ceiling": 1670663.5,
+   "gross_pnl": 1056.0,
+   "ceiling_share": 0.0006320841988826595,
+   "ceiling_limit": 0.2,
+   "lookahead_suspected": false,
+   "entry_fill_convention": "decision bar's CLOSE, zero latency (declared, and optimistic: no one trades at a price they have just finished observing)",
+   "entry_fill_sensitivity": -20.5,
+   "entry_fill_note": "what the SAME trades would have gained or lost if every entry had filled at the NEXT bar's open instead, exits held fixed. A large figure with the same sign as net P&L means the edge is the fill."
+  },
   "statistics": {
    "trades": 340,
    "sessions": 249,
@@ -1332,7 +1342,7 @@
     -1.9365127010087233,
     4.355789809442461
    ],
-   "t_method": "Newey-West HAC, lag 4",
+   "t_method": "hac, lag 4, n 249",
    "multiple_testing": "ONE spec was run, hashed, and reported. No search was performed inside this run, so no multiplicity correction applies to it. That does NOT cover how the spec was arrived at: if it was selected after looking at this data, the correction belongs to that selection and this report cannot see it.",
    "top5pct_session_share": 3.836719787516595,
    "best_month_share": 0.9254316069057094,

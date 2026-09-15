@@ -104,8 +104,18 @@ contract limits, survival, and the cross-check against the independent reference
 **F** payout — eligibility, timing, amount under the configured policy, and the probabilities.
 Reported separately from performance, because **a backtest profit is not a payout**.
 
-Then: the four-mode execution ladder (headline is CONSERVATIVE, never IDEAL); Monte Carlo over
-1,000–5,000 resampled paths, labelled as path risk and explicitly not evidence of edge; the
+> **"Target" never means "profit ≥ $3,000".** It means Topstep's Combine pass condition:
+> profit at or above the target *after the consistency rule has been applied*, plus the
+> minimum trading days. The consistency rule **raises** the target when one day carries too
+> much of the profit — a single +$3,100 day is 100% of profit against a 55% limit and lifts
+> the target to $5,636, so it does **not** pass. Every target figure in the report is that
+> condition.
+
+Then: **result integrity** — gross P&L as a share of the one-bar-ahead oracle ceiling (a
+suspected lookahead is classified UNTESTABLE, not graded), and what the zero-latency fill
+convention is worth; the four-mode execution ladder (headline is CONSERVATIVE, never IDEAL);
+Monte Carlo over 1,000–5,000 resampled paths under *the account's own withdrawal policy*,
+labelled as path risk and explicitly not evidence of edge; the
 full regime distribution with every bucket shown and none recommended; statistical confidence
 including the expectancy CI, concentration and the dependence caveats; explicit limitations;
 and the classification.
@@ -117,7 +127,7 @@ result exists.
 
 | | |
 |---|---|
-| **UNTESTABLE** | under 30 trades, 60 sessions or 6 months |
+| **UNTESTABLE** | under 30 trades, 60 sessions or 6 months — **or a suspected lookahead**, which is a void measurement rather than a poor strategy |
 | **NEGATIVE** | net P&L ≤ 0 under CONSERVATIVE |
 | **FRAGILE** | positive, but negative under STRESS, or the top 5% of sessions carry > 50% of net, or one month carries > 60%, or under half the months are positive, or the account is liquidated |
 | **INCONCLUSIVE** | positive and not fragile, but expectancy *t* < 2.0 |

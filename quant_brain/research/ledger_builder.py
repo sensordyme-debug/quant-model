@@ -150,19 +150,32 @@ def build_ledger(spec: StrategySpec, sessions, feats, *, slip_ticks: float,
         n = len(c)
         flat_bar = bar_at(g, spec.session.flat_by_et, default=n - 1)
         last_entry = entry_cutoff(g, spec, flat_bar, n)
-        busy_until = spec.session.warmup_bars - 1
+        #: The first bar at which a NEW position may open. `warmup_bars` is a count of bars
+        #: that must elapse, so bar index `warmup_bars` is the first permitted one.
+        next_entry_at = spec.session.warmup_bars
         prev = 0.0
         taken = 0
         trades: list[LedgerTrade] = []
         for i, p in enumerate(pos):
-            if (p != 0 and p != prev and i > busy_until and i <= last_entry
+            if (p != 0 and p != prev and i >= next_entry_at and i <= last_entry
                     and (cap is None or taken < cap)):
                 r = X.simulate_trade(c, h, low, pos, i, int(np.sign(p)), atr, arch,
                                      last_bar=flat_bar)
-                # The cooldown is measured from the EXIT bar, so `cooldown_bars=0` reproduces
-                # the engine's historical behaviour exactly: re-entry permitted on the bar
-                # after the exit.
-                busy_until = r.exit_bar + cooldown
+                # THE REVERSAL RULE. `>=` rather than `>` is load-bearing.
+                #
+                # When a signal flips +1 -> -1 at bar i, `use_invalidation` closes the long
+                # AT bar i and the short wants to open AT bar i - one reversal, two legs, one
+                # price. The previous `i > exit_bar` test refused that entry, and because
+                # `prev` then advanced past the flip, the run of -1 that followed never
+                # produced another edge either: the short leg was dropped for the rest of the
+                # run, silently. Measured on an alternating +1/-1 signal, the engine returned
+                # four trades, ALL LONG. A spec that says "long above, short below" was being
+                # tested as "long above, flat below" under its own hash.
+                #
+                # Re-entry at the exit bar cannot loop: `simulate_trade` scans from
+                # `entry_bar + 1`, so every trade advances the bar index by at least one, and
+                # `last_entry <= flat_bar - 1` keeps the final bar entry-free.
+                next_entry_at = r.exit_bar + cooldown
                 taken += 1
                 gross = r.points * mult * ct
                 trade_id += 1

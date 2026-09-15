@@ -26,6 +26,8 @@ TW = "quant_brain/markets/futures_cme/twin.py"
 S_PIPE = "tests/test_canonical_pipeline.py"
 S_TWIN = "tests/test_topstep_twin_forensics.py"
 S_DATA = "tests/test_canonical_data.py"
+S_CERT = "tests/test_certification.py"
+S_CONTRACT = "tests/test_strategy_contract.py"
 
 DSCH = "quant_brain/data/schema.py"
 DMAN = "quant_brain/data/manifest.py"
@@ -33,6 +35,7 @@ DROL = "quant_brain/data/rolls.py"
 DQUA = "quant_brain/data/quality.py"
 DADP = "quant_brain/data/adapters.py"
 DCON = "quant_brain/data/contracts.py"
+SR = "quant_brain/research/strategy_report.py"
 
 #: (name, file, find, replace) and optionally the suite that must catch it. Entries
 #: without a suite are defended by `tests/test_engine_forensics.py`.
@@ -213,9 +216,13 @@ MUTATIONS: list[tuple] = [
      "    name=\"CONSERVATIVE\", slippage_ticks=1.0, include_spread=False,", S_PIPE),
 
     # ---- the builder --------------------------------------------------------------------
+    # The anchor moved when the reversal defect was fixed (`busy_until` -> `next_entry_at`),
+    # and a stale anchor SKIPS rather than fails - which would have quietly retired the one
+    # mutation defending "never two positions at once". Re-pointed, and the certification
+    # suite defends it alongside the pipeline suite.
     ("builder__overlapping_positions_allowed", LB,
-     "                busy_until = r.exit_bar",
-     "                busy_until = i", S_PIPE),
+     "                next_entry_at = r.exit_bar + cooldown",
+     "                next_entry_at = r.entry_bar + cooldown", S_PIPE),
 
     ("builder__spread_override_ignored_so_every_mode_costs_the_same", LB,
      "    charge_spread = spec.cost.include_spread if include_spread is None "
@@ -378,4 +385,119 @@ MUTATIONS: list[tuple] = [
     ("data__chain_order_falls_back_to_string_sort", DCON,
      "    return sorted(parsed)",
      "    return sorted(parsed, key=lambda c: c.symbol)", S_DATA),
+
+    # ---- CERTIFICATION: the defects the pre-strategy audit actually found ----------------
+    # Each of these was a live defect. They are mutations now so they cannot come back.
+
+    ("cert__reversal_loses_its_second_leg__THE_P0", LB,
+     "            if (p != 0 and p != prev and i >= next_entry_at and i <= last_entry",
+     "            if (p != 0 and p != prev and i > next_entry_at and i <= last_entry",
+     S_CERT),
+
+    ("cert__cooldown_ignored_so_re_entry_is_immediate", LB,
+     "                next_entry_at = r.exit_bar + cooldown",
+     "                next_entry_at = r.exit_bar",
+     S_CONTRACT),
+
+    # Defended in the certification suite, not the contract suite: naming the wrong suite
+    # scores a hole as a catch, which is the one way this harness can lie to itself.
+    ("cert__warmup_off_by_one_admits_an_early_entry", LB,
+     "        next_entry_at = spec.session.warmup_bars",
+     "        next_entry_at = max(0, spec.session.warmup_bars - 1)",
+     S_CERT),
+
+    ("cert__per_session_trade_cap_ignored", LB,
+     "                    and (cap is None or taken < cap)):",
+     "                    and True):",
+     S_CONTRACT),
+
+    ("cert__forced_flat_bar_ignored", LB,
+     "        flat_bar = bar_at(g, spec.session.flat_by_et, default=n - 1)",
+     "        flat_bar = n - 1",
+     S_CONTRACT),
+
+    ("cert__monte_carlo_uses_a_kinder_payout_policy_than_the_account", SR,
+     "                                  fraction=account.payout.policy_fraction,",
+     "                                  fraction=0.0,",
+     S_CERT),
+
+    ("cert__lookahead_canary_disarmed", SR,
+     "        lookahead_suspected=bool(ceiling and share > LOOKAHEAD_CEILING_SHARE),",
+     "        lookahead_suspected=False,",
+     S_CERT),
+
+    ("cert__lookahead_canary_threshold_loosened_to_admit_an_oracle", SR,
+     "LOOKAHEAD_CEILING_SHARE = 0.20",
+     "LOOKAHEAD_CEILING_SHARE = 0.99",
+     S_CERT),
+
+    ("cert__a_suspected_lookahead_is_graded_instead_of_refused", SR,
+     "    if integrity.lookahead_suspected:",
+     "    if False:",
+     S_CERT),
+
+    ("cert__strategy_equity_printed_from_the_account_balance", SR,
+     "    strategy_pnl = a.returns.net_pnl",
+     "    strategy_pnl = a.final_equity",
+     S_CERT),
+
+    ("cert__oracle_ceiling_computed_on_the_wrong_scale", SR,
+     "        ceiling += float(np.abs(np.diff(c)).sum()) * mult * ct",
+     "        ceiling += float(np.abs(np.diff(c)).sum()) * mult * ct * 1000.0",
+     S_CERT),
+
+    ("cert__monthly_rows_drop_the_last_month", SR,
+     "    for p in sorted(set(idx)):",
+     "    for p in sorted(set(idx))[:-1]:",
+     S_CERT),
+
+    ("cert__monthly_win_rate_counts_losers_as_wins", SR,
+     '        wins = int((sub["net_pnl"] > 0).sum()) if len(sub) else 0',
+     '        wins = int((sub["net_pnl"] != 0).sum()) if len(sub) else 0',
+     S_CERT),
+
+    ("cert__monthly_pnl_uses_gross_instead_of_net", SR,
+     "        net = float(vals.sum())",
+     "        net = float(vals.sum()) * 1.05",
+     S_CERT),
+
+    ("cert__profit_factor_inverted", SR,
+     "        profit_factor=(gp / gl) if gl > 0 else None,",
+     "        profit_factor=(gl / gp) if gp > 0 else None,",
+     S_CERT),
+
+    ("cert__max_drawdown_reported_as_the_average", SR,
+     "        max_drawdown=abs(account.max_drawdown),",
+     "        max_drawdown=abs(account.max_drawdown) / 2.0,",
+     S_CERT),
+
+    ("cert__consecutive_losses_never_reset_so_a_run_becomes_a_total", SR,
+     "        run = run + 1 if f else 0",
+     "        run = run + 1 if f else run",
+     S_CERT),
+
+    ("cert__regime_volatility_read_from_equity_instead_of_price", SR,
+     "    rng = {g[\"day\"].iloc[0]: session_atr(g) for g in sset.frames}",
+     "    rng = {g[\"day\"].iloc[0]: 1.0 for g in sset.frames}",
+     S_CERT),
+
+    ("cert__robust_positive_reachable_on_a_short_sample", SR,
+     "MIN_MONTHS_FOR_ROBUST = 24",
+     "MIN_MONTHS_FOR_ROBUST = 1",
+     S_CERT),
+
+    ("cert__monte_carlo_resamples_a_shorter_path_than_the_sample", SR,
+     "    sample = pa.moving_block(days, block=block, reps=paths, seed=seed)",
+     "    sample = pa.moving_block(days[:len(days)//2], block=block, reps=paths, seed=seed)",
+     S_CERT),
+
+    ("cert__mae_basis_no_longer_declared", SR,
+     "        mae_basis=MAE_BASIS,",
+     '        mae_basis="",',
+     S_CERT),
+
+    ("cert__entry_fill_sensitivity_always_reports_zero", SR,
+     "        sens = delta if ok else None",
+     "        sens = 0.0",
+     S_CERT),
 ]
