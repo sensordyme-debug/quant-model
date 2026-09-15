@@ -25,6 +25,14 @@ TW = "quant_brain/markets/futures_cme/twin.py"
 #: the wrong suite scores a hole as a catch.
 S_PIPE = "tests/test_canonical_pipeline.py"
 S_TWIN = "tests/test_topstep_twin_forensics.py"
+S_DATA = "tests/test_canonical_data.py"
+
+DSCH = "quant_brain/data/schema.py"
+DMAN = "quant_brain/data/manifest.py"
+DROL = "quant_brain/data/rolls.py"
+DQUA = "quant_brain/data/quality.py"
+DADP = "quant_brain/data/adapters.py"
+DCON = "quant_brain/data/contracts.py"
 
 #: (name, file, find, replace) and optionally the suite that must catch it. Entries
 #: without a suite are defended by `tests/test_engine_forensics.py`.
@@ -222,4 +230,152 @@ MUTATIONS: list[tuple] = [
     ("twin__the_daily_limit_level_read_after_the_day_instead_of_before", TW,
      "        dll_level = (account.balance - dll) if dll is not None else -math.inf",
      "        dll_level = -math.inf", S_TWIN),
+
+    # ======================================================================================
+    # THE CANONICAL DATA LAYER
+    # ======================================================================================
+    # Every one of these is a way to get a dataset into research that should not be there.
+    # None is visible to the engine or the twin suites: the arithmetic downstream stays
+    # perfectly correct while operating on a series that is not what it claims to be.
+
+    # ---- the representation must be declared, and the declaration must bind -------------
+    ("data__adjusted_prices_accepted_as_an_execution_source", DSCH,
+     "        return self in (DataForm.RAW, DataForm.CONTINUOUS_UNADJUSTED)",
+     "        return True", S_DATA),
+
+    ("data__data_form_defaults_instead_of_being_required", DMAN,
+     "        if not isinstance(self.data_form, DataForm):",
+     "        if False:", S_DATA),
+
+    ("data__form_and_adjustment_allowed_to_contradict", DMAN,
+     "        if self.data_form.is_adjusted and self.roll.adjustment "
+     "is AdjustmentMethod.NONE:",
+     "        if False:", S_DATA),
+
+    ("data__a_continuous_series_may_claim_it_has_no_roll", DMAN,
+     "        if self.data_form.is_continuous and self.roll.method is RollMethod.NONE:",
+     "        if False:", S_DATA),
+
+    ("data__non_reconstructible_no_longer_has_to_say_why", DMAN,
+     "        if not self.reconstructible and not self.non_reconstructible_reason:",
+     "        if False:", S_DATA),
+
+    ("data__manifest_id_ignores_the_adjustment_method", DMAN,
+     '                     "adjustment": self.roll.adjustment.value,',
+     '                     "adjustment": "",', S_DATA),
+
+    ("data__manifest_id_ignores_the_roll_parameter", DMAN,
+     '                     "days_before_expiry": self.roll.days_before_expiry,',
+     '                     "days_before_expiry": None,', S_DATA),
+
+    # ---- the schema must refuse an ambiguous frame ---------------------------------------
+    ("data__naive_timestamps_accepted", DSCH,
+     '    if getattr(ts.dtype, "tz", None) is None:',
+     "    if False:", S_DATA),
+
+    ("data__a_frame_stored_in_a_venue_clock_accepted", DSCH,
+     '    if str(ts.dtype.tz) != "UTC":',
+     "    if False:", S_DATA),
+
+    ("data__the_timezone_declaration_need_not_match_the_dtype", DSCH,
+     '    if declared != {"UTC"}:',
+     "    if False:", S_DATA),
+
+    ("data__two_instruments_allowed_in_one_frame", DSCH,
+     "        if n > 1:",
+     "        if False:", S_DATA),
+
+    ("data__fingerprint_ignores_the_prices", DSCH,
+     "        if col not in df.columns:\n            continue",
+     "        if col not in df.columns or col in PRICE_COLUMNS:\n            continue",
+     S_DATA),
+
+    # ---- rolls and adjustment ------------------------------------------------------------
+    ("data__double_adjustment_permitted", DROL,
+     "    if source_form is not DataForm.CONTINUOUS_UNADJUSTED:",
+     "    if False:", S_DATA),
+
+    ("data__back_adjustment_anchors_on_the_wrong_end", DROL,
+     "            for k in range(len(spans) - 2, -1, -1):",
+     "            for k in range(0, len(spans) - 1):", S_DATA),
+
+    ("data__ratio_adjustment_applied_as_a_difference", DROL,
+     "        if method is AdjustmentMethod.DIFFERENCE:\n            out[lo:hi] += f",
+     "        if True:\n            out[lo:hi] += f", S_DATA),
+
+    ("data__quotes_left_unadjusted_so_the_spread_grows_with_the_offset", DROL,
+     'ADJUSTABLE_COLUMNS: tuple[str, ...] = (*PRICE_COLUMNS, "bid", "ask")',
+     "ADJUSTABLE_COLUMNS: tuple[str, ...] = PRICE_COLUMNS", S_DATA),
+
+    ("data__interleaved_contracts_adjusted_anyway", DROL,
+     '    if not spans_df.empty and (spans_df["appears_n_times"] > 1).any():',
+     "    if False:", S_DATA),
+
+    ("data__roll_gap_measured_close_to_close_instead_of_to_the_new_open", DROL,
+     "            gap_points=first_o - last_c,",
+     "            gap_points=0.0,", S_DATA),
+
+    # ---- the quality gate ------------------------------------------------------------------
+    ("data__impossible_ohlc_no_longer_fails", DQUA,
+     "    if bad_hl:",
+     "    if False:", S_DATA),
+
+    ("data__duplicate_bars_downgraded_to_a_warning", DQUA,
+     "    if dup_exact:\n        rep.add(\"duplicates\", Level.FAIL,",
+     "    if dup_exact:\n        rep.add(\"duplicates\", Level.WARN,", S_DATA),
+
+    ("data__out_of_order_bars_no_longer_fail", DQUA,
+     "    if unsorted:",
+     "    if False:", S_DATA),
+
+    ("data__a_zero_price_no_longer_fails", DQUA,
+     "    if nonpos:",
+     "    if False:", S_DATA),
+
+    ("data__contract_interleaving_no_longer_fails", DQUA,
+     "    if revisits > 0:",
+     "    if False:", S_DATA),
+
+    ("data__a_warning_no_longer_has_to_justify_itself", DQUA,
+     "        if level is Level.WARN and not why_allowed:",
+     "        if False:", S_DATA),
+
+    ("data__a_fail_no_longer_blocks_entry_to_research", DQUA,
+     "    if rep.failed:\n        lines = ",
+     "    if False:\n        lines = ", S_DATA),
+
+    ("data__every_gap_treated_as_a_scheduled_break", DQUA,
+     "            if n_seen >= recurring_gap_min_count:",
+     "            if True:", S_DATA),
+
+    # ---- the adapters ------------------------------------------------------------------------
+    ("data__the_ibkr_adapter_no_longer_needs_a_contract_column", DADP,
+     '    expected = {"t", "o", "h", "l", "c", "v", "contract"}',
+     '    expected = {"t", "o", "h", "l", "c", "v"}', S_DATA),
+
+    ("data__the_adapter_trusts_the_caller_over_the_contracts", DADP,
+     "    if family != instrument:",
+     "    if False:", S_DATA),
+
+    ("data__the_generic_adapter_guesses_a_missing_column_mapping", DADP,
+     "    if unmapped:",
+     "    if False:", S_DATA),
+
+    ("data__the_generic_adapter_accepts_an_undeclared_data_form", DADP,
+     "    if not isinstance(data_form, DataForm):",
+     "    if False:", S_DATA),
+
+    # ---- contract identity ---------------------------------------------------------------------
+    ("data__an_unparseable_contract_symbol_is_waved_through", DCON,
+     "    raise ContractSymbolError(\n        f\"{symbol!r} is not a futures contract",
+     "    return ContractCode(year=1970, month=1, root=s, symbol=symbol)\n    raise "
+     "ContractSymbolError(\n        f\"{symbol!r} is not a futures contract", S_DATA),
+
+    ("data__the_year_window_moves_with_the_wall_clock", DCON,
+     "YEAR_ANCHOR = 2026",
+     "import datetime as _dt2\nYEAR_ANCHOR = _dt2.date.today().year + 7", S_DATA),
+
+    ("data__chain_order_falls_back_to_string_sort", DCON,
+     "    return sorted(parsed)",
+     "    return sorted(parsed, key=lambda c: c.symbol)", S_DATA),
 ]
