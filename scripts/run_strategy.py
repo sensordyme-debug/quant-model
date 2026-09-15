@@ -54,26 +54,28 @@ from quant_brain.research.reference_ledger import run_reference    # noqa: E402
 from quant_brain.research.strategy_runner import (                 # noqa: E402
     RECONCILE_TOLERANCE, Provenance, ScenarioResult, ValidationReport, _git, _stats,
     dataset_hash, monthly_distribution, monthly_table)
+from quant_brain.research import strategy_report as sr             # noqa: E402
+from quant_brain.research.session_source import SessionSet, build as build_sessions  # noqa: E402
 from quant_brain.research.strategy_spec import StrategySpec        # noqa: E402
 
 ENGINE_VERSION = "2.0.0-integrated"
 
 
-def load_sessions(spec: StrategySpec):
-    """Bars on the spec's own window. The shared loader's constants are set, not assumed."""
-    fd.use_session(spec.session.open_et, spec.session.close_et)
-    store = REPO / "data" / "futures" / f"{spec.instrument}.parquet"
-    if not store.exists():
-        raise FileNotFoundError(
-            f"no bars for {spec.instrument} at {store}. The engine fails closed rather than "
-            f"substituting a proxy instrument.")
-    df = fd.load(store, spec.instrument)
-    sessions = fd.session_frames(df)
-    if not sessions:
-        raise ValueError(
-            f"{spec.instrument}: zero complete sessions on the window "
-            f"{fd.OPEN_ET}-{fd.CLOSE_ET}. Refusing to run on partial sessions.")
-    return sessions
+def load_sessions(spec: StrategySpec, data_path: str = "canonical") -> SessionSet:
+    """Bars for the spec, through the CANONICAL data layer by default.
+
+    This used to call `futures_discover.load` directly - a provider-shaped read with no
+    statement of what the price series is. It now goes through
+    `quant_brain.research.session_source`, which loads via the canonical adapter, runs the
+    canonical schema check and quality gate as well as the futures validator, refuses a series
+    whose data form is not execution-valid, and returns the manifest id and frame fingerprint
+    that the result JSON carries.
+
+    `data_path="legacy"` reaches the old reader and exists for `scripts/canonical_equivalence.py`
+    only. The two are proved field-for-field equivalent on this store; the canonical one is
+    authoritative because it is the one that can say what it read.
+    """
+    return build_sessions(spec, data_path=data_path, root=REPO)
 
 
 def scenario_from(ledger: CanonicalLedger, profile: em.ExecutionProfile) -> ScenarioResult:
@@ -92,6 +94,49 @@ def scenario_from(ledger: CanonicalLedger, profile: em.ExecutionProfile) -> Scen
         net_pnl=float(daily.sum()),
         per_trade=float(nt.mean()) if len(nt) else 0.0,
         exposure=float(held) / bars, **st)
+
+
+#: Rules the independent P&L reference cannot model. It replays a signal-driven position with
+#: one round-turn cost and nothing else - no price-based exit, no clock inside the session, no
+#: trade budget. A spec using any of these gets the ledger, equity and account
+#: reconciliations; it does not get a second, independent P&L, and the report says so rather
+#: than quietly reporting three checks where four are advertised.
+_REFERENCE_CANNOT_MODEL: dict[str, str] = {
+    "a price-based stop": "exit.stop_atr",
+    "a fixed-point stop": "exit.stop_points",
+    "a structural stop": "exit.structural_stop",
+    "an R-multiple target": "exit.target_r",
+    "a fixed-point target": "exit.target_points",
+    "an ATR trail": "exit.trail_atr",
+    "a fixed-point trail": "exit.trail_points",
+    "a break-even stop": "exit.breakeven_at_r",
+    "a time stop": "exit.time_stop_bars",
+    "a mid-session forced flat": "session.flat_by_et",
+    "a cooldown between trades": "risk.cooldown_bars",
+    "a per-session trade cap": "risk.max_trades_per_session",
+}
+
+
+def _reference_blockers(spec: StrategySpec) -> list[str]:
+    out = []
+    for label, path in _REFERENCE_CANNOT_MODEL.items():
+        obj, _, attr = path.partition(".")
+        v = getattr(getattr(spec, obj), attr)
+        if v not in (None, False, 0):
+            out.append(f"{label} ({path}={v!r})")
+    if not spec.exit.use_invalidation:
+        out.append("no signal-invalidation exit (exit.use_invalidation=False)")
+    return out
+
+
+def reference_comparable(spec: StrategySpec) -> bool:
+    """True when the independent reference models the same experiment as the engine."""
+    return not _reference_blockers(spec)
+
+
+def reference_skip_reason(spec: StrategySpec) -> str:
+    return ("the reference ledger models signal-driven positions only and has no equivalent "
+            "for " + ", ".join(_reference_blockers(spec)))
 
 
 def validate(spec: StrategySpec, ledger: CanonicalLedger, account: AccountResult,
@@ -125,9 +170,7 @@ def validate(spec: StrategySpec, ledger: CanonicalLedger, account: AccountResult
         v.failures.append(f"{len(bad)} session paths do not end on their settled P&L "
                           f"(first: {bad[0]})")
 
-    if (spec.exit.stop_atr is None and spec.exit.target_r is None
-            and spec.exit.trail_atr is None and not spec.exit.structural_stop
-            and spec.exit.time_stop_bars is None and spec.exit.use_invalidation):
+    if reference_comparable(spec):
         mult = inst.get(spec.instrument).spec.multiplier
         rt, _, _ = cost_for(spec, profile.slippage_ticks,
                             include_spread=profile.include_spread)
@@ -151,9 +194,8 @@ def validate(spec: StrategySpec, ledger: CanonicalLedger, account: AccountResult
     else:
         v.independent_reconciles = True
         v.failures.append(
-            "independent P&L reconciliation SKIPPED: the reference ledger models "
-            "signal-driven positions only and has no equivalent for price-based exits. "
-            "The ledger, equity and account reconciliations still apply.")
+            "independent P&L reconciliation SKIPPED: " + reference_skip_reason(spec)
+            + ". The ledger, equity and account reconciliations still apply.")
 
     if not account.cross_check.agrees:
         v.failures.append("account cross-check: "
@@ -236,13 +278,29 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--spec", required=True,
                     help="module:attribute pointing at a StrategySpec")
+    ap.add_argument("--data-path", default="canonical", choices=("canonical", "legacy"),
+                    help="canonical (default) routes the bars through quant_brain.data - "
+                         "declared form, roll method, quality gate, manifest id, frame "
+                         "fingerprint. legacy reaches the pre-canonical reader and exists "
+                         "for scripts/canonical_equivalence.py; it declares nothing.")
     ap.add_argument("--account-size", type=int, default=50_000)
     ap.add_argument("--daily-loss-limit", type=float, default=None,
                     help="arm Topstep's optional DLL at this amount; omitted means off")
     ap.add_argument("--payout-fraction", type=float, default=1.0,
                     help="share of the eligible cap withdrawn at each opportunity")
     ap.add_argument("--payout-min-buffer", type=float, default=0.0)
-    ap.add_argument("--reps", type=int, default=400)
+    ap.add_argument("--reps", type=int, default=400,
+                    help="resamples behind the account-layer probabilities")
+    ap.add_argument("--mc-paths", type=int, default=5000,
+                    help="paths for the Monte Carlo section. 1,000 is the floor the phase "
+                         "gate asks for; 5,000 is the default where it is practical.")
+    ap.add_argument("--mc-block", type=int, default=10,
+                    help="moving-block length, in sessions. It keeps losing runs intact, "
+                         "which is the dependence a barrier problem turns on.")
+    ap.add_argument("--holdout", default=None,
+                    help="describe the train/validation/out-of-sample split if one exists. "
+                         "Omitted means the report prints NO CLEAN HOLDOUT, which is the "
+                         "honest reading when the whole history was used.")
     ap.add_argument("--out", type=Path, default=REPO / "research" / "strategy_runs")
     args = ap.parse_args()
 
@@ -252,17 +310,14 @@ def main() -> int:
         raise TypeError(f"{args.spec} is not a StrategySpec")
 
     print("=" * 100)
-    print(f"FROZEN STRATEGY RUN   {spec.name}   spec hash {spec.spec_hash}")
+    print("FROZEN STRATEGY RUN - this is exactly what is being tested, and nothing else")
     print("=" * 100)
-    print(f"  instrument {spec.instrument} | {spec.timeframe} | "
-          f"{spec.session.open_et}-{spec.session.close_et} ET | "
-          f"{spec.sizing.contracts} contract(s)")
-    print(f"  exit: {spec.exit}")
+    print("  " + spec.describe().replace("\n", "\n  "))
 
-    sessions = load_sessions(spec)
+    sset = load_sessions(spec, args.data_path)
+    sessions = sset.frames
     feats = fd.build_features(sessions, fe.library())     # raises on a leaking feature
-    print(f"  {len(sessions)} complete sessions, "
-          f"{sessions[0]['day'].iloc[0]} .. {sessions[-1]['day'].iloc[0]}")
+    print("\n  " + sset.describe().replace("\n", "\n  "))
 
     print("\n" + em.assumptions_table())
 
@@ -328,11 +383,24 @@ def main() -> int:
               f"positive {dist['positive_share']:.0%} | worst {dist['worst']:+.0f} | "
               f"best {dist['best']:+.0f}")
 
+    # ---- the scorecard: sections A-F, Monte Carlo, regime, statistics, classification ----
+    ladder_rows = [{**asdict_scenario(s),
+                    "liquidated": accounts[s.scenario].liquidated,
+                    "p_target": accounts[s.scenario].p_target_before_violation,
+                    "p_payout": accounts[s.scenario].p_payout_eligible}
+                   for s in scenarios]
+    report = sr.build(
+        headline_ledger, headline_account, spec=spec, sset=sset, ladder=ladder_rows,
+        engine_version=ENGINE_VERSION, mc_paths=args.mc_paths, mc_block=args.mc_block,
+        daily_loss_limit=args.daily_loss_limit, holdout=args.holdout)
+    print("\n\n" + report.render())
+
     prov = Provenance(
         spec_hash=spec.spec_hash, engine_version=ENGINE_VERSION,
         git_sha=_git("rev-parse", "HEAD"),
         git_dirty=bool(_git("status", "--porcelain")),
-        data_source=str(Path("data/futures") / f"{spec.instrument}.parquet"),
+        data_source=(f"{sset.path}:{sset.provenance['feature_data']['dataset_id']}"
+                     f"@{sset.provenance['feature_data']['manifest_id']}"),
         data_hash=dataset_hash(sessions),
         data_start=str(sessions[0]["day"].iloc[0]),
         data_end=str(sessions[-1]["day"].iloc[0]),
@@ -356,6 +424,7 @@ def main() -> int:
         "headline_mode": head,
         "execution_assumptions": [em.get(p.name).as_row() for p in em.LADDER],
         "provenance": prov.__dict__,
+        "data": sset.provenance,
         "validation": {
             **{k: getattr(v, k) for k in
                ("ledger_reconciles", "equity_reconciles", "independent_reconciles",
@@ -365,8 +434,11 @@ def main() -> int:
         "account_by_mode": {name: account_json(a) for name, a in accounts.items()},
         "payout_rules": {**rules.__dict__, "retrieved": rules.retrieved.isoformat()},
         "monthly_distribution": dist,
+        "scorecard": report.to_json(),
     }, indent=1, default=str), encoding="utf-8")
-    print(f"\n  wrote {args.out / stem}_*.csv/json")
+    (args.out / f"{stem}_report.txt").write_text(report.render(), encoding="utf-8")
+    print(f"\n  wrote {args.out / stem}_*.csv/json and _report.txt")
+    print(f"  CLASSIFICATION: {report.classification.verdict}")
     return 0
 
 

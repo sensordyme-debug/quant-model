@@ -46,6 +46,41 @@ def session_atr(g: pd.DataFrame) -> float:
     return float(np.mean(tr))
 
 
+def bar_at(g: pd.DataFrame, hhmm: str | None, *, default: int) -> int:
+    """The index of the bar stamped `hhmm` in this session, or `default` when unstated.
+
+    Resolved from the session's own `hm` column rather than computed from the window, so a
+    session that is structurally complete but stamped differently than expected raises here
+    instead of silently shifting every rule by a bar.
+    """
+    if hhmm is None:
+        return default
+    hits = np.flatnonzero(g["hm"].to_numpy() == hhmm)
+    if not len(hits):
+        raise ValueError(
+            f"session {g['day'].iloc[0]} has no bar stamped {hhmm}. The spec states a "
+            f"wall-clock rule the data cannot locate; the engine will not approximate it "
+            f"with the nearest bar.")
+    return int(hits[0])
+
+
+def entry_cutoff(g: pd.DataFrame, spec: StrategySpec, flat_bar: int, n: int) -> int:
+    """The last bar index at which a NEW position may open.
+
+    Three sources, in the spec's own order of precedence, and never more than one of them is
+    set (`SessionSpec` refuses both spellings at construction). Whatever it resolves to, it is
+    capped at `flat_bar - 1`: an entry on the forced-flat bar could not be held for a single
+    bar and could only lose a round turn.
+    """
+    if spec.session.last_entry_et is not None:
+        cutoff = bar_at(g, spec.session.last_entry_et, default=n - 2)
+    elif spec.session.last_entry_bar is not None:
+        cutoff = spec.session.last_entry_bar
+    else:
+        cutoff = n - 2
+    return min(cutoff, flat_bar - 1)
+
+
 def cost_for(spec: StrategySpec, slip_ticks: float, *,
              include_spread: bool | None = None) -> tuple[float, float, float]:
     """(total round-turn cost, commission+spread component, slippage component).
@@ -92,11 +127,15 @@ def build_ledger(spec: StrategySpec, sessions, feats, *, slip_ticks: float,
     total_cost, base_cost, slip_cost = cost_for(spec, slip_ticks,
                                                 include_spread=include_spread)
     arch = X.ExitArchitecture(
-        "spec", stop_atr=spec.exit.stop_atr, target_r=spec.exit.target_r,
+        "spec", stop_atr=spec.exit.stop_atr, stop_points=spec.exit.stop_points,
+        target_r=spec.exit.target_r, target_points=spec.exit.target_points,
         structural_stop=spec.exit.structural_stop, trail_atr=spec.exit.trail_atr,
+        trail_points=spec.exit.trail_points,
         breakeven_at_r=spec.exit.breakeven_at_r,
         time_stop_bars=spec.exit.time_stop_bars,
         use_invalidation=spec.exit.use_invalidation)
+    cooldown = spec.risk.cooldown_bars
+    cap = spec.risk.max_trades_per_session
 
     out = []
     trade_id = 0
@@ -109,15 +148,22 @@ def build_ledger(spec: StrategySpec, sessions, feats, *, slip_ticks: float,
         atr = session_atr(g)
         day = g["day"].iloc[0]
         n = len(c)
-        last_entry = (spec.session.last_entry_bar
-                      if spec.session.last_entry_bar is not None else n - 2)
+        flat_bar = bar_at(g, spec.session.flat_by_et, default=n - 1)
+        last_entry = entry_cutoff(g, spec, flat_bar, n)
         busy_until = spec.session.warmup_bars - 1
         prev = 0.0
+        taken = 0
         trades: list[LedgerTrade] = []
         for i, p in enumerate(pos):
-            if p != 0 and p != prev and i > busy_until and i <= last_entry:
-                r = X.simulate_trade(c, h, low, pos, i, int(np.sign(p)), atr, arch)
-                busy_until = r.exit_bar
+            if (p != 0 and p != prev and i > busy_until and i <= last_entry
+                    and (cap is None or taken < cap)):
+                r = X.simulate_trade(c, h, low, pos, i, int(np.sign(p)), atr, arch,
+                                     last_bar=flat_bar)
+                # The cooldown is measured from the EXIT bar, so `cooldown_bars=0` reproduces
+                # the engine's historical behaviour exactly: re-entry permitted on the bar
+                # after the exit.
+                busy_until = r.exit_bar + cooldown
+                taken += 1
                 gross = r.points * mult * ct
                 trade_id += 1
                 trades.append(LedgerTrade(
@@ -154,4 +200,5 @@ def build_from_profile(spec: StrategySpec, sessions, feats,
                         include_spread=profile.include_spread)
 
 
-__all__ = ["build_from_profile", "build_ledger", "cost_for", "session_atr"]
+__all__ = ["bar_at", "build_from_profile", "build_ledger", "cost_for",
+           "entry_cutoff", "session_atr"]

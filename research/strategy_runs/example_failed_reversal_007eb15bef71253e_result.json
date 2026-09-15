@@ -1,0 +1,1370 @@
+{
+ "spec": {
+  "name": "example_failed_reversal",
+  "instrument": "MNQ",
+  "timeframe": "1min",
+  "signal_name": "failed_reversal_signal",
+  "signal_source": "def failed_reversal_signal(X):\n    \"\"\"Long when an upside extension retraces below the 95th-percentile level; mirrored.\"\"\"\n    orp = np.nan_to_num(np.asarray(X[\"opening_range_pos\"], dtype=float), nan=0.0)\n    mins = np.nan_to_num(np.asarray(X[\"minutes_from_open\"], dtype=float), nan=0.0)\n    live = mins > 45\n    prev = np.concatenate(([0.0], orp[:-1]))\n    pos = np.zeros(len(orp), dtype=float)\n    pos[live & (prev > HI) & (orp < HI)] = 1.0\n    pos[live & (prev < LO) & (orp > LO)] = -1.0\n    return pos\n",
+  "exit": {
+   "stop_atr": null,
+   "stop_points": null,
+   "target_r": null,
+   "target_points": null,
+   "structural_stop": false,
+   "trail_atr": null,
+   "trail_points": null,
+   "breakeven_at_r": null,
+   "time_stop_bars": null,
+   "use_invalidation": true
+  },
+  "sizing": {
+   "contracts": 1,
+   "max_contracts": null,
+   "max_micro_equivalent": 50
+  },
+  "session": {
+   "open_et": "09:30",
+   "close_et": "16:00",
+   "warmup_bars": 45,
+   "last_entry_bar": null,
+   "last_entry_et": null,
+   "flat_by_et": null
+  },
+  "cost": {
+   "commission_round_turn": null,
+   "slippage_ticks": 0.0,
+   "include_spread": true
+  },
+  "risk": {
+   "max_open_positions": 1,
+   "cooldown_bars": 0,
+   "max_trades_per_session": null
+  },
+  "params": {},
+  "rationale": "Example only. The mechanism was REJECTED in docs/FAILED_REVERSAL_REPLICATION.md - QQQ inverts its sign on the same index. It is used here purely to exercise the engine.",
+  "notes": {}
+ },
+ "spec_hash": "007eb15bef71253e",
+ "engine_version": "2.0.0-integrated",
+ "headline_mode": "CONSERVATIVE",
+ "execution_assumptions": [
+  {
+   "execution_mode": "IDEAL",
+   "execution_path_mode": "CLOSE_ONLY",
+   "slippage_ticks_round_turn": 0.0,
+   "spread_charged": false,
+   "stop_execution": "filled at the stop price; no gap-through penalty beyond the mode's slippage",
+   "target_execution": "filled at the target price only if the bar traded through it",
+   "flatten_execution": "filled at the last bar's close, which is the mandatory flatten",
+   "partial_fill_model": "NOT MODELLED - every order fills in full or not at all",
+   "ambiguous_bar_model": "resolved as a STOP and flagged `ambiguous_bar`, never as a target"
+  },
+  {
+   "execution_mode": "BASELINE",
+   "execution_path_mode": "CLOSE_ONLY",
+   "slippage_ticks_round_turn": 0.5,
+   "spread_charged": true,
+   "stop_execution": "filled at the stop price; no gap-through penalty beyond the mode's slippage",
+   "target_execution": "filled at the target price only if the bar traded through it",
+   "flatten_execution": "filled at the last bar's close, which is the mandatory flatten",
+   "partial_fill_model": "NOT MODELLED - every order fills in full or not at all",
+   "ambiguous_bar_model": "resolved as a STOP and flagged `ambiguous_bar`, never as a target"
+  },
+  {
+   "execution_mode": "CONSERVATIVE",
+   "execution_path_mode": "INTRABAR_CONSERVATIVE",
+   "slippage_ticks_round_turn": 1.0,
+   "spread_charged": true,
+   "stop_execution": "filled at the stop price; no gap-through penalty beyond the mode's slippage",
+   "target_execution": "filled at the target price only if the bar traded through it",
+   "flatten_execution": "filled at the last bar's close, which is the mandatory flatten",
+   "partial_fill_model": "NOT MODELLED - every order fills in full or not at all",
+   "ambiguous_bar_model": "resolved as a STOP and flagged `ambiguous_bar`, never as a target"
+  },
+  {
+   "execution_mode": "STRESS",
+   "execution_path_mode": "STRESS",
+   "slippage_ticks_round_turn": 2.0,
+   "spread_charged": true,
+   "stop_execution": "filled at the stop price; no gap-through penalty beyond the mode's slippage",
+   "target_execution": "filled at the target price only if the bar traded through it",
+   "flatten_execution": "filled at the last bar's close, which is the mandatory flatten",
+   "partial_fill_model": "NOT MODELLED - every order fills in full or not at all",
+   "ambiguous_bar_model": "resolved as a STOP and flagged `ambiguous_bar`, never as a target"
+  }
+ ],
+ "provenance": {
+  "spec_hash": "007eb15bef71253e",
+  "engine_version": "2.0.0-integrated",
+  "git_sha": "a583612fa49c9472240a68fb4b387aad22423cb0",
+  "git_dirty": true,
+  "data_source": "canonical:ibkr-MNQ-1min@e0f411ac6298e690",
+  "data_hash": "31aaceb369ced394",
+  "data_start": "2025-09-08",
+  "data_end": "2026-09-10",
+  "sessions": 249,
+  "python": "3.14.7 (Windows)",
+  "numpy": "2.5.3",
+  "pandas": "3.0.5",
+  "run_at": "2026-09-15T13:27:42-04:00",
+  "seed": null
+ },
+ "data": {
+  "features_identical_to_execution": true,
+  "feature_data": {
+   "dataset_id": "ibkr-MNQ-1min",
+   "manifest_id": "e0f411ac6298e690",
+   "frame_fingerprint": "33275bc8f5bf9148",
+   "data_form": "CONTINUOUS_UNADJUSTED",
+   "roll_method": "CALENDAR_DAYS_BEFORE_EXPIRY",
+   "adjustment_method": "NONE",
+   "provider": "IBKR",
+   "source_hashes": [
+    "a47c3f9541205057e68f17b8922e9a7f9888973509f81503d4f1ecb92d9b8fa0"
+   ],
+   "quality_status": "WARN",
+   "quality_report_hash": "340ec3f9ec59f4b0",
+   "coverage": [
+    "2025-09-07 22:00:00+00:00",
+    "2026-09-10 20:59:00+00:00"
+   ],
+   "session_timezone": "America/New_York",
+   "bar_interval": "1min",
+   "schema_version": "1.0.0"
+  },
+  "execution_data": {
+   "dataset_id": "ibkr-MNQ-1min",
+   "manifest_id": "e0f411ac6298e690",
+   "frame_fingerprint": "33275bc8f5bf9148",
+   "data_form": "CONTINUOUS_UNADJUSTED",
+   "roll_method": "CALENDAR_DAYS_BEFORE_EXPIRY",
+   "adjustment_method": "NONE",
+   "provider": "IBKR",
+   "source_hashes": [
+    "a47c3f9541205057e68f17b8922e9a7f9888973509f81503d4f1ecb92d9b8fa0"
+   ],
+   "quality_status": "WARN",
+   "quality_report_hash": "340ec3f9ec59f4b0",
+   "execution_valid": true
+  },
+  "notes": [
+   "one series serves both purposes"
+  ],
+  "data_path": "canonical",
+  "describe": "FEATURE DATA and EXECUTION DATA are the SAME series: ibkr-MNQ-1min [CONTINUOUS_UNADJUSTED] manifest e0f411ac6298e690 frame 33275bc8f5bf9148",
+  "window": {
+   "open_et": "09:30",
+   "close_et": "16:00",
+   "timezone": "America/New_York",
+   "bars": 391
+  },
+  "attrition": {
+   "bars_in_file": 358845,
+   "bars_in_window": 100450,
+   "sessions_in_window": 261,
+   "sessions_dropped_multi_contract": 1,
+   "sessions_dropped_incomplete": 11,
+   "sessions_kept": 249,
+   "multi_contract_days": [
+    "2025-12-11"
+   ],
+   "incomplete_days": [
+    "2025-11-11",
+    "2025-11-27",
+    "2025-11-28",
+    "2025-12-24",
+    "2026-01-19",
+    "2026-02-10",
+    "2026-02-16",
+    "2026-05-25",
+    "2026-06-19",
+    "2026-07-03",
+    "2026-09-07"
+   ]
+  },
+  "gates_run": [
+   "schema.validate_frame",
+   "data.quality.check",
+   "futures_cme.dataquality.require_usable"
+  ]
+ },
+ "validation": {
+  "ledger_reconciles": true,
+  "equity_reconciles": true,
+  "independent_reconciles": true,
+  "every_trade_charged": true,
+  "ends_flat": true,
+  "no_future_leak": true,
+  "status": "VALIDATED",
+  "failures": []
+ },
+ "pnl_by_mode": [
+  {
+   "slippage_ticks": 0.0,
+   "scenario": "IDEAL",
+   "trades": 340,
+   "gross_pnl": 1056.0,
+   "commission": 414.80000000000007,
+   "slippage_cost": 0.0,
+   "net_pnl": 641.2000000000003,
+   "per_trade": 1.8858823529411777,
+   "per_session": 2.5751004016064267,
+   "win_rate": 0.5029411764705882,
+   "profit_factor": 1.2523237236244578,
+   "max_drawdown": -171.54000000000002,
+   "sharpe": 1.4021810536666057,
+   "sortino": 1.9979400098475038,
+   "t_stat": 1.3938097486775152,
+   "consec_losing_days": 2,
+   "exposure": 0.003492229788720098
+  },
+  {
+   "slippage_ticks": 0.5,
+   "scenario": "BASELINE",
+   "trades": 340,
+   "gross_pnl": 1056.0,
+   "commission": 584.8000000000001,
+   "slippage_cost": 85.0,
+   "net_pnl": 386.2000000000003,
+   "per_trade": 1.1358823529411777,
+   "per_session": 1.5510040160642582,
+   "win_rate": 0.48823529411764705,
+   "profit_factor": 1.1446290276675102,
+   "max_drawdown": -195.54000000000013,
+   "sharpe": 0.8709817924847101,
+   "sortino": 1.1430821009026977,
+   "t_stat": 0.8657818547122176,
+   "consec_losing_days": 2,
+   "exposure": 0.003492229788720098
+  },
+  {
+   "slippage_ticks": 1.0,
+   "scenario": "CONSERVATIVE",
+   "trades": 340,
+   "gross_pnl": 1056.0,
+   "commission": 584.8000000000001,
+   "slippage_cost": 170.0,
+   "net_pnl": 301.2000000000004,
+   "per_trade": 0.8858823529411776,
+   "per_session": 1.209638554216869,
+   "win_rate": 0.47941176470588237,
+   "profit_factor": 1.1109621137324828,
+   "max_drawdown": -203.54000000000008,
+   "sharpe": 0.6856330989269138,
+   "sortino": 0.8712999348799723,
+   "t_stat": 0.6815397304088301,
+   "consec_losing_days": 2,
+   "exposure": 0.003492229788720098
+  },
+  {
+   "slippage_ticks": 2.0,
+   "scenario": "STRESS",
+   "trades": 340,
+   "gross_pnl": 1056.0,
+   "commission": 584.8000000000001,
+   "slippage_cost": 340.0,
+   "net_pnl": 131.2000000000004,
+   "per_trade": 0.3858823529411776,
+   "per_session": 0.5269076305220899,
+   "win_rate": 0.47058823529411764,
+   "profit_factor": 1.046796975317449,
+   "max_drawdown": -219.53999999999996,
+   "sharpe": 0.30376172373994287,
+   "sortino": 0.3675077258505582,
+   "t_stat": 0.3019482047034465,
+   "consec_losing_days": 2,
+   "exposure": 0.003492229788720098
+  }
+ ],
+ "account_by_mode": {
+  "IDEAL": {
+   "execution_path_mode": "CLOSE_ONLY",
+   "execution_mode": "IDEAL",
+   "slippage_ticks": 0.0,
+   "terminal_stage": "trading_combine",
+   "liquidated": false,
+   "liquidation_session": null,
+   "liquidation_reason": "",
+   "target_reached": false,
+   "combine_sessions": null,
+   "combine_attempts": 1,
+   "days_survived": 249,
+   "days_traded": 71,
+   "total_trades": 340,
+   "winning_days": 34,
+   "losing_days": 37,
+   "flat_days": 178,
+   "forced_flatten_sessions": 0,
+   "forced_flatten_pnl": 0.0,
+   "contract_limit_ok": true,
+   "contract_limit_detail": "1 of 50 MNQ permitted",
+   "max_drawdown": -171.54000000000002,
+   "max_intraday_drawdown": -197.53000000000003,
+   "min_mll_buffer": 1828.4599999999846,
+   "min_mll_buffer_funded": 0.0,
+   "min_dll_buffer": null,
+   "dll_capped_sessions": 0,
+   "starting_balance": 50000.0,
+   "ending_balance": 50641.19999999997,
+   "peak_balance": 50774.89999999997,
+   "ending_mll": 48774.89999999997,
+   "ending_dll": null,
+   "final_position": 0.0,
+   "final_equity": 50641.19999999997,
+   "returns": {
+    "net_pnl": 641.2000000000003,
+    "mean_notional": 52762.18970588235,
+    "return_on_notional_pct": 1.2152641950121985,
+    "account_starting_balance": 50000.0,
+    "return_on_account_pct": 1.2824000000000007,
+    "pnl_per_contract": 641.2000000000003,
+    "pnl_under_account_constraints": 641.1999999999996,
+    "note": "`pnl_under_account_constraints` is what the ACCOUNT realised - the daily limit applied and the path stopped at liquidation. The other three are strategy-level and ignore the account entirely."
+   },
+   "payout": {
+    "eligible_sessions": 0,
+    "first_eligible_session": null,
+    "sessions_to_first_eligible": null,
+    "payouts": [],
+    "total_paid": 0.0,
+    "trader_share_of_total": 0.0,
+    "rules_version": "topstep-50k-2026-09-12",
+    "notes": []
+   },
+   "p_survive_period": 1.0,
+   "p_target_before_violation": 0.0,
+   "p_payout_eligible": 0.0,
+   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
+   "cross_check_agrees": true,
+   "cross_check_fields": 17,
+   "cross_check_mismatches": []
+  },
+  "BASELINE": {
+   "execution_path_mode": "CLOSE_ONLY",
+   "execution_mode": "BASELINE",
+   "slippage_ticks": 0.5,
+   "terminal_stage": "trading_combine",
+   "liquidated": false,
+   "liquidation_session": null,
+   "liquidation_reason": "",
+   "target_reached": false,
+   "combine_sessions": null,
+   "combine_attempts": 1,
+   "days_survived": 249,
+   "days_traded": 71,
+   "total_trades": 340,
+   "winning_days": 33,
+   "losing_days": 38,
+   "flat_days": 178,
+   "forced_flatten_sessions": 0,
+   "forced_flatten_pnl": 0.0,
+   "contract_limit_ok": true,
+   "contract_limit_detail": "1 of 50 MNQ permitted",
+   "max_drawdown": -195.54000000000013,
+   "max_intraday_drawdown": -224.90500000000014,
+   "min_mll_buffer": 1804.4599999999846,
+   "min_mll_buffer_funded": 0.0,
+   "min_dll_buffer": null,
+   "dll_capped_sessions": 0,
+   "starting_balance": 50000.0,
+   "ending_balance": 50386.19999999997,
+   "peak_balance": 50546.14999999997,
+   "ending_mll": 48546.14999999997,
+   "ending_dll": null,
+   "final_position": 0.0,
+   "final_equity": 50386.19999999997,
+   "returns": {
+    "net_pnl": 386.2000000000003,
+    "mean_notional": 52762.18970588235,
+    "return_on_notional_pct": 0.7319635560101547,
+    "account_starting_balance": 50000.0,
+    "return_on_account_pct": 0.7724000000000005,
+    "pnl_per_contract": 386.2000000000003,
+    "pnl_under_account_constraints": 386.1999999999999,
+    "note": "`pnl_under_account_constraints` is what the ACCOUNT realised - the daily limit applied and the path stopped at liquidation. The other three are strategy-level and ignore the account entirely."
+   },
+   "payout": {
+    "eligible_sessions": 0,
+    "first_eligible_session": null,
+    "sessions_to_first_eligible": null,
+    "payouts": [],
+    "total_paid": 0.0,
+    "trader_share_of_total": 0.0,
+    "rules_version": "topstep-50k-2026-09-12",
+    "notes": []
+   },
+   "p_survive_period": 1.0,
+   "p_target_before_violation": 0.0,
+   "p_payout_eligible": 0.0,
+   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
+   "cross_check_agrees": true,
+   "cross_check_fields": 17,
+   "cross_check_mismatches": []
+  },
+  "CONSERVATIVE": {
+   "execution_path_mode": "INTRABAR_CONSERVATIVE",
+   "execution_mode": "CONSERVATIVE",
+   "slippage_ticks": 1.0,
+   "terminal_stage": "trading_combine",
+   "liquidated": false,
+   "liquidation_session": null,
+   "liquidation_reason": "",
+   "target_reached": false,
+   "combine_sessions": null,
+   "combine_attempts": 1,
+   "days_survived": 249,
+   "days_traded": 71,
+   "total_trades": 340,
+   "winning_days": 32,
+   "losing_days": 39,
+   "flat_days": 178,
+   "forced_flatten_sessions": 0,
+   "forced_flatten_pnl": 0.0,
+   "contract_limit_ok": true,
+   "contract_limit_detail": "1 of 50 MNQ permitted",
+   "max_drawdown": -203.54000000000008,
+   "max_intraday_drawdown": -239.81000000000006,
+   "min_mll_buffer": 1796.4599999999846,
+   "min_mll_buffer_funded": 0.0,
+   "min_dll_buffer": null,
+   "dll_capped_sessions": 0,
+   "starting_balance": 50000.0,
+   "ending_balance": 50301.19999999997,
+   "peak_balance": 50469.89999999997,
+   "ending_mll": 48469.89999999997,
+   "ending_dll": null,
+   "final_position": 0.0,
+   "final_equity": 50301.19999999997,
+   "returns": {
+    "net_pnl": 301.2000000000004,
+    "mean_notional": 52762.18970588235,
+    "return_on_notional_pct": 0.5708633430094737,
+    "account_starting_balance": 50000.0,
+    "return_on_account_pct": 0.6024000000000008,
+    "pnl_per_contract": 301.2000000000004,
+    "pnl_under_account_constraints": 301.2,
+    "note": "`pnl_under_account_constraints` is what the ACCOUNT realised - the daily limit applied and the path stopped at liquidation. The other three are strategy-level and ignore the account entirely."
+   },
+   "payout": {
+    "eligible_sessions": 0,
+    "first_eligible_session": null,
+    "sessions_to_first_eligible": null,
+    "payouts": [],
+    "total_paid": 0.0,
+    "trader_share_of_total": 0.0,
+    "rules_version": "topstep-50k-2026-09-12",
+    "notes": []
+   },
+   "p_survive_period": 1.0,
+   "p_target_before_violation": 0.0,
+   "p_payout_eligible": 0.0,
+   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
+   "cross_check_agrees": true,
+   "cross_check_fields": 17,
+   "cross_check_mismatches": []
+  },
+  "STRESS": {
+   "execution_path_mode": "STRESS",
+   "execution_mode": "STRESS",
+   "slippage_ticks": 2.0,
+   "terminal_stage": "trading_combine",
+   "liquidated": false,
+   "liquidation_session": null,
+   "liquidation_reason": "",
+   "target_reached": false,
+   "combine_sessions": null,
+   "combine_attempts": 1,
+   "days_survived": 249,
+   "days_traded": 71,
+   "total_trades": 340,
+   "winning_days": 31,
+   "losing_days": 40,
+   "flat_days": 178,
+   "forced_flatten_sessions": 0,
+   "forced_flatten_pnl": 0.0,
+   "contract_limit_ok": true,
+   "contract_limit_detail": "1 of 50 MNQ permitted",
+   "max_drawdown": -219.53999999999996,
+   "max_intraday_drawdown": -259.65999999999997,
+   "min_mll_buffer": 1780.4599999999846,
+   "min_mll_buffer_funded": 0.0,
+   "min_dll_buffer": null,
+   "dll_capped_sessions": 0,
+   "starting_balance": 50000.0,
+   "ending_balance": 50131.19999999997,
+   "peak_balance": 50320.02,
+   "ending_mll": 48320.02,
+   "ending_dll": null,
+   "final_position": 0.0,
+   "final_equity": 50131.19999999997,
+   "returns": {
+    "net_pnl": 131.2000000000004,
+    "mean_notional": 52762.18970588235,
+    "return_on_notional_pct": 0.2486629170081111,
+    "account_starting_balance": 50000.0,
+    "return_on_account_pct": 0.26240000000000074,
+    "pnl_per_contract": 131.2000000000004,
+    "pnl_under_account_constraints": 131.20000000000036,
+    "note": "`pnl_under_account_constraints` is what the ACCOUNT realised - the daily limit applied and the path stopped at liquidation. The other three are strategy-level and ignore the account entirely."
+   },
+   "payout": {
+    "eligible_sessions": 0,
+    "first_eligible_session": null,
+    "sessions_to_first_eligible": null,
+    "payouts": [],
+    "total_paid": 0.0,
+    "trader_share_of_total": 0.0,
+    "rules_version": "topstep-50k-2026-09-12",
+    "notes": []
+   },
+   "p_survive_period": 1.0,
+   "p_target_before_violation": 0.0,
+   "p_payout_eligible": 0.0,
+   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
+   "cross_check_agrees": true,
+   "cross_check_fields": 17,
+   "cross_check_mismatches": []
+  }
+ },
+ "payout_rules": {
+  "version": "topstep-50k-2026-09-12",
+  "account_size": 50000,
+  "retrieved": "2026-09-12",
+  "winning_days_required": 5,
+  "winning_day_minimum": 150.0,
+  "balance_share": 0.5,
+  "ceiling": 2000.0,
+  "minimum": 125.0,
+  "profit_split": 0.9,
+  "mll_resets_on_payout": true,
+  "sources": {
+   "winning_days_required": "\"5 winning days with at least $150 profit each\" - https://help.topstep.com/en/articles/8284215-express-funded-account-parameters, retrieved 2026-09-12 (DOC)",
+   "winning_day_minimum": "\"at least $150 profit each\" - https://help.topstep.com/en/articles/8284215-express-funded-account-parameters, retrieved 2026-09-12 (DOC)",
+   "balance_share": "\"50% of balance\" - https://help.topstep.com/en/articles/8284215-express-funded-account-parameters, retrieved 2026-09-12 (DOC)",
+   "ceiling": "\"$50K | XFA Standard | $2,000\" - https://help.topstep.com/en/articles/8284233, retrieved 2026-09-12 (DOC)",
+   "minimum": "\"Minimum Payout Request: $125\" - https://help.topstep.com/en/articles/8284233, retrieved 2026-09-13 (DOC)",
+   "profit_split": "\"90/10\" - https://help.topstep.com/en/articles/8284215-express-funded-account-parameters, retrieved 2026-09-12 (DOC)",
+   "mll_resets_on_payout": "\"After each Payout: Your Maximum Loss Limit (MLL) resets to $0 permanently, and your 5-day count restarts.\" - https://help.topstep.com/en/articles/8284233, retrieved 2026-09-12 (DOC)"
+  },
+  "unverified": []
+ },
+ "monthly_distribution": {
+  "months": 13,
+  "mean": 23.16923076923079,
+  "median": -8.57999999999996,
+  "std": 124.45937452716171,
+  "positive_share": 0.38461538461538464,
+  "negative_share": 0.6153846153846154,
+  "worst": -131.51999999999998,
+  "best": 278.74,
+  "p05": -105.97199999999997,
+  "p25": -47.919999999999995,
+  "p75": 57.70000000000002,
+  "p95": 272.272
+ },
+ "scorecard": {
+  "summary": {
+   "strategy": "example_failed_reversal",
+   "spec_hash": "007eb15bef71253e",
+   "engine_version": "2.0.0-integrated",
+   "instrument": "MNQ",
+   "timeframe": "1min",
+   "coverage_start": "2025-09-08",
+   "coverage_end": "2026-09-10",
+   "coverage_months": 12.057494866529774,
+   "sessions_tested": 249,
+   "bars_tested": 97359,
+   "data_path": "canonical",
+   "dataset_id": "ibkr-MNQ-1min",
+   "manifest_id": "e0f411ac6298e690",
+   "frame_fingerprint": "33275bc8f5bf9148",
+   "data_form": "CONTINUOUS_UNADJUSTED",
+   "roll_method": "CALENDAR_DAYS_BEFORE_EXPIRY",
+   "adjustment_method": "NONE",
+   "quality_status": "WARN",
+   "execution_mode": "CONSERVATIVE",
+   "intrabar_mode": "INTRABAR_CONSERVATIVE",
+   "topstep_rules_version": "topstep-50k-2026-09-12",
+   "long_history_validation": "LONG-HISTORY VALIDATION: NOT AVAILABLE - 12.1 months on disk. Nothing in this report is long-term validation, and a result that looks exceptional over this window should be read as exceptional OVER THIS WINDOW."
+  },
+  "trade_statistics": {
+   "total": 340,
+   "longs": 204,
+   "shorts": 136,
+   "winners": 163,
+   "losers": 177,
+   "scratches": 0,
+   "win_rate": 0.47941176470588237,
+   "average_trade": 0.8858823529411776,
+   "median_trade": -0.7199999999999998,
+   "stdev_trade": 23.863963540374527,
+   "best_trade": 107.78,
+   "worst_trade": -72.72,
+   "profit_factor": 1.1109621137324828,
+   "expectancy": 0.8858823529411776,
+   "gross_profit": 3015.6400000000003,
+   "gross_loss": 2714.4399999999996,
+   "net_pnl": 301.2000000000004,
+   "fees": 584.8000000000001,
+   "slippage": 170.0,
+   "average_hold_minutes": 1.0,
+   "median_hold_minutes": 1.0,
+   "by_exit_reason": {
+    "signal_invalidation": 340
+   },
+   "long_net": -39.87999999999977,
+   "short_net": 341.08000000000015
+  },
+  "risk": {
+   "max_drawdown": 203.54000000000008,
+   "max_intraday_drawdown": 239.81000000000006,
+   "max_consecutive_losses": 7,
+   "max_consecutive_losing_days": 2,
+   "mae": {
+    "n": 340,
+    "mean": -18.030882352941177,
+    "p05": -53.025,
+    "p25": -24.125,
+    "median": -12.5,
+    "p75": -6.5,
+    "p95": -1.0,
+    "minimum": -134.0,
+    "maximum": 0.0
+   },
+   "mfe": {
+    "n": 340,
+    "mean": 19.051470588235293,
+    "p05": 0.9749999999999996,
+    "p25": 7.0,
+    "median": 13.5,
+    "p75": 23.5,
+    "p95": 59.12500000000003,
+    "minimum": 0.0,
+    "maximum": 119.5
+   },
+   "mae_basis": "bar-resolution extreme: the worst price printed by any one-minute bar the trade was open across. An UPPER BOUND on what the trade experienced, because a trade entered part-way through a bar did not see all of that bar's range.",
+   "average_risk_per_trade": 15.335819209039546,
+   "risk_basis": "NO STOP DECLARED: risk per trade is undefined, so the figure below is the realised average loss on losing trades, which is not the same quantity",
+   "worst_daily_loss": -96.63999999999999,
+   "worst_session": "2026-04-02",
+   "best_daily_gain": 181.20000000000002,
+   "exposure": 0.003492229788720098,
+   "longest_underwater_sessions": 61,
+   "underwater_fraction": 0.8514056224899599
+  },
+  "time_distribution": {
+   "monthly": [
+    {
+     "period": "2025-09",
+     "trades": 16,
+     "net_pnl": -131.51999999999998,
+     "win_rate": 0.25,
+     "max_drawdown": 131.51999999999998,
+     "sessions": 17,
+     "pnl_over_account_pct": -0.26303999999999994,
+     "pnl_over_notional_pct": -0.24926941192764235
+    },
+    {
+     "period": "2025-10",
+     "trades": 34,
+     "net_pnl": 45.52000000000004,
+     "win_rate": 0.4411764705882353,
+     "max_drawdown": 52.099999999999994,
+     "sessions": 23,
+     "pnl_over_account_pct": 0.09104000000000008,
+     "pnl_over_notional_pct": 0.08627390230342373
+    },
+    {
+     "period": "2025-11",
+     "trades": 32,
+     "net_pnl": 267.96000000000004,
+     "win_rate": 0.625,
+     "max_drawdown": 72.16,
+     "sessions": 17,
+     "pnl_over_account_pct": 0.5359200000000001,
+     "pnl_over_notional_pct": 0.507863683243089
+    },
+    {
+     "period": "2025-12",
+     "trades": 25,
+     "net_pnl": -57.49999999999998,
+     "win_rate": 0.52,
+     "max_drawdown": 77.25999999999999,
+     "sessions": 20,
+     "pnl_over_account_pct": -0.11499999999999996,
+     "pnl_over_notional_pct": -0.10897955585340201
+    },
+    {
+     "period": "2026-01",
+     "trades": 27,
+     "net_pnl": -88.93999999999997,
+     "win_rate": 0.2962962962962963,
+     "max_drawdown": 119.89999999999998,
+     "sessions": 20,
+     "pnl_over_account_pct": -0.17787999999999993,
+     "pnl_over_notional_pct": -0.16856768169741868
+    },
+    {
+     "period": "2026-02",
+     "trades": 33,
+     "net_pnl": 278.74,
+     "win_rate": 0.5454545454545454,
+     "max_drawdown": 23.539999999999992,
+     "sessions": 18,
+     "pnl_over_account_pct": 0.55748,
+     "pnl_over_notional_pct": 0.5282949808448223
+    },
+    {
+     "period": "2026-03",
+     "trades": 28,
+     "net_pnl": 64.34000000000003,
+     "win_rate": 0.5,
+     "max_drawdown": 79.25999999999999,
+     "sessions": 22,
+     "pnl_over_account_pct": 0.12868000000000007,
+     "pnl_over_notional_pct": 0.12194338475839811
+    },
+    {
+     "period": "2026-04",
+     "trades": 57,
+     "net_pnl": -25.039999999999935,
+     "win_rate": 0.47368421052631576,
+     "max_drawdown": 170.11999999999998,
+     "sessions": 21,
+     "pnl_over_account_pct": -0.050079999999999875,
+     "pnl_over_notional_pct": -0.04745822745337704
+    },
+    {
+     "period": "2026-05",
+     "trades": 39,
+     "net_pnl": -8.57999999999996,
+     "win_rate": 0.5384615384615384,
+     "max_drawdown": 57.47999999999999,
+     "sessions": 20,
+     "pnl_over_account_pct": -0.01715999999999992,
+     "pnl_over_notional_pct": -0.016261645029951043
+    },
+    {
+     "period": "2026-06",
+     "trades": 15,
+     "net_pnl": 57.70000000000002,
+     "win_rate": 0.6666666666666666,
+     "max_drawdown": 67.22,
+     "sessions": 21,
+     "pnl_over_account_pct": 0.11540000000000003,
+     "pnl_over_notional_pct": 0.10935861517810956
+    },
+    {
+     "period": "2026-07",
+     "trades": 10,
+     "net_pnl": -47.69999999999999,
+     "win_rate": 0.5,
+     "max_drawdown": 47.69999999999999,
+     "sessions": 22,
+     "pnl_over_account_pct": -0.09539999999999998,
+     "pnl_over_notional_pct": -0.09040564894273524
+    },
+    {
+     "period": "2026-08",
+     "trades": 13,
+     "net_pnl": -5.8599999999999905,
+     "win_rate": 0.46153846153846156,
+     "max_drawdown": 5.8599999999999905,
+     "sessions": 21,
+     "pnl_over_account_pct": -0.011719999999999982,
+     "pnl_over_notional_pct": -0.011106438213929305
+    },
+    {
+     "period": "2026-09",
+     "trades": 11,
+     "net_pnl": -47.919999999999995,
+     "win_rate": 0.18181818181818182,
+     "max_drawdown": 52.48,
+     "sessions": 7,
+     "pnl_over_account_pct": -0.09583999999999998,
+     "pnl_over_notional_pct": -0.09082261419991347
+    }
+   ],
+   "quarterly": [
+    {
+     "period": "2025Q3",
+     "trades": 16,
+     "net_pnl": -131.51999999999998,
+     "win_rate": 0.25,
+     "max_drawdown": 131.51999999999998,
+     "sessions": 17,
+     "pnl_over_account_pct": -0.26303999999999994,
+     "pnl_over_notional_pct": -0.24926941192764235
+    },
+    {
+     "period": "2025Q4",
+     "trades": 91,
+     "net_pnl": 255.9800000000001,
+     "win_rate": 0.5274725274725275,
+     "max_drawdown": 77.26000000000002,
+     "sessions": 60,
+     "pnl_over_account_pct": 0.5119600000000002,
+     "pnl_over_notional_pct": 0.4851580296931107
+    },
+    {
+     "period": "2026Q1",
+     "trades": 88,
+     "net_pnl": 254.1400000000001,
+     "win_rate": 0.45454545454545453,
+     "max_drawdown": 119.89999999999998,
+     "sessions": 60,
+     "pnl_over_account_pct": 0.5082800000000002,
+     "pnl_over_notional_pct": 0.48167068390580187
+    },
+    {
+     "period": "2026Q2",
+     "trades": 111,
+     "net_pnl": 24.08000000000012,
+     "win_rate": 0.5225225225225225,
+     "max_drawdown": 170.11999999999998,
+     "sessions": 62,
+     "pnl_over_account_pct": 0.04816000000000024,
+     "pnl_over_notional_pct": 0.045638742694781465
+    },
+    {
+     "period": "2026Q3",
+     "trades": 34,
+     "net_pnl": -101.47999999999998,
+     "win_rate": 0.38235294117647056,
+     "max_drawdown": 101.47999999999998,
+     "sessions": 50,
+     "pnl_over_account_pct": -0.20295999999999997,
+     "pnl_over_notional_pct": -0.19233470135657804
+    }
+   ],
+   "yearly": [
+    {
+     "period": "2025",
+     "trades": 107,
+     "net_pnl": 124.46000000000012,
+     "win_rate": 0.48598130841121495,
+     "max_drawdown": 169.77999999999997,
+     "sessions": 77,
+     "pnl_over_account_pct": 0.24892000000000025,
+     "pnl_over_notional_pct": 0.23588861776546838
+    },
+    {
+     "period": "2026",
+     "trades": 233,
+     "net_pnl": 176.74000000000026,
+     "win_rate": 0.47639484978540775,
+     "max_drawdown": 203.53999999999996,
+     "sessions": 172,
+     "pnl_over_account_pct": 0.3534800000000005,
+     "pnl_over_notional_pct": 0.3349747252440053
+    }
+   ],
+   "months": 13,
+   "positive_months": 5,
+   "positive_month_share": 0.38461538461538464,
+   "mean_monthly": 23.16923076923079,
+   "median_monthly": -8.57999999999996,
+   "stdev_monthly": 124.45937452716171,
+   "best_month": {
+    "period": "2026-02",
+    "trades": 33,
+    "net_pnl": 278.74,
+    "win_rate": 0.5454545454545454,
+    "max_drawdown": 23.539999999999992,
+    "sessions": 18,
+    "pnl_over_account_pct": 0.55748,
+    "pnl_over_notional_pct": 0.5282949808448223
+   },
+   "worst_month": {
+    "period": "2025-09",
+    "trades": 16,
+    "net_pnl": -131.51999999999998,
+    "win_rate": 0.25,
+    "max_drawdown": 131.51999999999998,
+    "sessions": 17,
+    "pnl_over_account_pct": -0.26303999999999994,
+    "pnl_over_notional_pct": -0.24926941192764235
+   },
+   "small_sample": true,
+   "account_size": 50000,
+   "mean_notional": 52762.18970588235
+  },
+  "execution_ladder": [
+   {
+    "slippage_ticks": 0.0,
+    "scenario": "IDEAL",
+    "trades": 340,
+    "gross_pnl": 1056.0,
+    "commission": 414.80000000000007,
+    "slippage_cost": 0.0,
+    "net_pnl": 641.2000000000003,
+    "per_trade": 1.8858823529411777,
+    "per_session": 2.5751004016064267,
+    "win_rate": 0.5029411764705882,
+    "profit_factor": 1.2523237236244578,
+    "max_drawdown": -171.54000000000002,
+    "sharpe": 1.4021810536666057,
+    "sortino": 1.9979400098475038,
+    "t_stat": 1.3938097486775152,
+    "consec_losing_days": 2,
+    "exposure": 0.003492229788720098,
+    "liquidated": false,
+    "p_target": 0.0,
+    "p_payout": 0.0
+   },
+   {
+    "slippage_ticks": 0.5,
+    "scenario": "BASELINE",
+    "trades": 340,
+    "gross_pnl": 1056.0,
+    "commission": 584.8000000000001,
+    "slippage_cost": 85.0,
+    "net_pnl": 386.2000000000003,
+    "per_trade": 1.1358823529411777,
+    "per_session": 1.5510040160642582,
+    "win_rate": 0.48823529411764705,
+    "profit_factor": 1.1446290276675102,
+    "max_drawdown": -195.54000000000013,
+    "sharpe": 0.8709817924847101,
+    "sortino": 1.1430821009026977,
+    "t_stat": 0.8657818547122176,
+    "consec_losing_days": 2,
+    "exposure": 0.003492229788720098,
+    "liquidated": false,
+    "p_target": 0.0,
+    "p_payout": 0.0
+   },
+   {
+    "slippage_ticks": 1.0,
+    "scenario": "CONSERVATIVE",
+    "trades": 340,
+    "gross_pnl": 1056.0,
+    "commission": 584.8000000000001,
+    "slippage_cost": 170.0,
+    "net_pnl": 301.2000000000004,
+    "per_trade": 0.8858823529411776,
+    "per_session": 1.209638554216869,
+    "win_rate": 0.47941176470588237,
+    "profit_factor": 1.1109621137324828,
+    "max_drawdown": -203.54000000000008,
+    "sharpe": 0.6856330989269138,
+    "sortino": 0.8712999348799723,
+    "t_stat": 0.6815397304088301,
+    "consec_losing_days": 2,
+    "exposure": 0.003492229788720098,
+    "liquidated": false,
+    "p_target": 0.0,
+    "p_payout": 0.0
+   },
+   {
+    "slippage_ticks": 2.0,
+    "scenario": "STRESS",
+    "trades": 340,
+    "gross_pnl": 1056.0,
+    "commission": 584.8000000000001,
+    "slippage_cost": 340.0,
+    "net_pnl": 131.2000000000004,
+    "per_trade": 0.3858823529411776,
+    "per_session": 0.5269076305220899,
+    "win_rate": 0.47058823529411764,
+    "profit_factor": 1.046796975317449,
+    "max_drawdown": -219.53999999999996,
+    "sharpe": 0.30376172373994287,
+    "sortino": 0.3675077258505582,
+    "t_stat": 0.3019482047034465,
+    "consec_losing_days": 2,
+    "exposure": 0.003492229788720098,
+    "liquidated": false,
+    "p_target": 0.0,
+    "p_payout": 0.0
+   }
+  ],
+  "monte_carlo": {
+   "ran": true,
+   "reason": "",
+   "paths": 1000,
+   "block": 10,
+   "sessions_per_path": 249,
+   "p_mll_breach": 0.0,
+   "p_dll_hit": 0.0,
+   "dll_armed": false,
+   "p_reach_target": 0.0,
+   "p_payout_eligible": 0.0,
+   "median_days_to_target": null,
+   "ending_pnl_percentiles": {
+    "5": -239.1859999999997,
+    "25": 77.90500000000026,
+    "50": 330.1900000000004,
+    "75": 578.6650000000003,
+    "95": 977.3139999999995
+   },
+   "account_ending_balance_percentiles": {
+    "5": 49760.814000000006,
+    "25": 50077.904999999955,
+    "50": 50330.18999999997,
+    "75": 50578.66499999995,
+    "95": 50977.31399999998
+   },
+   "worst_drawdown_percentiles": {
+    "5": -539.3449999999999,
+    "25": -360.99999999999983,
+    "50": -274.71,
+    "75": -208.39499999999995,
+    "95": -148.17800000000017
+   },
+   "max_losing_streak_percentiles": {
+    "5": 2.0,
+    "25": 2.0,
+    "50": 2.0,
+    "75": 2.0,
+    "95": 3.0
+   },
+   "label": "BOOTSTRAP / PATH SIMULATION, not historical replay and not independent evidence of an edge. It reorders the SAME sessions, so it inherits every bias in the sample and cannot discover one that is not already there. What it measures is PATH RISK: how differently the same sessions could have been arranged against a moving loss limit."
+  },
+  "regime": {
+   "splits": {
+    "direction": [
+     {
+      "name": "long",
+      "trades": 204,
+      "net_pnl": -39.87999999999977,
+      "win_rate": 0.46078431372549017,
+      "share_of_trades": 0.6,
+      "thin": false
+     },
+     {
+      "name": "short",
+      "trades": 136,
+      "net_pnl": 341.08000000000015,
+      "win_rate": 0.5073529411764706,
+      "share_of_trades": 0.4,
+      "thin": false
+     }
+    ],
+    "hour of day (ET)": [
+     {
+      "name": "10:00",
+      "trades": 21,
+      "net_pnl": 79.38000000000002,
+      "win_rate": 0.5238095238095238,
+      "share_of_trades": 0.061764705882352944,
+      "thin": false
+     },
+     {
+      "name": "11:00",
+      "trades": 49,
+      "net_pnl": 455.22,
+      "win_rate": 0.6122448979591837,
+      "share_of_trades": 0.14411764705882352,
+      "thin": false
+     },
+     {
+      "name": "12:00",
+      "trades": 86,
+      "net_pnl": 104.0800000000001,
+      "win_rate": 0.4883720930232558,
+      "share_of_trades": 0.2529411764705882,
+      "thin": false
+     },
+     {
+      "name": "13:00",
+      "trades": 63,
+      "net_pnl": -173.85999999999993,
+      "win_rate": 0.42857142857142855,
+      "share_of_trades": 0.18529411764705883,
+      "thin": false
+     },
+     {
+      "name": "14:00",
+      "trades": 59,
+      "net_pnl": -101.97999999999993,
+      "win_rate": 0.423728813559322,
+      "share_of_trades": 0.17352941176470588,
+      "thin": false
+     },
+     {
+      "name": "15:00",
+      "trades": 62,
+      "net_pnl": -61.63999999999993,
+      "win_rate": 0.45161290322580644,
+      "share_of_trades": 0.18235294117647058,
+      "thin": false
+     }
+    ],
+    "day of week": [
+     {
+      "name": "Fri",
+      "trades": 90,
+      "net_pnl": 94.2000000000001,
+      "win_rate": 0.4666666666666667,
+      "share_of_trades": 0.2647058823529412,
+      "thin": false
+     },
+     {
+      "name": "Mon",
+      "trades": 34,
+      "net_pnl": -49.47999999999996,
+      "win_rate": 0.4411764705882353,
+      "share_of_trades": 0.1,
+      "thin": false
+     },
+     {
+      "name": "Thu",
+      "trades": 96,
+      "net_pnl": 93.38000000000011,
+      "win_rate": 0.4479166666666667,
+      "share_of_trades": 0.2823529411764706,
+      "thin": false
+     },
+     {
+      "name": "Tue",
+      "trades": 28,
+      "net_pnl": 76.34000000000003,
+      "win_rate": 0.4642857142857143,
+      "share_of_trades": 0.08235294117647059,
+      "thin": false
+     },
+     {
+      "name": "Wed",
+      "trades": 92,
+      "net_pnl": 86.7600000000001,
+      "win_rate": 0.5434782608695652,
+      "share_of_trades": 0.27058823529411763,
+      "thin": false
+     }
+    ],
+    "month": [
+     {
+      "name": "2025-09",
+      "trades": 16,
+      "net_pnl": -131.51999999999998,
+      "win_rate": 0.25,
+      "share_of_trades": 0.047058823529411764,
+      "thin": true
+     },
+     {
+      "name": "2025-10",
+      "trades": 34,
+      "net_pnl": 45.52000000000004,
+      "win_rate": 0.4411764705882353,
+      "share_of_trades": 0.1,
+      "thin": false
+     },
+     {
+      "name": "2025-11",
+      "trades": 32,
+      "net_pnl": 267.96000000000004,
+      "win_rate": 0.625,
+      "share_of_trades": 0.09411764705882353,
+      "thin": false
+     },
+     {
+      "name": "2025-12",
+      "trades": 25,
+      "net_pnl": -57.49999999999997,
+      "win_rate": 0.52,
+      "share_of_trades": 0.07352941176470588,
+      "thin": false
+     },
+     {
+      "name": "2026-01",
+      "trades": 27,
+      "net_pnl": -88.93999999999997,
+      "win_rate": 0.2962962962962963,
+      "share_of_trades": 0.07941176470588235,
+      "thin": false
+     },
+     {
+      "name": "2026-02",
+      "trades": 33,
+      "net_pnl": 278.74,
+      "win_rate": 0.5454545454545454,
+      "share_of_trades": 0.09705882352941177,
+      "thin": false
+     },
+     {
+      "name": "2026-03",
+      "trades": 28,
+      "net_pnl": 64.34000000000003,
+      "win_rate": 0.5,
+      "share_of_trades": 0.08235294117647059,
+      "thin": false
+     },
+     {
+      "name": "2026-04",
+      "trades": 57,
+      "net_pnl": -25.039999999999935,
+      "win_rate": 0.47368421052631576,
+      "share_of_trades": 0.1676470588235294,
+      "thin": false
+     },
+     {
+      "name": "2026-05",
+      "trades": 39,
+      "net_pnl": -8.579999999999956,
+      "win_rate": 0.5384615384615384,
+      "share_of_trades": 0.11470588235294117,
+      "thin": false
+     },
+     {
+      "name": "2026-06",
+      "trades": 15,
+      "net_pnl": 57.70000000000002,
+      "win_rate": 0.6666666666666666,
+      "share_of_trades": 0.04411764705882353,
+      "thin": true
+     },
+     {
+      "name": "2026-07",
+      "trades": 10,
+      "net_pnl": -47.69999999999999,
+      "win_rate": 0.5,
+      "share_of_trades": 0.029411764705882353,
+      "thin": true
+     },
+     {
+      "name": "2026-08",
+      "trades": 13,
+      "net_pnl": -5.859999999999989,
+      "win_rate": 0.46153846153846156,
+      "share_of_trades": 0.03823529411764706,
+      "thin": true
+     },
+     {
+      "name": "2026-09",
+      "trades": 11,
+      "net_pnl": -47.91999999999999,
+      "win_rate": 0.18181818181818182,
+      "share_of_trades": 0.03235294117647059,
+      "thin": true
+     }
+    ],
+    "year": [
+     {
+      "name": "2025",
+      "trades": 107,
+      "net_pnl": 124.46000000000012,
+      "win_rate": 0.48598130841121495,
+      "share_of_trades": 0.31470588235294117,
+      "thin": false
+     },
+     {
+      "name": "2026",
+      "trades": 233,
+      "net_pnl": 176.74000000000026,
+      "win_rate": 0.47639484978540775,
+      "share_of_trades": 0.6852941176470588,
+      "thin": false
+     }
+    ],
+    "session volatility tercile": [
+     {
+      "name": "high ATR",
+      "trades": 152,
+      "net_pnl": 399.5600000000002,
+      "win_rate": 0.5263157894736842,
+      "share_of_trades": 0.4470588235294118,
+      "thin": false
+     },
+     {
+      "name": "low ATR",
+      "trades": 80,
+      "net_pnl": -263.5999999999999,
+      "win_rate": 0.35,
+      "share_of_trades": 0.23529411764705882,
+      "thin": false
+     },
+     {
+      "name": "mid ATR",
+      "trades": 108,
+      "net_pnl": 165.24000000000012,
+      "win_rate": 0.5092592592592593,
+      "share_of_trades": 0.3176470588235294,
+      "thin": false
+     }
+    ],
+    "session trend": [
+     {
+      "name": "down trend",
+      "trades": 149,
+      "net_pnl": 386.72000000000014,
+      "win_rate": 0.5033557046979866,
+      "share_of_trades": 0.43823529411764706,
+      "thin": false
+     },
+     {
+      "name": "range-bound",
+      "trades": 4,
+      "net_pnl": 18.120000000000005,
+      "win_rate": 0.5,
+      "share_of_trades": 0.011764705882352941,
+      "thin": true
+     },
+     {
+      "name": "up trend",
+      "trades": 187,
+      "net_pnl": -103.63999999999979,
+      "win_rate": 0.45989304812834225,
+      "share_of_trades": 0.55,
+      "thin": false
+     }
+    ],
+    "exit reason": [
+     {
+      "name": "signal_invalidation",
+      "trades": 340,
+      "net_pnl": 301.2000000000004,
+      "win_rate": 0.47941176470588237,
+      "share_of_trades": 1.0,
+      "thin": false
+     }
+    ]
+   },
+   "note": "every bucket is shown, including thin ones; buckets under 20 trades are marked THIN and no bucket is selected or recommended by this report"
+  },
+  "statistics": {
+   "trades": 340,
+   "sessions": 249,
+   "months": 13,
+   "expectancy_per_session": 1.209638554216869,
+   "expectancy_t": 0.7535847370107005,
+   "expectancy_ci95": [
+    -1.9365127010087233,
+    4.355789809442461
+   ],
+   "t_method": "Newey-West HAC, lag 4",
+   "multiple_testing": "ONE spec was run, hashed, and reported. No search was performed inside this run, so no multiplicity correction applies to it. That does NOT cover how the spec was arrived at: if it was selected after looking at this data, the correction belongs to that selection and this report cannot see it.",
+   "top5pct_session_share": 3.836719787516595,
+   "best_month_share": 0.9254316069057094,
+   "best_day_share": 0.6015936254980072,
+   "without_best_5_sessions": -405.41999999999973,
+   "positive_month_share": 0.38461538461538464,
+   "regime_dependent": "see the REGIME ANALYSIS table - every bucket is shown. A result carried by one bucket is visible there as that bucket's share of net",
+   "instrument_dependence": "tested on MNQ only. Nothing in this report is evidence about any other instrument, and the ES/MES cross-source finding in docs/CANONICAL_DATA_LAYER.md shows that even the 'same' index on two contracts is not the same series over every window.",
+   "window_dependence": "one contiguous window, 2025-09-08 .. 2026-09-10. The yearly and monthly tables above are the only view of within-window stability this sample supports.",
+   "holdout": "NO CLEAN HOLDOUT. The whole available history was used. This is stated rather than manufactured: carving a holdout out of the sample AFTER seeing the result would not be one.",
+   "drawdown_uncertainty": "the maximum drawdown is ONE observation from ONE ordering of these sessions. The Monte Carlo section's worst-drawdown percentiles are the honest range; the single historical figure is not a bound."
+  },
+  "classification": {
+   "verdict": "FRAGILE",
+   "reasons": [
+    "net $301 under CONSERVATIVE over 249 sessions"
+   ],
+   "blocking": [
+    "the top 5% of sessions carry 384% of net (limit 50%)",
+    "one month carries 93% of net (limit 60%)",
+    "only 38% of months are positive (limit 50%)"
+   ],
+   "criteria": "UNTESTABLE       fewer than 30 trades, or fewer than\n                 60 sessions, or fewer than\n                 6 months. The sample cannot support any verdict.\nNEGATIVE         headline (CONSERVATIVE) net P&L <= 0.\nFRAGILE          positive under CONSERVATIVE, but at least one of: negative under STRESS;\n                 the top 5% of sessions carry > 50% of net; one month\n                 carries > 60% of net; under half the months positive;\n                 the Topstep account is liquidated on the historical path.\nINCONCLUSIVE     positive and not fragile, but the expectancy t-statistic is below\n                 2.0 - the sample cannot distinguish it from zero.\nPROMISING        positive, not fragile, t >= 2.0, survives STRESS - but under\n                 24 months of data, or no clean holdout exists.\nROBUST POSITIVE  everything PROMISING requires, plus >= 24 months AND a\n                 clean out-of-sample holdout. NOT REACHABLE on a 15-month store, by\n                 construction."
+  },
+  "limitations": [
+   "CURRENT HISTORICAL DEPTH: 2025-09-08 .. 2026-09-10 (249 complete sessions spanning 13 calendar months). LONG-HISTORY VALIDATION: NOT AVAILABLE - 12.1 months on disk. Nothing in this report is long-term validation, and a result that looks exceptional over this window should be read as exceptional OVER THIS WINDOW.",
+   "Partial fills, queue position and market impact are NOT MODELLED in any execution mode.",
+   "Stops and targets fill AT their level even on a gap through it - optimistic, and declared in every mode's assumption table.",
+   "MAE and MFE are bar-resolution extreme: the worst price printed by any one-minute bar the trade was open across. An UPPER BOUND on what the trade experienced, because a trade entered part-way through a bar did not see all of that bar's range.",
+   "The monthly '% of 50K' column is P&L over the account's nominal size. Topstep requires no such capital to be posted, so it is a scale, not a return on capital.",
+   "The Monte Carlo section resamples THESE sessions. It measures path risk, not edge, and cannot be evidence that the edge exists.",
+   "One instrument, one contiguous window, one execution simulator. Nothing here has been reproduced on an independent data source."
+  ]
+ }
+}

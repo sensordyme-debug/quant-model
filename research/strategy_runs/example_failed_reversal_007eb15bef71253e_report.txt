@@ -1,0 +1,233 @@
+====================================================================================================
+STRATEGY SCORECARD   example_failed_reversal   007eb15bef71253e
+====================================================================================================
+
+A. STRATEGY SUMMARY
+  strategy                 example_failed_reversal   version/hash 007eb15bef71253e
+  engine                   2.0.0-integrated
+  instrument               MNQ @ 1min
+  historical coverage      2025-09-08 .. 2026-09-10   (12.1 months)
+  sessions / bars          249 / 97,359
+  data path                canonical
+  data manifest            ibkr-MNQ-1min | manifest e0f411ac6298e690 | frame 33275bc8f5bf9148
+  data representation      CONTINUOUS_UNADJUSTED | roll CALENDAR_DAYS_BEFORE_EXPIRY | adjustment NONE | quality WARN
+  execution mode           CONSERVATIVE (intrabar INTRABAR_CONSERVATIVE)
+  Topstep rules            topstep-50k-2026-09-12
+  LONG-HISTORY VALIDATION  LONG-HISTORY VALIDATION: NOT AVAILABLE - 12.1 months on disk. Nothing in this report is long-term validation, and a result that looks exceptional over this window should be read as exceptional OVER THIS WINDOW.
+
+B. TRADE STATISTICS
+  trades                     340   long 204 / short 136
+  winners / losers / flat    163 / 177 / 0
+  win rate                   47.9%
+  average trade              $0.89
+  median trade               $-0.72
+  standard deviation         $23.86
+  best / worst trade         $107.78 / $-72.72
+  profit factor              1.11
+  expectancy per trade       $0.89
+  gross profit / gross loss  $3,015.64 / $2,714.44
+  net P&L                    $301.20
+  fees (commission+spread)   $584.80
+  slippage                   $170.00
+  hold time avg / median     1.00 / 1.00 min
+  net by direction           long $-40 / short $341
+  exits by reason            signal_invalidation 340
+
+C. RISK
+  max drawdown (session close)   $204
+  max intraday drawdown          $240
+  max consecutive losing trades  7
+  max consecutive losing days    2
+  MAE distribution ($)           n=340  mean -18  p5 -53  p25 -24  med -12  p75 -6  p95 -1  min -134  max 0
+  MFE distribution ($)           n=340  mean 19  p5 1  p25 7  med 14  p75 24  p95 59  min 0  max 120
+  MAE/MFE basis                  bar-resolution extreme: the worst price printed by any one-minute bar the trade was open across. An UPPER BOUND on what the trade experienced, because a trade entered part-way through a bar did not see all of that bar's range.
+  average risk per trade         $15.34
+  risk basis                     NO STOP DECLARED: risk per trade is undefined, so the figure below is the realised average loss on losing trades, which is not the same quantity
+  worst daily loss               $-97  on 2026-04-02
+  best daily gain                $181
+  exposure                       0.3% of session bars holding a position
+  time under water               61 sessions max, 85% of the sample
+
+D. TIME DISTRIBUTION
+  month      trades  sessions       net $   win%    maxDD $  % of 50K  % notional
+  -------------------------------------------------------------------------------
+  2025-09        16        17        -132  25.0%        132    -0.26%     -0.249%
+  2025-10        34        23          46  44.1%         52     0.09%      0.086%
+  2025-11        32        17         268  62.5%         72     0.54%      0.508%
+  2025-12        25        20         -57  52.0%         77    -0.11%     -0.109%
+  2026-01        27        20         -89  29.6%        120    -0.18%     -0.169%
+  2026-02        33        18         279  54.5%         24     0.56%      0.528%
+  2026-03        28        22          64  50.0%         79     0.13%      0.122%
+  2026-04        57        21         -25  47.4%        170    -0.05%     -0.047%
+  2026-05        39        20          -9  53.8%         57    -0.02%     -0.016%
+  2026-06        15        21          58  66.7%         67     0.12%      0.109%
+  2026-07        10        22         -48  50.0%         48    -0.10%     -0.090%
+  2026-08        13        21          -6  46.2%          6    -0.01%     -0.011%
+  2026-09        11         7         -48  18.2%         52    -0.10%     -0.091%
+
+   monthly distribution
+  months                13   *** SMALL SAMPLE: nothing below is annualised or extrapolated ***
+  positive months       5 / 13  (38%)
+  mean monthly P&L      $23
+  median monthly P&L    $-9
+  stdev of monthly P&L  $124
+  best month            2026-02  $279
+  worst month           2025-09  $-132
+  TWO DENOMINATORS      '% of 50K' is P&L over the account's nominal size (no capital is posted); '% notional' is P&L over the ~$52,762 of contract value actually controlled. They are not the same quantity.
+
+   quarterly
+  2025Q3  $-132  16 trades
+  2025Q4  $256  91 trades
+  2026Q1  $254  88 trades
+  2026Q2  $24  111 trades
+  2026Q3  $-101  34 trades
+
+   yearly
+  2025  $124  107 trades
+  2026  $177  233 trades
+
+E. TOPSTEP ACCOUNT
+  starting balance                      $50,000
+  ending STRATEGY equity                $100,301  (P&L $50,301)
+  ending ACCOUNT equity                 $50,301
+  MLL at the end                        $48,470
+  minimum MLL buffer                    $1,796   intraday $1,790
+  DLL                                   not armed
+  liquidation                           False
+  $3,000 target                         False
+  forced flat                           0 sessions, $0
+  maximum contracts                     1 of 50 MNQ permitted
+  contract-limit violations             0
+  complete-account survival             249 of 71 sessions traded; terminal stage trading_combine
+  cross-check vs independent reference  AGREES (17 fields)
+
+F. PAYOUT ANALYSIS
+  rules version                   topstep-50k-2026-09-12
+  P(survive to target)            0.0%
+  P(payout eligibility)           0.0%
+  P(survive the period)           100.0%
+  payout-eligible sessions        0
+  first eligible                  never within the sample
+  sessions to first eligible      n/a
+  payouts taken under the policy  0  total $0
+  trader share                    $0
+  NOT A PAYOUT                    A backtest profit is not a payout. Everything above is the account simulation's own payout clock; nothing on this line is money that was withdrawn.
+  probability basis               HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.
+
+EXECUTION SCENARIO LADDER
+  mode                net $  expectancy $    maxDD $  MLL survives  P(target)  P(payout)
+  --------------------------------------------------------------------------------------
+  IDEAL                 641          1.89       -172          True       0.0%       0.0%
+  BASELINE              386          1.14       -196          True       0.0%       0.0%
+  CONSERVATIVE          301          0.89       -204          True       0.0%       0.0%
+  STRESS                131          0.39       -220          True       0.0%       0.0%
+  The headline is CONSERVATIVE. IDEAL is printed only so the distance between them is visible as a number.
+
+MONTE CARLO / PATH SIMULATION
+  paths                   1,000 moving-block resamples, block 10, 249 sessions each
+  P(MLL breach)           0.0%
+  P(DLL hit)              DLL not armed
+  P(reach $3,000)         0.0%
+  P(payout eligible)      0.0%
+  median days to target   never in over half the paths
+  ending strategy P&L     p5 -239  p25 78  p50 330  p75 579  p95 977
+  ending ACCOUNT balance  p5 49,761  p25 50,078  p50 50,330  p75 50,579  p95 50,977
+  worst drawdown          p5 -539  p25 -361  p50 -275  p75 -208  p95 -148
+  max losing streak       p5 2  p25 2  p50 2  p75 2  p95 3
+  what this is            BOOTSTRAP / PATH SIMULATION, not historical replay and not independent evidence of an edge. It reorders the SAME sessions, so it inherits every bias in the sample and cannot discover one that is not already there. What it measures is PATH RISK: how differently the same sessions could have been arranged against a moving loss limit.
+
+REGIME ANALYSIS  (every bucket is shown, including thin ones; buckets under 20 trades are marked THIN and no bucket is selected or recommended by this report)
+  direction
+    long                     204 trades  60.0%  net $       -40  win  46.1%
+    short                    136 trades  40.0%  net $       341  win  50.7%
+  hour of day (ET)
+    10:00                     21 trades   6.2%  net $        79  win  52.4%
+    11:00                     49 trades  14.4%  net $       455  win  61.2%
+    12:00                     86 trades  25.3%  net $       104  win  48.8%
+    13:00                     63 trades  18.5%  net $      -174  win  42.9%
+    14:00                     59 trades  17.4%  net $      -102  win  42.4%
+    15:00                     62 trades  18.2%  net $       -62  win  45.2%
+  day of week
+    Fri                       90 trades  26.5%  net $        94  win  46.7%
+    Mon                       34 trades  10.0%  net $       -49  win  44.1%
+    Thu                       96 trades  28.2%  net $        93  win  44.8%
+    Tue                       28 trades   8.2%  net $        76  win  46.4%
+    Wed                       92 trades  27.1%  net $        87  win  54.3%
+  month
+    2025-09                   16 trades   4.7%  net $      -132  win  25.0%  THIN
+    2025-10                   34 trades  10.0%  net $        46  win  44.1%
+    2025-11                   32 trades   9.4%  net $       268  win  62.5%
+    2025-12                   25 trades   7.4%  net $       -57  win  52.0%
+    2026-01                   27 trades   7.9%  net $       -89  win  29.6%
+    2026-02                   33 trades   9.7%  net $       279  win  54.5%
+    2026-03                   28 trades   8.2%  net $        64  win  50.0%
+    2026-04                   57 trades  16.8%  net $       -25  win  47.4%
+    2026-05                   39 trades  11.5%  net $        -9  win  53.8%
+    2026-06                   15 trades   4.4%  net $        58  win  66.7%  THIN
+    2026-07                   10 trades   2.9%  net $       -48  win  50.0%  THIN
+    2026-08                   13 trades   3.8%  net $        -6  win  46.2%  THIN
+    2026-09                   11 trades   3.2%  net $       -48  win  18.2%  THIN
+  year
+    2025                     107 trades  31.5%  net $       124  win  48.6%
+    2026                     233 trades  68.5%  net $       177  win  47.6%
+  session volatility tercile
+    high ATR                 152 trades  44.7%  net $       400  win  52.6%
+    low ATR                   80 trades  23.5%  net $      -264  win  35.0%
+    mid ATR                  108 trades  31.8%  net $       165  win  50.9%
+  session trend
+    down trend               149 trades  43.8%  net $       387  win  50.3%
+    range-bound                4 trades   1.2%  net $        18  win  50.0%  THIN
+    up trend                 187 trades  55.0%  net $      -104  win  46.0%
+  exit reason
+    signal_invalidation      340 trades  100.0%  net $       301  win  47.9%
+
+STATISTICAL CONFIDENCE
+  sample                           340 trades over 249 independent sessions and 13 months
+  expectancy / session             $1.21
+  expectancy t                     0.75   (Newey-West HAC, lag 4)
+  expectancy 95% CI / session      [-1.94, 4.36]
+  multiple-testing exposure        ONE spec was run, hashed, and reported. No search was performed inside this run, so no multiplicity correction applies to it. That does NOT cover how the spec was arrived at: if it was selected after looking at this data, the correction belongs to that selection and this report cannot see it.
+  top 5% of sessions carry         384% of net
+  best single day carries          60% of net
+  best single month carries        93% of net
+  net without the best 5 sessions  $-405
+  positive months                  38.5%
+  regime dependence                see the REGIME ANALYSIS table - every bucket is shown. A result carried by one bucket is visible there as that bucket's share of net
+  instrument dependence            tested on MNQ only. Nothing in this report is evidence about any other instrument, and the ES/MES cross-source finding in docs/CANONICAL_DATA_LAYER.md shows that even the 'same' index on two contracts is not the same series over every window.
+  time-window dependence           one contiguous window, 2025-09-08 .. 2026-09-10. The yearly and monthly tables above are the only view of within-window stability this sample supports.
+  drawdown uncertainty             the maximum drawdown is ONE observation from ONE ordering of these sessions. The Monte Carlo section's worst-drawdown percentiles are the honest range; the single historical figure is not a bound.
+  OUT-OF-SAMPLE                    NO CLEAN HOLDOUT. The whole available history was used. This is stated rather than manufactured: carving a holdout out of the sample AFTER seeing the result would not be one.
+
+EXPLICIT LIMITATIONS
+  1. CURRENT HISTORICAL DEPTH: 2025-09-08 .. 2026-09-10 (249 complete sessions spanning 13 calendar months). LONG-HISTORY VALIDATION: NOT AVAILABLE - 12.1 months on disk. Nothing in this report is long-term validation, and a result that looks exceptional over this window should be read as exceptional OVER THIS WINDOW.
+  2. Partial fills, queue position and market impact are NOT MODELLED in any execution mode.
+  3. Stops and targets fill AT their level even on a gap through it - optimistic, and declared in every mode's assumption table.
+  4. MAE and MFE are bar-resolution extreme: the worst price printed by any one-minute bar the trade was open across. An UPPER BOUND on what the trade experienced, because a trade entered part-way through a bar did not see all of that bar's range.
+  5. The monthly '% of 50K' column is P&L over the account's nominal size. Topstep requires no such capital to be posted, so it is a scale, not a return on capital.
+  6. The Monte Carlo section resamples THESE sessions. It measures path risk, not edge, and cannot be evidence that the edge exists.
+  7. One instrument, one contiguous window, one execution simulator. Nothing here has been reproduced on an independent data source.
+
+====================================================================================================
+CLASSIFICATION: FRAGILE
+====================================================================================================
+  + net $301 under CONSERVATIVE over 249 sessions
+  - the top 5% of sessions carry 384% of net (limit 50%)
+  - one month carries 93% of net (limit 60%)
+  - only 38% of months are positive (limit 50%)
+
+CRITERIA (fixed before the run, in quant_brain/research/strategy_report.py)
+  UNTESTABLE       fewer than 30 trades, or fewer than
+                   60 sessions, or fewer than
+                   6 months. The sample cannot support any verdict.
+  NEGATIVE         headline (CONSERVATIVE) net P&L <= 0.
+  FRAGILE          positive under CONSERVATIVE, but at least one of: negative under STRESS;
+                   the top 5% of sessions carry > 50% of net; one month
+                   carries > 60% of net; under half the months positive;
+                   the Topstep account is liquidated on the historical path.
+  INCONCLUSIVE     positive and not fragile, but the expectancy t-statistic is below
+                   2.0 - the sample cannot distinguish it from zero.
+  PROMISING        positive, not fragile, t >= 2.0, survives STRESS - but under
+                   24 months of data, or no clean holdout exists.
+  ROBUST POSITIVE  everything PROMISING requires, plus >= 24 months AND a
+                   clean out-of-sample holdout. NOT REACHABLE on a 15-month store, by
+                   construction.

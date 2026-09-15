@@ -85,9 +85,9 @@
  "provenance": {
   "spec_hash": "5ae0563f7173d6cf",
   "engine_version": "2.0.0-integrated",
-  "git_sha": "4141e882a87b5e6e093ad029dfacc2b726912663",
+  "git_sha": "a583612fa49c9472240a68fb4b387aad22423cb0",
   "git_dirty": true,
-  "data_source": "data\\futures\\MNQ.parquet",
+  "data_source": "canonical:ibkr-MNQ-1min@e0f411ac6298e690",
   "data_hash": "31aaceb369ced394",
   "data_start": "2025-09-08",
   "data_end": "2026-09-10",
@@ -95,8 +95,87 @@
   "python": "3.14.7 (Windows)",
   "numpy": "2.5.3",
   "pandas": "3.0.5",
-  "run_at": "2026-09-14T23:09:46-04:00",
+  "run_at": "2026-09-15T13:14:06-04:00",
   "seed": null
+ },
+ "data": {
+  "features_identical_to_execution": true,
+  "feature_data": {
+   "dataset_id": "ibkr-MNQ-1min",
+   "manifest_id": "e0f411ac6298e690",
+   "frame_fingerprint": "33275bc8f5bf9148",
+   "data_form": "CONTINUOUS_UNADJUSTED",
+   "roll_method": "CALENDAR_DAYS_BEFORE_EXPIRY",
+   "adjustment_method": "NONE",
+   "provider": "IBKR",
+   "source_hashes": [
+    "a47c3f9541205057e68f17b8922e9a7f9888973509f81503d4f1ecb92d9b8fa0"
+   ],
+   "quality_status": "WARN",
+   "quality_report_hash": "340ec3f9ec59f4b0",
+   "coverage": [
+    "2025-09-07 22:00:00+00:00",
+    "2026-09-10 20:59:00+00:00"
+   ],
+   "session_timezone": "America/New_York",
+   "bar_interval": "1min",
+   "schema_version": "1.0.0"
+  },
+  "execution_data": {
+   "dataset_id": "ibkr-MNQ-1min",
+   "manifest_id": "e0f411ac6298e690",
+   "frame_fingerprint": "33275bc8f5bf9148",
+   "data_form": "CONTINUOUS_UNADJUSTED",
+   "roll_method": "CALENDAR_DAYS_BEFORE_EXPIRY",
+   "adjustment_method": "NONE",
+   "provider": "IBKR",
+   "source_hashes": [
+    "a47c3f9541205057e68f17b8922e9a7f9888973509f81503d4f1ecb92d9b8fa0"
+   ],
+   "quality_status": "WARN",
+   "quality_report_hash": "340ec3f9ec59f4b0",
+   "execution_valid": true
+  },
+  "notes": [
+   "one series serves both purposes"
+  ],
+  "data_path": "canonical",
+  "describe": "FEATURE DATA and EXECUTION DATA are the SAME series: ibkr-MNQ-1min [CONTINUOUS_UNADJUSTED] manifest e0f411ac6298e690 frame 33275bc8f5bf9148",
+  "window": {
+   "open_et": "09:30",
+   "close_et": "16:00",
+   "timezone": "America/New_York",
+   "bars": 391
+  },
+  "attrition": {
+   "bars_in_file": 358845,
+   "bars_in_window": 100450,
+   "sessions_in_window": 261,
+   "sessions_dropped_multi_contract": 1,
+   "sessions_dropped_incomplete": 11,
+   "sessions_kept": 249,
+   "multi_contract_days": [
+    "2025-12-11"
+   ],
+   "incomplete_days": [
+    "2025-11-11",
+    "2025-11-27",
+    "2025-11-28",
+    "2025-12-24",
+    "2026-01-19",
+    "2026-02-10",
+    "2026-02-16",
+    "2026-05-25",
+    "2026-06-19",
+    "2026-07-03",
+    "2026-09-07"
+   ]
+  },
+  "gates_run": [
+   "schema.validate_frame",
+   "data.quality.check",
+   "futures_cme.dataquality.require_usable"
+  ]
  },
  "validation": {
   "ledger_reconciles": true,
@@ -244,7 +323,7 @@
    "p_survive_period": 1.0,
    "p_target_before_violation": 0.0,
    "p_payout_eligible": 0.0,
-   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 300 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
+   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
    "cross_check_agrees": true,
    "cross_check_fields": 17,
    "cross_check_mismatches": []
@@ -306,7 +385,7 @@
    "p_survive_period": 1.0,
    "p_target_before_violation": 0.0,
    "p_payout_eligible": 0.0,
-   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 300 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
+   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
    "cross_check_agrees": true,
    "cross_check_fields": 17,
    "cross_check_mismatches": []
@@ -368,7 +447,7 @@
    "p_survive_period": 1.0,
    "p_target_before_violation": 0.0,
    "p_payout_eligible": 0.0,
-   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 300 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
+   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
    "cross_check_agrees": true,
    "cross_check_fields": 17,
    "cross_check_mismatches": []
@@ -430,7 +509,7 @@
    "p_survive_period": 1.0,
    "p_target_before_violation": 0.0,
    "p_payout_eligible": 0.0,
-   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 300 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
+   "probability_note": "HISTORICAL / PATH-MODEL SCENARIO ESTIMATE from 400 moving-block resamples (block 10) of the 249 observed sessions. Not a forecast: it reuses the same sessions in a different order and inherits every bias in the sample.",
    "cross_check_agrees": true,
    "cross_check_fields": 17,
    "cross_check_mismatches": []

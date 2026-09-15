@@ -182,6 +182,21 @@ def test_the_leakage_guard_module_is_wired_to_the_research_path(research_reachab
     assert "quant_brain.core.validation" in research_reachable
 
 
+def test_the_concentration_module_is_wired_to_the_research_path(research_reachable):
+    """RATCHET CLEARED 2026-09-15. `quant_brain.research.robustness` had no caller.
+
+    `strategy_report.py` now calls `robustness.concentration` on every strategy run, and the
+    result is not decorative: the report's FRAGILE verdict turns on `top_share[0.05]`,
+    `best_month_share` and `without_best[5]`, so a strategy whose profit is carried by a
+    handful of sessions is classified as such rather than quoted by its total.
+
+    Being honest about what this does NOT mean, in the same spirit as the validation ratchet
+    above: `regime_performance`, the `RegimeLabeller` set and `intraday_attribution` are still
+    uncalled. The report builds its own regime splits from prices. Reachability is not use.
+    """
+    assert "quant_brain.research.robustness" in research_reachable
+
+
 # ---------------------------------------------------------------------------------------
 # The gap. Each of these SHOULD be on the production or research path and is not.
 # ---------------------------------------------------------------------------------------
@@ -203,8 +218,6 @@ _UNWIRED = [
      "portfolio exposure and correlated risk; no caller"),
     ("quant_brain.research.analytics",
      "trade analytics with UNAVAILABLE semantics; no caller"),
-    ("quant_brain.research.robustness",
-     "regime labelling and concentration/ordering nulls; no caller"),
 ]
 
 

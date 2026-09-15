@@ -77,8 +77,18 @@ def test_the_same_spec_hashes_identically_twice():
 # =====================================================================================
 
 def test_two_conflicting_stops_are_refused_not_silently_prioritised():
-    with pytest.raises(ValueError, match="two different stops"):
+    """Any two of the three stop forms, in any combination. The message names which ones.
+
+    The wording moved from "two different stops" to "N different stops" when `stop_points`
+    made three forms possible; the pin is on the refusal and on the conflict being named,
+    not on the number word.
+    """
+    with pytest.raises(ValueError, match="different stops"):
         ExitSpec(stop_atr=1.0, structural_stop=True, use_invalidation=False)
+    with pytest.raises(ValueError, match="different stops"):
+        ExitSpec(stop_atr=1.0, stop_points=10.0, use_invalidation=False)
+    with pytest.raises(ValueError, match="different stops"):
+        ExitSpec(stop_points=10.0, structural_stop=True, use_invalidation=False)
 
 
 def test_an_exit_with_no_way_out_must_say_so_explicitly():

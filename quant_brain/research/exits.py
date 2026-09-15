@@ -51,17 +51,34 @@ FLATTEN = "forced_flatten"
 
 @dataclass(frozen=True)
 class ExitArchitecture:
-    """One declarative exit design. `None` means the leg is absent, not zero."""
+    """One declarative exit design. `None` means the leg is absent, not zero.
+
+    EVERY DISTANCE COMES IN TWO FORMS AND THEY ARE NOT INTERCHANGEABLE
+    -------------------------------------------------------------------
+    An ATR multiple is a distance that moves with the session's volatility; a point distance
+    is a fixed number of index points. A trader who says "ten-point stop" means the second
+    one, and expressing it as an ATR multiple would make the stop a different distance on
+    every session - a different strategy, arrived at by translation. Both forms exist so that
+    neither has to be rewritten as the other; `StrategySpec` refuses a leg that is given both.
+    """
 
     name: str
     #: Initial stop, in multiples of the entry session's ATR.
     stop_atr: float | None = None
-    #: Profit target, in multiples of R where R is the initial stop distance.
+    #: Initial stop, in INDEX POINTS. Fixed distance, unaffected by the session's volatility.
+    stop_points: float | None = None
+    #: Profit target, in multiples of R where R is the initial stop distance. Meaningless
+    #: without a stop, and `StrategySpec` refuses that combination rather than substituting
+    #: the ATR for R, which is what this simulator would otherwise silently do.
     target_r: float | None = None
+    #: Profit target, in INDEX POINTS from the entry price.
+    target_points: float | None = None
     #: Stop placed at the signal bar's own extreme instead of an ATR distance.
     structural_stop: bool = False
     #: Trailing stop distance in ATR multiples, applied after entry.
     trail_atr: float | None = None
+    #: Trailing stop distance in INDEX POINTS, applied after entry.
+    trail_points: float | None = None
     #: Move the stop to entry once this many R of favourable excursion is reached.
     breakeven_at_r: float | None = None
     #: Hard exit after this many bars.
@@ -69,16 +86,29 @@ class ExitArchitecture:
     #: Exit when the originating signal is no longer true. This is what the library does now.
     use_invalidation: bool = True
 
+    @property
+    def has_stop(self) -> bool:
+        """Whether an INITIAL stop exists. A trail is not an initial stop: it starts at the
+        entry bar's extreme and only later becomes binding, so R is undefined under it."""
+        return (self.structural_stop or self.stop_atr is not None
+                or self.stop_points is not None)
+
     def describe(self) -> str:
         bits = []
         if self.structural_stop:
             bits.append("stop at signal-bar extreme")
         elif self.stop_atr is not None:
             bits.append(f"stop {self.stop_atr:g} ATR")
+        elif self.stop_points is not None:
+            bits.append(f"stop {self.stop_points:g} pts")
         if self.target_r is not None:
             bits.append(f"target {self.target_r:g}R")
+        elif self.target_points is not None:
+            bits.append(f"target {self.target_points:g} pts")
         if self.trail_atr is not None:
             bits.append(f"trail {self.trail_atr:g} ATR")
+        elif self.trail_points is not None:
+            bits.append(f"trail {self.trail_points:g} pts")
         if self.breakeven_at_r is not None:
             bits.append(f"break-even at {self.breakeven_at_r:g}R")
         if self.time_stop_bars is not None:
@@ -106,37 +136,52 @@ class ExitResult:
 
 def simulate_trade(closes: np.ndarray, highs: np.ndarray, lows: np.ndarray,
                    signal: np.ndarray, entry_bar: int, direction: int,
-                   atr: float, arch: ExitArchitecture) -> ExitResult:
+                   atr: float, arch: ExitArchitecture,
+                   last_bar: int | None = None) -> ExitResult:
     """Walk one position forward bar by bar until an exit rule fires.
 
     The order of checks inside a bar is fixed and pessimistic: stop, then target, then trail,
     then time, then invalidation. A bar that could have produced either a stop or a target is
     recorded as a stop AND flagged ambiguous.
+
+    `last_bar` is the FORCED FLAT bar - the position is closed at its close whatever the rules
+    say. It defaults to the session's final bar, which is the mandatory flatten; a spec that
+    declares an earlier wall-clock flat passes that bar's index here. It is a parameter rather
+    than a constant because the flatten time is a venue rule in one case and a strategy rule
+    in the other, and the two must not be confused in the exit reason.
     """
     n = len(closes)
     entry = float(closes[entry_bar])
-    last = n - 1
+    last = n - 1 if last_bar is None else min(n - 1, int(last_bar))
 
     if arch.structural_stop:
         lo, hi = float(lows[entry_bar]), float(highs[entry_bar])
         risk = (entry - lo) if direction > 0 else (hi - entry)
         risk = max(risk, 1e-9)
+    elif arch.stop_points is not None:
+        risk = max(arch.stop_points, 1e-9)
     elif arch.stop_atr is not None:
         risk = max(arch.stop_atr * atr, 1e-9)
     else:
-        risk = max(atr, 1e-9)          # a nominal R for reporting when there is no stop
+        #: A NOMINAL R, for reporting `r_multiple` on a trade that had no stop. It is never a
+        #: target distance: `StrategySpec` refuses `target_r` without a stop precisely so that
+        #: this number cannot become one silently.
+        risk = max(atr, 1e-9)
 
-    stop_px = (entry - risk * direction) if (arch.stop_atr is not None
-                                             or arch.structural_stop) else None
-    target_px = (entry + arch.target_r * risk * direction
-                 if arch.target_r is not None else None)
+    stop_px = (entry - risk * direction) if arch.has_stop else None
+    if arch.target_r is not None:
+        target_px = entry + arch.target_r * risk * direction
+    elif arch.target_points is not None:
+        target_px = entry + arch.target_points * direction
+    else:
+        target_px = None
 
     best = entry                        # running favourable extreme, for trail and MFE
     mfe = mae = 0.0
     ambiguous = False
     be_armed = False
 
-    for i in range(entry_bar + 1, n):
+    for i in range(entry_bar + 1, last + 1):
         hi, lo, cl = float(highs[i]), float(lows[i]), float(closes[i])
         up = (hi - entry) * direction
         dn = (lo - entry) * direction
@@ -158,8 +203,10 @@ def simulate_trade(closes: np.ndarray, highs: np.ndarray, lows: np.ndarray,
             stop_px = entry
 
         # ---- trailing stop ----------------------------------------------------------------
-        if arch.trail_atr is not None:
-            t = best - arch.trail_atr * atr * direction
+        trail_distance = (arch.trail_atr * atr if arch.trail_atr is not None
+                          else arch.trail_points)
+        if trail_distance is not None:
+            t = best - trail_distance * direction
             stop_px = t if stop_px is None else (max(stop_px, t) if direction > 0
                                                  else min(stop_px, t))
 
@@ -171,9 +218,14 @@ def simulate_trade(closes: np.ndarray, highs: np.ndarray, lows: np.ndarray,
             ambiguous = True
         if hit_stop:
             px = float(stop_px)
+            # The reason rule is unchanged from before point-distances existed: a trail is
+            # reported as TRAIL only while no *explicit* initial stop was set and break-even
+            # has not armed. `stop_points` is added to the same test `stop_atr` was already
+            # in, so no existing classification moves.
             return _result(entry_bar, i, direction, entry, px, TRAIL if
-                           (arch.trail_atr is not None and not be_armed
-                            and arch.stop_atr is None) else STOP,
+                           (trail_distance is not None and not be_armed
+                            and arch.stop_atr is None and arch.stop_points is None)
+                           else STOP,
                            mfe, mae, risk, ambiguous)
         if hit_target:
             return _result(entry_bar, i, direction, entry, float(target_px), TARGET,

@@ -1,0 +1,4131 @@
+{
+ "verdict": "EQUIVALENT",
+ "spec": {
+  "name": "example_failed_reversal",
+  "hash": "89500740956c3072",
+  "instrument": "NQ",
+  "session": [
+   "09:30",
+   "16:00"
+  ]
+ },
+ "engine_version": "2.0.0-integrated",
+ "sessions": 310,
+ "profiles": [
+  "IDEAL",
+  "BASELINE",
+  "CONSERVATIVE",
+  "STRESS"
+ ],
+ "counts": {
+  "match": 654,
+  "explained": 6,
+  "differ": 0
+ },
+ "checks": [
+  {
+   "name": "sessions.count",
+   "status": "MATCH",
+   "detail": "310",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "sessions.days",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "sessions.bars_per_session",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "bars.total",
+   "status": "MATCH",
+   "detail": "121210",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "bars.timestamps",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "bars.session_date",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "bars.wall_clock",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "bars.contract_label",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "bars.open",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "bars.high",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "bars.low",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "bars.close",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "bars.volume",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "features.columns",
+   "status": "MATCH",
+   "detail": "17 features",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "features.values",
+   "status": "MATCH",
+   "detail": "2,060,570 values across 17 features",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "signals.positions",
+   "status": "MATCH",
+   "detail": "121,210 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "signals.entries",
+   "status": "MATCH",
+   "detail": "904",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.ledger.spec_hash",
+   "status": "MATCH",
+   "detail": "'89500740956c3072'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.ledger.round_turn_cost",
+   "status": "MATCH",
+   "detail": "3.78",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.fills.session",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.fills.bar",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.fills.timestamp",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.fills.kind",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.fills.signed_quantity",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.fills.price",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.fills.reason",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.fills.cost",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.trade_id",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.strategy",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.instrument",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.session",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.direction",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.quantity",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.entry_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.exit_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.entry_time",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.exit_time",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.entry_price",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.exit_price",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.gross_pnl",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.commission_and_spread",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.slippage",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.net_pnl",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.mae",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.mfe",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.r_multiple",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.exit_reason",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.holding_minutes",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.trades.ambiguous_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.forced_flatten",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.day_of_week",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.month",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.trades.execution_path_mode",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.daily_pnl",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.equity_curve",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.intraday_equity",
+   "status": "MATCH",
+   "detail": "1,113 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.net_pnl",
+   "status": "MATCH",
+   "detail": "7811.560000000003",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.mae",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.mfe",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.month",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.monthly.sessions",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.net_pnl",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.mean_daily",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.best_day",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.worst_day",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.positive_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.negative_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.win_rate_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.max_drawdown",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.monthly.longest_losing_streak",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.account_size",
+   "status": "MATCH",
+   "detail": "50000",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.combine_attempts",
+   "status": "MATCH",
+   "detail": "1",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.combine_profile",
+   "status": "MATCH",
+   "detail": "'TOPSTEP_COMBINE_50K'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.combine_sessions",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.contract_limit_detail",
+   "status": "MATCH",
+   "detail": "'1 of 5 NQ permitted'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.contract_limit_ok",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.daily_loss_limit",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.days_survived",
+   "status": "MATCH",
+   "detail": "10",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.days_traded",
+   "status": "MATCH",
+   "detail": "93",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.dll_capped_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.ending_balance",
+   "status": "MATCH",
+   "detail": "48753.06",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.ending_dll",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.ending_mll",
+   "status": "MATCH",
+   "detail": "48479.64",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.execution_path_mode",
+   "status": "MATCH",
+   "detail": "<ExecutionPathMode.CLOSE_ONLY: 'CLOSE_ONLY'>",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.final_equity",
+   "status": "MATCH",
+   "detail": "48753.06",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.final_position",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.flat_days",
+   "status": "MATCH",
+   "detail": "217",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.forced_flatten_pnl",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.forced_flatten_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.intraday_equity",
+   "status": "MATCH",
+   "detail": "'[-1.89000e+00 -3.78000e+00 -5.67000e+00 ...  7.81156e+03  7.81156e+03\\n  7.81156e+03]'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.liquidated",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.liquidation_reason",
+   "status": "MATCH",
+   "detail": "'intraday equity 48,414 reached the MLL 48,480'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.liquidation_session",
+   "status": "MATCH",
+   "detail": "'2025-06-23'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.losing_days",
+   "status": "MATCH",
+   "detail": "47",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.max_drawdown",
+   "status": "MATCH",
+   "detail": "-2143.04",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.max_intraday_drawdown",
+   "status": "MATCH",
+   "detail": "-2380.17",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.min_dll_buffer",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.min_dll_buffer_intraday",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.min_mll_buffer",
+   "status": "MATCH",
+   "detail": "273.41999999999825",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.min_mll_buffer_funded",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.min_mll_buffer_intraday",
+   "status": "MATCH",
+   "detail": "-65.36000000000058",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.p_payout_eligible",
+   "status": "MATCH",
+   "detail": "0.44",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.p_survive_period",
+   "status": "MATCH",
+   "detail": "0.44",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.p_target_before_violation",
+   "status": "MATCH",
+   "detail": "0.645",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.peak_balance",
+   "status": "MATCH",
+   "detail": "50479.64",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.resample_block",
+   "status": "MATCH",
+   "detail": "10",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.resample_reps",
+   "status": "MATCH",
+   "detail": "200",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.scenario",
+   "status": "MATCH",
+   "detail": "'IDEAL'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.slippage_ticks",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.starting_balance",
+   "status": "MATCH",
+   "detail": "50000.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.target_reached",
+   "status": "MATCH",
+   "detail": "False",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.terminal_stage",
+   "status": "MATCH",
+   "detail": "'liquidated'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.total_trades",
+   "status": "MATCH",
+   "detail": "448",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.trace",
+   "status": "MATCH",
+   "detail": "\"[DayState(day=datetime.date(2025, 6, 9), phase='trading_combine', opening_balance=50000.0, closing_balance=49969.76, mll=48000.0, dll=None, buffer_mll=1969.760000000002, buffer_dll=None, worst_buffer_mll=1969.760000000002, worst_buffer_dll=None, worst_mark=-30.239999999997963, settled_pnl=-30.24, survived=True, event=''), DayState(day=datetime.date(2025, 6, 10), phase='trading_combine', opening_balance=49969.76, closing_balance=50479.64, mll=48000.0, dll=None, buffer_mll=2479.6399999999994, buffer_dll=None, worst_buffer_mll=1967.8700000000026, worst_buffer_dll=None, worst_mark=-1.889999999999418, settled_pnl=509.88, survived=True, event=''), DayState(day=datetime.date(2025, 6, 11), phase='trading_combine', opening_balance=50479.64, closing_balance=50479.64, mll=48479.64, dll=None, buffer_mll=2000.0, buffer_dll=None, worst_buffer_mll=2000.0, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 12), phase='trading_combine', opening_balance=50479.64, closing_balance=49813.18, mll=48479.64, dll=None, buffer_mll=1333.5400000000009, buffer_dll=None, worst_buffer_mll=1301.7699999999968, worst_buffer_dll=None, worst_mark=-698.2300000000032, settled_pnl=-666.4599999999999, survived=True, event=''), DayState(day=datetime.date(2025, 6, 13), phase='trading_combine', opening_balance=49813.18, closing_balance=49813.18, mll=48479.64, dll=None, buffer_mll=1333.5400000000009, buffer_dll=None, worst_buffer_mll=1333.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 16), phase='trading_combine', opening_balance=49813.18, closing_balance=49813.18, mll=48479.64, dll=None, buffer_mll=1333.5400000000009, buffer_dll=None, worst_buffer_mll=1333.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 17), phase='trading_combine', opening_balance=49813.18, closing_balance=49813.18, mll=48479.64, dll=None, buffer_mll=1333.5400000000009, buffer_dll=None, worst_buffer_mll=1333.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 18), phase='trading_combine', opening_balance=49813.18, closing_balance=49813.18, mll=48479.64, dll=None, buffer_mll=1333.5400000000009, buffer_dll=None, worst_buffer_mll=1333.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 20), phase='trading_combine', opening_balance=49813.18, closing_balance=48753.06, mll=48479.64, dll=None, buffer_mll=273.41999999999825, buffer_dll=None, worst_buffer_mll=273.41999999999825, worst_buffer_dll=None, worst_mark=-1060.1200000000026, settled_pnl=-1060.12, survived=True, event=''), DayState(day=datetime.date(2025, 6, 23), phase='trading_combine', opening_balance=48753.06, closing_balance=48414.28, mll=48479.64, dll=None, buffer_mll=-65.36000000000058, buffer_dll=None, worst_buffer_mll=-65.36000000000058, worst_buffer_dll=None, worst_mark=-338.77999999999884, settled_pnl=0.0, survived=False, event='breach_intraday')]\"",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.winning_days",
+   "status": "MATCH",
+   "detail": "46",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.xfa_profile",
+   "status": "MATCH",
+   "detail": "'TOPSTEP_XFA_50K'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.returns.account_starting_balance",
+   "status": "MATCH",
+   "detail": "50000.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.returns.mean_notional",
+   "status": "MATCH",
+   "detail": "509707.9129464285",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.returns.net_pnl",
+   "status": "MATCH",
+   "detail": "7811.560000000003",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.returns.note",
+   "status": "MATCH",
+   "detail": "'`pnl_under_account_constraints` is what the ACCOUNT realised - the daily limit applied and the path stopped at liquidation. The other three are strategy-level and ignore the account entirely.'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.returns.pnl_per_contract",
+   "status": "MATCH",
+   "detail": "7811.560000000003",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.returns.pnl_under_account_constraints",
+   "status": "MATCH",
+   "detail": "-1520.359999999998",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.returns.return_on_account_pct",
+   "status": "MATCH",
+   "detail": "15.623120000000007",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.returns.return_on_notional_pct",
+   "status": "MATCH",
+   "detail": "1.5325561564944779",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.payout.eligible_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.payout.total_paid",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.payout.first_eligible",
+   "status": "MATCH",
+   "detail": "'None'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.cross_check.agrees",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.cross_check.fields",
+   "status": "MATCH",
+   "detail": "16",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly.rows",
+   "status": "MATCH",
+   "detail": "16",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[0].net_pnl",
+   "status": "MATCH",
+   "detail": "-1482.1799999999998",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[0].month",
+   "status": "MATCH",
+   "detail": "'2025-06'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[1].net_pnl",
+   "status": "MATCH",
+   "detail": "756.7199999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[1].month",
+   "status": "MATCH",
+   "detail": "'2025-07'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[2].net_pnl",
+   "status": "MATCH",
+   "detail": "1844.5400000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[2].month",
+   "status": "MATCH",
+   "detail": "'2025-08'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[3].net_pnl",
+   "status": "MATCH",
+   "detail": "-226.93999999999997",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[3].month",
+   "status": "MATCH",
+   "detail": "'2025-09'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[4].net_pnl",
+   "status": "MATCH",
+   "detail": "1239.9",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[4].month",
+   "status": "MATCH",
+   "detail": "'2025-10'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[5].net_pnl",
+   "status": "MATCH",
+   "detail": "2277.9400000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[5].month",
+   "status": "MATCH",
+   "detail": "'2025-11'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[6].net_pnl",
+   "status": "MATCH",
+   "detail": "-1346.82",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[6].month",
+   "status": "MATCH",
+   "detail": "'2025-12'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[7].net_pnl",
+   "status": "MATCH",
+   "detail": "-445.83999999999986",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[7].month",
+   "status": "MATCH",
+   "detail": "'2026-01'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[8].net_pnl",
+   "status": "MATCH",
+   "detail": "3186.4800000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[8].month",
+   "status": "MATCH",
+   "detail": "'2026-02'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[9].net_pnl",
+   "status": "MATCH",
+   "detail": "215.6200000000003",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[9].month",
+   "status": "MATCH",
+   "detail": "'2026-03'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[10].net_pnl",
+   "status": "MATCH",
+   "detail": "1395.8800000000003",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[10].month",
+   "status": "MATCH",
+   "detail": "'2026-04'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[11].net_pnl",
+   "status": "MATCH",
+   "detail": "-66.07999999999996",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[11].month",
+   "status": "MATCH",
+   "detail": "'2026-05'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[12].net_pnl",
+   "status": "MATCH",
+   "detail": "1148.3000000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[12].month",
+   "status": "MATCH",
+   "detail": "'2026-06'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[13].net_pnl",
+   "status": "MATCH",
+   "detail": "-659.02",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[13].month",
+   "status": "MATCH",
+   "detail": "'2026-07'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[14].net_pnl",
+   "status": "MATCH",
+   "detail": "213.42000000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[14].month",
+   "status": "MATCH",
+   "detail": "'2026-08'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.monthly[15].net_pnl",
+   "status": "MATCH",
+   "detail": "-240.36",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.monthly[15].month",
+   "status": "MATCH",
+   "detail": "'2026-09'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.session",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.phase",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.opening_balance",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.closing_balance",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.mll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.dll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.buffer_mll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.buffer_dll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.worst_buffer_mll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.worst_buffer_dll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.worst_mark",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.settled_pnl",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.survived",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "IDEAL.topstep.mll_path.event",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.ledger.spec_hash",
+   "status": "MATCH",
+   "detail": "'89500740956c3072'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.ledger.round_turn_cost",
+   "status": "MATCH",
+   "detail": "16.28",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.fills.session",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.fills.bar",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.fills.timestamp",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.fills.kind",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.fills.signed_quantity",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.fills.price",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.fills.reason",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.fills.cost",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.trade_id",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.strategy",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.instrument",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.session",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.direction",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.quantity",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.entry_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.exit_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.entry_time",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.exit_time",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.entry_price",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.exit_price",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.gross_pnl",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.commission_and_spread",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.slippage",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.net_pnl",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.mae",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.mfe",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.r_multiple",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.exit_reason",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.holding_minutes",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.trades.ambiguous_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.forced_flatten",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.day_of_week",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.month",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.trades.execution_path_mode",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.daily_pnl",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.equity_curve",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.intraday_equity",
+   "status": "MATCH",
+   "detail": "1,113 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.net_pnl",
+   "status": "MATCH",
+   "detail": "2211.5600000000027",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.mae",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.mfe",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.month",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.monthly.sessions",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.net_pnl",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.mean_daily",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.best_day",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.worst_day",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.positive_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.negative_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.win_rate_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.max_drawdown",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.monthly.longest_losing_streak",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.account_size",
+   "status": "MATCH",
+   "detail": "50000",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.combine_attempts",
+   "status": "MATCH",
+   "detail": "1",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.combine_profile",
+   "status": "MATCH",
+   "detail": "'TOPSTEP_COMBINE_50K'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.combine_sessions",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.contract_limit_detail",
+   "status": "MATCH",
+   "detail": "'1 of 5 NQ permitted'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.contract_limit_ok",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.daily_loss_limit",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.days_survived",
+   "status": "MATCH",
+   "detail": "10",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.days_traded",
+   "status": "MATCH",
+   "detail": "93",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.dll_capped_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.ending_balance",
+   "status": "MATCH",
+   "detail": "48465.56",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.ending_dll",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.ending_mll",
+   "status": "MATCH",
+   "detail": "48329.64",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.execution_path_mode",
+   "status": "MATCH",
+   "detail": "<ExecutionPathMode.CLOSE_ONLY: 'CLOSE_ONLY'>",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.final_equity",
+   "status": "MATCH",
+   "detail": "48465.56",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.final_position",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.flat_days",
+   "status": "MATCH",
+   "detail": "217",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.forced_flatten_pnl",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.forced_flatten_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.intraday_equity",
+   "status": "MATCH",
+   "detail": "'[  -8.14  -16.28  -24.42 ... 2211.56 2211.56 2211.56]'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.liquidated",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.liquidation_reason",
+   "status": "MATCH",
+   "detail": "'intraday equity 48,114 reached the MLL 48,330'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.liquidation_session",
+   "status": "MATCH",
+   "detail": "'2025-06-23'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.losing_days",
+   "status": "MATCH",
+   "detail": "53",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.max_drawdown",
+   "status": "MATCH",
+   "detail": "-2444.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.max_intraday_drawdown",
+   "status": "MATCH",
+   "detail": "-2711.42",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.min_dll_buffer",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.min_dll_buffer_intraday",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.min_mll_buffer",
+   "status": "MATCH",
+   "detail": "135.91999999999825",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.min_mll_buffer_funded",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.min_mll_buffer_intraday",
+   "status": "MATCH",
+   "detail": "-215.36000000000058",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.p_payout_eligible",
+   "status": "MATCH",
+   "detail": "0.105",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.p_survive_period",
+   "status": "MATCH",
+   "detail": "0.105",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.p_target_before_violation",
+   "status": "MATCH",
+   "detail": "0.415",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.peak_balance",
+   "status": "MATCH",
+   "detail": "50329.64",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.resample_block",
+   "status": "MATCH",
+   "detail": "10",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.resample_reps",
+   "status": "MATCH",
+   "detail": "200",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.scenario",
+   "status": "MATCH",
+   "detail": "'BASELINE'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.slippage_ticks",
+   "status": "MATCH",
+   "detail": "0.5",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.starting_balance",
+   "status": "MATCH",
+   "detail": "50000.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.target_reached",
+   "status": "MATCH",
+   "detail": "False",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.terminal_stage",
+   "status": "MATCH",
+   "detail": "'liquidated'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.total_trades",
+   "status": "MATCH",
+   "detail": "448",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.trace",
+   "status": "MATCH",
+   "detail": "\"[DayState(day=datetime.date(2025, 6, 9), phase='trading_combine', opening_balance=50000.0, closing_balance=49869.76, mll=48000.0, dll=None, buffer_mll=1869.760000000002, buffer_dll=None, worst_buffer_mll=1869.760000000002, worst_buffer_dll=None, worst_mark=-130.23999999999796, settled_pnl=-130.24, survived=True, event=''), DayState(day=datetime.date(2025, 6, 10), phase='trading_combine', opening_balance=49869.76, closing_balance=50329.64, mll=48000.0, dll=None, buffer_mll=2329.6399999999994, buffer_dll=None, worst_buffer_mll=1861.6200000000026, worst_buffer_dll=None, worst_mark=-8.139999999999418, settled_pnl=459.88, survived=True, event=''), DayState(day=datetime.date(2025, 6, 11), phase='trading_combine', opening_balance=50329.64, closing_balance=50329.64, mll=48329.64, dll=None, buffer_mll=2000.0, buffer_dll=None, worst_buffer_mll=2000.0, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 12), phase='trading_combine', opening_balance=50329.64, closing_balance=49575.68, mll=48329.64, dll=None, buffer_mll=1246.0400000000009, buffer_dll=None, worst_buffer_mll=1234.1800000000003, worst_buffer_dll=None, worst_mark=-765.8199999999997, settled_pnl=-753.96, survived=True, event=''), DayState(day=datetime.date(2025, 6, 13), phase='trading_combine', opening_balance=49575.68, closing_balance=49575.68, mll=48329.64, dll=None, buffer_mll=1246.0400000000009, buffer_dll=None, worst_buffer_mll=1246.0400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 16), phase='trading_combine', opening_balance=49575.68, closing_balance=49575.68, mll=48329.64, dll=None, buffer_mll=1246.0400000000009, buffer_dll=None, worst_buffer_mll=1246.0400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 17), phase='trading_combine', opening_balance=49575.68, closing_balance=49575.68, mll=48329.64, dll=None, buffer_mll=1246.0400000000009, buffer_dll=None, worst_buffer_mll=1246.0400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 18), phase='trading_combine', opening_balance=49575.68, closing_balance=49575.68, mll=48329.64, dll=None, buffer_mll=1246.0400000000009, buffer_dll=None, worst_buffer_mll=1246.0400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 20), phase='trading_combine', opening_balance=49575.68, closing_balance=48465.56, mll=48329.64, dll=None, buffer_mll=135.91999999999825, buffer_dll=None, worst_buffer_mll=135.91999999999825, worst_buffer_dll=None, worst_mark=-1110.1200000000026, settled_pnl=-1110.12, survived=True, event=''), DayState(day=datetime.date(2025, 6, 23), phase='trading_combine', opening_balance=48465.56, closing_balance=48114.28, mll=48329.64, dll=None, buffer_mll=-215.36000000000058, buffer_dll=None, worst_buffer_mll=-215.36000000000058, worst_buffer_dll=None, worst_mark=-351.27999999999884, settled_pnl=0.0, survived=False, event='breach_intraday')]\"",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.winning_days",
+   "status": "MATCH",
+   "detail": "40",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.xfa_profile",
+   "status": "MATCH",
+   "detail": "'TOPSTEP_XFA_50K'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.returns.account_starting_balance",
+   "status": "MATCH",
+   "detail": "50000.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.returns.mean_notional",
+   "status": "MATCH",
+   "detail": "509707.9129464285",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.returns.net_pnl",
+   "status": "MATCH",
+   "detail": "2211.5600000000027",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.returns.note",
+   "status": "MATCH",
+   "detail": "'`pnl_under_account_constraints` is what the ACCOUNT realised - the daily limit applied and the path stopped at liquidation. The other three are strategy-level and ignore the account entirely.'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.returns.pnl_per_contract",
+   "status": "MATCH",
+   "detail": "2211.5600000000027",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.returns.pnl_under_account_constraints",
+   "status": "MATCH",
+   "detail": "-1670.3599999999983",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.returns.return_on_account_pct",
+   "status": "MATCH",
+   "detail": "4.423120000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.returns.return_on_notional_pct",
+   "status": "MATCH",
+   "detail": "0.4338877117319626",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.payout.eligible_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.payout.total_paid",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.payout.first_eligible",
+   "status": "MATCH",
+   "detail": "'None'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.cross_check.agrees",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.cross_check.fields",
+   "status": "MATCH",
+   "detail": "16",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly.rows",
+   "status": "MATCH",
+   "detail": "16",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[0].net_pnl",
+   "status": "MATCH",
+   "detail": "-1869.6799999999998",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[0].month",
+   "status": "MATCH",
+   "detail": "'2025-06'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[1].net_pnl",
+   "status": "MATCH",
+   "detail": "431.7199999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[1].month",
+   "status": "MATCH",
+   "detail": "'2025-07'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[2].net_pnl",
+   "status": "MATCH",
+   "detail": "1132.0400000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[2].month",
+   "status": "MATCH",
+   "detail": "'2025-08'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[3].net_pnl",
+   "status": "MATCH",
+   "detail": "-514.4399999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[3].month",
+   "status": "MATCH",
+   "detail": "'2025-09'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[4].net_pnl",
+   "status": "MATCH",
+   "detail": "677.4000000000001",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[4].month",
+   "status": "MATCH",
+   "detail": "'2025-10'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[5].net_pnl",
+   "status": "MATCH",
+   "detail": "1940.4400000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[5].month",
+   "status": "MATCH",
+   "detail": "'2025-11'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[6].net_pnl",
+   "status": "MATCH",
+   "detail": "-1584.32",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[6].month",
+   "status": "MATCH",
+   "detail": "'2025-12'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[7].net_pnl",
+   "status": "MATCH",
+   "detail": "-795.8399999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[7].month",
+   "status": "MATCH",
+   "detail": "'2026-01'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[8].net_pnl",
+   "status": "MATCH",
+   "detail": "2761.4800000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[8].month",
+   "status": "MATCH",
+   "detail": "'2026-02'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[9].net_pnl",
+   "status": "MATCH",
+   "detail": "-46.87999999999971",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[9].month",
+   "status": "MATCH",
+   "detail": "'2026-03'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[10].net_pnl",
+   "status": "MATCH",
+   "detail": "720.8800000000003",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[10].month",
+   "status": "MATCH",
+   "detail": "'2026-04'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[11].net_pnl",
+   "status": "MATCH",
+   "detail": "-516.0799999999998",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[11].month",
+   "status": "MATCH",
+   "detail": "'2026-05'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[12].net_pnl",
+   "status": "MATCH",
+   "detail": "960.8000000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[12].month",
+   "status": "MATCH",
+   "detail": "'2026-06'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[13].net_pnl",
+   "status": "MATCH",
+   "detail": "-771.5199999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[13].month",
+   "status": "MATCH",
+   "detail": "'2026-07'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[14].net_pnl",
+   "status": "MATCH",
+   "detail": "75.92000000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[14].month",
+   "status": "MATCH",
+   "detail": "'2026-08'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.monthly[15].net_pnl",
+   "status": "MATCH",
+   "detail": "-390.36",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.monthly[15].month",
+   "status": "MATCH",
+   "detail": "'2026-09'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.session",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.phase",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.opening_balance",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.closing_balance",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.mll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.dll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.buffer_mll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.buffer_dll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.worst_buffer_mll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.worst_buffer_dll",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.worst_mark",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.settled_pnl",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.survived",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "BASELINE.topstep.mll_path.event",
+   "status": "MATCH",
+   "detail": "10 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.ledger.spec_hash",
+   "status": "MATCH",
+   "detail": "'89500740956c3072'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.ledger.round_turn_cost",
+   "status": "MATCH",
+   "detail": "18.78",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.fills.session",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.fills.bar",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.fills.timestamp",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.fills.kind",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.fills.signed_quantity",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.fills.price",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.fills.reason",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.fills.cost",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.trade_id",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.strategy",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.instrument",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.session",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.direction",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.quantity",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.entry_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.exit_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.entry_time",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.exit_time",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.entry_price",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.exit_price",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.gross_pnl",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.commission_and_spread",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.slippage",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.net_pnl",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.mae",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.mfe",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.r_multiple",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.exit_reason",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.holding_minutes",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.trades.ambiguous_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.forced_flatten",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.day_of_week",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.month",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.trades.execution_path_mode",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.daily_pnl",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.equity_curve",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.intraday_equity",
+   "status": "MATCH",
+   "detail": "1,547 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.net_pnl",
+   "status": "MATCH",
+   "detail": "1091.5600000000027",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.mae",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.mfe",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.month",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.monthly.sessions",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.net_pnl",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.mean_daily",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.best_day",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.worst_day",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.positive_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.negative_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.win_rate_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.max_drawdown",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.monthly.longest_losing_streak",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.account_size",
+   "status": "MATCH",
+   "detail": "50000",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.combine_attempts",
+   "status": "MATCH",
+   "detail": "1",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.combine_profile",
+   "status": "MATCH",
+   "detail": "'TOPSTEP_COMBINE_50K'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.combine_sessions",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.contract_limit_detail",
+   "status": "MATCH",
+   "detail": "'1 of 5 NQ permitted'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.contract_limit_ok",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.daily_loss_limit",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.days_survived",
+   "status": "MATCH",
+   "detail": "9",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.days_traded",
+   "status": "MATCH",
+   "detail": "93",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.dll_capped_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.ending_balance",
+   "status": "MATCH",
+   "detail": "49528.18",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.ending_dll",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.ending_mll",
+   "status": "MATCH",
+   "detail": "48299.64",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.execution_path_mode",
+   "status": "MATCH",
+   "detail": "<ExecutionPathMode.INTRABAR_CONSERVATIVE: 'INTRABAR_CONSERVATIVE'>",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.final_equity",
+   "status": "MATCH",
+   "detail": "49528.18",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.final_position",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.flat_days",
+   "status": "MATCH",
+   "detail": "217",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.forced_flatten_pnl",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.forced_flatten_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.intraday_equity",
+   "status": "MATCH",
+   "detail": "'[  -9.39  -18.78  -28.17 ... 1091.56 1091.56 1091.56]'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.liquidated",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.liquidation_reason",
+   "status": "MATCH",
+   "detail": "'intraday equity 48,217 reached the MLL 48,300'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.liquidation_session",
+   "status": "MATCH",
+   "detail": "'2025-06-20'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.losing_days",
+   "status": "MATCH",
+   "detail": "54",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.max_drawdown",
+   "status": "MATCH",
+   "detail": "-2569.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.max_intraday_drawdown",
+   "status": "MATCH",
+   "detail": "-3152.169999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.min_dll_buffer",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.min_dll_buffer_intraday",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.min_mll_buffer",
+   "status": "MATCH",
+   "detail": "1228.5400000000009",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.min_mll_buffer_funded",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.min_mll_buffer_intraday",
+   "status": "MATCH",
+   "detail": "-82.19000000000233",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.p_payout_eligible",
+   "status": "MATCH",
+   "detail": "0.07",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.p_survive_period",
+   "status": "MATCH",
+   "detail": "0.07",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.p_target_before_violation",
+   "status": "MATCH",
+   "detail": "0.345",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.peak_balance",
+   "status": "MATCH",
+   "detail": "50299.64",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.resample_block",
+   "status": "MATCH",
+   "detail": "10",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.resample_reps",
+   "status": "MATCH",
+   "detail": "200",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.scenario",
+   "status": "MATCH",
+   "detail": "'CONSERVATIVE'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.slippage_ticks",
+   "status": "MATCH",
+   "detail": "1.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.starting_balance",
+   "status": "MATCH",
+   "detail": "50000.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.target_reached",
+   "status": "MATCH",
+   "detail": "False",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.terminal_stage",
+   "status": "MATCH",
+   "detail": "'liquidated'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.total_trades",
+   "status": "MATCH",
+   "detail": "448",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.trace",
+   "status": "MATCH",
+   "detail": "\"[DayState(day=datetime.date(2025, 6, 9), phase='trading_combine', opening_balance=50000.0, closing_balance=49849.76, mll=48000.0, dll=None, buffer_mll=1849.760000000002, buffer_dll=None, worst_buffer_mll=1849.760000000002, worst_buffer_dll=None, worst_mark=-150.23999999999796, settled_pnl=-150.24, survived=True, event=''), DayState(day=datetime.date(2025, 6, 10), phase='trading_combine', opening_balance=49849.76, closing_balance=50299.64, mll=48000.0, dll=None, buffer_mll=2299.6399999999994, buffer_dll=None, worst_buffer_mll=1840.3700000000026, worst_buffer_dll=None, worst_mark=-9.389999999999418, settled_pnl=449.88, survived=True, event=''), DayState(day=datetime.date(2025, 6, 11), phase='trading_combine', opening_balance=50299.64, closing_balance=50299.64, mll=48299.64, dll=None, buffer_mll=2000.0, buffer_dll=None, worst_buffer_mll=2000.0, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 12), phase='trading_combine', opening_balance=50299.64, closing_balance=49528.18, mll=48299.64, dll=None, buffer_mll=1228.5400000000009, buffer_dll=None, worst_buffer_mll=np.float64(1108.050000000003), worst_buffer_dll=None, worst_mark=np.float64(-891.9499999999971), settled_pnl=-771.46, survived=True, event=''), DayState(day=datetime.date(2025, 6, 13), phase='trading_combine', opening_balance=49528.18, closing_balance=49528.18, mll=48299.64, dll=None, buffer_mll=1228.5400000000009, buffer_dll=None, worst_buffer_mll=1228.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 16), phase='trading_combine', opening_balance=49528.18, closing_balance=49528.18, mll=48299.64, dll=None, buffer_mll=1228.5400000000009, buffer_dll=None, worst_buffer_mll=1228.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 17), phase='trading_combine', opening_balance=49528.18, closing_balance=49528.18, mll=48299.64, dll=None, buffer_mll=1228.5400000000009, buffer_dll=None, worst_buffer_mll=1228.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 18), phase='trading_combine', opening_balance=49528.18, closing_balance=49528.18, mll=48299.64, dll=None, buffer_mll=1228.5400000000009, buffer_dll=None, worst_buffer_mll=1228.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 20), phase='trading_combine', opening_balance=49528.18, closing_balance=np.float64(48217.45), mll=48299.64, dll=None, buffer_mll=np.float64(-82.19000000000233), buffer_dll=None, worst_buffer_mll=np.float64(-82.19000000000233), worst_buffer_dll=None, worst_mark=np.float64(-1310.7300000000032), settled_pnl=0.0, survived=False, event='breach_intraday')]\"",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.winning_days",
+   "status": "MATCH",
+   "detail": "39",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.xfa_profile",
+   "status": "MATCH",
+   "detail": "'TOPSTEP_XFA_50K'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.returns.account_starting_balance",
+   "status": "MATCH",
+   "detail": "50000.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.returns.mean_notional",
+   "status": "MATCH",
+   "detail": "509707.9129464285",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.returns.net_pnl",
+   "status": "MATCH",
+   "detail": "1091.5600000000027",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.returns.note",
+   "status": "MATCH",
+   "detail": "'`pnl_under_account_constraints` is what the ACCOUNT realised - the daily limit applied and the path stopped at liquidation. The other three are strategy-level and ignore the account entirely.'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.returns.pnl_per_contract",
+   "status": "MATCH",
+   "detail": "1091.5600000000027",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.returns.pnl_under_account_constraints",
+   "status": "MATCH",
+   "detail": "-1700.360000000001",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.returns.return_on_account_pct",
+   "status": "MATCH",
+   "detail": "2.183120000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.returns.return_on_notional_pct",
+   "status": "MATCH",
+   "detail": "0.2141540227794596",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.payout.eligible_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.payout.total_paid",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.payout.first_eligible",
+   "status": "MATCH",
+   "detail": "'None'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.cross_check.agrees",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.cross_check.fields",
+   "status": "MATCH",
+   "detail": "16",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly.rows",
+   "status": "MATCH",
+   "detail": "16",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[0].net_pnl",
+   "status": "MATCH",
+   "detail": "-1947.1799999999998",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[0].month",
+   "status": "MATCH",
+   "detail": "'2025-06'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[1].net_pnl",
+   "status": "MATCH",
+   "detail": "366.7199999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[1].month",
+   "status": "MATCH",
+   "detail": "'2025-07'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[2].net_pnl",
+   "status": "MATCH",
+   "detail": "989.5400000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[2].month",
+   "status": "MATCH",
+   "detail": "'2025-08'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[3].net_pnl",
+   "status": "MATCH",
+   "detail": "-571.9399999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[3].month",
+   "status": "MATCH",
+   "detail": "'2025-09'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[4].net_pnl",
+   "status": "MATCH",
+   "detail": "564.9000000000001",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[4].month",
+   "status": "MATCH",
+   "detail": "'2025-10'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[5].net_pnl",
+   "status": "MATCH",
+   "detail": "1872.9400000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[5].month",
+   "status": "MATCH",
+   "detail": "'2025-11'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[6].net_pnl",
+   "status": "MATCH",
+   "detail": "-1631.82",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[6].month",
+   "status": "MATCH",
+   "detail": "'2025-12'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[7].net_pnl",
+   "status": "MATCH",
+   "detail": "-865.8399999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[7].month",
+   "status": "MATCH",
+   "detail": "'2026-01'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[8].net_pnl",
+   "status": "MATCH",
+   "detail": "2676.4800000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[8].month",
+   "status": "MATCH",
+   "detail": "'2026-02'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[9].net_pnl",
+   "status": "MATCH",
+   "detail": "-99.37999999999971",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[9].month",
+   "status": "MATCH",
+   "detail": "'2026-03'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[10].net_pnl",
+   "status": "MATCH",
+   "detail": "585.8800000000003",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[10].month",
+   "status": "MATCH",
+   "detail": "'2026-04'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[11].net_pnl",
+   "status": "MATCH",
+   "detail": "-606.0799999999998",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[11].month",
+   "status": "MATCH",
+   "detail": "'2026-05'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[12].net_pnl",
+   "status": "MATCH",
+   "detail": "923.3000000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[12].month",
+   "status": "MATCH",
+   "detail": "'2026-06'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[13].net_pnl",
+   "status": "MATCH",
+   "detail": "-794.0199999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[13].month",
+   "status": "MATCH",
+   "detail": "'2026-07'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[14].net_pnl",
+   "status": "MATCH",
+   "detail": "48.420000000000016",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[14].month",
+   "status": "MATCH",
+   "detail": "'2026-08'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[15].net_pnl",
+   "status": "MATCH",
+   "detail": "-420.36",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.monthly[15].month",
+   "status": "MATCH",
+   "detail": "'2026-09'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.session",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.phase",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.opening_balance",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.closing_balance",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.mll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.dll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.buffer_mll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.buffer_dll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.worst_buffer_mll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.worst_buffer_dll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.worst_mark",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.settled_pnl",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.survived",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "CONSERVATIVE.topstep.mll_path.event",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.ledger.spec_hash",
+   "status": "MATCH",
+   "detail": "'89500740956c3072'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.ledger.round_turn_cost",
+   "status": "MATCH",
+   "detail": "23.78",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.fills.session",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.fills.bar",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.fills.timestamp",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.fills.kind",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.fills.signed_quantity",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.fills.price",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.fills.reason",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.fills.cost",
+   "status": "MATCH",
+   "detail": "896 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.trade_id",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.strategy",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.instrument",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.session",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.direction",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.quantity",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.entry_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.exit_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.entry_time",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.exit_time",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.entry_price",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.exit_price",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.gross_pnl",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.commission_and_spread",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.slippage",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.net_pnl",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.mae",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.mfe",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.r_multiple",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.exit_reason",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.holding_minutes",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.trades.ambiguous_bar",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.forced_flatten",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.day_of_week",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.month",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.trades.execution_path_mode",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.daily_pnl",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.equity_curve",
+   "status": "MATCH",
+   "detail": "310 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.intraday_equity",
+   "status": "MATCH",
+   "detail": "1,547 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.net_pnl",
+   "status": "MATCH",
+   "detail": "-1148.4399999999973",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.mae",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.mfe",
+   "status": "MATCH",
+   "detail": "448 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.month",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.monthly.sessions",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.net_pnl",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.mean_daily",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.best_day",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.worst_day",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.positive_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.negative_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.win_rate_days",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.max_drawdown",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.monthly.longest_losing_streak",
+   "status": "MATCH",
+   "detail": "16 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.account_size",
+   "status": "MATCH",
+   "detail": "50000",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.combine_attempts",
+   "status": "MATCH",
+   "detail": "1",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.combine_profile",
+   "status": "MATCH",
+   "detail": "'TOPSTEP_COMBINE_50K'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.combine_sessions",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.contract_limit_detail",
+   "status": "MATCH",
+   "detail": "'1 of 5 NQ permitted'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.contract_limit_ok",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.daily_loss_limit",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.days_survived",
+   "status": "MATCH",
+   "detail": "9",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.days_traded",
+   "status": "MATCH",
+   "detail": "93",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.dll_capped_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.ending_balance",
+   "status": "MATCH",
+   "detail": "49433.18",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.ending_dll",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.ending_mll",
+   "status": "MATCH",
+   "detail": "48239.64",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.execution_path_mode",
+   "status": "MATCH",
+   "detail": "<ExecutionPathMode.STRESS: 'STRESS'>",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.final_equity",
+   "status": "MATCH",
+   "detail": "49433.18",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.final_position",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.flat_days",
+   "status": "MATCH",
+   "detail": "217",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.forced_flatten_pnl",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.forced_flatten_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.intraday_equity",
+   "status": "MATCH",
+   "detail": "'[  -11.89   -23.78   -35.67 ... -1148.44 -1148.44 -1148.44]'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.liquidated",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.liquidation_reason",
+   "status": "MATCH",
+   "detail": "'intraday equity 48,105 reached the MLL 48,240'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.liquidation_session",
+   "status": "MATCH",
+   "detail": "'2025-06-20'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.losing_days",
+   "status": "MATCH",
+   "detail": "56",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.max_drawdown",
+   "status": "MATCH",
+   "detail": "-2819.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.max_intraday_drawdown",
+   "status": "MATCH",
+   "detail": "-3409.669999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.min_dll_buffer",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.min_dll_buffer_intraday",
+   "status": "MATCH",
+   "detail": "None",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.min_mll_buffer",
+   "status": "MATCH",
+   "detail": "1193.5400000000009",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.min_mll_buffer_funded",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.min_mll_buffer_intraday",
+   "status": "MATCH",
+   "detail": "-134.69000000000233",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.p_payout_eligible",
+   "status": "MATCH",
+   "detail": "0.03",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.p_survive_period",
+   "status": "MATCH",
+   "detail": "0.03",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.p_target_before_violation",
+   "status": "MATCH",
+   "detail": "0.23",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.peak_balance",
+   "status": "MATCH",
+   "detail": "50239.64",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.resample_block",
+   "status": "MATCH",
+   "detail": "10",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.resample_reps",
+   "status": "MATCH",
+   "detail": "200",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.scenario",
+   "status": "MATCH",
+   "detail": "'STRESS'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.slippage_ticks",
+   "status": "MATCH",
+   "detail": "2.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.starting_balance",
+   "status": "MATCH",
+   "detail": "50000.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.target_reached",
+   "status": "MATCH",
+   "detail": "False",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.terminal_stage",
+   "status": "MATCH",
+   "detail": "'liquidated'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.total_trades",
+   "status": "MATCH",
+   "detail": "448",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.trace",
+   "status": "MATCH",
+   "detail": "\"[DayState(day=datetime.date(2025, 6, 9), phase='trading_combine', opening_balance=50000.0, closing_balance=49809.76, mll=48000.0, dll=None, buffer_mll=1809.760000000002, buffer_dll=None, worst_buffer_mll=1809.760000000002, worst_buffer_dll=None, worst_mark=-190.23999999999796, settled_pnl=-190.24, survived=True, event=''), DayState(day=datetime.date(2025, 6, 10), phase='trading_combine', opening_balance=49809.76, closing_balance=50239.64, mll=48000.0, dll=None, buffer_mll=2239.6399999999994, buffer_dll=None, worst_buffer_mll=1797.8700000000026, worst_buffer_dll=None, worst_mark=-11.889999999999418, settled_pnl=429.88, survived=True, event=''), DayState(day=datetime.date(2025, 6, 11), phase='trading_combine', opening_balance=50239.64, closing_balance=50239.64, mll=48239.64, dll=None, buffer_mll=2000.0, buffer_dll=None, worst_buffer_mll=2000.0, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 12), phase='trading_combine', opening_balance=50239.64, closing_balance=49433.18, mll=48239.64, dll=None, buffer_mll=1193.5400000000009, buffer_dll=None, worst_buffer_mll=np.float64(1095.550000000003), worst_buffer_dll=None, worst_mark=np.float64(-904.4499999999971), settled_pnl=-806.46, survived=True, event=''), DayState(day=datetime.date(2025, 6, 13), phase='trading_combine', opening_balance=49433.18, closing_balance=49433.18, mll=48239.64, dll=None, buffer_mll=1193.5400000000009, buffer_dll=None, worst_buffer_mll=1193.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 16), phase='trading_combine', opening_balance=49433.18, closing_balance=49433.18, mll=48239.64, dll=None, buffer_mll=1193.5400000000009, buffer_dll=None, worst_buffer_mll=1193.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 17), phase='trading_combine', opening_balance=49433.18, closing_balance=49433.18, mll=48239.64, dll=None, buffer_mll=1193.5400000000009, buffer_dll=None, worst_buffer_mll=1193.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 18), phase='trading_combine', opening_balance=49433.18, closing_balance=49433.18, mll=48239.64, dll=None, buffer_mll=1193.5400000000009, buffer_dll=None, worst_buffer_mll=1193.5400000000009, worst_buffer_dll=None, worst_mark=0.0, settled_pnl=0.0, survived=True, event=''), DayState(day=datetime.date(2025, 6, 20), phase='trading_combine', opening_balance=49433.18, closing_balance=np.float64(48104.95), mll=48239.64, dll=None, buffer_mll=np.float64(-134.69000000000233), buffer_dll=None, worst_buffer_mll=np.float64(-134.69000000000233), worst_buffer_dll=None, worst_mark=np.float64(-1328.2300000000032), settled_pnl=0.0, survived=False, event='breach_intraday')]\"",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.winning_days",
+   "status": "MATCH",
+   "detail": "37",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.xfa_profile",
+   "status": "MATCH",
+   "detail": "'TOPSTEP_XFA_50K'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.returns.account_starting_balance",
+   "status": "MATCH",
+   "detail": "50000.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.returns.mean_notional",
+   "status": "MATCH",
+   "detail": "509707.9129464285",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.returns.net_pnl",
+   "status": "MATCH",
+   "detail": "-1148.4399999999973",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.returns.note",
+   "status": "MATCH",
+   "detail": "'`pnl_under_account_constraints` is what the ACCOUNT realised - the daily limit applied and the path stopped at liquidation. The other three are strategy-level and ignore the account entirely.'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.returns.pnl_per_contract",
+   "status": "MATCH",
+   "detail": "-1148.4399999999973",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.returns.pnl_under_account_constraints",
+   "status": "MATCH",
+   "detail": "-1760.360000000001",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.returns.return_on_account_pct",
+   "status": "MATCH",
+   "detail": "-2.296879999999995",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.returns.return_on_notional_pct",
+   "status": "MATCH",
+   "detail": "-0.2253133551255464",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.payout.eligible_sessions",
+   "status": "MATCH",
+   "detail": "0",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.payout.total_paid",
+   "status": "MATCH",
+   "detail": "0.0",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.payout.first_eligible",
+   "status": "MATCH",
+   "detail": "'None'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.cross_check.agrees",
+   "status": "MATCH",
+   "detail": "True",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.cross_check.fields",
+   "status": "MATCH",
+   "detail": "16",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly.rows",
+   "status": "MATCH",
+   "detail": "16",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[0].net_pnl",
+   "status": "MATCH",
+   "detail": "-2102.18",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[0].month",
+   "status": "MATCH",
+   "detail": "'2025-06'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[1].net_pnl",
+   "status": "MATCH",
+   "detail": "236.71999999999994",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[1].month",
+   "status": "MATCH",
+   "detail": "'2025-07'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[2].net_pnl",
+   "status": "MATCH",
+   "detail": "704.5400000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[2].month",
+   "status": "MATCH",
+   "detail": "'2025-08'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[3].net_pnl",
+   "status": "MATCH",
+   "detail": "-686.9399999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[3].month",
+   "status": "MATCH",
+   "detail": "'2025-09'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[4].net_pnl",
+   "status": "MATCH",
+   "detail": "339.90000000000015",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[4].month",
+   "status": "MATCH",
+   "detail": "'2025-10'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[5].net_pnl",
+   "status": "MATCH",
+   "detail": "1737.9400000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[5].month",
+   "status": "MATCH",
+   "detail": "'2025-11'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[6].net_pnl",
+   "status": "MATCH",
+   "detail": "-1726.82",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[6].month",
+   "status": "MATCH",
+   "detail": "'2025-12'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[7].net_pnl",
+   "status": "MATCH",
+   "detail": "-1005.8399999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[7].month",
+   "status": "MATCH",
+   "detail": "'2026-01'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[8].net_pnl",
+   "status": "MATCH",
+   "detail": "2506.4800000000005",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[8].month",
+   "status": "MATCH",
+   "detail": "'2026-02'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[9].net_pnl",
+   "status": "MATCH",
+   "detail": "-204.37999999999968",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[9].month",
+   "status": "MATCH",
+   "detail": "'2026-03'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[10].net_pnl",
+   "status": "MATCH",
+   "detail": "315.8800000000003",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[10].month",
+   "status": "MATCH",
+   "detail": "'2026-04'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[11].net_pnl",
+   "status": "MATCH",
+   "detail": "-786.0799999999998",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[11].month",
+   "status": "MATCH",
+   "detail": "'2026-05'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[12].net_pnl",
+   "status": "MATCH",
+   "detail": "848.3000000000002",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[12].month",
+   "status": "MATCH",
+   "detail": "'2026-06'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[13].net_pnl",
+   "status": "MATCH",
+   "detail": "-839.0199999999999",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[13].month",
+   "status": "MATCH",
+   "detail": "'2026-07'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[14].net_pnl",
+   "status": "MATCH",
+   "detail": "-6.579999999999984",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[14].month",
+   "status": "MATCH",
+   "detail": "'2026-08'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.monthly[15].net_pnl",
+   "status": "MATCH",
+   "detail": "-480.35999999999996",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.monthly[15].month",
+   "status": "MATCH",
+   "detail": "'2026-09'",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.mll_path.session",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.mll_path.phase",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.mll_path.opening_balance",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.mll_path.closing_balance",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.mll_path.mll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.mll_path.dll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.mll_path.buffer_mll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.mll_path.buffer_dll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.mll_path.worst_buffer_mll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.mll_path.worst_buffer_dll",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.mll_path.worst_mark",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.mll_path.settled_pnl",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "STRESS.topstep.mll_path.survived",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "STRESS.topstep.mll_path.event",
+   "status": "MATCH",
+   "detail": "9 values",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "attrition.bars_in_window",
+   "status": "EXPLAINED",
+   "detail": "canonical 125156 vs legacy 124765: The two paths COUNT at different points, they do not keep different bars. `futures_discover.load` applies the window and the one-contract-per-session filter in one function and returns the result, so its bar count is already net of the multi-contract day. The canonical path counts the window first and the contract filter second, so its count still includes that day. The difference is exactly the bars of the dropped session(s) and the KEPT sessions are identical.",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "attrition.sessions_in_window",
+   "status": "EXPLAINED",
+   "detail": "canonical 326 vs legacy 325: Same mechanism as bars_in_window: the canonical count is taken before the multi-contract filter and the legacy count after it.",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "attrition.sessions_dropped_multi_contract",
+   "status": "EXPLAINED",
+   "detail": "canonical 1 vs legacy -1: The legacy path reports -1 (unknown) because `fd.load` has already discarded those days by the time it returns; the count is not recoverable without re-reading the file. Stated as unknown rather than guessed at.",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "attrition.sessions_kept",
+   "status": "MATCH",
+   "detail": "1 values",
+   "worst_abs_difference": 0.0
+  },
+  {
+   "name": "provenance",
+   "status": "EXPLAINED",
+   "detail": "canonical declares CONTINUOUS_UNADJUSTED / manifest ae1e9b4f14be05b7 / frame c34dd21f1c2c7043; legacy declares nothing. The canonical path declares the data form, the roll method, the adjustment method, the manifest id, the frame fingerprint and the quality status. The legacy path declares none of them - it has nowhere to put them. That asymmetry IS the reason for the migration and is not a discrepancy in the result.",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "gates_run",
+   "status": "EXPLAINED",
+   "detail": "canonical ['schema.validate_frame', 'data.quality.check', 'futures_cme.dataquality.require_usable'] vs legacy ['futures_cme.dataquality.require_usable']. The canonical path runs three gates (canonical schema, canonical quality, futures validator); the legacy path runs one (the futures validator). The canonical path is strictly stronger - it runs every check the legacy path runs, and more.",
+   "worst_abs_difference": null
+  },
+  {
+   "name": "wall_clock",
+   "status": "EXPLAINED",
+   "detail": "canonical 28.5s vs legacy 9.2s. The canonical path is slower because it runs the schema validation and the full quality gate on every load. That is a cost, not a difference in the answer.",
+   "worst_abs_difference": null
+  }
+ ],
+ "canonical_provenance": {
+  "features_identical_to_execution": true,
+  "feature_data": {
+   "dataset_id": "ibkr-NQ-1min",
+   "manifest_id": "ae1e9b4f14be05b7",
+   "frame_fingerprint": "c34dd21f1c2c7043",
+   "data_form": "CONTINUOUS_UNADJUSTED",
+   "roll_method": "CALENDAR_DAYS_BEFORE_EXPIRY",
+   "adjustment_method": "NONE",
+   "provider": "IBKR",
+   "source_hashes": [
+    "4a6b0a7754622d0782c23dbc75948838c2830a8c20616aee3fe733848b6faeb8"
+   ],
+   "quality_status": "WARN",
+   "quality_report_hash": "189b33095da2a5d5",
+   "coverage": [
+    "2025-06-08 22:00:00+00:00",
+    "2026-09-10 20:59:00+00:00"
+   ],
+   "session_timezone": "America/New_York",
+   "bar_interval": "1min",
+   "schema_version": "1.0.0"
+  },
+  "execution_data": {
+   "dataset_id": "ibkr-NQ-1min",
+   "manifest_id": "ae1e9b4f14be05b7",
+   "frame_fingerprint": "c34dd21f1c2c7043",
+   "data_form": "CONTINUOUS_UNADJUSTED",
+   "roll_method": "CALENDAR_DAYS_BEFORE_EXPIRY",
+   "adjustment_method": "NONE",
+   "provider": "IBKR",
+   "source_hashes": [
+    "4a6b0a7754622d0782c23dbc75948838c2830a8c20616aee3fe733848b6faeb8"
+   ],
+   "quality_status": "WARN",
+   "quality_report_hash": "189b33095da2a5d5",
+   "execution_valid": true
+  },
+  "notes": [
+   "one series serves both purposes"
+  ],
+  "data_path": "canonical",
+  "describe": "FEATURE DATA and EXECUTION DATA are the SAME series: ibkr-NQ-1min [CONTINUOUS_UNADJUSTED] manifest ae1e9b4f14be05b7 frame c34dd21f1c2c7043",
+  "window": {
+   "open_et": "09:30",
+   "close_et": "16:00",
+   "timezone": "America/New_York",
+   "bars": 391
+  },
+  "attrition": {
+   "bars_in_file": 447596,
+   "bars_in_window": 125156,
+   "sessions_in_window": 326,
+   "sessions_dropped_multi_contract": 1,
+   "sessions_dropped_incomplete": 15,
+   "sessions_kept": 310,
+   "multi_contract_days": [
+    "2025-12-11"
+   ],
+   "incomplete_days": [
+    "2025-06-19",
+    "2025-07-03",
+    "2025-07-04",
+    "2025-09-01",
+    "2025-11-11",
+    "2025-11-27",
+    "2025-11-28",
+    "2025-12-24",
+    "2026-01-19",
+    "2026-02-10",
+    "2026-02-16",
+    "2026-05-25",
+    "2026-06-19",
+    "2026-07-03",
+    "2026-09-07"
+   ]
+  },
+  "gates_run": [
+   "schema.validate_frame",
+   "data.quality.check",
+   "futures_cme.dataquality.require_usable"
+  ]
+ },
+ "legacy_provenance": {
+  "data_path": "legacy",
+  "describe": "LEGACY PATH: bars read straight from the provider file. No data form, no roll method, no adjustment method, no manifest id and no frame fingerprint were declared, because this path has nowhere to put them.",
+  "features_identical_to_execution": true,
+  "feature_data": {
+   "dataset_id": "NQ.parquet",
+   "manifest_id": null,
+   "frame_fingerprint": null,
+   "data_form": null,
+   "roll_method": null,
+   "adjustment_method": null,
+   "provider": null,
+   "quality_status": null
+  },
+  "execution_data": {
+   "dataset_id": "NQ.parquet",
+   "manifest_id": null,
+   "frame_fingerprint": null,
+   "data_form": null,
+   "execution_valid": null
+  },
+  "window": {
+   "open_et": "09:30",
+   "close_et": "16:00",
+   "timezone": "America/New_York",
+   "bars": 391
+  },
+  "attrition": {
+   "bars_in_file": 447596,
+   "bars_in_window": 124765,
+   "sessions_in_window": 325,
+   "sessions_dropped_multi_contract": -1,
+   "sessions_dropped_incomplete": 15,
+   "sessions_kept": 310,
+   "multi_contract_days": [],
+   "incomplete_days": [
+    "2025-06-19",
+    "2025-07-03",
+    "2025-07-04",
+    "2025-09-01",
+    "2025-11-11",
+    "2025-11-27",
+    "2025-11-28",
+    "2025-12-24",
+    "2026-01-19",
+    "2026-02-10",
+    "2026-02-16",
+    "2026-05-25",
+    "2026-06-19",
+    "2026-07-03",
+    "2026-09-07"
+   ]
+  },
+  "gates_run": [
+   "futures_cme.dataquality.require_usable"
+  ]
+ },
+ "seconds": {
+  "canonical": 28.539113759994507,
+  "legacy": 9.23730993270874
+ }
+}
