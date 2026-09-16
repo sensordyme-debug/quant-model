@@ -68,3 +68,20 @@ data/
 # ---------------------------------------------------------------------------
 Quant Brain/
 .obsidian/
+
+# ---------------------------------------------------------------------------
+# Regenerable lab cache. `research/lab_sessions.pkl` is 126 MB of pickled
+# session frames written by `scripts/strategy_lab_run.py` and read back by
+# `strategy_lab_report.py` and `strategy_lab_topstep.py`. It was committed once
+# and GitHub's pre-receive hook rejected the push: 126 MB is above the hard
+# 100 MB per-file limit, and the rejection blocks the WHOLE push, not just that
+# commit. It was excised from the four unpushed commits on 2026-09-15.
+#
+# It is a cache, not a result: `research/lab_trades.parquet` is the durable
+# artifact, and the pickle is rebuilt by re-running the lab. A fresh clone must
+# do that before the two report scripts above will run.
+#
+# Pickle is also an unsafe deserialization format; a clone should regenerate it
+# locally rather than receive one over the wire.
+# ---------------------------------------------------------------------------
+research/lab_sessions.pkl
