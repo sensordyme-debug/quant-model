@@ -236,6 +236,19 @@ def main() -> int:
             print(f"NO RELEASE FILE at {RELEASE_FILE.relative_to(REPO)}")
             return 1
         released = json.loads(RELEASE_FILE.read_text(encoding="utf-8"))
+
+        absent = [s for s, d in fresh["datasets"].items() if not d.get("present")]
+        if absent:
+            #: Said plainly rather than as forty "absent from the rebuild" lines. A clone
+            #: has the code and not the bars - `data/futures/*.parquet` is ignored by
+            #: design - and "I cannot check this" is a different answer from "this is
+            #: wrong".
+            print(f"CANNOT VERIFY: no store for {', '.join(absent)} under "
+                  f"{STORE.relative_to(REPO)}. The release manifest records the datasets, "
+                  f"so a repository without them can confirm the strategy half and not the "
+                  f"data half. Fetch or restore the stores and re-run.")
+            return 2
+
         diffs = _differences(released, fresh)
         if diffs:
             print(f"RELEASE MANIFEST DISAGREES WITH THE REPOSITORY ({len(diffs)}):")

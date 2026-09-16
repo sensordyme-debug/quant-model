@@ -1792,8 +1792,15 @@ def test_the_release_manifest_matches_the_datasets_on_disk(release, es):
         assert release["datasets"][sym]["present"] is True
 
 
+@needs_store
 def test_the_release_manifest_is_verifiable_from_the_repository():
-    """`--verify` rebuilds every field and refuses on the first disagreement."""
+    """`--verify` rebuilds every field and refuses on the first disagreement.
+
+    Store-guarded, because the release manifest records the DATASETS and a clean clone does
+    not carry them - `data/futures/*.parquet` is ignored by design. Found by cloning the
+    repository into a scratch directory and running this suite in it, where this was the one
+    test that failed rather than skipping.
+    """
     r = subprocess.run([sys.executable, "scripts/vwap_release.py", "--verify"],
                        cwd=REPO, capture_output=True, text=True, timeout=900, check=False)
     assert r.returncode == 0, r.stdout + r.stderr
