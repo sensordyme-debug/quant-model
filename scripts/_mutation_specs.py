@@ -28,6 +28,9 @@ S_TWIN = "tests/test_topstep_twin_forensics.py"
 S_DATA = "tests/test_canonical_data.py"
 S_CERT = "tests/test_certification.py"
 S_CONTRACT = "tests/test_strategy_contract.py"
+S_VWAP_IND = "tests/test_vwap_indicators.py"
+S_VWAP_STR = "tests/test_vwap_strategy.py"
+S_VWAP_GOV = "tests/test_vwap_governor.py"
 
 DSCH = "quant_brain/data/schema.py"
 DMAN = "quant_brain/data/manifest.py"
@@ -36,6 +39,11 @@ DQUA = "quant_brain/data/quality.py"
 DADP = "quant_brain/data/adapters.py"
 DCON = "quant_brain/data/contracts.py"
 SR = "quant_brain/research/strategy_report.py"
+VS = "quant_brain/strategies/vwap_pullback/spec.py"
+VI = "quant_brain/strategies/vwap_pullback/indicators.py"
+VE = "quant_brain/strategies/vwap_pullback/engine.py"
+VO = "quant_brain/strategies/vwap_pullback/orders.py"
+VG = "quant_brain/strategies/vwap_pullback/governor.py"
 
 #: (name, file, find, replace) and optionally the suite that must catch it. Entries
 #: without a suite are defended by `tests/test_engine_forensics.py`.
@@ -500,4 +508,157 @@ MUTATIONS: list[tuple] = [
      "        sens = delta if ok else None",
      "        sens = 0.0",
      S_CERT),
+
+    # ---- V1.0.0_FROZEN: the VWAP pullback strategy ---------------------------------------
+    # The brief names each of these as a mutation the golden suite must kill.
+
+    # -- the frozen constants ---------------------------------------------------------------
+    ("vwap__stop_distance_shaved_by_a_cent", VS,
+     "    stop_points: float = 15.0", "    stop_points: float = 14.99", S_VWAP_GOV),
+    ("vwap__target_distance_shaved_by_a_cent", VS,
+     "    target_points: float = 30.0", "    target_points: float = 29.99", S_VWAP_GOV),
+    ("vwap__break_even_trigger_shaved_by_a_cent", VS,
+     "    breakeven_trigger: float = 15.0", "    breakeven_trigger: float = 14.99",
+     S_VWAP_GOV),
+    ("vwap__stall_mfe_shaved_by_a_cent", VS,
+     "    stall_mfe: float = 25.0", "    stall_mfe: float = 24.99", S_VWAP_GOV),
+    ("vwap__stall_window_shortened_to_two_bars", VS,
+     "    stall_window: int = 3", "    stall_window: int = 2", S_VWAP_GOV),
+    ("vwap__killswitch_moved_to_minus_801", VS,
+     "    daily_loss_killswitch: float = -800.0",
+     "    daily_loss_killswitch: float = -801.0", S_VWAP_GOV),
+    ("vwap__profit_cap_moved_to_1201", VS,
+     "    daily_profit_cap: float = 1200.0", "    daily_profit_cap: float = 1201.0",
+     S_VWAP_GOV),
+    ("vwap__trade_cap_raised_to_five", VS,
+     "    max_trades_per_day: int = 4", "    max_trades_per_day: int = 5", S_VWAP_GOV),
+    ("vwap__loss_breaker_raised_to_three", VS,
+     "    consecutive_losses_for_cooldown: int = 2",
+     "    consecutive_losses_for_cooldown: int = 3", S_VWAP_GOV),
+    ("vwap__cooldown_shortened_to_44_minutes", VS,
+     "    cooldown_minutes: int = 45", "    cooldown_minutes: int = 44", S_VWAP_GOV),
+    ("vwap__last_entry_cutoff_moved", VS,
+     "    last_entry: tuple[int, int] = (15, 30)",
+     "    last_entry: tuple[int, int] = (15, 31)", S_VWAP_GOV),
+    ("vwap__hard_flatten_moved", VS,
+     "    hard_flatten: tuple[int, int] = (15, 45)",
+     "    hard_flatten: tuple[int, int] = (15, 46)", S_VWAP_GOV),
+    ("vwap__session_anchor_moved_off_eighteen_hundred", VS,
+     "    session_anchor: tuple[int, int] = (18, 0)",
+     "    session_anchor: tuple[int, int] = (17, 0)", S_VWAP_GOV),
+    ("vwap__commission_reverted_to_the_repository_rate", VS,
+     "    commission_round_turn: float = 4.50",
+     "    commission_round_turn: float = 3.78", S_VWAP_GOV),
+    ("vwap__entry_slippage_removed", VS,
+     "    slippage_ticks_entry: float = 1.0", "    slippage_ticks_entry: float = 0.0",
+     S_VWAP_GOV),
+    ("vwap__nq_point_value_doubled", VS,
+     "        return float(inst.get(self.instrument).spec.multiplier) * self.contracts",
+     "        return float(inst.get(self.instrument).spec.multiplier) * self.contracts * 2",
+     S_VWAP_GOV),
+
+    # -- the clock ---------------------------------------------------------------------------
+    ("vwap__wrong_timezone", VS,
+     "TIMEZONE: ZoneInfo = ET", 'TIMEZONE: ZoneInfo = ZoneInfo("UTC")', S_VWAP_IND),
+    ("vwap__vwap_never_resets_at_the_anchor", VI,
+     "        elif day != self._day:", "        elif False:", S_VWAP_IND),
+
+    # -- the indicators ----------------------------------------------------------------------
+    ("vwap__typical_price_replaced_by_the_close", VI,
+     "        return (self.high + self.low + self.close) / 3.0",
+     "        return self.close", S_VWAP_IND),
+    ("vwap__welford_variance_uses_the_stale_mean", VI,
+     "        self._m2 += w * delta * (tp - self._mean)",
+     "        self._m2 += w * delta * delta", S_VWAP_IND),
+    ("vwap__volume_sma_excludes_the_current_bar", VI,
+     "        return sum(self._window) / len(self._window) if self.ready else float(\"nan\")",
+     "        return (sum(self._window[:-1]) / (len(self._window) - 1)) if self.ready "
+     "else float(\"nan\")", S_VWAP_IND),
+    ("vwap__the_forming_five_minute_bar_becomes_visible", VI,
+     "        return self.completed[-1] if self.completed else None",
+     "        if self._bucket is not None:\n"
+     "            return FiveMinuteBar(start=self._start, end=self._end, open=self._o,\n"
+     "                                 high=self._h, low=self._low, close=self._c,\n"
+     "                                 volume=self._v, vwap_at_close=self._vwap_at_close)\n"
+     "        return self.completed[-1] if self.completed else None", S_VWAP_IND),
+
+    # -- break-even and the stall rule --------------------------------------------------------
+    ("vwap__break_even_reads_the_close_instead_of_the_high", VE,
+     "        if not p.breakeven_done and p.mfe_points >= self.spec.breakeven_trigger:",
+     "        if not p.breakeven_done and (bar.close - p.fill_price) * d >= "
+     "self.spec.breakeven_trigger:", S_VWAP_STR),
+    ("vwap__stall_decides_at_t_plus_2_instead_of_t_plus_3", VE,
+     "        if p.stall_bars_seen < self.spec.stall_window:",
+     "        if p.stall_bars_seen < self.spec.stall_window - 1:", S_VWAP_STR),
+    ("vwap__stall_ignores_a_break_of_the_mfe_bar", VE,
+     "        if p.stall_broken:", "        if False:", S_VWAP_STR),
+    ("vwap__mfe_bar_is_re_identified_by_every_later_high", VE,
+     "        if p.mfe_bar_index is None:", "        if True:", S_VWAP_STR),
+
+    # -- fill-price anchoring and slippage ----------------------------------------------------
+    ("vwap__the_fill_is_the_signal_bar_close_so_the_bracket_anchors_to_it", VE,
+     "        fill = bar.close + slip * d                    # adverse, by construction",
+     "        fill = bar.close", S_VWAP_STR),
+    ("vwap__entry_slippage_is_favourable_instead_of_adverse", VE,
+     "        fill = bar.close + slip * d                    # adverse, by construction",
+     "        fill = bar.close - slip * d", S_VWAP_STR),
+    ("vwap__the_bracket_re_derives_the_signal_close_from_the_fill", VO,
+     "        fill = float(entry.fill_price)",
+     "        fill = float(entry.fill_price) - 0.25 * (1 if entry.side is Side.BUY else -1)",
+     S_VWAP_STR),
+    ("vwap__stop_slippage_is_favourable_instead_of_adverse", VE,
+     "            self._close(bar, p, price=stop_px - slip * d, reason=EXIT_STOP,",
+     "            self._close(bar, p, price=stop_px + slip * d, reason=EXIT_STOP,",
+     S_VWAP_GOV),
+
+    # -- the OCO -------------------------------------------------------------------------------
+    ("vwap__the_filled_leg_no_longer_cancels_the_other", VO,
+     '            self._cancel_leg(other, f"cancelled by the {which} (OCO)")',
+     "            pass", S_VWAP_STR),
+    ("vwap__break_even_can_be_applied_twice", VO,
+     "        if self._once(token) is not None:\n            return self.bracket.stop",
+     "        if False:\n            return self.bracket.stop", S_VWAP_STR),
+    ("vwap__the_book_no_longer_refuses_a_second_position", VO,
+     "        if self.position != 0:\n            raise BracketError(\n"
+     '                f"refusing a second entry while {self.position:+d} is open.',
+     "        if False:\n            raise BracketError(\n"
+     '                f"refusing a second entry while {self.position:+d} is open.',
+     S_VWAP_STR),
+
+    # -- intrabar precedence ---------------------------------------------------------------------
+    ("vwap__an_ambiguous_bar_resolves_as_the_target_instead_of_the_stop", VE,
+     "        if stop_hit:", "        if stop_hit and not target_hit:", S_VWAP_STR),
+    ("vwap__the_ambiguity_flag_is_never_set", VE,
+     "        ambiguous = bool(stop_hit and target_hit)", "        ambiguous = False",
+     S_VWAP_STR),
+
+    # -- the governor ------------------------------------------------------------------------------
+    ("vwap__governor_reads_realized_only_and_ignores_the_open_half", VG,
+     "        return (self.realized + unrealized) <= self.spec.daily_loss_killswitch",
+     "        return self.realized <= self.spec.daily_loss_killswitch", S_VWAP_GOV),
+    ("vwap__killswitch_boundary_opened_so_exactly_minus_800_survives", VG,
+     "        return (self.realized + unrealized) <= self.spec.daily_loss_killswitch",
+     "        return (self.realized + unrealized) < self.spec.daily_loss_killswitch",
+     S_VWAP_GOV),
+    ("vwap__profit_cap_boundary_opened_so_exactly_1200_still_trades", VG,
+     "        if self.realized >= self.spec.daily_profit_cap:",
+     "        if self.realized > self.spec.daily_profit_cap:", S_VWAP_GOV),
+    ("vwap__cooldown_boundary_closed_so_45_00_is_still_blocked", VG,
+     "        if self.cooldown_until is not None and when < self.cooldown_until:",
+     "        if self.cooldown_until is not None and when <= self.cooldown_until:",
+     S_VWAP_GOV),
+    ("vwap__hard_flatten_boundary_opened_so_15_45_still_trades", VG,
+     '        return minute_of_day(when) >= self.spec.minute_of("hard_flatten")',
+     '        return minute_of_day(when) > self.spec.minute_of("hard_flatten")', S_VWAP_GOV),
+    ("vwap__entry_cutoff_reading_flipped", VG,
+     "        if (m > cutoff) if self.spec.last_entry_inclusive else (m >= cutoff):",
+     "        if (m >= cutoff) if self.spec.last_entry_inclusive else (m > cutoff):",
+     S_VWAP_GOV),
+    ("vwap__a_scratch_resets_the_consecutive_loss_streak", VG,
+     "        elif net_pnl > 0:\n            self.consecutive_losses = 0",
+     "        elif net_pnl >= 0:\n            self.consecutive_losses = 0", S_VWAP_GOV),
+    ("vwap__the_trade_counter_never_increments", VG,
+     "        self.trades_today += 1", "        self.trades_today += 0", S_VWAP_GOV),
+    ("vwap__the_day_never_rolls_so_the_halt_is_permanent", VG,
+     "        self.reset(day)\n        return True", "        return False", S_VWAP_GOV),
 ]
