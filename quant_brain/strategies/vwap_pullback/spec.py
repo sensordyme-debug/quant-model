@@ -35,6 +35,12 @@ VERSION = "V1.0.0_Frozen"
 TIMEZONE: ZoneInfo = ET
 
 
+#: An ambiguity's lifecycle. OPEN means the engine picked a reading and the owner has not
+#: confirmed it; RESOLVED means the owner ruled, and `authority` records who and when.
+OPEN = "OPEN"
+RESOLVED = "RESOLVED"
+
+
 @dataclass(frozen=True)
 class Ambiguity:
     """A rule with more than one defensible reading, and the reading taken."""
@@ -47,6 +53,14 @@ class Ambiguity:
     #: True when the alternative reading is also implemented and tested, so the owner can see
     #: what the choice costs before confirming it.
     both_implemented: bool = False
+    status: str = OPEN
+    #: Who ruled, and on what. Empty while the status is OPEN.
+    authority: str = ""
+
+    @property
+    def needs_owner(self) -> bool:
+        """Material AND unresolved. The only combination that blocks certification."""
+        return self.material and self.status != RESOLVED
 
 
 @dataclass(frozen=True)
@@ -62,13 +76,22 @@ class Conflict:
 AMBIGUITIES: tuple[Ambiguity, ...] = (
     Ambiguity("A1", "5-minute ATR(14)",
               "Wilder smoothing or a simple mean of true range?",
-              "Wilder - the conventional meaning of ATR(14) in every charting package",
-              material=True, both_implemented=True),
+              "WILDER, period 14, on COMPLETED 5-minute bars. The threshold stays at exactly "
+              "8.0 points and the period is not a tunable. The simple-mean implementation is "
+              "retained and tested so the choice remains inspectable, but it is not the "
+              "specification.",
+              material=True, both_implemented=True, status=RESOLVED,
+              authority="owner, V1.0.0_Frozen certification register, 2026-09-16 - DECISION 1"),
     Ambiguity("A2", "governor mark-to-market",
               "is unrealised P&L read at the bar close or at the bar's adverse extreme?",
-              "the adverse extreme - a killswitch that only looks at closes does not protect "
-              "against the move that breaches between them",
-              material=True, both_implemented=True),
+              "CONSERVATIVE_INTRABAR_ADVERSE_EXTREME. Realized + unrealised, where unrealised "
+              "is marked at the LOWEST price reached in the interval for a long and the "
+              "HIGHEST for a short, so an OHLCV close cannot hide an intrabar drawdown that "
+              "would have tripped the governor. The threshold stays at <= -$800.00. This is "
+              "the SAFETY layer and may override strategy behaviour; it is not trade exit "
+              "logic.",
+              material=True, both_implemented=True, status=RESOLVED,
+              authority="owner, V1.0.0_Frozen certification register, 2026-09-16 - DECISION 2"),
     Ambiguity("A3", "no new entries after 15:30:00",
               "is a bar STAMPED 15:30 'after' the cutoff?",
               "no - the 15:30 bar is the last bar an entry may be decided on",
@@ -110,10 +133,24 @@ AMBIGUITIES: tuple[Ambiguity, ...] = (
     Ambiguity("A12", "one tick of slippage on entry and stop-outs",
               "do the 15:45 flatten, the governor flatten and the stall market-close also "
               "slip?",
-              "NO - the frozen spec names entry and stop-outs only, and §13 forbids applying "
-              "it elsewhere silently. This is OPTIMISTIC for three exit kinds and is "
-              "reported as such",
-              material=True),
+              "RESOLVED FOR THE BASELINE. `BASELINE_FROZEN` charges exactly what V1.0.0 "
+              "states - one tick on the entry, one on stop-outs INCLUDING the break-even "
+              "stop - and charges nothing for the three market exits the specification "
+              "leaves unpriced. That is NOT a claim that those exits are frictionless: it is "
+              "a refusal to invent a number. The unpriced gap is measured instead by the "
+              "STRESS_1TICK and STRESS_2TICK profiles, which are DIAGNOSTIC and alter no "
+              "strategy rule.",
+              material=True, both_implemented=True, status=RESOLVED,
+              authority="owner, V1.0.0_Frozen certification register, 2026-09-16 - DECISION 3"),
+    Ambiguity("A16", "STRESS profiles: 'additional slippage on all market exits'",
+              "does 'all market exits' include a triggered STOP, which is itself a market "
+              "order, or only the three flattens the frozen spec leaves unpriced?",
+              "INCLUDES THE STOP - the more conservative reading. STRESS_1TICK charges the "
+              "stop 2 ticks and each flatten 1; STRESS_2TICK charges 3 and 2. The narrower "
+              "reading would isolate the unpriced gap more cleanly but understates a "
+              "stressed tape. Diagnostic only: no strategy rule reads a stress profile.",
+              material=False, status=RESOLVED,
+              authority="engine reading, recorded for the owner to overturn"),
     Ambiguity("A13", "the trading day for daily counters",
               "midnight or the 18:00 anchor?",
               "18:00 ET, matching the VWAP anchor and the halt release",
@@ -158,12 +195,136 @@ CONFLICTS: tuple[Conflict, ...] = (
              "says $4.50",
              "the frozen spec wins for this strategy and is the more conservative of the "
              "two; the engine does not read the instrument default"),
-    Conflict("C9", "research.strategy_spec timeframe guard",
+    # DECISION 4. The owner's register assigns C9 and C10 to the proximity inequalities, so
+    # the timeframe conflict that previously held C9 is renumbered C11. No content changed;
+    # `docs/VWAP_PULLBACK_INTEGRATION_PLAN.md` still describes it under its old ref and says
+    # so.
+    Conflict("C9", "the frozen 5-minute LONG regime proximity inequality",
+             "`VWAP - 5m low <= 6.0` is satisfied by a candle lying ENTIRELY ABOVE the VWAP, "
+             "because the left-hand side is then negative. With VWAP 20,000 and a 5m low of "
+             "20,005 the expression is -5 <= 6, which is true. A bar that never came near "
+             "the VWAP therefore qualifies as a pullback regime.",
+             "NOT AN IMPLEMENTATION DEFECT. The engine matches the literal frozen rule and "
+             "`tests/test_vwap_strategy.py` proves the literal behaviour on both a candle "
+             "spanning the VWAP and one entirely above it. Reported as a STRATEGY-DEFINITION "
+             "CHARACTERISTIC; the inequality is NOT to be reinterpreted without an explicit "
+             "instruction."),
+    Conflict("C10", "the frozen 5-minute SHORT regime proximity inequality",
+             "the exact mirror: `5m high - VWAP <= 6.0` is satisfied by a candle lying "
+             "ENTIRELY BELOW the VWAP. With VWAP 20,000 and a 5m high of 19,995 the "
+             "expression is -5 <= 6.",
+             "NOT AN IMPLEMENTATION DEFECT. Literal behaviour implemented and tested on both "
+             "sides. Reported as a strategy-definition characteristic."),
+    Conflict("C11", "research.strategy_spec timeframe guard",
              "the certified interface refuses any timeframe but 1min because resampling is "
              "unaudited; this strategy needs 5-minute context",
              "5-minute bars are derived inside the engine, causally, from the 1-minute "
              "stream; no data-layer resampling is introduced"),
 )
+
+
+@dataclass(frozen=True)
+class ExecutionProfile:
+    """How much adverse slippage each KIND of fill carries, in ticks.
+
+    DECISION 3. The frozen specification states one tick on the entry and one on stop-outs,
+    and says nothing at all about the three MARKET exits it also defines - the 15:45 safety
+    flatten, the -$800 governor flatten and the +25 stall close. Those are genuine market
+    orders and are not realistically frictionless; the specification simply does not price
+    them, and inventing a number would be a strategy change wearing a modelling costume.
+
+    So the baseline charges EXACTLY what V1.0.0 states and nothing more, and the stress
+    profiles exist beside it to measure what the silence is worth. The stress profiles are
+    DIAGNOSTIC: nothing in the engine chooses between them, and no strategy rule reads them.
+
+        profile          entry   stop*   target**  market exit***
+        IDEAL              0       0        0           0
+        BASELINE_FROZEN    1       1        0           0        <- V1.0.0 exactly
+        STRESS_1TICK       1       2        0           1
+        STRESS_2TICK       1       3        0           2
+
+          *  the initial stop AND the break-even stop. DECISION 3 is explicit that a
+             break-even stop is a stop-out when it executes, so it carries the stop's tick.
+          ** a LIMIT order. It fills at its price or it does not fill; no profile charges it.
+          *** the 15:45 flatten, the governor flatten and the stall market close.
+
+    THE READING TAKEN, stated because "all market exits" admits two. A triggered stop IS a
+    market order, so the stress adds its ticks to the stop as well as to the three flattens -
+    the more conservative of the two readings. The alternative, adding only to the three
+    exits the frozen spec leaves unpriced, would isolate the gap more cleanly but understates
+    a stressed tape. Recorded as AMBIGUITY A16.
+    """
+
+    name: str
+    intent: str
+    entry_ticks: float
+    stop_ticks: float
+    target_ticks: float
+    market_exit_ticks: float
+    #: True for the one profile that charges exactly what V1.0.0 states, and no more.
+    frozen_spec_exact: bool = False
+
+    def as_row(self) -> dict:
+        return {"name": self.name, "entry_ticks": self.entry_ticks,
+                "stop_ticks": self.stop_ticks, "target_ticks": self.target_ticks,
+                "market_exit_ticks": self.market_exit_ticks,
+                "frozen_spec_exact": self.frozen_spec_exact, "intent": self.intent}
+
+
+IDEAL = ExecutionProfile(
+    name="IDEAL",
+    intent="the frictionless bound. Not executable, and never a headline: it exists so the "
+           "distance between it and the baseline is visible as a number.",
+    entry_ticks=0.0, stop_ticks=0.0, target_ticks=0.0, market_exit_ticks=0.0)
+
+BASELINE_FROZEN = ExecutionProfile(
+    name="BASELINE_FROZEN",
+    intent="EXACTLY what V1.0.0 states: one tick on the entry, one on stop-outs (including "
+           "the break-even stop), nothing on the target, and NOTHING invented for the three "
+           "market exits the specification leaves unpriced.",
+    entry_ticks=1.0, stop_ticks=1.0, target_ticks=0.0, market_exit_ticks=0.0,
+    frozen_spec_exact=True)
+
+STRESS_1TICK = ExecutionProfile(
+    name="STRESS_1TICK",
+    intent="diagnostic: one additional tick of adverse slippage on every market-executed "
+           "exit. Measures what the specification's silence about the flattens is worth.",
+    entry_ticks=1.0, stop_ticks=2.0, target_ticks=0.0, market_exit_ticks=1.0)
+
+STRESS_2TICK = ExecutionProfile(
+    name="STRESS_2TICK",
+    intent="diagnostic: two additional ticks on every market-executed exit. A strategy that "
+           "survives here is not relying on the unpriced exits.",
+    entry_ticks=1.0, stop_ticks=3.0, target_ticks=0.0, market_exit_ticks=2.0)
+
+#: The ladder, in order. `BASELINE_FROZEN` is the only one that is the frozen specification;
+#: the others are measurements taken beside it.
+EXECUTION_LADDER: tuple[ExecutionProfile, ...] = (IDEAL, BASELINE_FROZEN, STRESS_1TICK,
+                                                  STRESS_2TICK)
+EXECUTION_PROFILES: dict[str, ExecutionProfile] = {p.name: p for p in EXECUTION_LADDER}
+
+
+def execution_profile(name: str) -> ExecutionProfile:
+    try:
+        return EXECUTION_PROFILES[name]
+    except KeyError:
+        raise KeyError(f"unknown execution profile {name!r}; known: "
+                       f"{', '.join(EXECUTION_PROFILES)}") from None
+
+
+def execution_table() -> str:
+    """The assumption table, printed before any run that uses a profile."""
+    head = (f"  {'profile':17} {'entry':>6} {'stop':>6} {'target':>7} {'mkt exit':>9}  "
+            f"{'= V1.0.0':>9}")
+    rows = [head, "  " + "-" * (len(head) - 2)]
+    for pr in EXECUTION_LADDER:
+        rows.append(f"  {pr.name:17} {pr.entry_ticks:6.0f} {pr.stop_ticks:6.0f} "
+                    f"{pr.target_ticks:7.0f} {pr.market_exit_ticks:9.0f}  "
+                    f"{str(pr.frozen_spec_exact):>9}")
+    rows.append("  ticks of ADVERSE slippage. The target is a limit order and is never "
+                "charged.")
+    rows.append("  stop covers the initial stop AND the break-even stop (DECISION 3).")
+    return "\n".join(rows)
 
 
 @dataclass(frozen=True)
@@ -217,15 +378,37 @@ class FrozenSpec:
     #: The frozen round turn, in dollars for the WHOLE position. CONFLICT C8: the repository
     #: cites $3.78 for NQ; the frozen spec says $4.50 and the frozen spec wins here.
     commission_round_turn: float = 4.50
-    #: Ticks of adverse slippage, applied to the FILL PRICE. AMBIGUITY A12: entry and
-    #: stop-outs only - targets are limit fills and the three market-flatten kinds are not
-    #: charged, which is optimistic and reported.
-    slippage_ticks_entry: float = 1.0
-    slippage_ticks_stop: float = 1.0
-    slippage_ticks_target: float = 0.0
-    slippage_ticks_flatten: float = 0.0
+    #: Ticks of adverse slippage per fill kind, applied to the FILL PRICE. The default is
+    #: BASELINE_FROZEN - exactly what V1.0.0 states. The stress profiles are diagnostic and
+    #: are selected explicitly; nothing in the engine chooses between them.
+    execution: ExecutionProfile = BASELINE_FROZEN
 
     notes: dict = field(default_factory=dict)
+
+    # -- slippage, read through the profile so the two can never disagree --------------------
+
+    @property
+    def slippage_ticks_entry(self) -> float:
+        return self.execution.entry_ticks
+
+    @property
+    def slippage_ticks_stop(self) -> float:
+        """The initial stop AND the break-even stop: a break-even stop is a stop-out."""
+        return self.execution.stop_ticks
+
+    @property
+    def slippage_ticks_target(self) -> float:
+        return self.execution.target_ticks
+
+    @property
+    def slippage_ticks_market_exit(self) -> float:
+        """The 15:45 flatten, the governor flatten and the stall market close."""
+        return self.execution.market_exit_ticks
+
+    def with_execution(self, name: str) -> FrozenSpec:
+        """The same strategy under a different execution profile. Changes NO strategy rule."""
+        import dataclasses
+        return dataclasses.replace(self, execution=execution_profile(name))
 
     def __post_init__(self) -> None:
         if self.atr_method not in ("wilder", "sma"):
@@ -303,10 +486,13 @@ class FrozenSpec:
             f"max {self.max_trades_per_day} trades | "
             f"{self.consecutive_losses_for_cooldown} losses -> "
             f"{self.cooldown_minutes}m cooldown",
-            f"COSTS        ${self.commission_round_turn:,.2f} round turn | slippage "
-            f"entry {self.slippage_ticks_entry:g}t, stop {self.slippage_ticks_stop:g}t, "
-            f"target {self.slippage_ticks_target:g}t, flatten "
-            f"{self.slippage_ticks_flatten:g}t",
+            f"COSTS        ${self.commission_round_turn:,.2f} round turn",
+            f"EXECUTION    {self.execution.name}"
+            + ("  (V1.0.0 EXACTLY)" if self.execution.frozen_spec_exact
+               else "  DIAGNOSTIC - not the frozen specification")
+            + f" | entry {self.slippage_ticks_entry:g}t, stop "
+              f"{self.slippage_ticks_stop:g}t, target {self.slippage_ticks_target:g}t, "
+              f"market exit {self.slippage_ticks_market_exit:g}t",
         ])
 
 
@@ -322,9 +508,21 @@ FROZEN_MNQ = FrozenSpec(instrument="MNQ", contracts=10, commission_round_turn=12
 
 
 def unresolved() -> tuple[Ambiguity, ...]:
-    """Ambiguities whose reading materially changes results and needs owner confirmation."""
-    return tuple(a for a in AMBIGUITIES if a.material)
+    """Material ambiguities the owner has NOT ruled on. Empty is what certification needs."""
+    return tuple(a for a in AMBIGUITIES if a.needs_owner)
 
 
-__all__ = ["AMBIGUITIES", "CONFLICTS", "FROZEN", "FROZEN_MNQ", "TIMEZONE", "VERSION",
-           "Ambiguity", "Conflict", "FrozenSpec", "unresolved"]
+def resolved() -> tuple[Ambiguity, ...]:
+    return tuple(a for a in AMBIGUITIES if a.status == RESOLVED)
+
+
+def characteristics() -> tuple[Conflict, ...]:
+    """Register entries that are properties of the SPECIFICATION, not defects in the code."""
+    return tuple(c for c in CONFLICTS if c.ref in ("C9", "C10"))
+
+
+__all__ = ["AMBIGUITIES", "BASELINE_FROZEN", "CONFLICTS", "EXECUTION_LADDER",
+           "EXECUTION_PROFILES", "FROZEN", "FROZEN_MNQ", "IDEAL", "OPEN", "RESOLVED",
+           "STRESS_1TICK", "STRESS_2TICK", "TIMEZONE", "VERSION", "Ambiguity", "Conflict",
+           "ExecutionProfile", "FrozenSpec", "characteristics", "execution_profile",
+           "execution_table", "resolved", "unresolved"]

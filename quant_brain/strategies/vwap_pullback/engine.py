@@ -23,6 +23,14 @@ explicitly, and nothing in the signature offers it. The `+25` stall rule is the 
 FORWARD WINDOW exists at all, and it is implemented as a countdown over bars already seen: at
 t+1 and t+2 the engine records and decides nothing.
 
+WHERE SLIPPAGE IS APPLIED
+---------------------------
+To the FILL PRICE, at every one of the five exit kinds, and never as a bookkeeping line added
+afterwards. `_close` reconstructs the ideal (unslipped) level as `price + slippage * d` in
+order to report gross and slippage separately, so a caller that passed an unslipped price
+together with a non-zero slippage would cancel its own charge out exactly - which is a defect
+the market exits carried until the stress profiles were built and measured nothing.
+
 INTRABAR PRECEDENCE, WRITTEN DOWN ONCE
 ----------------------------------------
 OHLCV cannot say whether the high or the low came first. When more than one thing could have
@@ -321,9 +329,9 @@ class Engine:
         # --- the discretionary actions, decided at this bar's close -------------------------
         unrealized = self._unrealized(bar, p)
         if self.governor.killswitch_breached(unrealized):
-            self._close(bar, p, price=bar.close, reason=EXIT_KILLSWITCH,
-                        exit_slippage_points=self.spec.slippage_ticks_flatten *
-                        self.spec.tick, ambiguous=False, out=out)
+            slip = self.spec.slippage_ticks_market_exit * self.spec.tick
+            self._close(bar, p, price=bar.close - slip * d, reason=EXIT_KILLSWITCH,
+                        exit_slippage_points=slip, ambiguous=False, out=out)
             self.governor.halt(bar.timestamp,
                                f"MTM {self.governor.realized + unrealized:+,.2f} at or below "
                                f"{self.spec.daily_loss_killswitch:+,.2f}")
@@ -333,9 +341,9 @@ class Engine:
             return
 
         if self.governor.must_hard_flatten(bar.timestamp):
-            self._close(bar, p, price=bar.close, reason=EXIT_HARD_FLATTEN,
-                        exit_slippage_points=self.spec.slippage_ticks_flatten *
-                        self.spec.tick, ambiguous=False, out=out)
+            slip = self.spec.slippage_ticks_market_exit * self.spec.tick
+            self._close(bar, p, price=bar.close - slip * d, reason=EXIT_HARD_FLATTEN,
+                        exit_slippage_points=slip, ambiguous=False, out=out)
             notes.append("hard flatten")
             return
 
@@ -408,9 +416,9 @@ class Engine:
                                     reason="stall")
             p.target_price = new_target
             out.stall_modified = True
-            self._close(bar, p, price=bar.close, reason=EXIT_STALL,
-                        exit_slippage_points=self.spec.slippage_ticks_flatten *
-                        self.spec.tick, ambiguous=False, out=out)
+            slip = self.spec.slippage_ticks_market_exit * self.spec.tick
+            self._close(bar, p, price=bar.close - slip * d, reason=EXIT_STALL,
+                        exit_slippage_points=slip, ambiguous=False, out=out)
             notes.append(f"stall: target -> {new_target}, already through it, market close")
             return True
 

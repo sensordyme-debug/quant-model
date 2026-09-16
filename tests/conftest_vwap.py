@@ -100,7 +100,8 @@ class Scenario:
         bucket_start = minute - (minute % 5)
         return et_at(self.day, f"{(bucket_start - 5) // 60:02d}:{(bucket_start - 5) % 60:02d}")
 
-    def _build(self, trigger_at: str, *, long: bool) -> Scenario:
+    def _build(self, trigger_at: str, *, long: bool,
+               context_shift: float = 0.0) -> Scenario:
         trigger = et_at(self.day, trigger_at)
         ctx_start = self._context_bucket_start(trigger)
 
@@ -112,18 +113,23 @@ class Scenario:
             self.pad_until((ctx_start - dt.timedelta(minutes=1)).strftime("%H:%M"),
                            start=start)
 
-        # the context bucket: four narrow bars, then one that sets the regime
+        # The context bucket: four narrow bars, then one that sets the regime.
+        #
+        # `context_shift` moves the WHOLE bucket away from the VWAP without touching any
+        # rule. At +5 every bar of a long bucket sits above the VWAP, which is what C9 is
+        # about: `VWAP - low` is then NEGATIVE and still satisfies `<= 6.0`.
+        base = self.level + context_shift
         for i in range(4):
-            self.bars.append(flat_bar(ctx_start + dt.timedelta(minutes=i), level=self.level,
+            self.bars.append(flat_bar(ctx_start + dt.timedelta(minutes=i), level=base,
                                       width=NARROW, volume=QUIET_VOLUME))
         last = ctx_start + dt.timedelta(minutes=4)
         if long:
-            self.bars.append(Bar(timestamp=last, open=self.level, high=self.level + 1.0,
-                                 low=self.level - NARROW, close=self.level + 1.0,
+            self.bars.append(Bar(timestamp=last, open=base, high=base + 1.0,
+                                 low=base - NARROW, close=base + 1.0,
                                  volume=QUIET_VOLUME))
         else:
-            self.bars.append(Bar(timestamp=last, open=self.level, high=self.level + NARROW,
-                                 low=self.level - 1.0, close=self.level - 1.0,
+            self.bars.append(Bar(timestamp=last, open=base, high=base + NARROW,
+                                 low=base - 1.0, close=base - 1.0,
                                  volume=QUIET_VOLUME))
 
         # narrow bars from the trigger's own bucket start up to the trigger
@@ -143,6 +149,21 @@ class Scenario:
 
     def arm_short(self, *, trigger_at: str = "09:45") -> Scenario:
         return self._build(trigger_at, long=False)
+
+    def arm_long_entirely_above(self, *, trigger_at: str = "09:46",
+                                shift: float = 5.0) -> Scenario:
+        """A long context bucket that never comes near the VWAP. Register entry C9.
+
+        The trigger must sit at least a minute after the bucket so the bar it has to break is
+        one of the narrow ones back at the VWAP - otherwise no bar could be both inside the
+        entry zone and above a bucket high five points clear of it.
+        """
+        return self._build(trigger_at, long=True, context_shift=shift)
+
+    def arm_short_entirely_below(self, *, trigger_at: str = "09:46",
+                                 shift: float = -5.0) -> Scenario:
+        """The mirror. Register entry C10."""
+        return self._build(trigger_at, long=False, context_shift=shift)
 
     def again_long(self, *, trigger_at: str) -> Scenario:
         """Another long setup later the same day. Filler resumes where the last bar left off."""

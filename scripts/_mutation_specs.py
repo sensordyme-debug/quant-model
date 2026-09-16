@@ -549,8 +549,11 @@ MUTATIONS: list[tuple] = [
     ("vwap__commission_reverted_to_the_repository_rate", VS,
      "    commission_round_turn: float = 4.50",
      "    commission_round_turn: float = 3.78", S_VWAP_GOV),
-    ("vwap__entry_slippage_removed", VS,
-     "    slippage_ticks_entry: float = 1.0", "    slippage_ticks_entry: float = 0.0",
+    ("vwap__entry_slippage_removed_from_the_baseline_profile", VS,
+     "    entry_ticks=1.0, stop_ticks=1.0, target_ticks=0.0, market_exit_ticks=0.0,\n"
+     "    frozen_spec_exact=True)",
+     "    entry_ticks=0.0, stop_ticks=1.0, target_ticks=0.0, market_exit_ticks=0.0,\n"
+     "    frozen_spec_exact=True)",
      S_VWAP_GOV),
     ("vwap__nq_point_value_doubled", VS,
      "        return float(inst.get(self.instrument).spec.multiplier) * self.contracts",
@@ -661,4 +664,98 @@ MUTATIONS: list[tuple] = [
      "        self.trades_today += 1", "        self.trades_today += 0", S_VWAP_GOV),
     ("vwap__the_day_never_rolls_so_the_halt_is_permanent", VG,
      "        self.reset(day)\n        return True", "        return False", S_VWAP_GOV),
+
+    # ---- DECISIONS 1-4: the execution ladder, the resolved register, the characteristics ---
+
+    # THE P1 THE STRESS PROFILES FOUND. `_close` reconstructs the ideal exit as
+    # `price + slippage * d`, so passing an unslipped price with a non-zero slippage cancels
+    # the charge out exactly. Invisible under BASELINE (0 ticks); made the stress a no-op.
+    ("vwap__market_exit_slippage_accounted_but_never_applied_to_the_price", VE,
+     "            self._close(bar, p, price=bar.close - slip * d, reason=EXIT_HARD_FLATTEN,",
+     "            self._close(bar, p, price=bar.close, reason=EXIT_HARD_FLATTEN,",
+     S_VWAP_GOV),
+    ("vwap__governor_flatten_slippage_not_applied_to_the_price", VE,
+     "            self._close(bar, p, price=bar.close - slip * d, reason=EXIT_KILLSWITCH,",
+     "            self._close(bar, p, price=bar.close, reason=EXIT_KILLSWITCH,",
+     S_VWAP_GOV),
+    ("vwap__stall_close_slippage_not_applied_to_the_price", VE,
+     "            self._close(bar, p, price=bar.close - slip * d, reason=EXIT_STALL,",
+     "            self._close(bar, p, price=bar.close, reason=EXIT_STALL,",
+     S_VWAP_GOV),
+    ("vwap__market_exit_slippage_is_favourable_instead_of_adverse", VE,
+     "            self._close(bar, p, price=bar.close - slip * d, reason=EXIT_HARD_FLATTEN,",
+     "            self._close(bar, p, price=bar.close + slip * d, reason=EXIT_HARD_FLATTEN,",
+     S_VWAP_GOV),
+
+    # the baseline must stay EXACTLY V1.0.0 - no invented market-exit tick
+    ("vwap__the_baseline_profile_invents_a_market_exit_tick", VS,
+     "    entry_ticks=1.0, stop_ticks=1.0, target_ticks=0.0, market_exit_ticks=0.0,\n"
+     "    frozen_spec_exact=True)",
+     "    entry_ticks=1.0, stop_ticks=1.0, target_ticks=0.0, market_exit_ticks=1.0,\n"
+     "    frozen_spec_exact=True)",
+     S_VWAP_GOV),
+    ("vwap__the_baseline_profile_charges_the_limit_target", VS,
+     "    entry_ticks=1.0, stop_ticks=1.0, target_ticks=0.0, market_exit_ticks=0.0,\n"
+     "    frozen_spec_exact=True)",
+     "    entry_ticks=1.0, stop_ticks=1.0, target_ticks=1.0, market_exit_ticks=0.0,\n"
+     "    frozen_spec_exact=True)",
+     S_VWAP_GOV),
+
+    # a stress profile that measures nothing
+    ("vwap__stress_1tick_collapses_onto_the_baseline", VS,
+     "    entry_ticks=1.0, stop_ticks=2.0, target_ticks=0.0, market_exit_ticks=1.0)",
+     "    entry_ticks=1.0, stop_ticks=1.0, target_ticks=0.0, market_exit_ticks=0.0)",
+     S_VWAP_GOV),
+    ("vwap__stress_2tick_is_no_worse_than_stress_1tick", VS,
+     "    entry_ticks=1.0, stop_ticks=3.0, target_ticks=0.0, market_exit_ticks=2.0)",
+     "    entry_ticks=1.0, stop_ticks=2.0, target_ticks=0.0, market_exit_ticks=1.0)",
+     S_VWAP_GOV),
+
+    # the break-even stop must be charged as a STOP-OUT, not as a market exit
+    ("vwap__break_even_stop_charged_as_a_market_exit_rather_than_a_stop", VS,
+     "        return self.execution.stop_ticks",
+     "        return self.execution.market_exit_ticks",
+     S_VWAP_GOV),
+
+    # changing the profile must not change a strategy rule
+    ("vwap__the_execution_profile_also_moves_a_strategy_rule", VS,
+     "        return dataclasses.replace(self, execution=execution_profile(name))",
+     "        return dataclasses.replace(self, execution=execution_profile(name),\n"
+     "                                   stop_points=14.0)",
+     S_VWAP_GOV),
+
+    # DECISION 4: the proximity inequalities must stay literal
+    ("vwap__c9_long_proximity_reinterpreted_with_an_absolute_value", VE,
+     "        if five.close > v and (v - five.low) <= self.spec.context_max_distance:",
+     "        if five.close > v and abs(v - five.low) <= self.spec.context_max_distance:",
+     S_VWAP_STR),
+    ("vwap__c10_short_proximity_reinterpreted_with_an_absolute_value", VE,
+     "        if five.close < v and (five.high - v) <= self.spec.context_max_distance:",
+     "        if five.close < v and abs(five.high - v) <= self.spec.context_max_distance:",
+     S_VWAP_STR),
+    ("vwap__the_six_point_proximity_limit_stops_binding", VE,
+     "        if five.close > v and (v - five.low) <= self.spec.context_max_distance:",
+     "        if five.close > v:",
+     S_VWAP_STR),
+
+    # DECISION 1: the ATR gate
+    ("vwap__atr_gate_boundary_opened_so_exactly_eight_is_refused", VE,
+     "        if self.atr.value < self.spec.atr_minimum:",
+     "        if self.atr.value <= self.spec.atr_minimum:",
+     S_VWAP_GOV),
+    ("vwap__atr_gate_removed_entirely", VE,
+     "        if self.atr.value < self.spec.atr_minimum:",
+     "        if False:",
+     S_VWAP_GOV),
+
+    # the register itself: a resolution that records no authority, or a re-opened decision
+    ("vwap__a_resolved_ambiguity_loses_its_authority", VS,
+     '              authority="owner, V1.0.0_Frozen certification register, '
+     "2026-09-16 - DECISION 1\"),",
+     '              authority=""),',
+     S_VWAP_GOV),
+    ("vwap__needs_owner_stops_checking_the_resolution_status", VS,
+     "        return self.material and self.status != RESOLVED",
+     "        return False",
+     S_VWAP_GOV),
 ]

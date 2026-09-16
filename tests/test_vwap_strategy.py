@@ -814,3 +814,80 @@ def test_nothing_trades_after_the_hard_flatten():
     e.on_bar(late)
     assert e.position is None
     assert e.book.audit() == ()
+
+
+# =====================================================================================
+# C9 / C10 - THE PROXIMITY INEQUALITIES, IMPLEMENTED LITERALLY  (brief DECISION 4)
+# =====================================================================================
+# These are NOT implementation defects. `VWAP - 5m low <= 6.0` is satisfied by a candle lying
+# entirely ABOVE the VWAP, because the left-hand side is then negative. The engine matches the
+# frozen rule as written; the tests below prove the literal behaviour so that the rule cannot
+# be quietly reinterpreted, and the register records it as a strategy-definition
+# characteristic rather than a bug.
+
+def test_c9_the_long_proximity_rule_is_satisfied_by_a_negative_distance():
+    """The arithmetic, before any engine is involved.
+
+        VWAP = 20,000, 5m low = 20,005  ->  20,000 - 20,005 = -5  ->  -5 <= 6  is TRUE
+    """
+    vwap, low = 20_000.0, 20_005.0
+    assert (vwap - low) == -5.0
+    assert (vwap - low) <= FROZEN.context_max_distance
+
+
+def test_c10_the_short_proximity_rule_mirrors_it():
+    """VWAP = 20,000, 5m high = 19,995  ->  19,995 - 20,000 = -5  ->  -5 <= 6  is TRUE."""
+    vwap, high = 20_000.0, 19_995.0
+    assert (high - vwap) == -5.0
+    assert (high - vwap) <= FROZEN.context_max_distance
+
+
+def test_c9_a_five_minute_bucket_entirely_above_the_vwap_still_arms_long():
+    """The characteristic, end to end: a bucket that never approached the VWAP qualifies."""
+    sc = Scenario().warmup().arm_long_entirely_above()
+    e = Engine()
+    e.run(sc.bars)
+    five = e.five_min.last_completed
+    assert five.low > e.vwap.value, (
+        "the fixture did not actually place the bucket entirely above the VWAP")
+    assert (e.vwap.value - five.low) < 0.0, "the proximity distance is not negative"
+    assert e.position is not None, (
+        "the literal rule admits this bucket; the engine refused it, which means the "
+        "inequality has been reinterpreted")
+    assert e.position.direction == 1
+
+
+def test_c10_a_five_minute_bucket_entirely_below_the_vwap_still_arms_short():
+    sc = Scenario().warmup().arm_short_entirely_below()
+    e = Engine()
+    e.run(sc.bars)
+    five = e.five_min.last_completed
+    assert five.high < e.vwap.value
+    assert (five.high - e.vwap.value) < 0.0
+    assert e.position is not None
+    assert e.position.direction == -1
+
+
+def test_the_proximity_rule_still_refuses_a_bucket_that_is_genuinely_too_far():
+    """The characteristic is one-sided: the 6-point limit still binds on the OTHER side.
+
+    A long bucket whose low is seven points BELOW the VWAP gives `VWAP - low = +7 > 6` and is
+    refused. So the rule is not vacuous - it only fails to exclude candles on the far side.
+    """
+    sc = Scenario().warmup().arm_long_entirely_above(shift=-7.5)
+    e = Engine()
+    e.run(sc.bars)
+    five = e.five_min.last_completed
+    assert (e.vwap.value - five.low) > FROZEN.context_max_distance
+    assert e.position is None, "a bucket seven points away was admitted"
+
+
+def test_the_engine_uses_the_frozen_inequalities_verbatim():
+    """Structural: the source contains the rule as written, not a rewritten one."""
+    import inspect
+
+    from quant_brain.strategies.vwap_pullback import engine as eng
+    src = inspect.getsource(eng.Engine._context)
+    assert "(v - five.low) <= self.spec.context_max_distance" in src
+    assert "(five.high - v) <= self.spec.context_max_distance" in src
+    assert "abs(" not in src, "an abs() would silently change the characteristic"

@@ -23,6 +23,7 @@ from conftest_vwap import (  # noqa: E402
     et_at,
     flat_bar,
     long_scenario,
+    short_scenario,
 )
 
 from quant_brain.strategies.vwap_pullback.engine import (  # noqa: E402
@@ -594,13 +595,387 @@ def test_the_version_is_recorded_and_the_registers_are_populated():
         assert c.ref and c.component and c.disagreement and c.resolution
 
 
-def test_the_material_ambiguities_are_the_ones_with_both_readings_implemented():
+def test_no_material_ambiguity_is_still_waiting_on_the_owner():
+    """The certification gate. `unresolved()` empty is what GREEN requires.
+
+    A material ambiguity is one whose reading changes results. While any remains OPEN, every
+    number the engine produces carries an unstated choice, and this assertion is the thing
+    that says so out loud.
+    """
     from quant_brain.strategies.vwap_pullback.spec import unresolved
-    material = {a.ref for a in unresolved()}
-    assert {"A1", "A2"} <= material, "the ATR and MTM readings must be flagged as material"
-    for ref in ("A1", "A2"):
-        a = next(x for x in AMBIGUITIES if x.ref == ref)
-        assert a.both_implemented, f"{ref} is material but only one reading exists"
+    still_open = [a.ref for a in unresolved()]
+    assert not still_open, f"material ambiguities still need the owner: {still_open}"
+
+
+@pytest.mark.parametrize("ref", ["A1", "A2", "A12"])
+def test_the_owners_three_decisions_are_recorded_as_resolved_with_their_authority(ref):
+    from quant_brain.strategies.vwap_pullback.spec import RESOLVED
+    a = next(x for x in AMBIGUITIES if x.ref == ref)
+    assert a.status == RESOLVED, f"{ref} is not recorded as resolved"
+    assert a.authority, f"{ref} is resolved but records no authority"
+    assert "DECISION" in a.authority
+    assert a.both_implemented, f"{ref} was material; both readings must remain inspectable"
+
+
+def test_a1_is_wilder_fourteen_on_five_minute_bars():
+    """DECISION 1, pinned on the spec rather than on prose."""
+    assert FROZEN.atr_method == "wilder"
+    assert FROZEN.atr_period == 14
+    assert FROZEN.atr_minimum == 8.0
+    a = next(x for x in AMBIGUITIES if x.ref == "A1")
+    assert "WILDER" in a.reading and "COMPLETED 5-minute" in a.reading
+
+
+def test_a2_is_the_conservative_intrabar_adverse_extreme():
+    """DECISION 2, pinned."""
+    assert FROZEN.governor_mtm_basis == "intrabar"
+    assert FROZEN.daily_loss_killswitch == -800.0
+    a = next(x for x in AMBIGUITIES if x.ref == "A2")
+    assert "CONSERVATIVE_INTRABAR_ADVERSE_EXTREME" in a.reading.replace(" ", "_").upper() \
+        or "adverse extreme" in a.reading.lower()
+    assert "LOWEST" in a.reading and "HIGHEST" in a.reading
+
+
+def test_c9_and_c10_are_registered_as_specification_characteristics():
+    """DECISION 4: registered, not silently reinterpreted."""
+    from quant_brain.strategies.vwap_pullback.spec import characteristics
+    refs = {c.ref for c in characteristics()}
+    assert refs == {"C9", "C10"}
+    for c in characteristics():
+        assert "NOT AN IMPLEMENTATION DEFECT" in c.resolution
+        assert "ENTIRELY" in c.disagreement
+
+
+# =====================================================================================
+# DECISION 3 - THE EXECUTION LADDER
+# =====================================================================================
+
+def test_the_baseline_profile_is_the_frozen_specification_and_the_only_one_that_is():
+    from quant_brain.strategies.vwap_pullback.spec import (
+        BASELINE_FROZEN,
+        EXECUTION_LADDER,
+        IDEAL,
+        STRESS_1TICK,
+        STRESS_2TICK,
+    )
+    assert FROZEN.execution is BASELINE_FROZEN
+    assert BASELINE_FROZEN.frozen_spec_exact
+    assert [p.frozen_spec_exact for p in EXECUTION_LADDER] == [False, True, False, False]
+    # V1.0.0 exactly: one tick entry, one tick stop, nothing else invented
+    assert (BASELINE_FROZEN.entry_ticks, BASELINE_FROZEN.stop_ticks,
+            BASELINE_FROZEN.target_ticks, BASELINE_FROZEN.market_exit_ticks) == (
+        1.0, 1.0, 0.0, 0.0)
+    assert (IDEAL.entry_ticks, IDEAL.stop_ticks, IDEAL.target_ticks,
+            IDEAL.market_exit_ticks) == (0.0, 0.0, 0.0, 0.0)
+    assert (STRESS_1TICK.stop_ticks, STRESS_1TICK.market_exit_ticks) == (2.0, 1.0)
+    assert (STRESS_2TICK.stop_ticks, STRESS_2TICK.market_exit_ticks) == (3.0, 2.0)
+    # the target is a LIMIT order and is never charged, in any profile
+    assert all(p.target_ticks == 0.0 for p in EXECUTION_LADDER)
+
+
+def test_each_execution_profile_has_its_own_spec_hash():
+    from quant_brain.strategies.vwap_pullback.spec import EXECUTION_LADDER
+    hashes = {p.name: FROZEN.with_execution(p.name).spec_hash for p in EXECUTION_LADDER}
+    assert len(set(hashes.values())) == len(hashes), f"two profiles share a hash: {hashes}"
+    assert hashes["BASELINE_FROZEN"] == FROZEN.spec_hash
+
+
+def test_an_unknown_execution_profile_is_refused():
+    with pytest.raises(KeyError, match="unknown execution profile"):
+        FROZEN.with_execution("OPTIMISTIC")
+
+
+def test_changing_the_execution_profile_changes_no_strategy_rule():
+    """The whole point of a diagnostic: it must not be a different strategy."""
+    from quant_brain.strategies.vwap_pullback.spec import EXECUTION_LADDER
+    rules = ("atr_period", "atr_method", "atr_minimum", "context_max_distance", "long_zone",
+             "short_zone", "volume_sma_period", "volume_multiple", "invalidation_distance",
+             "stop_points", "target_points", "breakeven_trigger", "breakeven_offset",
+             "stall_mfe", "stall_window", "stall_target", "daily_loss_killswitch",
+             "daily_profit_cap", "max_trades_per_day", "consecutive_losses_for_cooldown",
+             "cooldown_minutes", "monitor_start", "last_entry", "hard_flatten",
+             "session_anchor", "instrument", "contracts", "commission_round_turn")
+    for pr in EXECUTION_LADDER:
+        other = FROZEN.with_execution(pr.name)
+        for r in rules:
+            assert getattr(other, r) == getattr(FROZEN, r), f"{pr.name} changed {r}"
+
+
+def test_the_stop_out_under_each_profile_books_the_hand_computed_dollars():
+    """Same bars, four profiles. Every number computed on paper.
+
+        IDEAL          fill 20,001.50  exit 19,986.50  gross -300.00  slip  0.00  net -304.50
+        BASELINE       fill 20,001.75  exit 19,986.50  gross -295.00  slip 10.00  net -309.50
+        STRESS_1TICK   fill 20,001.75  exit 19,986.25  gross -295.00  slip 15.00  net -314.50
+        STRESS_2TICK   fill 20,001.75  exit 19,986.00  gross -295.00  slip 20.00  net -319.50
+    """
+    want = {"IDEAL": (20_001.50, 19_986.50, -300.00, 0.00, -304.50),
+            "BASELINE_FROZEN": (20_001.75, 19_986.50, -295.00, 10.00, -309.50),
+            "STRESS_1TICK": (20_001.75, 19_986.25, -295.00, 15.00, -314.50),
+            "STRESS_2TICK": (20_001.75, 19_986.00, -295.00, 20.00, -319.50)}
+    for name, (entry, exit_, gross, slip, net) in want.items():
+        sc = long_scenario()
+        e = Engine(spec=FROZEN.with_execution(name))
+        e.run(sc.bars)
+        f = e.position.fill_price
+        e.run([sc.then(minutes_after=1, high=f, low=f - 20.0, close=f - 18.0)])
+        t = e.trades[0]
+        assert t.exit_reason == EXIT_STOP, name
+        assert t.entry_price == pytest.approx(entry), name
+        assert t.exit_price == pytest.approx(exit_), name
+        assert t.gross_pnl == pytest.approx(gross), name
+        assert t.slippage == pytest.approx(slip), name
+        assert t.net_pnl == pytest.approx(net), name
+        assert t.net_pnl == pytest.approx(
+            t.gross_pnl - t.slippage - t.commission_and_spread), name
+
+
+def test_the_governor_flatten_carries_the_market_exit_slippage():
+    """The killswitch exit is a market order too, and the ladder must reach it."""
+    want = {"BASELINE_FROZEN": 0.0, "STRESS_1TICK": 0.25, "STRESS_2TICK": 0.50}
+    for name, adverse in want.items():
+        sc = long_scenario()
+        e = Engine(spec=FROZEN.with_execution(name))
+        e.run(sc.bars)
+        e.governor.realized = -700.0
+        f = e.position.fill_price
+        e.run([sc.then(minutes_after=1, high=f + 1.0, low=f - 10.0, close=f - 1.0)])
+        t = e.trades[-1]
+        assert t.exit_reason == EXIT_KILLSWITCH, name
+        assert t.exit_price == pytest.approx(f - 1.0 - adverse), name
+
+
+def test_the_stall_market_close_carries_the_market_exit_slippage():
+    """The third unpriced exit. Same ladder, same adverse direction."""
+    want = {"BASELINE_FROZEN": 0.0, "STRESS_1TICK": 0.25, "STRESS_2TICK": 0.50}
+    for name, adverse in want.items():
+        sc = long_scenario()
+        e = Engine(spec=FROZEN.with_execution(name))
+        e.run(sc.bars)
+        f = e.position.fill_price
+        e.run([
+            sc.then(minutes_after=1, high=f + 26.0, low=f + 10.0, close=f + 20.0),
+            sc.then(minutes_after=2, high=f + 25.0, low=f + 15.0, close=f + 22.0),
+            sc.then(minutes_after=3, high=f + 25.0, low=f + 20.0, close=f + 23.0),
+            sc.then(minutes_after=4, high=f + 25.0, low=f + 20.0, close=f + 24.0),
+        ])
+        t = e.trades[-1]
+        assert t.exit_reason == "stall_market_close", name
+        assert t.exit_price == pytest.approx(f + 24.0 - adverse), name
+
+
+def test_the_needs_owner_flag_actually_depends_on_the_resolution_status():
+    """The gate that certification turns on must not be hard-wired to False.
+
+    Built here rather than found in the register, because every entry in the register is now
+    either resolved or immaterial - so nothing in the shipped data can exercise the True
+    branch, and a `needs_owner` that always returned False would look correct.
+    """
+    from quant_brain.strategies.vwap_pullback.spec import OPEN, RESOLVED, Ambiguity
+    open_material = Ambiguity("Zx", "r", "q", "a", material=True, status=OPEN)
+    done_material = Ambiguity("Zy", "r", "q", "a", material=True, status=RESOLVED)
+    open_minor = Ambiguity("Zz", "r", "q", "a", material=False, status=OPEN)
+    assert open_material.needs_owner is True
+    assert done_material.needs_owner is False
+    assert open_minor.needs_owner is False
+
+
+def test_the_market_exits_are_unpriced_in_the_baseline_and_priced_in_the_stress():
+    """The 15:45 flatten: the gap DECISION 3 refuses to invent, measured instead."""
+    want = {"IDEAL": 0.0, "BASELINE_FROZEN": 0.0, "STRESS_1TICK": 0.25, "STRESS_2TICK": 0.50}
+    for name, adverse in want.items():
+        sc = long_scenario()
+        e = Engine(spec=FROZEN.with_execution(name))
+        e.run(sc.bars)
+        f = e.position.fill_price
+        e.on_bar(Bar(timestamp=et_at(sc.day, "15:45"), open=f, high=f + 1.0, low=f - 1.0,
+                     close=f, volume=QUIET_VOLUME))
+        t = e.trades[-1]
+        assert t.exit_reason == "hard_flatten", name
+        # a LONG flattens by selling, so adverse slippage is BELOW the close
+        assert t.exit_price == pytest.approx(f - adverse), name
+
+
+def test_net_pnl_is_monotone_non_increasing_along_the_execution_ladder():
+    """More assumed friction can never produce a better result. Checked on three exit kinds."""
+    from quant_brain.strategies.vwap_pullback.spec import EXECUTION_LADDER
+
+    def tail(kind, sc, f):
+        if kind == "stop":
+            return [sc.then(minutes_after=1, high=f, low=f - 20.0, close=f - 18.0)]
+        if kind == "target":
+            return [sc.then(minutes_after=1, high=f + 31.0, low=f + 1.0, close=f + 30.0)]
+        return [Bar(timestamp=et_at(sc.day, "15:45"), open=f, high=f + 1.0, low=f - 1.0,
+                    close=f, volume=QUIET_VOLUME)]
+
+    for kind in ("stop", "target", "flatten"):
+        nets = []
+        for pr in EXECUTION_LADDER:
+            sc = long_scenario()
+            e = Engine(spec=FROZEN.with_execution(pr.name))
+            e.run(sc.bars)
+            f = e.position.fill_price
+            e.run(tail(kind, sc, f))
+            nets.append(e.trades[-1].net_pnl)
+        assert nets == sorted(nets, reverse=True), f"{kind}: {nets} is not monotone"
+
+
+def test_a_break_even_stop_out_is_charged_as_a_stop_out():
+    """DECISION 3: the break-even stop is a STOP-OUT when it executes, so it slips a tick.
+
+    After break-even the stop rests at fill + 0.25. Under the baseline it fills one tick
+    worse - at the fill itself - so the trade books exactly minus the commission:
+
+        gross     (20,002.00 - 20,001.50) x 20 = +$10.00
+        slippage  (0.25 entry + 0.25 stop) x 20 = -$10.00
+        commission                               = -$ 4.50
+        net                                      = -$ 4.50
+    """
+    sc = long_scenario()
+    e = Engine()
+    e.run(sc.bars)
+    f = e.position.fill_price
+    e.run([sc.then(minutes_after=1, high=f + 16.0, low=f + 1.0, close=f + 5.0)])
+    assert e.outcomes[-1].breakeven
+    e.run([sc.then(minutes_after=2, high=f + 6.0, low=f - 1.0, close=f)])
+    t = e.trades[0]
+    assert t.exit_reason == EXIT_STOP
+    assert t.exit_price == pytest.approx(f)              # fill + 0.25 - one tick
+    assert t.gross_pnl == pytest.approx(10.00)
+    assert t.slippage == pytest.approx(10.00)
+    assert t.net_pnl == pytest.approx(-4.50)
+
+
+def test_the_break_even_stop_slips_further_under_the_stress_profiles():
+    sc = long_scenario()
+    e = Engine(spec=FROZEN.with_execution("STRESS_2TICK"))
+    e.run(sc.bars)
+    f = e.position.fill_price
+    e.run([sc.then(minutes_after=1, high=f + 16.0, low=f + 1.0, close=f + 5.0),
+           sc.then(minutes_after=2, high=f + 6.0, low=f - 1.0, close=f)])
+    t = e.trades[0]
+    # stop rests at fill + 0.25; three ticks adverse is 0.75 below it
+    assert t.exit_price == pytest.approx(f + 0.25 - 0.75)
+
+
+# =====================================================================================
+# DECISION 2 - THE CONSERVATIVE INTRABAR KILLSWITCH, END TO END
+# =====================================================================================
+
+def _killswitch_probe(*, direction: str, realized: float, extreme_points: float,
+                      close_points: float):
+    """Open a position, set realized, then feed one bar. Returns the engine."""
+    sc = long_scenario() if direction == "long" else short_scenario()
+    e = Engine()
+    e.run(sc.bars)
+    e.governor.realized = realized
+    f = e.position.fill_price
+    if direction == "long":
+        bar = sc.then(minutes_after=1, high=f + 1.0, low=f - extreme_points,
+                      close=f - close_points)
+    else:
+        bar = sc.then(minutes_after=1, high=f + extreme_points, low=f - 1.0,
+                      close=f + close_points)
+    e.run([bar])
+    return e
+
+
+def test_a_long_whose_CLOSE_is_safe_but_whose_LOW_breaches_is_halted():
+    """DECISION 2. realized -$700, low -10 pts (-$200) = -$900; close -1 pt (-$720).
+
+    A governor reading the close would see -$720 and do nothing. This is the move the
+    conservative reading exists to catch.
+    """
+    e = _killswitch_probe(direction="long", realized=-700.0, extreme_points=10.0,
+                          close_points=1.0)
+    assert e.state is State.HALTED_DAY
+    assert e.governor.halted
+    assert e.trades[-1].exit_reason == EXIT_KILLSWITCH
+    # and the close-based reading genuinely would NOT have halted
+    on_close = Engine(spec=FrozenSpec(governor_mtm_basis="close"))
+    sc = long_scenario()
+    on_close.run(sc.bars)
+    on_close.governor.realized = -700.0
+    f = on_close.position.fill_price
+    on_close.run([sc.then(minutes_after=1, high=f + 1.0, low=f - 10.0, close=f - 1.0)])
+    assert not on_close.governor.halted
+
+
+def test_a_short_whose_CLOSE_is_safe_but_whose_HIGH_breaches_is_halted():
+    """The mirror. For a short the adverse extreme is the HIGH."""
+    e = _killswitch_probe(direction="short", realized=-700.0, extreme_points=10.0,
+                          close_points=1.0)
+    assert e.state is State.HALTED_DAY
+    assert e.trades[-1].exit_reason == EXIT_KILLSWITCH
+    on_close = Engine(spec=FrozenSpec(governor_mtm_basis="close"))
+    sc = short_scenario()
+    on_close.run(sc.bars)
+    on_close.governor.realized = -700.0
+    f = on_close.position.fill_price
+    on_close.run([sc.then(minutes_after=1, high=f + 10.0, low=f - 1.0, close=f + 1.0)])
+    assert not on_close.governor.halted
+
+
+@pytest.mark.parametrize("realized,extreme_points,halts", [
+    (-600.0, 10.0, True),        # -600 + -200 = -800.00 exactly -> halts
+    (-599.99, 10.0, False),      # -799.99 -> survives by a cent
+    (-600.01, 10.0, True),       # -800.01 -> halts
+    (-600.0, 9.99, False),       # -600 + -199.80 = -799.80 -> survives
+])
+def test_the_intrabar_killswitch_boundary_end_to_end(realized, extreme_points, halts):
+    """The threshold is <= -$800.00, measured at the adverse extreme, through the engine."""
+    e = _killswitch_probe(direction="long", realized=realized,
+                          extreme_points=extreme_points, close_points=0.0)
+    assert e.governor.halted is halts, (
+        f"realized {realized} with {extreme_points} adverse points")
+
+
+def test_the_same_boundary_mirrors_on_the_short_side():
+    halted = _killswitch_probe(direction="short", realized=-600.0, extreme_points=10.0,
+                               close_points=0.0)
+    survived = _killswitch_probe(direction="short", realized=-599.99, extreme_points=10.0,
+                                 close_points=0.0)
+    assert halted.governor.halted and not survived.governor.halted
+
+
+def test_the_killswitch_is_the_safety_layer_and_overrides_the_strategy():
+    """It flattens a position no strategy rule would have closed, and ends the day."""
+    e = _killswitch_probe(direction="long", realized=-700.0, extreme_points=10.0,
+                          close_points=1.0)
+    t = e.trades[-1]
+    assert t.exit_reason == EXIT_KILLSWITCH
+    assert t.exit_price != pytest.approx(e.trades[-1].entry_price - 15.0), (
+        "the stop was never touched; only the governor closed this")
+    assert not [o for o in e.book.orders.values() if o.working], "orders survived the halt"
+    assert e.state is State.HALTED_DAY
+
+
+# =====================================================================================
+# DECISION 1 - THE ATR GATE, THROUGH THE ENGINE
+# =====================================================================================
+
+@pytest.mark.parametrize("atr_value,enters", [(7.999999, False), (8.0, True),
+                                              (8.000001, True)])
+def test_the_atr_gate_boundary_through_the_engine(atr_value, enters):
+    """The three values the brief names, at the engine's own decision point.
+
+    The trigger sits at 09:46, which is NOT a 5-minute boundary, so no bucket completes on
+    that bar and the injected ATR is the value the context actually reads.
+    """
+    sc = Scenario().warmup().arm_long(trigger_at="09:46")
+    e = Engine()
+    e.run(sc.bars[:-1])
+    e.atr._value = atr_value
+    e.on_bar(sc.bars[-1])
+    assert (e.position is not None) is enters, f"ATR {atr_value}"
+
+
+def test_the_engine_reads_a_wilder_atr_by_default():
+    e = Engine()
+    assert e.atr.method == "wilder" and e.atr.period == 14
+
+
+
 
 
 def test_the_engine_is_deterministic_and_carries_no_randomness():

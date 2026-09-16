@@ -27,6 +27,9 @@ from quant_brain.strategies.vwap_pullback.spec import (  # noqa: E402
     FROZEN_MNQ,
     TIMEZONE,
     VERSION,
+    characteristics,
+    execution_table,
+    resolved,
     unresolved,
 )
 
@@ -58,8 +61,11 @@ def provenance() -> dict:
         "pandas": pandas.__version__,
         "suites": list(SUITES),
         "ambiguities_total": len(AMBIGUITIES),
+        "ambiguities_resolved": [a.ref for a in resolved()],
         "ambiguities_material_unconfirmed": [a.ref for a in unresolved()],
+        "specification_characteristics": [c.ref for c in characteristics()],
         "conflicts_total": len(CONFLICTS),
+        "execution_profile": FROZEN.execution.name,
         "randomness": "none - no seeded or unseeded generator is imported by the package",
     }
 
@@ -79,6 +85,8 @@ def main() -> int:
     print(f"V1.0.0_FROZEN CERTIFICATION PROVENANCE")
     print("=" * 96)
     print(FROZEN.describe())
+    print()
+    print(execution_table())
     print()
     for k, v in prov.items():
         print(f"  {k:36} {v}")

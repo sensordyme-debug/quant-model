@@ -108,7 +108,12 @@ quantity.
 the more conservative of the two. The frozen engine carries its own commission and does **not**
 read the instrument default. Both numbers are recorded.
 
-### C9 — multi-timeframe against a 1-minute-only contract
+### C11 — multi-timeframe against a 1-minute-only contract
+
+> **Renumbered.** This entry held ref C9 when the plan was written. The owner's certification
+> register (2026-09-16, DECISION 4) assigns **C9** and **C10** to the two proximity
+> inequalities, so the timeframe conflict moved to **C11**. No content changed;
+> `spec.CONFLICTS` is the authority.
 
 `StrategySpec` refuses any timeframe other than `1min` because resampling is unaudited. The
 frozen strategy needs 5-minute context.
