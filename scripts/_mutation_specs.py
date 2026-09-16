@@ -31,12 +31,14 @@ S_CONTRACT = "tests/test_strategy_contract.py"
 S_VWAP_IND = "tests/test_vwap_indicators.py"
 S_VWAP_STR = "tests/test_vwap_strategy.py"
 S_VWAP_GOV = "tests/test_vwap_governor.py"
+S_VWAP_DATA = "tests/test_vwap_data.py"
 
 DSCH = "quant_brain/data/schema.py"
 DMAN = "quant_brain/data/manifest.py"
 DROL = "quant_brain/data/rolls.py"
 DQUA = "quant_brain/data/quality.py"
 DADP = "quant_brain/data/adapters.py"
+DLOD = "quant_brain/data/loader.py"
 DCON = "quant_brain/data/contracts.py"
 SR = "quant_brain/research/strategy_report.py"
 VS = "quant_brain/strategies/vwap_pullback/spec.py"
@@ -44,6 +46,7 @@ VI = "quant_brain/strategies/vwap_pullback/indicators.py"
 VE = "quant_brain/strategies/vwap_pullback/engine.py"
 VO = "quant_brain/strategies/vwap_pullback/orders.py"
 VG = "quant_brain/strategies/vwap_pullback/governor.py"
+VD = "quant_brain/strategies/vwap_pullback/data.py"
 
 #: (name, file, find, replace) and optionally the suite that must catch it. Entries
 #: without a suite are defended by `tests/test_engine_forensics.py`.
@@ -758,4 +761,224 @@ MUTATIONS: list[tuple] = [
      "        return self.material and self.status != RESOLVED",
      "        return False",
      S_VWAP_GOV),
+
+    # ---- PHASE 2: the 18:00-anchored historical data path ---------------------------------
+    # Defended by tests/test_vwap_data.py. These are defects in the DATA, which is the class
+    # that produces a clean-looking backtest on bars that never existed - the hardest kind to
+    # notice downstream, because nothing about the result looks wrong.
+
+    # the anchor itself
+    ("data__anchored_session_opens_an_hour_early", VD,
+     "                        spec.session_anchor[0], spec.session_anchor[1], "
+     "tzinfo=TIMEZONE)",
+     "                        spec.session_anchor[0] - 1, spec.session_anchor[1], "
+     "tzinfo=TIMEZONE)",
+     S_VWAP_DATA),
+    ("data__anchored_session_opens_an_hour_late", VD,
+     "                        spec.session_anchor[0], spec.session_anchor[1], "
+     "tzinfo=TIMEZONE)",
+     "                        spec.session_anchor[0] + 1, spec.session_anchor[1], "
+     "tzinfo=TIMEZONE)",
+     S_VWAP_DATA),
+    ("data__session_end_moved_to_the_last_entry_cutoff", VD,
+     '    anchor, flat = spec.minute_of("session_anchor"), spec.minute_of("hard_flatten")\n'
+     "\n    work = frame.assign(_et=et, _min=mins)",
+     '    anchor, flat = spec.minute_of("session_anchor"), spec.minute_of("last_entry")\n'
+     "\n    work = frame.assign(_et=et, _min=mins)",
+     S_VWAP_DATA),
+    ("data__session_end_moved_to_the_topstep_flat_at_sixteen_ten", VD,
+     "                      spec.hard_flatten[0], spec.hard_flatten[1], tzinfo=TIMEZONE)",
+     "                      16, 10, tzinfo=TIMEZONE)",
+     S_VWAP_DATA),
+
+    # the clock
+    ("data__the_venue_clock_becomes_utc", VD,
+     '    et = frame["timestamp"].dt.tz_convert(TIMEZONE)',
+     '    et = frame["timestamp"].dt.tz_convert("UTC")',
+     S_VWAP_DATA),
+    ("data__the_expected_bar_count_becomes_the_constant_1306", VD,
+     "    delta = end.astimezone(dt.UTC) - start.astimezone(dt.UTC)\n"
+     "    return int(delta.total_seconds() // 60) + 1          # inclusive of both endpoints",
+     "    return 1306",
+     S_VWAP_DATA),
+    ("data__the_minute_walk_drops_its_timezone_conversion", VD,
+     "    t, e = start.astimezone(dt.UTC), end.astimezone(dt.UTC)",
+     "    t, e = start.replace(tzinfo=None), end.replace(tzinfo=None)",
+     S_VWAP_DATA),
+    # THE DEFECT THIS PHASE FOUND. `+ pd.to_timedelta(1, "D")` is twenty-four absolute hours,
+    # which pushes a spring-forward session's late-evening bars into the next trading day.
+    ("data__the_day_roll_returns_to_absolute_twenty_four_hours", VD,
+     "    calendar_day = et.dt.date.to_numpy()\n"
+     '    work["_day"] = np.where((mins >= anchor).to_numpy(),\n'
+     "                            calendar_day + dt.timedelta(days=1), calendar_day)",
+     '    work["_day"] = (et + pd.to_timedelta((mins >= anchor).astype(int), '
+     'unit="D")).dt.date',
+     S_VWAP_DATA),
+
+    # the session shape
+    ("data__the_session_is_split_at_midnight", VD,
+     '    work["_day"] = np.where((mins >= anchor).to_numpy(),\n'
+     "                            calendar_day + dt.timedelta(days=1), calendar_day)",
+     '    work["_day"] = calendar_day',
+     S_VWAP_DATA),
+    ("data__the_session_becomes_rth_only", VD,
+     "    inside = (mins >= anchor) | (mins <= flat)",
+     "    inside = (mins >= 9 * 60 + 30) & (mins <= flat)",
+     S_VWAP_DATA),
+    ("data__the_overnight_half_is_dropped", VD,
+     "    inside = (mins >= anchor) | (mins <= flat)",
+     "    inside = (mins >= 0) & (mins <= flat)",
+     S_VWAP_DATA),
+
+    # the VWAP input - the only reset is 18:00 ET
+    ("data__vwap_resets_at_midnight_instead_of_the_anchor", VI,
+     "        day = trading_day(bar.timestamp, self.anchor_minute)",
+     "        day = et(bar.timestamp).date()",
+     S_VWAP_DATA),
+    ("data__vwap_resets_again_at_the_cash_open", VI,
+     "        elif day != self._day:\n            self.reset(day)",
+     "        elif day != self._day or minute_of_day(bar.timestamp) == 570:\n"
+     "            self.reset(day)",
+     S_VWAP_DATA),
+    ("data__five_minute_buckets_are_offset_from_the_venue_clock", VI,
+     "        return (local.hour * 60 + local.minute) // self.bucket_minutes",
+     "        return (local.hour * 60 + local.minute + 2) // self.bucket_minutes",
+     S_VWAP_DATA),
+
+    # rolls
+    ("data__roll_gaps_are_silently_back_adjusted", VD,
+     "        Bar(timestamp=t.to_pydatetime(), open=float(o), high=float(h), "
+     "low=float(low),\n            close=float(c), volume=float(v))",
+     "        Bar(timestamp=t.to_pydatetime(), open=float(o) - 57.75, "
+     "high=float(h) - 57.75,\n            low=float(low) - 57.75, close=float(c) - 57.75, "
+     "volume=float(v))",
+     S_VWAP_DATA),
+    ("data__the_roll_instant_is_shifted_off_the_bar_that_changed", VD,
+     "    changed = sym.ne(sym.shift()) & (frame.index > frame.index[0])",
+     "    changed = sym.ne(sym.shift(2)) & (frame.index > frame.index[0])",
+     S_VWAP_DATA),
+    ("data__contract_identity_is_taken_from_the_end_of_the_session", VD,
+     '    contracts = tuple(dict.fromkeys(group["contract_symbol"].astype(str)))',
+     '    contracts = (str(group["contract_symbol"].astype(str).iloc[-1]),)',
+     S_VWAP_DATA),
+
+    # completeness - the rules that decide what the strategy is allowed to see
+    ("data__a_few_absent_minutes_are_forgiven", VD,
+     "    elif not missing:\n        status = SessionStatus.COMPLETE",
+     "    elif len(missing) <= 3:\n        status = SessionStatus.COMPLETE",
+     S_VWAP_DATA),
+    ("data__a_duplicate_timestamp_stops_condemning_a_session", VD,
+     "    if invalid or duplicates:",
+     "    if invalid:",
+     S_VWAP_DATA),
+    ("data__an_early_close_is_fed_to_the_strategy_anyway", VD,
+     "        return self is SessionStatus.COMPLETE",
+     "        return self in (SessionStatus.COMPLETE, SessionStatus.TRUNCATED_END)",
+     S_VWAP_DATA),
+    ("data__the_completeness_scan_uses_a_fixed_epoch_divisor", VD,
+     "    have = pd.DatetimeIndex(stamps.unique())",
+     "    have = pd.DatetimeIndex(pd.to_datetime(\n"
+     '        pd.Series(stamps.unique()).astype("int64") // 10 ** 9, unit="s", utc=True))',
+     S_VWAP_DATA),
+    ("data__a_failing_quality_report_no_longer_blocks_a_load", VD,
+     "    ds = L.load(adapter, store, instrument=instrument, "
+     "require_quality=require_quality,",
+     "    ds = L.load(adapter, store, instrument=instrument, require_quality=False,",
+     S_VWAP_DATA),
+
+    # lookahead
+    ("data__every_bar_is_stamped_one_minute_late", VD,
+     '    cut = work.loc[inside].sort_values(by=["timestamp"]).reset_index(drop=True)',
+     '    cut = work.loc[inside].sort_values(by=["timestamp"]).reset_index(drop=True)\n'
+     '    cut["timestamp"] = cut["timestamp"] + dt.timedelta(minutes=1)',
+     S_VWAP_DATA),
+    ("data__one_bar_of_the_next_session_leaks_into_this_one", VD,
+     "        bars = _to_bars(group) if q.status.usable else ()",
+     "        bars = _to_bars(cut.iloc[group.index[0]:group.index[-1] + 2]) "
+     "if q.status.usable else ()",
+     S_VWAP_DATA),
+
+    # what the loader refuses
+    ("data__an_adjusted_series_is_accepted_as_an_execution_source", VD,
+     "    if ds.manifest.data_form.is_adjusted:",
+     "    if False:",
+     S_VWAP_DATA),
+    ("data__an_empty_dataset_is_returned_instead_of_refused", VD,
+     "    if not sessions:",
+     "    if False:",
+     S_VWAP_DATA),
+
+    # source agnosticism
+    ("data__the_adapter_is_hard_wired_to_the_ibkr_store", VD,
+     "    ds = L.load(adapter, store, instrument=instrument, "
+     "require_quality=require_quality,",
+     '    ds = L.load("ibkr_futures", store, instrument=instrument, '
+     "require_quality=require_quality,",
+     S_VWAP_DATA),
+    ("data__the_session_timezone_stops_reaching_the_adapter", DLOD,
+     '    if session_timezone is not None \\\n'
+     '            and "session_timezone" in inspect.signature(read).parameters:\n'
+     '        adapter_kwargs.setdefault("session_timezone", session_timezone)',
+     "    pass",
+     S_VWAP_DATA),
+
+    # provenance
+    ("data__the_manifest_id_stops_depending_on_the_data", VD,
+     '        body["manifest_id"] = _hash_obj(identity)',
+     '        body["manifest_id"] = "constant"',
+     S_VWAP_DATA),
+    ("data__a_roll_at_the_anchor_is_reported_as_polluting_the_session_it_opens", VD,
+     '            position = "AT_THE_ANCHOR"',
+     '            position = "INSIDE_A_SESSION"',
+     S_VWAP_DATA),
+    # ---- the release gate: policies the owner froze on 2026-09-16 ----------------------
+    ("data__a_refused_session_claims_a_calendar_reason", VD,
+     '        return "" if self.status.usable else "INCOMPLETE_SESSION"',
+     '        return "" if self.status.usable else "HOLIDAY"',
+     S_VWAP_DATA),
+    ("data__the_rejection_code_stops_distinguishing_refused_from_fed", VD,
+     '        return "" if self.status.usable else "INCOMPLETE_SESSION"',
+     '        return "INCOMPLETE_SESSION"',
+     S_VWAP_DATA),
+    ("data__a_zero_volume_threshold_is_invented", VD,
+     "    if zero_vol and status is SessionStatus.COMPLETE:",
+     "    if zero_vol > 200 and status is SessionStatus.COMPLETE:\n"
+     "        status = SessionStatus.HOLED\n"
+     "    if zero_vol and status is SessionStatus.COMPLETE:",
+     S_VWAP_DATA),
+    ("data__zero_volume_bars_are_dropped_from_the_session", VD,
+     "    return tuple(\n        Bar(timestamp=t.to_pydatetime(),",
+     "    group = group[group[\"volume\"] > 0]\n    return tuple(\n"
+     "        Bar(timestamp=t.to_pydatetime(),",
+     S_VWAP_DATA),
+    # The first version of this mutation swapped `local.date() + timedelta(days=1)` for
+    # `(local + timedelta(days=1)).date()` and SURVIVED - correctly, because Python's
+    # arithmetic on an aware datetime is wall-clock and the two are identical. A mutation
+    # that changes no behaviour scores a hole as a catch, or as here a catch as a hole.
+    # This is the form that is genuinely different: twenty-four ABSOLUTE hours, which
+    # diverges for bars stamped 23:00-23:59 the evening before a spring-forward.
+    ("data__the_engine_day_roll_adds_twenty_four_absolute_hours", VI,
+     "        return local.date() + dt.timedelta(days=1)",
+     "        return (local.astimezone(dt.UTC) + dt.timedelta(days=1))"
+     ".astimezone(TIMEZONE).date()",
+     S_VWAP_DATA),
+    ("data__the_manifest_stops_recording_the_file_size", VD,
+     '                "file_bytes": list(self.file_bytes),',
+     '                "file_bytes": [],',
+     S_VWAP_DATA),
+    ("data__the_manifest_stops_recording_the_contract_coverage", VD,
+     '                "contract_coverage": list(self.source_manifest.roll.contracts),',
+     '                "contract_coverage": [],',
+     S_VWAP_DATA),
+    ("data__the_session_definition_claims_a_second_vwap_reset", VD,
+     '                "no_reset_at": ["00:00", "09:30", "09:45", "15:30", '
+     '"calendar_date_change"],',
+     '                "no_reset_at": [],',
+     S_VWAP_DATA),
+
+    ("data__the_manifest_id_depends_on_how_the_path_was_typed", VD,
+     '        identity["source"] = {k: v for k, v in body["source"].items() '
+     'if k != "files"}',
+     '        identity["source"] = body["source"]',
+     S_VWAP_DATA),
 ]

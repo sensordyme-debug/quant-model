@@ -58,10 +58,17 @@ def trading_day(when: dt.datetime, anchor_minute: int) -> dt.date:
     A bar at 19:30 on Monday belongs to Tuesday's trading day; a bar at 10:00 on Tuesday
     belongs to Tuesday's. AMBIGUITY A13 records why the counters roll here rather than at
     midnight: it is the boundary the VWAP anchor and the halt release already use.
+
+    THE ADDITION IS ON THE DATE, NOT ON THE DATETIME. `(local + timedelta(days=1)).date()`
+    returns the same answer - Python's arithmetic on an aware datetime is wall-clock, not
+    absolute - but it reads as if it were adding twenty-four hours, and the version of that
+    idea that IS absolute (`pandas.to_timedelta(1, "D")`) shipped in the anchored loader and
+    silently split every spring-forward session in two. Same result, no footgun; the
+    equivalence is asserted across both 2026 transitions in `tests/test_vwap_data.py`.
     """
     local = et(when)
     if local.hour * 60 + local.minute >= anchor_minute:
-        return (local + dt.timedelta(days=1)).date()
+        return local.date() + dt.timedelta(days=1)
     return local.date()
 
 

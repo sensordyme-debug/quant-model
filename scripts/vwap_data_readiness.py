@@ -22,6 +22,7 @@ engine could see it. That is CONFLICT C6 and it is the reason this script exists
 """
 from __future__ import annotations
 
+import datetime as dt
 import sys
 from pathlib import Path
 
@@ -43,9 +44,17 @@ SPAN_MINUTES = (24 * 60 - ANCHOR_MIN) + FLAT_MIN + 1
 
 
 def anchored_day(et: pd.Series) -> pd.Series:
-    """The trading date a bar belongs to, rolling at 18:00 ET."""
+    """The trading date a bar belongs to, rolling at 18:00 ET.
+
+    Calendar arithmetic on dates. `+ pd.to_timedelta(1, "D")` on the timestamps adds
+    twenty-four ABSOLUTE hours, which is not one calendar day across a DST transition and
+    pushes the late-evening bars of a spring-forward session into the following trading day.
+    See the same note in `strategies/vwap_pullback/data.py`.
+    """
     mins = et.dt.hour * 60 + et.dt.minute
-    return (et + pd.to_timedelta((mins >= ANCHOR_MIN).astype(int), unit="D")).dt.date
+    day = et.dt.date.to_numpy()
+    return pd.Series(np.where((mins >= ANCHOR_MIN).to_numpy(),
+                              day + dt.timedelta(days=1), day), index=et.index)
 
 
 def audit(symbol: str) -> dict:
@@ -145,11 +154,15 @@ def main() -> int:
         verdict = "SUFFICIENT" if usable >= 100 and pct >= 0.80 else "INSUFFICIENT"
         print(f"  {r['symbol']:4} {verdict:13} {usable} usable anchored sessions, "
               f"median {pct:.0%} of the wall-clock span")
-    print("\n  The store is UTC-stamped with per-bar contract identity and a declared roll,")
-    print("  so instrument, volume and timezone are all present. What does NOT exist is a")
-    print("  LOADER that cuts 18:00-anchored sessions: `research/session_source` cuts RTH")
-    print("  and drops incomplete days, which discards the overnight half. That adapter is")
-    print("  the next phase's work and is the one blocker between here and a backtest.")
+    print("\n  SUPERSEDED. This script's `days_usable` uses an 80%-of-span threshold, which")
+    print("  was the right question for DECISION 9 - is there ENOUGH data - and is the wrong")
+    print("  question for a backtest. The anchored loader that DECISION 9 said was missing")
+    print("  now exists (`strategies/vwap_pullback/data.py`) and its completeness rule is")
+    print("  strict: the 18:00 anchor present, the 15:45 flatten present, every minute in")
+    print("  between present exactly once, one contract. On ES that is 313 sessions, not the")
+    print("  326 counted above; the thirteen-session difference is holiday early closes that")
+    print("  are 87% complete and have no 15:45 bar to flatten on.")
+    print("  Run `python scripts/vwap_data_certify.py` for the authoritative census.")
     return 0
 
 

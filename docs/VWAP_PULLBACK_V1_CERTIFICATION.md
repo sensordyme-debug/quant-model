@@ -12,7 +12,7 @@ spec hash   NQ  1fe36d12eb631c96      MNQ  08c19f55b6382d72
 execution   BASELINE_FROZEN (V1.0.0 exactly)
 golden      255 tests, 255 pass       (58 indicators / 91 strategy / 106 governor)
 suite       3,227 passed · 9 skipped · 14 xfailed
-mutation    154 applied · 0 skipped · 154 caught · 100%
+mutation    154 applied · 0 skipped · 154 caught · 100%   (193 as of the PHASE 2 release gate)
 lint        clean     types  0 errors in quant_brain/strategies (repo baseline 410)
 ```
 
@@ -123,7 +123,7 @@ stall close.
 
 ## 4. Mutation testing
 
-**154 applied · 0 skipped · 154 caught · 100%.**
+**154 applied · 0 skipped · 154 caught · 100%.** PHASE 2 and its release gate added 39 more, all caught: 193 · 0 · 193 · 100%.
 
 Five survivors appeared during this phase and all five were closed: two were genuine test gaps
 (the governor flatten and the stall close were never exercised across the execution ladder),
@@ -179,10 +179,17 @@ the engine could see it (CONFLICT C6).
 
 ---
 
+> **§5 and limitation 1 below were superseded on 2026-09-16 by PHASE 2.** The anchored loader
+> now exists and is certified in `docs/VWAP_ANCHORED_DATA_PIPELINE.md`. The counts in the §5
+> table are the 80%-of-span readings this script produced; the loader's strict completeness
+> rule gives 313 usable ES sessions, not 326. Phase 2 also found and fixed a DST defect in the
+> trading-day roll that the readiness script shared.
+
 ## 6. Remaining limitations
 
-1. **THE BLOCKER: no 18:00-anchored loader exists.** The data supports one; nothing builds one.
-   It must be written and equivalence-tested the way `session_source` was.
+1. ~~**THE BLOCKER: no 18:00-anchored loader exists.**~~ **RESOLVED in PHASE 2.** Written as
+   `strategies/vwap_pullback/data.py` and equivalence-tested against `session_source` on the
+   window where the two overlap.
 2. **Market-exit friction is unpriced in the baseline by design.** Measure it with
    `STRESS_1TICK` / `STRESS_2TICK` and read those as diagnostics, never as the strategy.
 3. **C9/C10** admit regimes that never approached the VWAP. Characteristic, not defect —

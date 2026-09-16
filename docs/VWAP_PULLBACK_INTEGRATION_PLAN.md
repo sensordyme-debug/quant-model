@@ -86,10 +86,11 @@ overnight session. RTH-cut frames do not contain those bars.
 
 **Resolution:** the engine consumes a **continuous 1-minute stream**, not RTH session frames.
 
-> **KNOWN GAP, carried to the next phase:** no loader exists that hands the engine an
-> 18:00-anchored continuous stream from `data/futures/*.parquet`. This phase is synthetic-only
-> so it is not a blocker, but the historical phase cannot start until that adapter exists and
-> is equivalence-tested the way `session_source` was.
+> **RESOLVED, PHASE 2 (2026-09-16).** `quant_brain/strategies/vwap_pullback/data.py` cuts
+> 18:00-anchored sessions from the canonical layer and hands the engine `tuple[Bar, ...]`.
+> `session_source` is untouched and still certified for RTH; the two are equivalence-tested
+> bar-for-bar on 09:30–15:45, the window where they overlap, and every difference in what
+> they keep is attributed. See `docs/VWAP_ANCHORED_DATA_PIPELINE.md`.
 
 ### C7 — `features.vwap_dist` is a different VWAP
 

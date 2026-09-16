@@ -40,8 +40,11 @@ Thumbs.db
 # OpenClaw temp
 .fs-safe-*.tmp
 .openclaw-smoke-test.txt
-# intraday bar store (regenerated from IBKR)
-data/
+# intraday bar store (regenerated from IBKR).
+# ANCHORED to the repository root. A bare `data/` matches a directory named `data`
+# at ANY depth, which silently hid the whole of `quant_brain/data/` - the canonical
+# data layer, nine source files - from every commit since it was written.
+/data/
 
 # ---------------------------------------------------------------------------
 # Obsidian vault and editor state — NEVER auto-commit these.

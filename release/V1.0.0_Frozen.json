@@ -1,0 +1,227 @@
+{
+  "release": "V1.0.0_Frozen",
+  "generated_at_utc": "2026-09-16T21:24:03+00:00",
+  "git": {
+    "sha": "808f6aec7d67fce23c50019470399b8012689465",
+    "dirty": true
+  },
+  "strategy": {
+    "spec_hash_nq": "1fe36d12eb631c96",
+    "spec_hash_mnq": "08c19f55b6382d72",
+    "execution_profile": "BASELINE_FROZEN",
+    "execution_profile_is_the_frozen_spec": true,
+    "unresolved_material_ambiguities": []
+  },
+  "clock": {
+    "timezone": "America/New_York",
+    "vwap_anchor_et": "18:00",
+    "entry_window_start_et": "09:45",
+    "entry_cutoff_et": "15:30",
+    "entry_cutoff_inclusive": true,
+    "hard_flatten_et": "15:45",
+    "data_session_et": "18:00 -> 15:45",
+    "data_session_is_continuous": true,
+    "vwap_resets_only_at": "18:00"
+  },
+  "signals": {
+    "atr_method": "wilder",
+    "atr_period": 14,
+    "atr_minimum": 8.0,
+    "atr_timeframe": "5min, completed buckets only",
+    "context_max_distance": 6.0,
+    "long_zone": [
+      -8.0,
+      2.0
+    ],
+    "short_zone": [
+      -2.0,
+      8.0
+    ],
+    "volume_sma_period": 10,
+    "volume_multiple": 1.2,
+    "invalidation_distance": 15.0
+  },
+  "brackets": {
+    "stop_points": 15.0,
+    "target_points": 30.0,
+    "breakeven_trigger": 15.0,
+    "breakeven_offset": 0.25,
+    "stall_mfe": 25.0,
+    "stall_window": 3,
+    "stall_target": 20.0
+  },
+  "governor": {
+    "mtm_basis": "intrabar",
+    "mtm_mode": "CONSERVATIVE_INTRABAR_ADVERSE_EXTREME",
+    "daily_loss_killswitch": -800.0,
+    "daily_profit_cap": 1200.0,
+    "max_trades_per_day": 4,
+    "consecutive_losses_for_cooldown": 2,
+    "cooldown_minutes": 45
+  },
+  "sizing_and_cost": {
+    "nq": {
+      "contracts": 1,
+      "commission_round_turn": 4.5,
+      "point_value": 20.0,
+      "tick": 0.25
+    },
+    "mnq": {
+      "contracts": 10,
+      "commission_round_turn": 12.2,
+      "point_value": 20.0,
+      "tick": 0.25
+    },
+    "entry_slippage_ticks": 1.0,
+    "stop_slippage_ticks": 1.0,
+    "target_slippage_ticks": 0.0,
+    "market_exit_slippage_ticks": 0.0
+  },
+  "data_pipeline": {
+    "loader_version": "vwap-anchored-1.0.0",
+    "schema_version": "1.0.0",
+    "adjustment_mode": "CONTINUOUS_UNADJUSTED",
+    "price_adjustment": "NONE",
+    "roll_policy": "CALENDAR_DAYS_BEFORE_EXPIRY, read from the store's own contract column; the loader selects no contract",
+    "roll_discontinuities": "preserved, never smoothed or back-adjusted",
+    "completeness_rule": "anchor present, endpoint present, every minute between present exactly once, one contract, valid OHLC, non-negative volume",
+    "rejection_code": "INCOMPLETE_SESSION",
+    "calendar_inference": "NONE. No verified CME calendar exists in this repository, so no refused session is classified as a holiday or an early close.",
+    "zero_volume_policy": "kept, weightless (TP * 0 = 0), counted, never repaired, never a reason to reject a session",
+    "repair_policy": "none: no interpolation, forward fill, reindex or gap bridging"
+  },
+  "datasets": {
+    "ES": {
+      "present": true,
+      "manifest_id": "ecf680404326fe37",
+      "content_hash": "92b9ad205458d566",
+      "file_sha256": [
+        "781ec858f6edfcd96b6d2eb10d37853ccefa2eaddf476ed00f2629862d14127c"
+      ],
+      "file_bytes": [
+        6660474
+      ],
+      "rows_in_file": 447600,
+      "first_bar_utc": "2025-06-08 22:00:00+00:00",
+      "last_bar_utc": "2026-09-10 20:59:00+00:00",
+      "instrument": "ES",
+      "contract_coverage": [
+        "ESU5",
+        "ESZ5",
+        "ESH6",
+        "ESM6",
+        "ESU6"
+      ],
+      "sessions_found": 327,
+      "sessions_usable": 313,
+      "sessions_by_status": {
+        "COMPLETE": 313,
+        "TRUNCATED_END": 14
+      },
+      "bars_usable": 408778,
+      "zero_volume_bars": 1306,
+      "upstream_quality": "WARN",
+      "upstream_quality_report": "9c938a6be0238f78"
+    },
+    "NQ": {
+      "present": true,
+      "manifest_id": "9c4bb5d370e4a7e3",
+      "content_hash": "c11d90747fc74b1d",
+      "file_sha256": [
+        "4a6b0a7754622d0782c23dbc75948838c2830a8c20616aee3fe733848b6faeb8"
+      ],
+      "file_bytes": [
+        7565738
+      ],
+      "rows_in_file": 447596,
+      "first_bar_utc": "2025-06-08 22:00:00+00:00",
+      "last_bar_utc": "2026-09-10 20:59:00+00:00",
+      "instrument": "NQ",
+      "contract_coverage": [
+        "NQU5",
+        "NQZ5",
+        "NQH6",
+        "NQM6",
+        "NQU6"
+      ],
+      "sessions_found": 327,
+      "sessions_usable": 311,
+      "sessions_by_status": {
+        "COMPLETE": 311,
+        "NO_ANCHOR": 2,
+        "TRUNCATED_END": 14
+      },
+      "bars_usable": 406166,
+      "zero_volume_bars": 4100,
+      "upstream_quality": "WARN",
+      "upstream_quality_report": "189b33095da2a5d5"
+    },
+    "MES": {
+      "present": true,
+      "manifest_id": "c9b1ceb1ccc5130a",
+      "content_hash": "40ff5226d7122b0a",
+      "file_sha256": [
+        "c732875e5df7512eccef91ffdef9b4e578d6f30407ba73ce4182b801c52a18c5"
+      ],
+      "file_bytes": [
+        5295822
+      ],
+      "rows_in_file": 358845,
+      "first_bar_utc": "2025-09-07 22:00:00+00:00",
+      "last_bar_utc": "2026-09-10 20:59:00+00:00",
+      "instrument": "MES",
+      "contract_coverage": [
+        "MESZ5",
+        "MESH6",
+        "MESM6",
+        "MESU6"
+      ],
+      "sessions_found": 262,
+      "sessions_usable": 252,
+      "sessions_by_status": {
+        "COMPLETE": 252,
+        "TRUNCATED_END": 10
+      },
+      "bars_usable": 329112,
+      "zero_volume_bars": 2288,
+      "upstream_quality": "WARN",
+      "upstream_quality_report": "8a0892ea0d653241"
+    },
+    "MNQ": {
+      "present": true,
+      "manifest_id": "89d97f6f8c6405f9",
+      "content_hash": "73aeee0314a4d7c0",
+      "file_sha256": [
+        "a47c3f9541205057e68f17b8922e9a7f9888973509f81503d4f1ecb92d9b8fa0"
+      ],
+      "file_bytes": [
+        6133258
+      ],
+      "rows_in_file": 358845,
+      "first_bar_utc": "2025-09-07 22:00:00+00:00",
+      "last_bar_utc": "2026-09-10 20:59:00+00:00",
+      "instrument": "MNQ",
+      "contract_coverage": [
+        "MNQZ5",
+        "MNQH6",
+        "MNQM6",
+        "MNQU6"
+      ],
+      "sessions_found": 262,
+      "sessions_usable": 252,
+      "sessions_by_status": {
+        "COMPLETE": 252,
+        "TRUNCATED_END": 10
+      },
+      "bars_usable": 329112,
+      "zero_volume_bars": 1818,
+      "upstream_quality": "WARN",
+      "upstream_quality_report": "340ec3f9ec59f4b0"
+    }
+  },
+  "prohibitions_at_this_gate": [
+    "no strategy backtest has been run",
+    "no P&L, Sharpe, win rate, drawdown, payout or pass probability computed",
+    "no live execution surface touched"
+  ]
+}
