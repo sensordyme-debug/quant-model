@@ -1,0 +1,3882 @@
+{
+ "topstep_profile": {
+  "source_retrieved": "2026-09-12",
+  "account_size": 50000,
+  "starting_balance": 50000.0,
+  "profit_target": 3000.0,
+  "maximum_loss_limit": 2000.0,
+  "mll_trailing_mode": "eod_trail_intraday_breach",
+  "mll_locks_at_start": true,
+  "mll_resets_on_payout": true,
+  "daily_loss_limit": null,
+  "daily_loss_limit_is_optional": true,
+  "dll_window_ct": [
+   "17:00:00",
+   "15:10:00"
+  ],
+  "contract_limit_mini_micro": [
+   5,
+   50
+  ],
+  "mandatory_flat_ct": "15:10:00",
+  "min_trading_days": 0,
+  "consistency_reading": "doc_calc",
+  "consistency_boundary": "inclusive",
+  "consistency_readings_available": {
+   "doc_calc": [
+    0.55,
+    "total"
+   ],
+   "doc_text": [
+    0.55,
+    "target"
+   ],
+   "strict": [
+    0.5,
+    "total"
+   ],
+   "owner_target": [
+    0.5,
+    "target"
+   ],
+   "doc_calc_exclusive": [
+    0.55,
+    "total",
+    "exclusive"
+   ],
+   "doc_text_exclusive": [
+    0.55,
+    "target",
+    "exclusive"
+   ]
+  }
+ },
+ "seed": 20260916,
+ "mc_reps": 2000,
+ "runs": {
+  "MNQ:IDEAL": {
+   "instrument": "MNQ",
+   "profile": "IDEAL",
+   "twin_no_withdrawal": {
+    "terminal_stage": "trading_combine",
+    "days_stepped": 252,
+    "combine_attempts": 1,
+    "days_to_pass_combine": null,
+    "reached_funding": false,
+    "breach_day": null,
+    "breach_reason": "",
+    "min_buffer_to_mll": 1375.6,
+    "payouts": [],
+    "total_paid_out": 0.0,
+    "final_balance": 51139.0,
+    "transitions": []
+   },
+   "pass_paths": {
+    "attempts_evaluated": 233,
+    "attempts_insufficient": 19,
+    "outcomes": {
+     "PASS": 0,
+     "MLL_BREACH": 0,
+     "DLL_BREACH": 0,
+     "UNFINISHED": 233,
+     "INSUFFICIENT": 19
+    },
+    "HISTORICAL_PATH_PASS_RATE": 0.0,
+    "LABEL": "HISTORICAL PATH PASS RATE - the share of overlapping historical starts that reached the target first. These paths overlap heavily and share the same few trades, so they are NOT independent attempts and this is NOT a probability of passing.",
+    "detail": [
+     {
+      "start": "2025-09-08",
+      "sessions_available": 252,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-09",
+      "sessions_available": 251,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-10",
+      "sessions_available": 250,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-11",
+      "sessions_available": 249,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-12",
+      "sessions_available": 248,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-15",
+      "sessions_available": 247,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-16",
+      "sessions_available": 246,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-17",
+      "sessions_available": 245,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-18",
+      "sessions_available": 244,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-19",
+      "sessions_available": 243,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-22",
+      "sessions_available": 242,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-23",
+      "sessions_available": 241,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-24",
+      "sessions_available": 240,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-25",
+      "sessions_available": 239,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-26",
+      "sessions_available": 238,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-29",
+      "sessions_available": 237,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-30",
+      "sessions_available": 236,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-01",
+      "sessions_available": 235,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-02",
+      "sessions_available": 234,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-03",
+      "sessions_available": 233,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-06",
+      "sessions_available": 232,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-07",
+      "sessions_available": 231,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-08",
+      "sessions_available": 230,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-09",
+      "sessions_available": 229,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-10",
+      "sessions_available": 228,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-13",
+      "sessions_available": 227,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-14",
+      "sessions_available": 226,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-15",
+      "sessions_available": 225,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-16",
+      "sessions_available": 224,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-17",
+      "sessions_available": 223,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-20",
+      "sessions_available": 222,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-21",
+      "sessions_available": 221,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-22",
+      "sessions_available": 220,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-23",
+      "sessions_available": 219,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-24",
+      "sessions_available": 218,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-27",
+      "sessions_available": 217,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-28",
+      "sessions_available": 216,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-29",
+      "sessions_available": 215,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-30",
+      "sessions_available": 214,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-31",
+      "sessions_available": 213,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     }
+    ]
+   },
+   "payout": {
+    "policy_version": "doc_calc",
+    "winning_day_definition": "a session whose NET P&L is strictly greater than $0, measured from the same ledger as every other number here",
+    "winning_days": 3,
+    "total_net_pnl": 1139.0,
+    "profit_target": 3000.0,
+    "reached_profit_target": false,
+    "best_single_day": 587.8,
+    "consistency_fraction": 0.55,
+    "consistency_basis": "total",
+    "consistency_satisfied": true,
+    "effective_target_given_best_day": 1068.73,
+    "payout_opportunities": 0,
+    "total_paid_out": 0.0,
+    "days_to_first_eligibility": null,
+    "NOTE": "A payout does not follow from reaching $3,000. The Combine must be passed under the consistency reading in force, the account must then be funded, and the MLL RESETS TO THE STARTING BALANCE ON EACH PAYOUT - so a withdrawal spends the buffer that keeps the account alive."
+   },
+   "monte_carlo": {
+    "A_trade_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 1139.0,
+     "p05_ending_pnl": -661.0,
+     "p25_ending_pnl": 239.0,
+     "p75_ending_pnl": 2039.0,
+     "p95_ending_pnl": 2939.0,
+     "prob_negative_ending_pnl": 0.088,
+     "prob_mll_breach_eod": 0.0,
+     "prob_reach_target_first": 0.0,
+     "median_max_drawdown": 312.2,
+     "p95_max_drawdown": 936.6,
+     "median_sessions_to_target": null
+    },
+    "B_daily_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 1102.4,
+     "p05_ending_pnl": -661.0,
+     "p25_ending_pnl": 275.6,
+     "p75_ending_pnl": 1763.4,
+     "p95_ending_pnl": 2939.0,
+     "prob_negative_ending_pnl": 0.1715,
+     "prob_mll_breach_eod": 0.0015,
+     "prob_reach_target_first": 0.0535,
+     "median_max_drawdown": 312.2,
+     "p95_max_drawdown": 973.2,
+     "median_sessions_to_target": 213.0
+    },
+    "C_moving_block_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 551.2,
+     "p05_ending_pnl": -936.6,
+     "p25_ending_pnl": -73.2,
+     "p75_ending_pnl": 1139.0,
+     "p95_ending_pnl": 2039.0,
+     "prob_negative_ending_pnl": 0.3395,
+     "prob_mll_breach_eod": 0.001,
+     "prob_reach_target_first": 0.0025,
+     "median_max_drawdown": 624.4,
+     "p95_max_drawdown": 1248.8,
+     "median_sessions_to_target": 204.0,
+     "block_sessions": 20
+    },
+    "D_topstep_path_simulation": {
+     "reps": 200,
+     "block_sessions": 20,
+     "passed": 1,
+     "breached": 0,
+     "unfinished": 199,
+     "share_passed": 0.005,
+     "share_breached": 0.0
+    },
+    "LABEL": "CONDITIONAL HISTORICAL RESAMPLING. Every figure is a property of the observed sample re-ordered; none is a probability of future success. With a handful of trades the resample draws from a handful of numbers, so the percentiles describe those numbers and not the strategy.",
+    "distinct_trades_resampled": 5,
+    "distinct_sessions_resampled": 252
+   },
+   "withdrawal_paths": {
+    "no_withdrawal": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51139.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1375.6
+    },
+    "first_eligible_full": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51139.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1375.6
+    },
+    "first_eligible_keep_1000_buffer": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51139.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1375.6
+    },
+    "repeated_half": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51139.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1375.6
+    }
+   },
+   "reconciliation": {
+    "instrument": "MNQ",
+    "profile": "IDEAL",
+    "trades_checked": 5,
+    "fields_checked_per_trade": 4,
+    "tolerance": 1e-09,
+    "mismatches": [],
+    "AGREES": true
+   }
+  },
+  "MNQ:BASELINE_FROZEN": {
+   "instrument": "MNQ",
+   "profile": "BASELINE_FROZEN",
+   "twin_no_withdrawal": {
+    "terminal_stage": "trading_combine",
+    "days_stepped": 252,
+    "combine_attempts": 1,
+    "days_to_pass_combine": null,
+    "reached_funding": false,
+    "breach_day": null,
+    "breach_reason": "",
+    "min_buffer_to_mll": 1365.6,
+    "payouts": [],
+    "total_paid_out": 0.0,
+    "final_balance": 51129.0,
+    "transitions": []
+   },
+   "pass_paths": {
+    "attempts_evaluated": 233,
+    "attempts_insufficient": 19,
+    "outcomes": {
+     "PASS": 0,
+     "MLL_BREACH": 0,
+     "DLL_BREACH": 0,
+     "UNFINISHED": 233,
+     "INSUFFICIENT": 19
+    },
+    "HISTORICAL_PATH_PASS_RATE": 0.0,
+    "LABEL": "HISTORICAL PATH PASS RATE - the share of overlapping historical starts that reached the target first. These paths overlap heavily and share the same few trades, so they are NOT independent attempts and this is NOT a probability of passing.",
+    "detail": [
+     {
+      "start": "2025-09-08",
+      "sessions_available": 252,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-09",
+      "sessions_available": 251,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-10",
+      "sessions_available": 250,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-11",
+      "sessions_available": 249,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-12",
+      "sessions_available": 248,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-15",
+      "sessions_available": 247,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-16",
+      "sessions_available": 246,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-17",
+      "sessions_available": 245,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-18",
+      "sessions_available": 244,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-19",
+      "sessions_available": 243,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-22",
+      "sessions_available": 242,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-23",
+      "sessions_available": 241,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-24",
+      "sessions_available": 240,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-25",
+      "sessions_available": 239,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-26",
+      "sessions_available": 238,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-29",
+      "sessions_available": 237,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-30",
+      "sessions_available": 236,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-01",
+      "sessions_available": 235,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-02",
+      "sessions_available": 234,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-03",
+      "sessions_available": 233,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-06",
+      "sessions_available": 232,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-07",
+      "sessions_available": 231,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-08",
+      "sessions_available": 230,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-09",
+      "sessions_available": 229,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-10",
+      "sessions_available": 228,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-13",
+      "sessions_available": 227,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-14",
+      "sessions_available": 226,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-15",
+      "sessions_available": 225,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-16",
+      "sessions_available": 224,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-17",
+      "sessions_available": 223,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-20",
+      "sessions_available": 222,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-21",
+      "sessions_available": 221,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-22",
+      "sessions_available": 220,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-23",
+      "sessions_available": 219,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-24",
+      "sessions_available": 218,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-27",
+      "sessions_available": 217,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-28",
+      "sessions_available": 216,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-29",
+      "sessions_available": 215,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-30",
+      "sessions_available": 214,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-31",
+      "sessions_available": 213,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     }
+    ]
+   },
+   "payout": {
+    "policy_version": "doc_calc",
+    "winning_day_definition": "a session whose NET P&L is strictly greater than $0, measured from the same ledger as every other number here",
+    "winning_days": 3,
+    "total_net_pnl": 1129.0,
+    "profit_target": 3000.0,
+    "reached_profit_target": false,
+    "best_single_day": 587.8,
+    "consistency_fraction": 0.55,
+    "consistency_basis": "total",
+    "consistency_satisfied": true,
+    "effective_target_given_best_day": 1068.73,
+    "payout_opportunities": 0,
+    "total_paid_out": 0.0,
+    "days_to_first_eligibility": null,
+    "NOTE": "A payout does not follow from reaching $3,000. The Combine must be passed under the consistency reading in force, the account must then be funded, and the MLL RESETS TO THE STARTING BALANCE ON EACH PAYOUT - so a withdrawal spends the buffer that keeps the account alive."
+   },
+   "monte_carlo": {
+    "A_trade_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 1129.0,
+     "p05_ending_pnl": -681.0,
+     "p25_ending_pnl": 224.0,
+     "p75_ending_pnl": 2034.0,
+     "p95_ending_pnl": 2939.0,
+     "prob_negative_ending_pnl": 0.088,
+     "prob_mll_breach_eod": 0.0,
+     "prob_reach_target_first": 0.0,
+     "median_max_drawdown": 317.2,
+     "p95_max_drawdown": 951.6,
+     "median_sessions_to_target": null
+    },
+    "B_daily_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 1082.4,
+     "p05_ending_pnl": -681.0,
+     "p25_ending_pnl": 270.6,
+     "p75_ending_pnl": 1763.4,
+     "p95_ending_pnl": 2939.0,
+     "prob_negative_ending_pnl": 0.1715,
+     "prob_mll_breach_eod": 0.0015,
+     "prob_reach_target_first": 0.0535,
+     "median_max_drawdown": 317.2,
+     "p95_max_drawdown": 998.2,
+     "median_sessions_to_target": 213.0
+    },
+    "C_moving_block_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 541.2,
+     "p05_ending_pnl": -951.6,
+     "p25_ending_pnl": -93.2,
+     "p75_ending_pnl": 1129.0,
+     "p95_ending_pnl": 2034.0,
+     "prob_negative_ending_pnl": 0.3395,
+     "prob_mll_breach_eod": 0.001,
+     "prob_reach_target_first": 0.0025,
+     "median_max_drawdown": 634.4,
+     "p95_max_drawdown": 1268.8,
+     "median_sessions_to_target": 204.0,
+     "block_sessions": 20
+    },
+    "D_topstep_path_simulation": {
+     "reps": 200,
+     "block_sessions": 20,
+     "passed": 1,
+     "breached": 0,
+     "unfinished": 199,
+     "share_passed": 0.005,
+     "share_breached": 0.0
+    },
+    "LABEL": "CONDITIONAL HISTORICAL RESAMPLING. Every figure is a property of the observed sample re-ordered; none is a probability of future success. With a handful of trades the resample draws from a handful of numbers, so the percentiles describe those numbers and not the strategy.",
+    "distinct_trades_resampled": 5,
+    "distinct_sessions_resampled": 252
+   },
+   "withdrawal_paths": {
+    "no_withdrawal": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51129.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1365.6
+    },
+    "first_eligible_full": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51129.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1365.6
+    },
+    "first_eligible_keep_1000_buffer": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51129.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1365.6
+    },
+    "repeated_half": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51129.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1365.6
+    }
+   },
+   "reconciliation": {
+    "instrument": "MNQ",
+    "profile": "BASELINE_FROZEN",
+    "trades_checked": 5,
+    "fields_checked_per_trade": 4,
+    "tolerance": 1e-09,
+    "mismatches": [],
+    "AGREES": true
+   }
+  },
+  "MNQ:STRESS_1TICK": {
+   "instrument": "MNQ",
+   "profile": "STRESS_1TICK",
+   "twin_no_withdrawal": {
+    "terminal_stage": "trading_combine",
+    "days_stepped": 252,
+    "combine_attempts": 1,
+    "days_to_pass_combine": null,
+    "reached_funding": false,
+    "breach_day": null,
+    "breach_reason": "",
+    "min_buffer_to_mll": 1355.6,
+    "payouts": [],
+    "total_paid_out": 0.0,
+    "final_balance": 51119.0,
+    "transitions": []
+   },
+   "pass_paths": {
+    "attempts_evaluated": 233,
+    "attempts_insufficient": 19,
+    "outcomes": {
+     "PASS": 0,
+     "MLL_BREACH": 0,
+     "DLL_BREACH": 0,
+     "UNFINISHED": 233,
+     "INSUFFICIENT": 19
+    },
+    "HISTORICAL_PATH_PASS_RATE": 0.0,
+    "LABEL": "HISTORICAL PATH PASS RATE - the share of overlapping historical starts that reached the target first. These paths overlap heavily and share the same few trades, so they are NOT independent attempts and this is NOT a probability of passing.",
+    "detail": [
+     {
+      "start": "2025-09-08",
+      "sessions_available": 252,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-09",
+      "sessions_available": 251,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-10",
+      "sessions_available": 250,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-11",
+      "sessions_available": 249,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-12",
+      "sessions_available": 248,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-15",
+      "sessions_available": 247,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-16",
+      "sessions_available": 246,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-17",
+      "sessions_available": 245,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-18",
+      "sessions_available": 244,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-19",
+      "sessions_available": 243,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-22",
+      "sessions_available": 242,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-23",
+      "sessions_available": 241,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-24",
+      "sessions_available": 240,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-25",
+      "sessions_available": 239,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-26",
+      "sessions_available": 238,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-29",
+      "sessions_available": 237,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-30",
+      "sessions_available": 236,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-01",
+      "sessions_available": 235,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-02",
+      "sessions_available": 234,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-03",
+      "sessions_available": 233,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-06",
+      "sessions_available": 232,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-07",
+      "sessions_available": 231,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-08",
+      "sessions_available": 230,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-09",
+      "sessions_available": 229,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-10",
+      "sessions_available": 228,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-13",
+      "sessions_available": 227,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-14",
+      "sessions_available": 226,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-15",
+      "sessions_available": 225,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-16",
+      "sessions_available": 224,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-17",
+      "sessions_available": 223,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-20",
+      "sessions_available": 222,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-21",
+      "sessions_available": 221,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-22",
+      "sessions_available": 220,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-23",
+      "sessions_available": 219,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-24",
+      "sessions_available": 218,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-27",
+      "sessions_available": 217,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-28",
+      "sessions_available": 216,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-29",
+      "sessions_available": 215,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-30",
+      "sessions_available": 214,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-31",
+      "sessions_available": 213,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     }
+    ]
+   },
+   "payout": {
+    "policy_version": "doc_calc",
+    "winning_day_definition": "a session whose NET P&L is strictly greater than $0, measured from the same ledger as every other number here",
+    "winning_days": 3,
+    "total_net_pnl": 1119.0,
+    "profit_target": 3000.0,
+    "reached_profit_target": false,
+    "best_single_day": 587.8,
+    "consistency_fraction": 0.55,
+    "consistency_basis": "total",
+    "consistency_satisfied": true,
+    "effective_target_given_best_day": 1068.73,
+    "payout_opportunities": 0,
+    "total_paid_out": 0.0,
+    "days_to_first_eligibility": null,
+    "NOTE": "A payout does not follow from reaching $3,000. The Combine must be passed under the consistency reading in force, the account must then be funded, and the MLL RESETS TO THE STARTING BALANCE ON EACH PAYOUT - so a withdrawal spends the buffer that keeps the account alive."
+   },
+   "monte_carlo": {
+    "A_trade_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 1119.0,
+     "p05_ending_pnl": -701.0,
+     "p25_ending_pnl": 209.0,
+     "p75_ending_pnl": 2029.0,
+     "p95_ending_pnl": 2939.0,
+     "prob_negative_ending_pnl": 0.088,
+     "prob_mll_breach_eod": 0.0,
+     "prob_reach_target_first": 0.0,
+     "median_max_drawdown": 322.2,
+     "p95_max_drawdown": 966.6,
+     "median_sessions_to_target": null
+    },
+    "B_daily_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 1062.4,
+     "p05_ending_pnl": -701.0,
+     "p25_ending_pnl": 265.6,
+     "p75_ending_pnl": 1763.4,
+     "p95_ending_pnl": 2939.0,
+     "prob_negative_ending_pnl": 0.1715,
+     "prob_mll_breach_eod": 0.0015,
+     "prob_reach_target_first": 0.0535,
+     "median_max_drawdown": 322.2,
+     "p95_max_drawdown": 1023.2,
+     "median_sessions_to_target": 213.0
+    },
+    "C_moving_block_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 531.2,
+     "p05_ending_pnl": -966.6,
+     "p25_ending_pnl": -113.2,
+     "p75_ending_pnl": 1119.0,
+     "p95_ending_pnl": 2029.0,
+     "prob_negative_ending_pnl": 0.3395,
+     "prob_mll_breach_eod": 0.001,
+     "prob_reach_target_first": 0.0025,
+     "median_max_drawdown": 644.4,
+     "p95_max_drawdown": 1288.8,
+     "median_sessions_to_target": 204.0,
+     "block_sessions": 20
+    },
+    "D_topstep_path_simulation": {
+     "reps": 200,
+     "block_sessions": 20,
+     "passed": 1,
+     "breached": 0,
+     "unfinished": 199,
+     "share_passed": 0.005,
+     "share_breached": 0.0
+    },
+    "LABEL": "CONDITIONAL HISTORICAL RESAMPLING. Every figure is a property of the observed sample re-ordered; none is a probability of future success. With a handful of trades the resample draws from a handful of numbers, so the percentiles describe those numbers and not the strategy.",
+    "distinct_trades_resampled": 5,
+    "distinct_sessions_resampled": 252
+   },
+   "withdrawal_paths": {
+    "no_withdrawal": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51119.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1355.6
+    },
+    "first_eligible_full": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51119.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1355.6
+    },
+    "first_eligible_keep_1000_buffer": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51119.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1355.6
+    },
+    "repeated_half": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51119.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1355.6
+    }
+   },
+   "reconciliation": {
+    "instrument": "MNQ",
+    "profile": "STRESS_1TICK",
+    "trades_checked": 5,
+    "fields_checked_per_trade": 4,
+    "tolerance": 1e-09,
+    "mismatches": [],
+    "AGREES": true
+   }
+  },
+  "MNQ:STRESS_2TICK": {
+   "instrument": "MNQ",
+   "profile": "STRESS_2TICK",
+   "twin_no_withdrawal": {
+    "terminal_stage": "trading_combine",
+    "days_stepped": 252,
+    "combine_attempts": 1,
+    "days_to_pass_combine": null,
+    "reached_funding": false,
+    "breach_day": null,
+    "breach_reason": "",
+    "min_buffer_to_mll": 1345.6,
+    "payouts": [],
+    "total_paid_out": 0.0,
+    "final_balance": 51109.0,
+    "transitions": []
+   },
+   "pass_paths": {
+    "attempts_evaluated": 233,
+    "attempts_insufficient": 19,
+    "outcomes": {
+     "PASS": 0,
+     "MLL_BREACH": 0,
+     "DLL_BREACH": 0,
+     "UNFINISHED": 233,
+     "INSUFFICIENT": 19
+    },
+    "HISTORICAL_PATH_PASS_RATE": 0.0,
+    "LABEL": "HISTORICAL PATH PASS RATE - the share of overlapping historical starts that reached the target first. These paths overlap heavily and share the same few trades, so they are NOT independent attempts and this is NOT a probability of passing.",
+    "detail": [
+     {
+      "start": "2025-09-08",
+      "sessions_available": 252,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-09",
+      "sessions_available": 251,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-10",
+      "sessions_available": 250,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-11",
+      "sessions_available": 249,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-12",
+      "sessions_available": 248,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-15",
+      "sessions_available": 247,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-16",
+      "sessions_available": 246,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-17",
+      "sessions_available": 245,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-18",
+      "sessions_available": 244,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-19",
+      "sessions_available": 243,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-22",
+      "sessions_available": 242,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-23",
+      "sessions_available": 241,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-24",
+      "sessions_available": 240,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-25",
+      "sessions_available": 239,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-26",
+      "sessions_available": 238,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-29",
+      "sessions_available": 237,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-09-30",
+      "sessions_available": 236,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-01",
+      "sessions_available": 235,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-02",
+      "sessions_available": 234,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-03",
+      "sessions_available": 233,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-06",
+      "sessions_available": 232,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-07",
+      "sessions_available": 231,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-08",
+      "sessions_available": 230,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-09",
+      "sessions_available": 229,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-10",
+      "sessions_available": 228,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-13",
+      "sessions_available": 227,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-14",
+      "sessions_available": 226,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-15",
+      "sessions_available": 225,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-16",
+      "sessions_available": 224,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-17",
+      "sessions_available": 223,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-20",
+      "sessions_available": 222,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-21",
+      "sessions_available": 221,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-22",
+      "sessions_available": 220,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-23",
+      "sessions_available": 219,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-24",
+      "sessions_available": 218,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-27",
+      "sessions_available": 217,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-28",
+      "sessions_available": 216,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-29",
+      "sessions_available": 215,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-30",
+      "sessions_available": 214,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-10-31",
+      "sessions_available": 213,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     }
+    ]
+   },
+   "payout": {
+    "policy_version": "doc_calc",
+    "winning_day_definition": "a session whose NET P&L is strictly greater than $0, measured from the same ledger as every other number here",
+    "winning_days": 3,
+    "total_net_pnl": 1109.0,
+    "profit_target": 3000.0,
+    "reached_profit_target": false,
+    "best_single_day": 587.8,
+    "consistency_fraction": 0.55,
+    "consistency_basis": "total",
+    "consistency_satisfied": true,
+    "effective_target_given_best_day": 1068.73,
+    "payout_opportunities": 0,
+    "total_paid_out": 0.0,
+    "days_to_first_eligibility": null,
+    "NOTE": "A payout does not follow from reaching $3,000. The Combine must be passed under the consistency reading in force, the account must then be funded, and the MLL RESETS TO THE STARTING BALANCE ON EACH PAYOUT - so a withdrawal spends the buffer that keeps the account alive."
+   },
+   "monte_carlo": {
+    "A_trade_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 1109.0,
+     "p05_ending_pnl": -721.0,
+     "p25_ending_pnl": 194.0,
+     "p75_ending_pnl": 2024.0,
+     "p95_ending_pnl": 2939.0,
+     "prob_negative_ending_pnl": 0.088,
+     "prob_mll_breach_eod": 0.0,
+     "prob_reach_target_first": 0.0,
+     "median_max_drawdown": 327.2,
+     "p95_max_drawdown": 981.6,
+     "median_sessions_to_target": null
+    },
+    "B_daily_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 1042.4,
+     "p05_ending_pnl": -721.0,
+     "p25_ending_pnl": 260.6,
+     "p75_ending_pnl": 1763.4,
+     "p95_ending_pnl": 2939.0,
+     "prob_negative_ending_pnl": 0.1715,
+     "prob_mll_breach_eod": 0.0015,
+     "prob_reach_target_first": 0.0535,
+     "median_max_drawdown": 327.2,
+     "p95_max_drawdown": 1048.2,
+     "median_sessions_to_target": 213.0
+    },
+    "C_moving_block_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 521.2,
+     "p05_ending_pnl": -981.6,
+     "p25_ending_pnl": -133.2,
+     "p75_ending_pnl": 1109.0,
+     "p95_ending_pnl": 2024.0,
+     "prob_negative_ending_pnl": 0.3395,
+     "prob_mll_breach_eod": 0.001,
+     "prob_reach_target_first": 0.0025,
+     "median_max_drawdown": 654.4,
+     "p95_max_drawdown": 1308.8,
+     "median_sessions_to_target": 204.0,
+     "block_sessions": 20
+    },
+    "D_topstep_path_simulation": {
+     "reps": 200,
+     "block_sessions": 20,
+     "passed": 1,
+     "breached": 0,
+     "unfinished": 199,
+     "share_passed": 0.005,
+     "share_breached": 0.0
+    },
+    "LABEL": "CONDITIONAL HISTORICAL RESAMPLING. Every figure is a property of the observed sample re-ordered; none is a probability of future success. With a handful of trades the resample draws from a handful of numbers, so the percentiles describe those numbers and not the strategy.",
+    "distinct_trades_resampled": 5,
+    "distinct_sessions_resampled": 252
+   },
+   "withdrawal_paths": {
+    "no_withdrawal": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51109.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1345.6
+    },
+    "first_eligible_full": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51109.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1345.6
+    },
+    "first_eligible_keep_1000_buffer": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51109.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1345.6
+    },
+    "repeated_half": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 51109.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 1345.6
+    }
+   },
+   "reconciliation": {
+    "instrument": "MNQ",
+    "profile": "STRESS_2TICK",
+    "trades_checked": 5,
+    "fields_checked_per_trade": 4,
+    "tolerance": 1e-09,
+    "mismatches": [],
+    "AGREES": true
+   }
+  },
+  "NQ:IDEAL": {
+   "instrument": "NQ",
+   "profile": "IDEAL",
+   "twin_no_withdrawal": {
+    "terminal_stage": "trading_combine",
+    "days_stepped": 311,
+    "combine_attempts": 1,
+    "days_to_pass_combine": null,
+    "reached_funding": false,
+    "breach_day": null,
+    "breach_reason": "",
+    "min_buffer_to_mll": 873.0,
+    "payouts": [],
+    "total_paid_out": 0.0,
+    "final_balance": 50064.0,
+    "transitions": []
+   },
+   "pass_paths": {
+    "attempts_evaluated": 292,
+    "attempts_insufficient": 19,
+    "outcomes": {
+     "PASS": 0,
+     "MLL_BREACH": 0,
+     "DLL_BREACH": 0,
+     "UNFINISHED": 292,
+     "INSUFFICIENT": 19
+    },
+    "HISTORICAL_PATH_PASS_RATE": 0.0,
+    "LABEL": "HISTORICAL PATH PASS RATE - the share of overlapping historical starts that reached the target first. These paths overlap heavily and share the same few trades, so they are NOT independent attempts and this is NOT a probability of passing.",
+    "detail": [
+     {
+      "start": "2025-06-09",
+      "sessions_available": 311,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-12",
+      "sessions_available": 310,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-13",
+      "sessions_available": 309,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-16",
+      "sessions_available": 308,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-17",
+      "sessions_available": 307,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-18",
+      "sessions_available": 306,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-20",
+      "sessions_available": 305,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-23",
+      "sessions_available": 304,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-24",
+      "sessions_available": 303,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-25",
+      "sessions_available": 302,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-26",
+      "sessions_available": 301,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-27",
+      "sessions_available": 300,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-30",
+      "sessions_available": 299,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-01",
+      "sessions_available": 298,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-02",
+      "sessions_available": 297,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-07",
+      "sessions_available": 296,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-08",
+      "sessions_available": 295,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-09",
+      "sessions_available": 294,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-10",
+      "sessions_available": 293,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-11",
+      "sessions_available": 292,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-14",
+      "sessions_available": 291,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-15",
+      "sessions_available": 290,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-16",
+      "sessions_available": 289,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-17",
+      "sessions_available": 288,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-18",
+      "sessions_available": 287,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-21",
+      "sessions_available": 286,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-22",
+      "sessions_available": 285,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-23",
+      "sessions_available": 284,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-24",
+      "sessions_available": 283,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-25",
+      "sessions_available": 282,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-28",
+      "sessions_available": 281,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-29",
+      "sessions_available": 280,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-30",
+      "sessions_available": 279,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-31",
+      "sessions_available": 278,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-01",
+      "sessions_available": 277,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-04",
+      "sessions_available": 276,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-05",
+      "sessions_available": 275,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-06",
+      "sessions_available": 274,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-07",
+      "sessions_available": 273,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-08",
+      "sessions_available": 272,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     }
+    ]
+   },
+   "payout": {
+    "policy_version": "doc_calc",
+    "winning_day_definition": "a session whose NET P&L is strictly greater than $0, measured from the same ledger as every other number here",
+    "winning_days": 3,
+    "total_net_pnl": 64.0,
+    "profit_target": 3000.0,
+    "reached_profit_target": false,
+    "best_single_day": 595.5,
+    "consistency_fraction": 0.55,
+    "consistency_basis": "total",
+    "consistency_satisfied": false,
+    "effective_target_given_best_day": 1082.73,
+    "payout_opportunities": 0,
+    "total_paid_out": 0.0,
+    "days_to_first_eligibility": null,
+    "NOTE": "A payout does not follow from reaching $3,000. The Combine must be passed under the consistency reading in force, the account must then be funded, and the MLL RESETS TO THE STARTING BALANCE ON EACH PAYOUT - so a withdrawal spends the buffer that keeps the account alive."
+   },
+   "monte_carlo": {
+    "A_trade_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 64.0,
+     "p05_ending_pnl": -1736.0,
+     "p25_ending_pnl": -836.0,
+     "p75_ending_pnl": 964.0,
+     "p95_ending_pnl": 1864.0,
+     "prob_negative_ending_pnl": 0.46,
+     "prob_mll_breach_eod": 0.0405,
+     "prob_reach_target_first": 0.0105,
+     "median_max_drawdown": 913.5,
+     "p95_max_drawdown": 2131.5,
+     "median_sessions_to_target": 7.0
+    },
+    "B_daily_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 50.5,
+     "p05_ending_pnl": -1827.0,
+     "p25_ending_pnl": -731.5,
+     "p75_ending_pnl": 859.5,
+     "p95_ending_pnl": 2076.42,
+     "prob_negative_ending_pnl": 0.491,
+     "prob_mll_breach_eod": 0.0515,
+     "prob_reach_target_first": 0.014,
+     "median_max_drawdown": 913.5,
+     "p95_max_drawdown": 2131.5,
+     "median_sessions_to_target": 238.0
+    },
+    "C_moving_block_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 91.0,
+     "p05_ending_pnl": -1536.0,
+     "p25_ending_pnl": -545.0,
+     "p75_ending_pnl": 886.5,
+     "p95_ending_pnl": 2064.0,
+     "prob_negative_ending_pnl": 0.451,
+     "prob_mll_breach_eod": 0.0375,
+     "prob_reach_target_first": 0.0075,
+     "median_max_drawdown": 913.5,
+     "p95_max_drawdown": 2040.5,
+     "median_sessions_to_target": 281.0,
+     "block_sessions": 20
+    },
+    "D_topstep_path_simulation": {
+     "reps": 200,
+     "block_sessions": 20,
+     "passed": 1,
+     "breached": 8,
+     "unfinished": 191,
+     "share_passed": 0.005,
+     "share_breached": 0.04
+    },
+    "LABEL": "CONDITIONAL HISTORICAL RESAMPLING. Every figure is a property of the observed sample re-ordered; none is a probability of future success. With a handful of trades the resample draws from a handful of numbers, so the percentiles describe those numbers and not the strategy.",
+    "distinct_trades_resampled": 8,
+    "distinct_sessions_resampled": 311
+   },
+   "withdrawal_paths": {
+    "no_withdrawal": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50064.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 873.0
+    },
+    "first_eligible_full": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50064.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 873.0
+    },
+    "first_eligible_keep_1000_buffer": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50064.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 873.0
+    },
+    "repeated_half": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50064.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 873.0
+    }
+   },
+   "reconciliation": {
+    "instrument": "NQ",
+    "profile": "IDEAL",
+    "trades_checked": 8,
+    "fields_checked_per_trade": 4,
+    "tolerance": 1e-09,
+    "mismatches": [],
+    "AGREES": true
+   }
+  },
+  "NQ:BASELINE_FROZEN": {
+   "instrument": "NQ",
+   "profile": "BASELINE_FROZEN",
+   "twin_no_withdrawal": {
+    "terminal_stage": "trading_combine",
+    "days_stepped": 311,
+    "combine_attempts": 1,
+    "days_to_pass_combine": null,
+    "reached_funding": false,
+    "breach_day": null,
+    "breach_reason": "",
+    "min_buffer_to_mll": 848.0,
+    "payouts": [],
+    "total_paid_out": 0.0,
+    "final_balance": 50039.0,
+    "transitions": []
+   },
+   "pass_paths": {
+    "attempts_evaluated": 292,
+    "attempts_insufficient": 19,
+    "outcomes": {
+     "PASS": 0,
+     "MLL_BREACH": 0,
+     "DLL_BREACH": 0,
+     "UNFINISHED": 292,
+     "INSUFFICIENT": 19
+    },
+    "HISTORICAL_PATH_PASS_RATE": 0.0,
+    "LABEL": "HISTORICAL PATH PASS RATE - the share of overlapping historical starts that reached the target first. These paths overlap heavily and share the same few trades, so they are NOT independent attempts and this is NOT a probability of passing.",
+    "detail": [
+     {
+      "start": "2025-06-09",
+      "sessions_available": 311,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-12",
+      "sessions_available": 310,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-13",
+      "sessions_available": 309,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-16",
+      "sessions_available": 308,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-17",
+      "sessions_available": 307,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-18",
+      "sessions_available": 306,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-20",
+      "sessions_available": 305,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-23",
+      "sessions_available": 304,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-24",
+      "sessions_available": 303,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-25",
+      "sessions_available": 302,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-26",
+      "sessions_available": 301,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-27",
+      "sessions_available": 300,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-30",
+      "sessions_available": 299,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-01",
+      "sessions_available": 298,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-02",
+      "sessions_available": 297,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-07",
+      "sessions_available": 296,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-08",
+      "sessions_available": 295,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-09",
+      "sessions_available": 294,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-10",
+      "sessions_available": 293,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-11",
+      "sessions_available": 292,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-14",
+      "sessions_available": 291,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-15",
+      "sessions_available": 290,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-16",
+      "sessions_available": 289,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-17",
+      "sessions_available": 288,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-18",
+      "sessions_available": 287,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-21",
+      "sessions_available": 286,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-22",
+      "sessions_available": 285,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-23",
+      "sessions_available": 284,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-24",
+      "sessions_available": 283,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-25",
+      "sessions_available": 282,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-28",
+      "sessions_available": 281,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-29",
+      "sessions_available": 280,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-30",
+      "sessions_available": 279,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-31",
+      "sessions_available": 278,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-01",
+      "sessions_available": 277,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-04",
+      "sessions_available": 276,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-05",
+      "sessions_available": 275,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-06",
+      "sessions_available": 274,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-07",
+      "sessions_available": 273,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-08",
+      "sessions_available": 272,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     }
+    ]
+   },
+   "payout": {
+    "policy_version": "doc_calc",
+    "winning_day_definition": "a session whose NET P&L is strictly greater than $0, measured from the same ledger as every other number here",
+    "winning_days": 3,
+    "total_net_pnl": 39.0,
+    "profit_target": 3000.0,
+    "reached_profit_target": false,
+    "best_single_day": 595.5,
+    "consistency_fraction": 0.55,
+    "consistency_basis": "total",
+    "consistency_satisfied": false,
+    "effective_target_given_best_day": 1082.73,
+    "payout_opportunities": 0,
+    "total_paid_out": 0.0,
+    "days_to_first_eligibility": null,
+    "NOTE": "A payout does not follow from reaching $3,000. The Combine must be passed under the consistency reading in force, the account must then be funded, and the MLL RESETS TO THE STARTING BALANCE ON EACH PAYOUT - so a withdrawal spends the buffer that keeps the account alive."
+   },
+   "monte_carlo": {
+    "A_trade_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 39.0,
+     "p05_ending_pnl": -1771.0,
+     "p25_ending_pnl": -866.0,
+     "p75_ending_pnl": 944.0,
+     "p95_ending_pnl": 1849.0,
+     "prob_negative_ending_pnl": 0.46,
+     "prob_mll_breach_eod": 0.0405,
+     "prob_reach_target_first": 0.0105,
+     "median_max_drawdown": 928.5,
+     "p95_max_drawdown": 2166.5,
+     "median_sessions_to_target": 7.0
+    },
+    "B_daily_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 15.5,
+     "p05_ending_pnl": -1857.0,
+     "p25_ending_pnl": -756.5,
+     "p75_ending_pnl": 834.5,
+     "p95_ending_pnl": 2070.17,
+     "prob_negative_ending_pnl": 0.4935,
+     "prob_mll_breach_eod": 0.0515,
+     "prob_reach_target_first": 0.014,
+     "median_max_drawdown": 928.5,
+     "p95_max_drawdown": 2166.5,
+     "median_sessions_to_target": 238.0
+    },
+    "C_moving_block_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 79.75,
+     "p05_ending_pnl": -1571.0,
+     "p25_ending_pnl": -580.0,
+     "p75_ending_pnl": 881.5,
+     "p95_ending_pnl": 2049.0,
+     "prob_negative_ending_pnl": 0.454,
+     "prob_mll_breach_eod": 0.0385,
+     "prob_reach_target_first": 0.0075,
+     "median_max_drawdown": 928.5,
+     "p95_max_drawdown": 2080.5,
+     "median_sessions_to_target": 281.0,
+     "block_sessions": 20
+    },
+    "D_topstep_path_simulation": {
+     "reps": 200,
+     "block_sessions": 20,
+     "passed": 1,
+     "breached": 8,
+     "unfinished": 191,
+     "share_passed": 0.005,
+     "share_breached": 0.04
+    },
+    "LABEL": "CONDITIONAL HISTORICAL RESAMPLING. Every figure is a property of the observed sample re-ordered; none is a probability of future success. With a handful of trades the resample draws from a handful of numbers, so the percentiles describe those numbers and not the strategy.",
+    "distinct_trades_resampled": 8,
+    "distinct_sessions_resampled": 311
+   },
+   "withdrawal_paths": {
+    "no_withdrawal": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50039.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 848.0
+    },
+    "first_eligible_full": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50039.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 848.0
+    },
+    "first_eligible_keep_1000_buffer": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50039.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 848.0
+    },
+    "repeated_half": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50039.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 848.0
+    }
+   },
+   "reconciliation": {
+    "instrument": "NQ",
+    "profile": "BASELINE_FROZEN",
+    "trades_checked": 8,
+    "fields_checked_per_trade": 4,
+    "tolerance": 1e-09,
+    "mismatches": [],
+    "AGREES": true
+   }
+  },
+  "NQ:STRESS_1TICK": {
+   "instrument": "NQ",
+   "profile": "STRESS_1TICK",
+   "twin_no_withdrawal": {
+    "terminal_stage": "trading_combine",
+    "days_stepped": 311,
+    "combine_attempts": 1,
+    "days_to_pass_combine": null,
+    "reached_funding": false,
+    "breach_day": null,
+    "breach_reason": "",
+    "min_buffer_to_mll": 823.0,
+    "payouts": [],
+    "total_paid_out": 0.0,
+    "final_balance": 50014.0,
+    "transitions": []
+   },
+   "pass_paths": {
+    "attempts_evaluated": 292,
+    "attempts_insufficient": 19,
+    "outcomes": {
+     "PASS": 0,
+     "MLL_BREACH": 0,
+     "DLL_BREACH": 0,
+     "UNFINISHED": 292,
+     "INSUFFICIENT": 19
+    },
+    "HISTORICAL_PATH_PASS_RATE": 0.0,
+    "LABEL": "HISTORICAL PATH PASS RATE - the share of overlapping historical starts that reached the target first. These paths overlap heavily and share the same few trades, so they are NOT independent attempts and this is NOT a probability of passing.",
+    "detail": [
+     {
+      "start": "2025-06-09",
+      "sessions_available": 311,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-12",
+      "sessions_available": 310,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-13",
+      "sessions_available": 309,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-16",
+      "sessions_available": 308,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-17",
+      "sessions_available": 307,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-18",
+      "sessions_available": 306,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-20",
+      "sessions_available": 305,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-23",
+      "sessions_available": 304,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-24",
+      "sessions_available": 303,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-25",
+      "sessions_available": 302,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-26",
+      "sessions_available": 301,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-27",
+      "sessions_available": 300,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-30",
+      "sessions_available": 299,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-01",
+      "sessions_available": 298,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-02",
+      "sessions_available": 297,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-07",
+      "sessions_available": 296,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-08",
+      "sessions_available": 295,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-09",
+      "sessions_available": 294,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-10",
+      "sessions_available": 293,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-11",
+      "sessions_available": 292,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-14",
+      "sessions_available": 291,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-15",
+      "sessions_available": 290,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-16",
+      "sessions_available": 289,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-17",
+      "sessions_available": 288,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-18",
+      "sessions_available": 287,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-21",
+      "sessions_available": 286,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-22",
+      "sessions_available": 285,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-23",
+      "sessions_available": 284,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-24",
+      "sessions_available": 283,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-25",
+      "sessions_available": 282,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-28",
+      "sessions_available": 281,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-29",
+      "sessions_available": 280,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-30",
+      "sessions_available": 279,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-31",
+      "sessions_available": 278,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-01",
+      "sessions_available": 277,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-04",
+      "sessions_available": 276,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-05",
+      "sessions_available": 275,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-06",
+      "sessions_available": 274,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-07",
+      "sessions_available": 273,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-08",
+      "sessions_available": 272,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     }
+    ]
+   },
+   "payout": {
+    "policy_version": "doc_calc",
+    "winning_day_definition": "a session whose NET P&L is strictly greater than $0, measured from the same ledger as every other number here",
+    "winning_days": 3,
+    "total_net_pnl": 14.0,
+    "profit_target": 3000.0,
+    "reached_profit_target": false,
+    "best_single_day": 595.5,
+    "consistency_fraction": 0.55,
+    "consistency_basis": "total",
+    "consistency_satisfied": false,
+    "effective_target_given_best_day": 1082.73,
+    "payout_opportunities": 0,
+    "total_paid_out": 0.0,
+    "days_to_first_eligibility": null,
+    "NOTE": "A payout does not follow from reaching $3,000. The Combine must be passed under the consistency reading in force, the account must then be funded, and the MLL RESETS TO THE STARTING BALANCE ON EACH PAYOUT - so a withdrawal spends the buffer that keeps the account alive."
+   },
+   "monte_carlo": {
+    "A_trade_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 14.0,
+     "p05_ending_pnl": -1806.0,
+     "p25_ending_pnl": -896.0,
+     "p75_ending_pnl": 924.0,
+     "p95_ending_pnl": 1834.0,
+     "prob_negative_ending_pnl": 0.46,
+     "prob_mll_breach_eod": 0.0405,
+     "prob_reach_target_first": 0.0105,
+     "median_max_drawdown": 943.5,
+     "p95_max_drawdown": 2201.5,
+     "median_sessions_to_target": 7.0
+    },
+    "B_daily_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": -19.5,
+     "p05_ending_pnl": -1887.0,
+     "p25_ending_pnl": -781.5,
+     "p75_ending_pnl": 809.5,
+     "p95_ending_pnl": 2063.92,
+     "prob_negative_ending_pnl": 0.5015,
+     "prob_mll_breach_eod": 0.0515,
+     "prob_reach_target_first": 0.014,
+     "median_max_drawdown": 943.5,
+     "p95_max_drawdown": 2201.5,
+     "median_sessions_to_target": 238.0
+    },
+    "C_moving_block_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 54.5,
+     "p05_ending_pnl": -1606.0,
+     "p25_ending_pnl": -615.0,
+     "p75_ending_pnl": 876.5,
+     "p95_ending_pnl": 2034.0,
+     "prob_negative_ending_pnl": 0.4625,
+     "prob_mll_breach_eod": 0.0405,
+     "prob_reach_target_first": 0.0075,
+     "median_max_drawdown": 943.5,
+     "p95_max_drawdown": 2120.5,
+     "median_sessions_to_target": 281.0,
+     "block_sessions": 20
+    },
+    "D_topstep_path_simulation": {
+     "reps": 200,
+     "block_sessions": 20,
+     "passed": 1,
+     "breached": 14,
+     "unfinished": 185,
+     "share_passed": 0.005,
+     "share_breached": 0.07
+    },
+    "LABEL": "CONDITIONAL HISTORICAL RESAMPLING. Every figure is a property of the observed sample re-ordered; none is a probability of future success. With a handful of trades the resample draws from a handful of numbers, so the percentiles describe those numbers and not the strategy.",
+    "distinct_trades_resampled": 8,
+    "distinct_sessions_resampled": 311
+   },
+   "withdrawal_paths": {
+    "no_withdrawal": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50014.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 823.0
+    },
+    "first_eligible_full": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50014.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 823.0
+    },
+    "first_eligible_keep_1000_buffer": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50014.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 823.0
+    },
+    "repeated_half": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 50014.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 823.0
+    }
+   },
+   "reconciliation": {
+    "instrument": "NQ",
+    "profile": "STRESS_1TICK",
+    "trades_checked": 8,
+    "fields_checked_per_trade": 4,
+    "tolerance": 1e-09,
+    "mismatches": [],
+    "AGREES": true
+   }
+  },
+  "NQ:STRESS_2TICK": {
+   "instrument": "NQ",
+   "profile": "STRESS_2TICK",
+   "twin_no_withdrawal": {
+    "terminal_stage": "trading_combine",
+    "days_stepped": 311,
+    "combine_attempts": 1,
+    "days_to_pass_combine": null,
+    "reached_funding": false,
+    "breach_day": null,
+    "breach_reason": "",
+    "min_buffer_to_mll": 798.0,
+    "payouts": [],
+    "total_paid_out": 0.0,
+    "final_balance": 49989.0,
+    "transitions": []
+   },
+   "pass_paths": {
+    "attempts_evaluated": 292,
+    "attempts_insufficient": 19,
+    "outcomes": {
+     "PASS": 0,
+     "MLL_BREACH": 0,
+     "DLL_BREACH": 0,
+     "UNFINISHED": 292,
+     "INSUFFICIENT": 19
+    },
+    "HISTORICAL_PATH_PASS_RATE": 0.0,
+    "LABEL": "HISTORICAL PATH PASS RATE - the share of overlapping historical starts that reached the target first. These paths overlap heavily and share the same few trades, so they are NOT independent attempts and this is NOT a probability of passing.",
+    "detail": [
+     {
+      "start": "2025-06-09",
+      "sessions_available": 311,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-12",
+      "sessions_available": 310,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-13",
+      "sessions_available": 309,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-16",
+      "sessions_available": 308,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-17",
+      "sessions_available": 307,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-18",
+      "sessions_available": 306,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-20",
+      "sessions_available": 305,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-23",
+      "sessions_available": 304,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-24",
+      "sessions_available": 303,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-25",
+      "sessions_available": 302,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-26",
+      "sessions_available": 301,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-27",
+      "sessions_available": 300,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-06-30",
+      "sessions_available": 299,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-01",
+      "sessions_available": 298,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-02",
+      "sessions_available": 297,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-07",
+      "sessions_available": 296,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-08",
+      "sessions_available": 295,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-09",
+      "sessions_available": 294,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-10",
+      "sessions_available": 293,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-11",
+      "sessions_available": 292,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-14",
+      "sessions_available": 291,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-15",
+      "sessions_available": 290,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-16",
+      "sessions_available": 289,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-17",
+      "sessions_available": 288,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-18",
+      "sessions_available": 287,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-21",
+      "sessions_available": 286,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-22",
+      "sessions_available": 285,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-23",
+      "sessions_available": 284,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-24",
+      "sessions_available": 283,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-25",
+      "sessions_available": 282,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-28",
+      "sessions_available": 281,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-29",
+      "sessions_available": 280,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-30",
+      "sessions_available": 279,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-07-31",
+      "sessions_available": 278,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-01",
+      "sessions_available": 277,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-04",
+      "sessions_available": 276,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-05",
+      "sessions_available": 275,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-06",
+      "sessions_available": 274,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-07",
+      "sessions_available": 273,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     },
+     {
+      "start": "2025-08-08",
+      "sessions_available": 272,
+      "verdict": "UNFINISHED",
+      "days_to_pass": null,
+      "breach_day": null,
+      "breach_reason": ""
+     }
+    ]
+   },
+   "payout": {
+    "policy_version": "doc_calc",
+    "winning_day_definition": "a session whose NET P&L is strictly greater than $0, measured from the same ledger as every other number here",
+    "winning_days": 3,
+    "total_net_pnl": -11.0,
+    "profit_target": 3000.0,
+    "reached_profit_target": false,
+    "best_single_day": 595.5,
+    "consistency_fraction": 0.55,
+    "consistency_basis": "total",
+    "consistency_satisfied": false,
+    "effective_target_given_best_day": 1082.73,
+    "payout_opportunities": 0,
+    "total_paid_out": 0.0,
+    "days_to_first_eligibility": null,
+    "NOTE": "A payout does not follow from reaching $3,000. The Combine must be passed under the consistency reading in force, the account must then be funded, and the MLL RESETS TO THE STARTING BALANCE ON EACH PAYOUT - so a withdrawal spends the buffer that keeps the account alive."
+   },
+   "monte_carlo": {
+    "A_trade_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": -11.0,
+     "p05_ending_pnl": -1841.0,
+     "p25_ending_pnl": -926.0,
+     "p75_ending_pnl": 904.0,
+     "p95_ending_pnl": 1819.0,
+     "prob_negative_ending_pnl": 0.59,
+     "prob_mll_breach_eod": 0.0405,
+     "prob_reach_target_first": 0.0105,
+     "median_max_drawdown": 958.5,
+     "p95_max_drawdown": 2236.5,
+     "median_sessions_to_target": 7.0
+    },
+    "B_daily_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": -43.5,
+     "p05_ending_pnl": -1917.0,
+     "p25_ending_pnl": -806.5,
+     "p75_ending_pnl": 784.5,
+     "p95_ending_pnl": 2051.82,
+     "prob_negative_ending_pnl": 0.521,
+     "prob_mll_breach_eod": 0.054,
+     "prob_reach_target_first": 0.014,
+     "median_max_drawdown": 958.5,
+     "p95_max_drawdown": 2236.5,
+     "median_sessions_to_target": 238.0
+    },
+    "C_moving_block_bootstrap": {
+     "reps": 2000,
+     "median_ending_pnl": 32.5,
+     "p05_ending_pnl": -1641.0,
+     "p25_ending_pnl": -650.0,
+     "p75_ending_pnl": 868.12,
+     "p95_ending_pnl": 2019.0,
+     "prob_negative_ending_pnl": 0.485,
+     "prob_mll_breach_eod": 0.0415,
+     "prob_reach_target_first": 0.0075,
+     "median_max_drawdown": 958.5,
+     "p95_max_drawdown": 2160.5,
+     "median_sessions_to_target": 281.0,
+     "block_sessions": 20
+    },
+    "D_topstep_path_simulation": {
+     "reps": 200,
+     "block_sessions": 20,
+     "passed": 1,
+     "breached": 16,
+     "unfinished": 183,
+     "share_passed": 0.005,
+     "share_breached": 0.08
+    },
+    "LABEL": "CONDITIONAL HISTORICAL RESAMPLING. Every figure is a property of the observed sample re-ordered; none is a probability of future success. With a handful of trades the resample draws from a handful of numbers, so the percentiles describe those numbers and not the strategy.",
+    "distinct_trades_resampled": 8,
+    "distinct_sessions_resampled": 311
+   },
+   "withdrawal_paths": {
+    "no_withdrawal": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 49989.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 798.0
+    },
+    "first_eligible_full": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 49989.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 798.0
+    },
+    "first_eligible_keep_1000_buffer": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 49989.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 798.0
+    },
+    "repeated_half": {
+     "terminal_stage": "trading_combine",
+     "reached_funding": false,
+     "payouts": 0,
+     "total_paid_out": 0.0,
+     "final_balance": 49989.0,
+     "breach_day": null,
+     "breach_reason": "",
+     "min_buffer_to_mll": 798.0
+    }
+   },
+   "reconciliation": {
+    "instrument": "NQ",
+    "profile": "STRESS_2TICK",
+    "trades_checked": 8,
+    "fields_checked_per_trade": 4,
+    "tolerance": 1e-09,
+    "mismatches": [],
+    "AGREES": true
+   }
+  }
+ }
+}

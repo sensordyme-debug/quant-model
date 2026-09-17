@@ -197,14 +197,29 @@ def test_the_concentration_module_is_wired_to_the_research_path(research_reachab
     assert "quant_brain.research.robustness" in research_reachable
 
 
+def test_the_multiplicity_module_is_wired_to_the_research_path(research_reachable):
+    """RATCHET CLEARED 2026-09-17. `quant_brain.core.multipletest` had no caller.
+
+    `scripts/mechanism_screen.py` now calls `pvalues_from_t` and `benjamini_hochberg` on every
+    screening run, across all (mechanism x horizon) trials at once, and the result is not
+    decorative: the FDR verdict is what decides whether a mechanism is reported as surviving
+    the entry gate. On the first such run it cut 84 nominal trials to a controlled family, and
+    the correction is applied to the whole family rather than to whichever cell was looked at
+    last.
+
+    Honest about what this does NOT mean, in the spirit of the two ratchets above: the equity
+    ledger still applies no correction, `scripts/evaluate.py` still promotes on CAR without a
+    significance test, and `Reality Check`, `SPA`, `DSR` and `PBO` remain uncalled. One caller
+    of two functions is reachability, not coverage.
+    """
+    assert "quant_brain.core.multipletest" in research_reachable
+
+
 # ---------------------------------------------------------------------------------------
 # The gap. Each of these SHOULD be on the production or research path and is not.
 # ---------------------------------------------------------------------------------------
 
 _UNWIRED = [
-    ("quant_brain.core.multipletest",
-     "Holm/BH/BY/Reality Check/SPA/DSR/PBO; the funnel uses only stats.bonferroni_threshold "
-     "and the equity ledger applies no correction at all"),
     ("quant_brain.research.promotion",
      "PromotionGate; the real promotion path is scripts/evaluate.py, whose criteria are CAR-"
      "first with no significance test, no multiplicity and no OOS requirement"),

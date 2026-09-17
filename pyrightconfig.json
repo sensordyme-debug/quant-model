@@ -24,7 +24,7 @@
     "testing rather than by types."
   ],
 
-  "include": ["quant_brain", "tests"],
+  "include": ["quant_brain", "tests", "topstep_backtester"],
 
   "exclude": [
     "**/__pycache__",
@@ -35,6 +35,21 @@
     "scripts",
     "algorithms",
     ".pytest_cache"
+  ],
+
+  "executionEnvironments": [
+    {
+      "//": [
+        "topstep_backtester targets 3.12+, not 3.11. The upstream topstep-backtest engine",
+        "requires >= 3.12, and topstep_backtester/upstream.py raises ImportError below that.",
+        "Checked at 3.11 pyright evaluates that guard as always-taken and treats every symbol",
+        "after it as unreachable, which reported 44 phantom 'unknown import symbol' errors.",
+        "The rest of the repository stays on 3.11 because LEAN is hosted by pythonnet there."
+      ],
+      "root": "topstep_backtester",
+      "pythonVersion": "3.12",
+      "extraPaths": ["."]
+    }
   ],
 
   "pythonVersion": "3.11",

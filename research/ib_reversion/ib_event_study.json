@@ -1,0 +1,126 @@
+{
+ "question": "does a false IB breakout raise P(midpoint touch) versus a matched in-IB control, conditioned on a 10-35 point IB range?",
+ "unit": "one eligible event (false breakout) or matched control",
+ "terminal_event": "midpoint touched, versus stop level breached OR 60 minutes elapsed OR 15:45, whichever first; the stop resolves first inside an ambiguous bucket",
+ "n_events": 675,
+ "n_controls": 1350,
+ "touch_rate_events": 0.2978,
+ "touch_rate_controls": 0.3541,
+ "logit": {
+  "n": 2025,
+  "clusters": 158,
+  "terms": [
+   {
+    "name": "intercept",
+    "coef": 1.884987,
+    "robust_se": 0.402304,
+    "z": 4.6855,
+    "p_value": 3e-06,
+    "ci95": [
+     1.096471,
+     2.673503
+    ],
+    "odds_ratio": 6.586268,
+    "odds_ratio_ci95": [
+     2.993583,
+     14.490637
+    ]
+   },
+   {
+    "name": "false_breakout",
+    "coef": 0.410878,
+    "robust_se": 0.098938,
+    "z": 4.1529,
+    "p_value": 3.3e-05,
+    "ci95": [
+     0.21696,
+     0.604796
+    ],
+    "odds_ratio": 1.508142,
+    "odds_ratio_ci95": [
+     1.242295,
+     1.830879
+    ]
+   },
+   {
+    "name": "ib_range",
+    "coef": -0.038973,
+    "robust_se": 0.016688,
+    "z": -2.3354,
+    "p_value": 0.019524,
+    "ci95": [
+     -0.071681,
+     -0.006264
+    ],
+    "odds_ratio": 0.961777,
+    "odds_ratio_ci95": [
+     0.930827,
+     0.993755
+    ]
+   },
+   {
+    "name": "distance_to_mid_over_range",
+    "coef": -6.137565,
+    "robust_se": 0.620299,
+    "z": -9.8945,
+    "p_value": 0.0,
+    "ci95": [
+     -7.353352,
+     -4.921778
+    ],
+    "odds_ratio": 0.00216,
+    "odds_ratio_ci95": [
+     0.00064,
+     0.007286
+    ]
+   },
+   {
+    "name": "minutes_since_ib",
+    "coef": 0.001717,
+    "robust_se": 0.00175,
+    "z": 0.9811,
+    "p_value": 0.326542,
+    "ci95": [
+     -0.001713,
+     0.005146
+    ],
+    "odds_ratio": 1.001718,
+    "odds_ratio_ci95": [
+     0.998289,
+     1.005159
+    ]
+   },
+   {
+    "name": "direction",
+    "coef": -0.07582,
+    "robust_se": 0.104033,
+    "z": -0.7288,
+    "p_value": 0.466122,
+    "ci95": [
+     -0.279725,
+     0.128085
+    ],
+    "odds_ratio": 0.926983,
+    "odds_ratio_ci95": [
+     0.755992,
+     1.13665
+    ]
+   }
+  ],
+  "log_likelihood": -1142.4841,
+  "mcfadden_pseudo_r2": 0.115516,
+  "se_method": "cluster-robust (CR0) sandwich, clustered on trading day, with a G/(G-1) finite-sample scale"
+ },
+ "out_of_sample": {
+  "train_rows": 1434,
+  "test_rows": 591,
+  "split_session": "2026-04-20",
+  "train_false_breakout_coef": 0.44043,
+  "train_false_breakout_p": 0.00035,
+  "test_touch_rate_events": 0.2944,
+  "test_touch_rate_controls": 0.3731,
+  "test_brier": 0.196354,
+  "test_brier_of_base_rate": 0.226818
+ },
+ "CAVEAT": "ASSOCIATION, NOT CAUSATION. The control is matched on session, time bucket and barrier distance, not randomised; unobserved intraday state differs between a bar that just broke the IB and one that did not."
+}
