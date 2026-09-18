@@ -25,6 +25,7 @@ import pandas as pd
 
 from quant_brain.data.schema import DataForm
 from topstep_backtester.adapters.bars import BarAdapterReport, to_upstream_bars
+from topstep_backtester.archive import assert_active
 from topstep_backtester.manifests.manifest import RunManifest, build_manifest
 from topstep_backtester.profiles.account import TOPSTEP_50K_COMBINE, AccountProfile
 from topstep_backtester.profiles.execution import BASELINE, ExecutionProfile
@@ -104,6 +105,7 @@ def run_backtest(
     operator: str = "",
     dataset_manifest_id: str = "",
     notes: Sequence[str] = (),
+    allow_archived: bool = False,
 ) -> RunResult:
     """Run one frozen strategy over one canonical frame under one set of assumptions.
 
@@ -111,6 +113,8 @@ def run_backtest(
     It is a factory rather than an instance because a strategy carries per-run state, and
     reusing one across profiles would let the first run's state leak into the second.
     """
+    #: This engine is FROZEN. LEAN is the authoritative backtester; see archive.py.
+    assert_active(allow_archived=allow_archived)
     assert_research_only()
     assert_certified_version()
     spec.assert_runnable()

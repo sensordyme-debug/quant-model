@@ -43,6 +43,8 @@ def make(series=None, series_id: str = "SYNTH-probe", **kwargs):
         P.probe_series() if series is None else series,
         lambda cid: P.SyntheticProbe(cid, synthetic_series_id=series_id),
         spec=P.PROBE_SPEC,
+        #: this engine is archived; these tests reproduce its recorded behaviour
+        allow_archived=True,
         **kwargs,
     )
 
@@ -210,6 +212,7 @@ def test_every_rung_runs_and_reconciles() -> None:
         P.probe_series(),
         lambda cid: P.SyntheticProbe(cid, synthetic_series_id="SYNTH-probe"),
         spec=P.PROBE_SPEC,
+        allow_archived=True,
         ladder=LADDER,
     )
     assert set(runs) == {p.profile_id for p in LADDER}
@@ -297,6 +300,7 @@ def test_the_report_prints_every_rung_and_names_what_it_cannot_model() -> None:
         P.probe_series(),
         lambda cid: P.SyntheticProbe(cid, synthetic_series_id="SYNTH-probe"),
         spec=P.PROBE_SPEC,
+        allow_archived=True,
         ladder=LADDER,
     )
     text = build_report(runs, quoted_profile_id=QUOTED_RUNG.profile_id, title="probe")
@@ -312,6 +316,7 @@ def test_a_report_cannot_quote_a_rung_it_did_not_run() -> None:
         P.probe_series(),
         lambda cid: P.SyntheticProbe(cid, synthetic_series_id="SYNTH-probe"),
         spec=P.PROBE_SPEC,
+        allow_archived=True,
         ladder=(BASELINE,),
     )
     with pytest.raises(KeyError, match="cannot quote a rung it did not run"):

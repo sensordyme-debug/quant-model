@@ -32,6 +32,8 @@ def make(**kwargs):
         P.probe_series(),
         lambda cid: P.SyntheticProbe(cid, synthetic_series_id="SYNTH-probe"),
         spec=P.PROBE_SPEC,
+        #: this engine is archived; these tests reproduce its recorded behaviour
+        allow_archived=True,
         **kwargs,
     )
 

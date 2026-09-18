@@ -142,3 +142,41 @@ def test_source_files_are_discovered_at_all() -> None:
     assert len(files) > 15, f"only found {len(files)} source files; the scanner is not working"
     names = {path.name for path in files}
     assert {"upstream.py", "bars.py", "run.py", "safety.py"} <= names
+
+
+# ======================================================================================
+# the engine is FROZEN - LEAN is now the sole authoritative backtester
+# ======================================================================================
+
+
+def test_this_engine_is_archived_and_says_so() -> None:
+    from topstep_backtester import archive
+
+    assert archive.ACTIVE_BACKTEST_ENGINE is False
+    assert archive.STATUS == "FROZEN / ARCHIVED"
+    assert "QuantConnect LEAN" in archive.SUPERSEDED_BY
+    assert "tick-level trade and quote" in archive.ARCHIVED_REASON
+
+
+def test_a_new_backtest_is_refused_by_default() -> None:
+    """The freeze has to be mechanical. A README saying "archived" stops nobody."""
+    from topstep_backtester import archive
+
+    with pytest.raises(archive.EngineArchived, match="no longer an active"):
+        archive.assert_active()
+
+
+def test_reproducing_an_archived_result_is_still_possible() -> None:
+    """Freezing must not mean the recorded results become uncheckable."""
+    from topstep_backtester import archive
+
+    archive.assert_active(allow_archived=True)
+
+
+def test_the_archived_code_and_results_are_retained() -> None:
+    from topstep_backtester import archive
+
+    state = archive.status()
+    assert state["code_retained"] is True
+    assert state["results_retained"] is True
+    assert state["behaviour_frozen"] is True

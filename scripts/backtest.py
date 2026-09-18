@@ -149,6 +149,22 @@ def main() -> int:
         record["reproducible"] = prov.reproducible
     except Exception as exc:  # noqa: BLE001
         record["provenance_error"] = f"{type(exc).__name__}: {exc}"[:200]
+
+    # LEAN is now the sole authoritative backtesting engine, so WHICH LEAN produced a number
+    # is part of the number. An engine upgrade moves fills, brokerage models, consolidators
+    # and statistics, so two results from different LEAN builds are not comparable even when
+    # the algorithm and the data are byte-identical - and until this block existed, a rebuild
+    # could move every result with nothing in the record to show it. The launcher hash is the
+    # load-bearing field: the commit says what was checked out, the hash says what was
+    # actually compiled and run, and those diverge the moment somebody edits without
+    # rebuilding. Never allowed to break a recorded run.
+    try:
+        sys.path.insert(0, str(REPO))
+        from quant_brain.core.lean_engine import describe as describe_engine
+        record["lean_engine"] = describe_engine().as_dict()
+    except Exception as exc:  # noqa: BLE001
+        record["lean_engine_error"] = f"{type(exc).__name__}: {exc}"[:200]
+
     EXPERIMENTS.parent.mkdir(parents=True, exist_ok=True)
     with EXPERIMENTS.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")

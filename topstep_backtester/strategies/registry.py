@@ -29,20 +29,26 @@ from collections.abc import Callable, Iterator
 
 from topstep_backtester.strategies.spec import FrozenStrategySpec, SpecError
 
-#: Substrings of a strategy name that identify prior work in this repository. Matching is
-#: case-insensitive and on the normalised name, so "VWAP_Pullback" and "vwap-pullback" are
-#: both caught.
-FORBIDDEN_LINEAGES: tuple[str, ...] = (
-    "vwap",
-    "orb",
-    "opening_range",
-    "initial_balance",
-    "ib_reversion",
-    "failed_reversal",
-    "mechanism",
-    "scorecard",
-    "champion",
-    "optimi",
+#: Prior work in this repository, as (pattern, how to match). Matching is case-insensitive
+#: on the normalised name, so "VWAP_Pullback" and "vwap-pullback" are both caught.
+#:
+#: WHY THE MODE MATTERS
+#: A bare substring test is wrong for short patterns. "orb" occurs inside "absorb", so a
+#: naive filter refuses a legitimate absorption strategy and the refusal looks like a rule
+#: rather than a bug. Short patterns are therefore matched as whole UNDERSCORE-SEPARATED
+#: TOKENS; only multi-word phrases and the deliberate "optimi" stem use substring matching.
+FORBIDDEN_LINEAGES: tuple[tuple[str, str], ...] = (
+    ("vwap", "token"),
+    ("orb", "token"),
+    ("ib", "token"),
+    ("mechanism", "token"),
+    ("scorecard", "token"),
+    ("champion", "token"),
+    ("opening_range", "substring"),
+    ("initial_balance", "substring"),
+    ("ib_reversion", "substring"),
+    ("failed_reversal", "substring"),
+    ("optimi", "substring"),
 )
 
 #: name -> (spec, factory). EMPTY BY DESIGN. See the module docstring before adding to it.
@@ -70,8 +76,10 @@ def _normalise(name: str) -> str:
 def check_lineage(name: str) -> None:
     """Refuse a name that belongs to prior work in this repository."""
     normalised = _normalise(name)
-    for excluded in FORBIDDEN_LINEAGES:
-        if excluded in normalised:
+    tokens = set(normalised.split("_"))
+    for excluded, mode in FORBIDDEN_LINEAGES:
+        hit = excluded in tokens if mode == "token" else excluded in normalised
+        if hit:
             raise RegistryError(
                 f"{name!r} matches the excluded lineage {excluded!r}. Previous research in "
                 f"this repository already reached a documented conclusion about it, and "
@@ -117,6 +125,33 @@ def register(
         "derivation_reason": spec.derivation_reason,
         "frozen_at": spec.frozen_at,
         "author": spec.author,
+    }
+
+
+def record_pending(spec: FrozenStrategySpec, *, reason: str) -> None:
+    """Record a genealogy node for a strategy that CANNOT yet run.
+
+    WHY THIS EXISTS SEPARATELY FROM register()
+    A strategy whose specification still has unresolved readings, or whose data is
+    unavailable, has an identity but no results. ``register`` would refuse it - correctly,
+    since ``assert_runnable`` fails - but refusing to record it would lose the fact that the
+    hypothesis was formulated at all, and the count of hypotheses formulated is what a later
+    multiple-testing correction needs.
+
+    So the node is recorded with the reason it is blocked, and ACTIVE_STRATEGIES stays
+    empty. A blocked strategy is not an active one, and the two must not be conflated.
+    """
+    check_lineage(spec.name)
+    GENEALOGY[spec.spec_hash] = {
+        "name": spec.name,
+        "version": spec.version,
+        "spec_id": spec.spec_id,
+        "derived_from": spec.derived_from,
+        "derivation_reason": spec.derivation_reason,
+        "frozen_at": spec.frozen_at,
+        "author": spec.author,
+        "status": "BLOCKED",
+        "blocked_reason": reason,
     }
 
 
@@ -218,6 +253,7 @@ __all__ = [
     "hypotheses_examined",
     "iter_specs",
     "lineage",
+    "record_pending",
     "register",
     "reset_genealogy",
     "unregister",
